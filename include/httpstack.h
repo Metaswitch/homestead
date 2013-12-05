@@ -1,5 +1,5 @@
 /**
- * @file main.cpp main function for homestead
+ * @file httpstack.h class definitition wrapping HTTP stack
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2013  Metaswitch Networks Ltd
@@ -34,67 +34,42 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#include <signal.h>
-#include <semaphore.h>
+#include <pthread.h>
 
-#include "diameterstack.h"
-#include "httpstack.h"
+#include <evhtp.h>
 
-static sem_t term_sem;
-
-// Signal handler that triggers sprout termination.
-void terminate_handler(int sig)
+class HttpStack
 {
-  sem_post(&term_sem);
-}
+public:
+  class Exception
+  {
+  public:
+    inline Exception(const char* func, int rc) : _func(func), _rc(rc) {};
+    const char* _func;
+    const int _rc;
+  };
 
-int main(int argc, char**argv)
-{
-  sem_init(&term_sem, 0, 0);
-  signal(SIGTERM, terminate_handler);
+  static inline HttpStack* getInstance() {return INSTANCE;};
+  void initialize();
+  void configure(int num_threads);
+  void start();
+  void stop();
+  void wait_stopped();
 
-  DiameterStack* diameter_stack = DiameterStack::getInstance();
-  try
-  {
-    diameter_stack->initialize();
-    //diameter_stack->configure();
-    diameter_stack->start();
-  }
-  catch (DiameterStack::Exception& e)
-  {
-  }
+private:
+  static HttpStack* INSTANCE;
+  static HttpStack DEFAULT_INSTANCE;
 
-  HttpStack* http_stack = HttpStack::getInstance();
-  try
-  {
-    http_stack->initialize();
-    http_stack->configure(10);
-    http_stack->start();
-  }
-  catch (DiameterStack::Exception& e)
-  {
-  }
+  HttpStack();
+  static void* event_base_thread_fn(void* http_stack_ptr); 
+  void event_base_thread_fn();
 
-  sem_wait(&term_sem);
+  // Don't implement the following, to avoid copies of this instance.
+  HttpStack(HttpStack const&);
+  void operator=(HttpStack const&);
 
-  try
-  {
-    http_stack->stop();
-    http_stack->wait_stopped();
-  }
-  catch (DiameterStack::Exception& e)
-  {
-  }
-
-  try
-  {
-    diameter_stack->stop();
-    diameter_stack->wait_stopped();
-  }
-  catch (DiameterStack::Exception& e)
-  {
-  }
-
-  signal(SIGTERM, SIG_DFL);
-  sem_destroy(&term_sem);
-}
+  int _num_threads;
+  evbase_t* _evbase;
+  evhtp_t* _evhtp;
+  pthread_t _event_base_thread;
+};

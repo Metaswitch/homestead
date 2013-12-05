@@ -12,7 +12,8 @@ TARGET := homestead
 TARGET_TEST := homestead_test
 
 TARGET_SOURCES := cache.cpp \
-                  diameterstack.cpp
+                  diameterstack.cpp \
+                  httpstack.cpp
 
 TARGET_SOURCES_BUILD := main.cpp
 
@@ -69,6 +70,8 @@ LDFLAGS += -lthrift \
            -lzmq \
            -lfdcore \
            -lfdproto \
+           -levhtp \
+           -levent \
            -lpthread
 
 # Test build fakes out cURL

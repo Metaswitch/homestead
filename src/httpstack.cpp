@@ -1,5 +1,5 @@
 /**
- * @file main.cpp main function for homestead
+ * @file httpstack.cpp class implementation wrapping libevhtp HTTP stack
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2013  Metaswitch Networks Ltd
@@ -34,67 +34,67 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#include <signal.h>
-#include <semaphore.h>
+#include <httpstack.h>
 
-#include "diameterstack.h"
-#include "httpstack.h"
+HttpStack* HttpStack::INSTANCE = &DEFAULT_INSTANCE;
+HttpStack HttpStack::DEFAULT_INSTANCE;
 
-static sem_t term_sem;
+HttpStack::HttpStack() {}
 
-// Signal handler that triggers sprout termination.
-void terminate_handler(int sig)
+void HttpStack::initialize()
 {
-  sem_post(&term_sem);
+  // Initialize if we haven't already done so.  We don't do this in the
+  // constructor because we can't throw exceptions on failure.
+  if (!_evbase)
+  {
+    _evbase = event_base_new();
+  }
+  if (!_evhtp)
+  {
+    _evhtp = evhtp_new(_evbase, NULL);
+  }
 }
 
-int main(int argc, char**argv)
+void HttpStack::configure(int num_threads)
 {
-  sem_init(&term_sem, 0, 0);
-  signal(SIGTERM, terminate_handler);
-
-  DiameterStack* diameter_stack = DiameterStack::getInstance();
-  try
-  {
-    diameter_stack->initialize();
-    //diameter_stack->configure();
-    diameter_stack->start();
-  }
-  catch (DiameterStack::Exception& e)
-  {
-  }
-
-  HttpStack* http_stack = HttpStack::getInstance();
-  try
-  {
-    http_stack->initialize();
-    http_stack->configure(10);
-    http_stack->start();
-  }
-  catch (DiameterStack::Exception& e)
-  {
-  }
-
-  sem_wait(&term_sem);
-
-  try
-  {
-    http_stack->stop();
-    http_stack->wait_stopped();
-  }
-  catch (DiameterStack::Exception& e)
-  {
-  }
-
-  try
-  {
-    diameter_stack->stop();
-    diameter_stack->wait_stopped();
-  }
-  catch (DiameterStack::Exception& e)
-  {
-  }
-
-  signal(SIGTERM, SIG_DFL);
-  sem_destroy(&term_sem);
+  _num_threads = num_threads;
 }
+
+void HttpStack::start()
+{
+  initialize();
+
+  int rc = evhtp_use_threads(_evhtp, NULL, _num_threads, this);
+  if (rc == 0)
+  {
+    throw Exception("evhtp_use_threads", rc);
+  }
+
+  rc = pthread_create(&_event_base_thread, NULL, event_base_thread_fn, this);
+  if (rc != 0)
+  {
+    throw Exception("pthread_create", rc);
+  }
+}
+
+void HttpStack::stop()
+{
+  event_base_loopbreak(_evbase);
+}
+
+void HttpStack::wait_stopped()
+{
+  pthread_join(_event_base_thread, NULL);
+}
+
+void* HttpStack::event_base_thread_fn(void* http_stack_ptr)
+{
+  ((HttpStack*)http_stack_ptr)->event_base_thread_fn();
+  return NULL;
+}
+
+void HttpStack::event_base_thread_fn()
+{
+  event_base_loop(_evbase, 0);
+}
+
