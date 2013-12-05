@@ -11,7 +11,8 @@ GMOCK_DIR := $(ROOT)/modules/gmock
 TARGET := homestead
 TARGET_TEST := homestead_test
 
-TARGET_SOURCES := cache.cpp
+TARGET_SOURCES := cache.cpp \
+                  diameterstack.cpp
 
 TARGET_SOURCES_BUILD := main.cpp
 
@@ -65,7 +66,10 @@ CPPFLAGS_TEST  += -DUNIT_TEST \
 LDFLAGS += -L${ROOT}/usr/lib
 LDFLAGS += -lthrift \
            -lcassandra \
-           -lzmq
+           -lzmq \
+           -lfdcore \
+           -lfdproto \
+           -lpthread
 
 # Test build fakes out cURL
 LDFLAGS_BUILD += -lcurl
