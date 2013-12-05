@@ -1,0 +1,7 @@
+*.debhelper
+*.debhelper.log
+*.substvars
+/changelog
+/files
+/homestead-dbg/
+/homestead/

@@ -1,0 +1,3 @@
+void cache(void) {
+  // Placeholder
+}

@@ -1,0 +1,24 @@
+Source: homestead
+Section: network
+Priority: optional
+# This field must stay as 'Project Clearwater Maintainers', as
+# clearwater-infrastructure explicitly checks for packages of this name when
+# updating
+Maintainer: Project Clearwater Maintainers <maintainers@projectclearwater.org>
+Build-Depends: debhelper (>= 8.0.0)
+Standards-Version: 3.9.2
+Homepage: http://projectclearwater.org/
+
+Package: homestead
+Architecture: any
+Depends: clearwater-infrastructure, clearwater-tcp-scalability, clearwater-log-cleanup, libzmq3
+Suggests: homestead-dbg, clearwater-logging
+Description: homestead, the HSS Cache/Gateway 
+
+Package: homestead-dbg
+Architecture: any
+Section: debug
+Priority: extra
+Depends: homestead (= ${binary:Version})
+Recommends: gdb
+Description: Debugging symbols for homestead, the HSS Cache/Gateway

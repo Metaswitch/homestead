@@ -1,0 +1,2 @@
+build/bin/homestead usr/share/clearwater/bin
+homestead.root/* /
