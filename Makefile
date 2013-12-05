@@ -16,7 +16,7 @@ DEB_NAMES := homestead
 INCLUDE_DIR := ${INSTALL_DIR}/include
 LIB_DIR := ${INSTALL_DIR}/lib
 
-SUBMODULES := freeDiameter thrift cassandra
+SUBMODULES := libevhtp freeDiameter thrift cassandra
 
 include $(patsubst %, ${MK_DIR}/%.mk, ${SUBMODULES})
 include ${MK_DIR}/homestead.mk
