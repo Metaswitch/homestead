@@ -21,7 +21,9 @@ thrift_test: ${THRIFT_MAKEFILE}
 thrift_clean: ${THRIFT_MAKEFILE}
 	make -C ${THRIFT_DIR} clean
 
-thrift_distclean: ${THRIFT_MAKEFILE}
-	make -C ${THRIFT_DIR} distclean
+thrift_distclean:
+	# The following doesn't seem to work, so use git clean instead
+	# make -C ${THRIFT_DIR} distclean
+	cd ${THRIFT_DIR} && git clean -f -X -d
 
 .PHONY: thrift thrift_test thrift_clean thrift_distclean
