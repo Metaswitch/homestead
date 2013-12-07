@@ -37,6 +37,10 @@
 #ifndef CASSANDRACACHE_H__
 #define CASSANDRACACHE_H__
 
+// Use the apache cassandra namespace. It's not ideal to do this in a header
+// file, but our method declarations get stupidly long otherwise.
+using namespace org::apache::cassandra;
+
 class CassandraCache
 {
 public:
@@ -83,7 +87,8 @@ public:
                        DigestAuthVector& auth_vector,
                        int64_t timestamp,
                        int32_t ttl = 0);
-  DigestAuthVector *get_auth_vector(std::string& private_id);
+  DigestAuthVector *get_auth_vector(std::string& private_id,
+                                    std::string* public_id = NULL);
 
   void delete_public_id(std::string& public_id);
   void delete_multi_public_id(std::vector<std::string>& public_ids);
@@ -107,19 +112,41 @@ private:
   void operator=(CassandraCache const &);
 
   // Get a thread-specific Cassandra connection.
-  org::apache::cassandra::CassandraClient* get_client();
+  CassandraClient* get_client();
 
-  void modify_column(std::string& key,
-                     std::string& name,
-                     std::string& val,
-                     int64_t timestamp,
-                     int32_t ttl);
-  void get_row(std::string& key,
-               std::vector<ColumnOrSuperColumn>& columns);
-  void delete_row(std::string& key);
+  void _modify_column(std::string& key,
+                      std::string& name,
+                      std::string& val,
+                      int64_t timestamp,
+                      int32_t ttl);
 
-  void serialize_digest_auth_vector(DigestAuthVector& auth_vector,
-                                    std::vector<Mutation>& columns);
-  void deserialize_digest_auth_vector(std::vector<ColumnOrSuperColumn>& columns,
-                                      DigestAuthVector& auth_vector);
+  void _get_row(std::string& key,
+                std::vector<ColumnOrSuperColumn>& columns,
+                ConsistencyLevel consistency_level);
+
+  void _ha_get_row(std::string& key,
+                   std::vector<ColumnOrSuperColumn>& columns);
+
+  void _get_columns(std::string& key,
+                    std::vector<std::string>& names,
+                    std::vector<ColumnOrSuperColumn>& columns,
+                    ConsistencyLevel consistency_level);
+  void _ha_get_columns(std::string& key,
+                       std::vector<std::string>& names,
+                       std::vector<ColumnOrSuperColumn>& columns);
+
+  void _get_columns_with_prefix(std::string& key,
+                                std::string& prefix,
+                                std::vector<ColumnOrSuperColumn>& columns,
+                                ConsistencyLevel consistency_level);
+  void _ha_get_columns_with_prefix(std::string& key,
+                                   std::string& prefix,
+                                   std::vector<ColumnOrSuperColumn>& columns);
+
+  void _delete_row(std::string& key);
+
+  void _serialize_digest_auth_vector(DigestAuthVector& auth_vector,
+                                     std::vector<Mutation>& columns);
+  void _deserialize_digest_auth_vector(std::vector<ColumnOrSuperColumn>& columns,
+                                       DigestAuthVector& auth_vector);
 };
