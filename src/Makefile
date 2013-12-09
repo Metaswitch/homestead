@@ -11,7 +11,7 @@ GMOCK_DIR := $(ROOT)/modules/gmock
 TARGET := homestead
 TARGET_TEST := homestead_test
 
-TARGET_SOURCES := cache.cpp \
+TARGET_SOURCES := cassandracache.cpp \
                   diameterstack.cpp \
                   httpstack.cpp
 

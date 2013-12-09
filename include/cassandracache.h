@@ -33,6 +33,9 @@
  * under which the OpenSSL Project distributes the OpenSSL toolkit software,
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
+#include "Cassandra.h"
+
+#include "authvector.h"
 
 #ifndef CASSANDRACACHE_H__
 #define CASSANDRACACHE_H__
@@ -41,9 +44,13 @@
 // file, but our method declarations get stupidly long otherwise.
 using namespace org::apache::cassandra;
 
+// Singleton class representing a cassandra-backed subscriber cache.
 class CassandraCache
 {
 public:
+  //
+  // Exceptions that may be thown by this class.
+  //
   class Exception
   {
   public:
@@ -52,12 +59,16 @@ public:
     const int _rc;
   };
 
+  // A entry could not be found in the cache.
   class NotFound : Exception {};
+
+  // There was an error communicating with Cassandra.
   class CassandraError : Exception {};
 
-  CassandraCache (arguments);
-  virtual ~CassandraCache ();
-
+  //
+  // Methods to manage the cache instance. These mirror the methods used to
+  // mange the HTTP and Diameter stacks.
+  //
   static inline CassandraCache* get_instance() { return INSTANCE; }
 
   void initialize();
@@ -67,6 +78,17 @@ public:
   void stop();
   void wait_stopped();
 
+  //
+  // Methods to set, get and delete items in the cache.
+  //
+  // Methods that moidy the cache must take a timestamp parameter. Related
+  // updates should be made with the same timestamp, which ensures the cache
+  // ends up being (eventually) consistent.
+  //
+  // The 'put' methods also take a time to live (TTL) parameter. This specifys
+  // how long the entry exists in the cache before being automatically expired.
+  // 0 => the entry never expires. Modifying the row resets the expiry time.
+  //
   void put_imssubscription(std::string& public_id,
                            std::string& xml,
                            int64_t timestamp,
@@ -90,18 +112,28 @@ public:
   DigestAuthVector *get_auth_vector(std::string& private_id,
                                     std::string* public_id = NULL);
 
-  void delete_public_id(std::string& public_id);
-  void delete_multi_public_id(std::vector<std::string>& public_ids);
+  void delete_public_id(std::string& public_id, int64_t timestamp);
+  void delete_multi_public_id(std::vector<std::string>& public_ids,
+                              int64_t timestamp);
+  void delete_private_id(std::string& private_id, int64_t timestamp);
+  void delete_multi_private_id(std::vector<std::string>& private_ids,
+                               int64_t timestamp);
 
-  void delete_private_id(std::string& private_id);
-  void delete_multi_private_id(std::vector<std::string>& private_ids);
+  // Return the current time (in micro-seconds). This timestamp is suitable to
+  // use with methods that modify the cache.
+  int64_t generate_timestamp(void);
 
+  virtual ~CassandraCache();
 private:
+
+  // Singleton variables.
   static CassandraCache* INSTANCE;
   static CassandraCache DEFAULT_INSTANCE;
 
+  // The keyspace the cache is stored in.
   static const std::string KEYSPACE;
 
+  // Cassandra connection details.
   std::string _cass_host;
   uint16_t _cass_port;
 
@@ -112,8 +144,11 @@ private:
   void operator=(CassandraCache const &);
 
   // Get a thread-specific Cassandra connection.
-  CassandraClient* get_client();
+  CassandraClient* _get_client();
 
+  //
+  // Utility methods to manipulate cassandra rows/columns.
+  //
   void _modify_column(std::string& key,
                       std::string& name,
                       std::string& val,
@@ -150,3 +185,5 @@ private:
   void _deserialize_digest_auth_vector(std::vector<ColumnOrSuperColumn>& columns,
                                        DigestAuthVector& auth_vector);
 };
+
+#endif
