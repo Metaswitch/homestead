@@ -48,14 +48,14 @@ void CassandraCache::configure(std::string cass_hostname,
   _cass_port = cass_port;
 }
 
-CassandraCache::Error CassandraCache::start()
+CassandraCache::ResultCode CassandraCache::start()
 {
   // Check connectivity to cassandra. Return an error code if there is a
   // problem.
   //
   // Initialize the thread pool.
 
-  return CassandraCache::Error::NONE;
+  return ResultCode::OK;
 }
 
 void CassandraCache::stop()

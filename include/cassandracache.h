@@ -51,9 +51,9 @@ class CassandraCache
 public:
   virtual ~CassandraCache();
 
-  enum Error
+  enum ResultCode
   {
-    NONE = 0
+    OK = 0
   };
 
   //
@@ -65,7 +65,7 @@ public:
   void initialize();
   void configure(std::string cass_hostname,
                  uint16_t cass_port);
-  Error start();
+  ResultCode start();
   void stop();
   void wait_stopped();
 
@@ -81,7 +81,7 @@ public:
   private:
     virtual void on_success() {};
 
-    virtual void on_error(Error error_code)
+    virtual void on_error(ResultCode error_code)
     {
       // TODO write a debug log.
     };
