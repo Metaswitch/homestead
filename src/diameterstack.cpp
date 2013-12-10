@@ -36,17 +36,20 @@
 
 #include "diameterstack.h"
 
-#include <freeDiameter/freeDiameter-host.h>
-#include <freeDiameter/libfdcore.h>
+using namespace Diameter;
 
-DiameterStack* DiameterStack::INSTANCE = &DEFAULT_INSTANCE;
-DiameterStack DiameterStack::DEFAULT_INSTANCE;
+Stack* Stack::INSTANCE = &DEFAULT_INSTANCE;
+Stack Stack::DEFAULT_INSTANCE;
 
-DiameterStack::DiameterStack() : _initialized(false)
+Stack::Stack() : _initialized(false)
 {
 }
 
-void DiameterStack::initialize()
+Stack::~Stack()
+{
+}
+
+void Stack::initialize()
 {
   // Initialize if we haven't already done so.  We don't do this in the
   // constructor because we can't throw exceptions on failure.
@@ -61,7 +64,7 @@ void DiameterStack::initialize()
   }
 }
 
-void DiameterStack::configure(std::string filename)
+void Stack::configure(std::string filename)
 {
   initialize();
   int rc = fd_core_parseconf(filename.c_str());
@@ -71,7 +74,7 @@ void DiameterStack::configure(std::string filename)
   }
 }
 
-void DiameterStack::start()
+void Stack::start()
 {
   initialize();
   int rc = fd_core_start();
@@ -81,7 +84,7 @@ void DiameterStack::start()
   }
 }
 
-void DiameterStack::stop()
+void Stack::stop()
 {
   if (_initialized)
   {
@@ -93,7 +96,7 @@ void DiameterStack::stop()
   }
 }
 
-void DiameterStack::wait_stopped()
+void Stack::wait_stopped()
 {
   if (_initialized)
   {
@@ -103,4 +106,118 @@ void DiameterStack::wait_stopped()
       throw Exception("fd_core_wait_shutdown_complete", rc);
     }
   }
+}
+
+
+struct dict_object* Dictionary::Vendor::find(const std::string vendor)
+{
+  struct dict_object* dict;
+  fd_dict_search(fd_g_config->cnf_dict, DICT_VENDOR, VENDOR_BY_NAME, vendor.c_str(), &dict, ENOENT);
+  return dict;
+}
+
+struct dict_object* Dictionary::Application::find(const std::string application)
+{
+  struct dict_object* dict;
+  fd_dict_search(fd_g_config->cnf_dict, DICT_APPLICATION, APPLICATION_BY_NAME, application.c_str(), &dict, ENOENT);
+  return dict;
+}
+
+struct dict_object* Dictionary::Message::find(const std::string message)
+{
+  struct dict_object* dict;
+  fd_dict_search(fd_g_config->cnf_dict, DICT_COMMAND, CMD_BY_NAME, message.c_str(), &dict, ENOENT);
+  return dict;
+}
+
+struct dict_object* Dictionary::AVP::find(const std::string avp)
+{
+  struct dict_object* dict;
+  fd_dict_search(fd_g_config->cnf_dict, DICT_AVP, AVP_BY_NAME, avp.c_str(), &dict, ENOENT);
+  return dict;
+}
+
+struct dict_object* Dictionary::AVP::find(const std::string vendor, const std::string avp)
+{
+  struct dict_avp_request avp_req;
+  if (!vendor.empty())
+  {
+    struct dict_object* vendor_dict = Dictionary::Vendor::find(vendor);
+    struct dict_vendor_data vendor_data;
+    fd_dict_getval(vendor_dict, &vendor_data);
+    avp_req.avp_vendor = vendor_data.vendor_id;
+  }
+  else
+  {
+    avp_req.avp_vendor = 0;
+  }
+  avp_req.avp_name = (char*)avp.c_str();
+  struct dict_object* dict;
+  fd_dict_search(fd_g_config->cnf_dict, DICT_AVP, AVP_BY_NAME_AND_VENDOR, &avp_req, &dict, ENOENT);
+  return dict;
+}
+
+Dictionary::Dictionary() :
+  SESSION_ID("Session-Id"),
+  AUTH_SESSION_STATE("Auth-Session-State"),
+  ORIGIN_REALM("Origin-Realm"),
+  ORIGIN_HOST("Origin-Host"),
+  DESTINATION_REALM("Destination-Realm"),
+  DESTINATION_HOST("Destination-Host"),
+  USER_NAME("User-Name"),
+  RESULT_CODE("Result-Code")
+{
+}
+
+
+Transaction::Transaction(Dictionary* dict) : _dict(dict)
+{
+}
+
+Transaction::~Transaction()
+{
+}
+
+void Transaction::on_response(void* data, struct msg** rsp)
+{
+  Transaction* tsx = (Transaction*)data;
+  Message msg(tsx->_dict, *rsp);
+  tsx->on_response(msg);
+}
+
+void Transaction::on_timeout(void* data, DiamId_t to, size_t to_len, struct msg** req)
+{
+  Transaction* tsx = (Transaction*)data;
+  tsx->on_timeout();
+}
+
+
+Message::~Message()
+{
+  if (_msg != NULL)
+  {
+    fd_msg_free(_msg);
+  }
+}
+
+void Message::send()
+{
+  fd_msg_send(&_msg, NULL, NULL);
+}
+
+void Message::send(Transaction* tsx)
+{
+  fd_msg_send(&_msg, Transaction::on_response, tsx);
+}
+
+void Message::send(Transaction* tsx, unsigned int timeout_ms)
+{
+  struct timespec timeout_ts;
+  // TODO: Check whether this should be CLOCK_MONOTONIC - freeDiameter uses CLOCK_REALTIME but
+  //       this feels like it might suffer over time changes.
+  clock_gettime(CLOCK_REALTIME, &timeout_ts);
+  timeout_ts.tv_nsec += (timeout_ms % 1000) * 1000 * 1000;
+  timeout_ts.tv_sec += timeout_ms / 1000 + timeout_ts.tv_nsec / (1000 * 1000 * 1000);
+  timeout_ts.tv_nsec = timeout_ts.tv_nsec % (1000 * 1000 * 1000);
+  fd_msg_send_timeout(&_msg, Transaction::on_response, tsx, Transaction::on_timeout, &timeout_ts);
 }

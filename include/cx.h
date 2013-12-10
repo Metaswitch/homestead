@@ -1,5 +1,5 @@
 /**
- * @file main.cpp main function for homestead
+ * @file cx.h class definition wrapping Cx
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2013  Metaswitch Networks Ltd
@@ -34,67 +34,41 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#include <signal.h>
-#include <semaphore.h>
-
 #include "diameterstack.h"
-#include "httpstack.h"
 
-static sem_t term_sem;
-
-// Signal handler that triggers sprout termination.
-void terminate_handler(int sig)
+namespace Cx
 {
-  sem_post(&term_sem);
-}
-
-int main(int argc, char**argv)
+class Dictionary : public Diameter::Dictionary
 {
-  sem_init(&term_sem, 0, 0);
-  signal(SIGTERM, terminate_handler);
+public:
+  Dictionary();
+  Diameter::Dictionary::Vendor TGPP;
+  Diameter::Dictionary::Application CX;
+  Diameter::Dictionary::Message MULTIMEDIA_AUTH_REQUEST;
+  Diameter::Dictionary::Message MULTIMEDIA_AUTH_ANSWER;
+  Diameter::Dictionary::AVP SUPPORTED_FEATURES;
+  Diameter::Dictionary::AVP PUBLIC_IDENTITY;
+  Diameter::Dictionary::AVP SIP_AUTH_DATA_ITEM;
+  Diameter::Dictionary::AVP SIP_AUTH_SCHEME;
+  Diameter::Dictionary::AVP SIP_NUMBER_AUTH_ITEMS;
+  Diameter::Dictionary::AVP SERVER_NAME;
+};
 
-  Diameter::Stack* diameter_stack = Diameter::Stack::get_instance();
-  try
-  {
-    diameter_stack->initialize();
-    //diameter_stack->configure();
-    diameter_stack->start();
-  }
-  catch (Diameter::Stack::Exception& e)
-  {
-  }
+class MultimediaAuthRequest : public Diameter::Message
+{
+public:
+  MultimediaAuthRequest(const Dictionary* dict,
+                        const std::string& dest_realm,
+                        const std::string& dest_host,
+                        const std::string& impi,
+                        const std::string& impu,
+                        const std::string& server_name,
+                        const std::string& sip_auth_scheme);
+  inline MultimediaAuthRequest(Diameter::Message& msg) : Diameter::Message(msg) {};
 
-  HttpStack* http_stack = HttpStack::get_instance();
-  try
-  {
-    http_stack->initialize();
-    http_stack->configure(10);
-    http_stack->start();
-  }
-  catch (HttpStack::Exception& e)
-  {
-  }
-
-  sem_wait(&term_sem);
-
-  try
-  {
-    http_stack->stop();
-    http_stack->wait_stopped();
-  }
-  catch (HttpStack::Exception& e)
-  {
-  }
-
-  try
-  {
-    diameter_stack->stop();
-    diameter_stack->wait_stopped();
-  }
-  catch (Diameter::Stack::Exception& e)
-  {
-  }
-
-  signal(SIGTERM, SIG_DFL);
-  sem_destroy(&term_sem);
-}
+  std::string impi() const;
+  std::string impu() const;
+  std::string server_name() const;
+  std::string sip_auth_scheme() const;
+};
+};

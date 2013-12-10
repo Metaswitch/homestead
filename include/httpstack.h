@@ -49,7 +49,7 @@ public:
     const int _rc;
   };
 
-  static inline HttpStack* getInstance() {return INSTANCE;};
+  static inline HttpStack* get_instance() {return INSTANCE;};
   void initialize();
   void configure(int num_threads);
   void start();
