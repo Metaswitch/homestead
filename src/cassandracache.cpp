@@ -48,19 +48,24 @@ void CassandraCache::configure(std::string cass_hostname,
   _cass_port = cass_port;
 }
 
-void CassandraCache::start()
+CassandraCache::Error CassandraCache::start()
 {
-  // Check connectivity to cassandra. Throw if there's a problem.
+  // Check connectivity to cassandra. Return an error code if there is a
+  // problem.
+  //
+  // Initialize the thread pool.
+
+  return CassandraCache::Error::NONE;
 }
 
 void CassandraCache::stop()
 {
-  // No-op
+  // Stop the thread pool.
 }
 
 void CassandraCache::wait_stopped()
 {
-  // No-op
+  // Join the thread pool.
 }
 
 CassandraClient* CassandraCache::_get_client()
@@ -70,6 +75,34 @@ CassandraClient* CassandraCache::_get_client()
   // Return client.
   return NULL;
 }
+
+void CassandraCache::_release_client()
+{
+  // Get client out of thread-local data. Delete it. Write a NULL back to
+  // thread-local data.
+}
+
+void CassandraCache::_queue_request(Request *request)
+{
+  // Add the request to the cache's thread pool.
+}
+
+
+
+
+
+
+
+
+
+
+void CassandraCache::Request::send(CassandraCache *cache)
+{
+  // Push the request onto the cache's thread pool.
+}
+
+
+
 
 
 
@@ -82,7 +115,7 @@ _put_columns(std::vector<std::string>& keys,
              int64_t timestamp,
              int32_t ttl)
 {
-  // Create a mutation for the column.
+  // Create a mutation for each column.
   // Create a vector of mutations (m).
   // Create a mutation map (key1 => m, key2 => m, ...)
   // Call _get_client()->batch_mutate().
@@ -198,83 +231,82 @@ _delete_row(std::string& key,
 
 
 
-CassandraCache::Error CassandraCache::PutIMSSubscription::
-send(CassandraCache *cache)
+void CassandraCache::PutIMSSubscription::_process()
 {
   // _put_columns()
   // Catch thrift exceptions and convert to error codes.
   // Call on_success or on_falure as appropriate.
-  return Error::NONE;
 }
 
 
-CassandraCache::Error CassandraCache::PutAssociatedPublicID::
-send(CassandraCache *cache)
+void CassandraCache::PutAssociatedPublicID::_process()
 {
   // Add a assoc_public_ prefix to the public ID.
   // _put_columns()
   // Catch thrift exceptions and convert to error codes.
   // Call on_success or on_falure as appropriate.
-  return Error::NONE;
 }
 
 
-CassandraCache::Error CassandraCache::PutAuthVector::
-send(CassandraCache *cache)
+void CassandraCache::PutAuthVector::_process()
 {
   // Convert the DigestAuthVector to a map of columns names => values.
   // _put_columns()
   // Catch thrift exceptions and convert to error codes.
   // Call on_success or on_falure as appropriate.
-  return Error::NONE;
 }
 
 
-CassandraCache::Error CassandraCache::GetIMSSubscription::
-send(CassandraCache *cache)
+void CassandraCache::GetIMSSubscription::_process()
 {
   // _ha_get_column()
   // Catch thrift exceptions and convert to error codes.
   // Call on_success or on_falure as appropriate.
-  return Error::NONE;
 }
 
 
-CassandraCache::Error CassandraCache::GetAssociatedPublicIDs::
-send(CassandraCache *cache)
+void CassandraCache::GetAssociatedPublicIDs::_process()
 {
   // _ha_get_columns_with_prefix()
   // Catch thrift exceptions and convert to error codes.
   // Call on_success or on_falure as appropriate.
-  return Error::NONE;
 }
 
 
-CassandraCache::Error CassandraCache::GetAuthVector::
-send(CassandraCache *cache)
+void CassandraCache::GetAuthVector::_process()
 {
   // _ha_get_columns()
   // Construct a DigestAuthVector from the values returned (error if some are
   // missing).
   // Catch thrift exceptions and convert to error codes.
   // Call on_success or on_falure as appropriate.
-  return Error::NONE;
 }
 
-CassandraCache::Error CassandraCache::DeletePublicIDs::
-send(CassandraCache *cache)
+void CassandraCache::DeletePublicIDs::_process()
 {
   // _delete_row()
   // Catch thrift exceptions and convert to error codes.
   // Call on_success or on_falure as appropriate.
-  return Error::NONE;
 }
 
-CassandraCache::Error CassandraCache::DeletePrivateIDs::
-send(CassandraCache *cache)
+void CassandraCache::DeletePrivateIDs::_process()
 {
   // _delete_row()
   // Catch thrift exceptions and convert to error codes.
   // Call on_success or on_falure as appropriate.
-  return Error::NONE;
+}
+
+
+
+
+
+void CassandraCache::CacheThreadPool::_process_work(Request *request)
+{
+  // Call request->_process()
+  // Catch unhandled exceptions and log them.
+}
+
+void CassandraCache::CacheThreadPool::_on_thread_shutdown()
+{
+  // Call _release_client().
 }

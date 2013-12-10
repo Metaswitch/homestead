@@ -36,6 +36,7 @@
 #include "Cassandra.h"
 
 #include "authvector.h"
+#include "threadpool.h"
 
 #ifndef CASSANDRACACHE_H__
 #define CASSANDRACACHE_H__
@@ -50,6 +51,11 @@ class CassandraCache
 public:
   virtual ~CassandraCache();
 
+  enum Error
+  {
+    NONE = 0
+  };
+
   //
   // Methods to manage the cache instance. These mirror the methods used to
   // mange the HTTP and Diameter stacks.
@@ -59,14 +65,9 @@ public:
   void initialize();
   void configure(std::string cass_hostname,
                  uint16_t cass_port);
-  void start();
+  Error start();
   void stop();
   void wait_stopped();
-
-  enum Error
-  {
-    NONE = 0
-  };
 
   // Class representing a cassandra request.
   class Request
@@ -75,7 +76,7 @@ public:
     Request(std::string& table);
     virtual ~Request();
 
-    virtual Error send(CassandraCache *cache);
+    virtual void send(CassandraCache *cache);
 
   private:
     virtual void on_success() {};
@@ -84,6 +85,8 @@ public:
     {
       // TODO write a debug log.
     };
+
+    virtual void _process();
 
     std::string _table;
   };
@@ -182,11 +185,11 @@ public:
                        int32_t ttl = 0);
     virtual ~PutIMSSubscription();
 
-    Error send(CassandraCache *cache);
-
   private:
     std::vector<std::string> _public_ids;
     std::string _xml;
+
+    void _process();
   };
 
   // A request to associate a public ID with a particular private ID.
@@ -199,11 +202,11 @@ public:
                           int32_t ttl = 0);
     virtual ~PutAssociatedPublicID();
 
-    Error send(CassandraCache *cache);
-
   private:
     std::string& _private_id;
     std::string _assoc_public_id;
+
+    void _process();
   };
 
   // A request to add an authorization vector to the cache.
@@ -216,11 +219,11 @@ public:
                   int32_t ttl = 0);
     virtual ~PutAuthVector();
 
-    Error send(CassandraCache *cache);
-
   private:
     std::string _private_id;
     DigestAuthVector *auth_vector;
+
+    void _process();
   };
 
   // A request to get the IMS subscription XML for a public ID.
@@ -230,12 +233,11 @@ public:
     GetIMSSubscription(std::string& public_id);
     virtual ~GetIMSSubscription();
 
-    Error send(CassandraCache *cache);
-
   private:
     std::string _public_id;
 
     void on_success(std::string& xml) {};
+    void _process();
   };
 
   // A request to get the public IDs associated with a private ID.
@@ -244,12 +246,11 @@ public:
     GetAssociatedPublicIDs(std::string& private_id);
     virtual ~GetAssociatedPublicIDs();
 
-    Error send(CassandraCache *cache);
-
   private:
     std::string _private_id;
 
     void on_success(std::vector<std::string>& public_ids) {};
+    void _process();
   };
 
   // A request to get the authorization vector for a private ID.
@@ -261,13 +262,12 @@ public:
                   std::string& public_id);
     virtual ~GetAuthVector();
 
-    Error send(CassandraCache *cache);
-
   private:
     std::string _private_id;
     std::string _public_id;
 
     void on_success(DigestAuthVector *auth_vector);
+    void _process();
   };
 
   // A request to delete one or more public IDs.
@@ -279,10 +279,10 @@ public:
                     int64_t timestamp);
     virtual ~DeletePublicIDs();
 
-    Error send(CassandraCache *cache);
-
   private:
     std::vector<std::string> public_ids;
+
+    void _process();
   };
 
   // A request to delete one or more private IDs.
@@ -294,10 +294,10 @@ public:
                      int64_t timestamp);
     virtual ~DeletePrivateIDs();
 
-    Error send(CassandraCache *cache);
-
   private:
     std::vector<std::string> public_ids;
+
+    void _process();
   };
 
   // Return the current time (in micro-seconds). This timestamp is suitable to
@@ -305,23 +305,34 @@ public:
   int64_t generate_timestamp(void);
 
 private:
+  class CacheThreadPool : ThreadPool<Request *>
+  {
+  public:
+    CacheThreadPool(unsigned int num_threads, unsigned int max_queue = 0);
+    virtual ~CacheThreadPool();
+
+  private:
+    void _process_work(Request *);
+    void _on_thread_shutdown();
+  };
 
   // Singleton variables.
   static CassandraCache* INSTANCE;
   static CassandraCache DEFAULT_INSTANCE;
 
-  // The keyspace the cache is stored in.
   static const std::string KEYSPACE;
 
-
-  // Cassandra connection details.
   std::string _cass_host;
   uint16_t _cass_port;
 
+  CacheThreadPool _thread_pool;
   pthread_key_t _thread_local;
+
+  void _queue_request(Request *request);
 
   // Get a thread-specific Cassandra connection.
   CassandraClient* _get_client();
+  void _release_client();
 
   // The constructors and assignment operation are private to prevent multiple
   // instances of the class from being created.
