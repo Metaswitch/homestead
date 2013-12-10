@@ -61,12 +61,12 @@ MultimediaAuthRequest::MultimediaAuthRequest(const Dictionary* dict,
                                              const std::string& sip_auth_scheme) :
                                              Diameter::Message(dict, dict->MULTIMEDIA_AUTH_REQUEST)
 {
-  add(Diameter::AVP(dict->DESTINATION_REALM).val_os(dest_realm));
-  add(Diameter::AVP(dict->DESTINATION_HOST).val_os(dest_host));
-  add(Diameter::AVP(dict->USER_NAME).val_os(impi));
-  add(Diameter::AVP(dict->PUBLIC_IDENTITY).val_os(impu));
+  add(Diameter::AVP(dict->DESTINATION_REALM).val_str(dest_realm));
+  add(Diameter::AVP(dict->DESTINATION_HOST).val_str(dest_host));
+  add(Diameter::AVP(dict->USER_NAME).val_str(impi));
+  add(Diameter::AVP(dict->PUBLIC_IDENTITY).val_str(impu));
   add(Diameter::AVP(dict->SIP_AUTH_DATA_ITEM).add(
-        Diameter::AVP(dict->SIP_AUTH_SCHEME).val_os(sip_auth_scheme)));
+        Diameter::AVP(dict->SIP_AUTH_SCHEME).val_str(sip_auth_scheme)));
   add(Diameter::AVP(dict->SIP_NUMBER_AUTH_ITEMS).val_i32(1));
-  add(Diameter::AVP(dict->SERVER_NAME).val_os(server_name));
+  add(Diameter::AVP(dict->SERVER_NAME).val_str(server_name));
 }

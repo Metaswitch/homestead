@@ -151,13 +151,37 @@ private:
 class AVP
 {
 public:
+  class iterator;
+
   inline AVP(const Dictionary::AVP& type)
   {
     fd_msg_avp_new(type.dict(), 0, &_avp);
   }
-  inline AVP(struct avp* avp) : _avp(avp) {};
+  inline AVP(struct avp* avp) : _avp(avp) {}
+  inline AVP(AVP const& avp) : _avp(avp.avp()) {}
+  inline AVP& operator=(AVP const& avp) {_avp = avp.avp(); return *this;}
   inline struct avp* avp() const {return _avp;}
-  inline AVP& val_os(std::string str)
+
+  inline iterator begin();
+  inline iterator end();
+
+  inline std::string val_str() const
+  {
+    struct avp_hdr* hdr = avp_hdr();
+    return std::string((char*)hdr->avp_value->os.data, hdr->avp_value->os.len);
+  }
+  inline const uint8_t* val_os(size_t& len) const
+  {
+    struct avp_hdr* hdr = avp_hdr();
+    len = hdr->avp_value->os.len;
+    return hdr->avp_value->os.data;
+  }
+  inline int32_t val_i32() const {return avp_hdr()->avp_value->i32;}
+  inline int32_t val_i64() const {return avp_hdr()->avp_value->i64;}
+  inline int32_t val_u32() const {return avp_hdr()->avp_value->u32;}
+  inline int32_t val_u64() const {return avp_hdr()->avp_value->u64;}
+
+  inline AVP& val_str(std::string str)
   {
     return val_os((uint8_t*)str.c_str(), str.length());
   }
@@ -197,6 +221,7 @@ public:
     fd_msg_avp_setvalue(_avp, &val);
     return *this;
   }
+
   inline AVP& add(AVP& avp)
   {
     fd_msg_avp_add(_avp, MSG_BRW_LAST_CHILD, avp.avp());
@@ -205,7 +230,53 @@ public:
 
 private:
   struct avp* _avp;
+
+  inline struct avp_hdr* avp_hdr() const
+  {
+    struct avp_hdr* hdr;
+    fd_msg_avp_hdr(_avp, &hdr);
+    return hdr;
+  }
 };
+
+
+class AVP::iterator
+{
+public:
+  inline iterator(AVP& avp) : _avp(avp) {};
+  inline iterator(struct avp* avp) : _avp(avp) {};
+  inline ~iterator() {};
+
+  inline iterator& operator=(const iterator& other) {_avp = other._avp; return *this;}
+  inline bool operator==(const iterator& other) const {return (_avp.avp() == other._avp.avp());}
+  inline bool operator!=(const iterator& other) const {return (_avp.avp() != other._avp.avp());}
+
+  iterator& operator++()
+  {
+    if (_avp.avp() != NULL)
+    {
+      msg_or_avp* next = _avp.avp();
+      fd_msg_browse_internal(next, MSG_BRW_NEXT, &next, NULL);
+      _avp = AVP((struct avp*)next);
+    }
+    return *this;
+  }
+  inline iterator operator++(int)
+  {
+    iterator old(*this);
+    ++(*this);
+    return old;
+  }
+
+  inline AVP& operator*() {return _avp;}
+  inline AVP* operator->() {return &_avp;}
+
+private:
+  AVP _avp;
+};
+
+AVP::iterator AVP::begin() {return AVP::iterator(*this);}
+AVP::iterator AVP::end() {return AVP::iterator(NULL);}
 
 class Message
 {
