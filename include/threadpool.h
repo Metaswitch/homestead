@@ -56,17 +56,18 @@ private:
   std::vector<pthread_t> _threads;
   eventq<T> _queue;
 
-  static void* _worker_thread_func(void *pool)
+  static void* worker_thread_func(void *pool)
   {
-    ((ThreadPool*)(pool))->_worker_loop();
+    ((ThreadPool*)(pool))->worker_loop();
     return NULL;
   }
 
-  void _worker_loop();
+  void worker_loop();
 
-  virtual void _on_thread_startup() {};
-  virtual void _process_work(T& work);
-  virtual void _on_thread_shutdown() {};
+  virtual void on_thread_startup() {};
+  virtual void on_thread_shutdown() {};
+
+  virtual void process_work(T& work);
 };
 
 #endif

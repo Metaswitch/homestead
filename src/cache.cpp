@@ -70,7 +70,7 @@ void Cache::wait_stopped()
   // Join the thread pool.
 }
 
-CassandraClient* Cache::_get_client()
+CassandraClient* Cache::get_client()
 {
   // Get client out of thread-local data.
   // If not found create one and store in thread local data.
@@ -78,13 +78,13 @@ CassandraClient* Cache::_get_client()
   return NULL;
 }
 
-void Cache::_release_client()
+void Cache::release_client()
 {
   // Get client out of thread-local data. Delete it. Write a NULL back to
   // thread-local data.
 }
 
-void Cache::_queue_request(Request *request)
+void Cache::queue_request(Request *request)
 {
   // Add the request to the cache's thread pool.
 }
@@ -112,10 +112,10 @@ void Cache::Request::send(Cache *cache)
 
 
 void Cache::PutRequest::
-_put_columns(std::vector<std::string>& keys,
-             std::map<std::string, std::string>& columns,
-             int64_t timestamp,
-             int32_t ttl)
+put_columns(std::vector<std::string>& keys,
+            std::map<std::string, std::string>& columns,
+            int64_t timestamp,
+            int32_t ttl)
 {
   // Create a mutation for each column.
   // Create a vector of mutations (m).
@@ -133,55 +133,55 @@ _put_columns(std::vector<std::string>& keys,
 
 
 void Cache::GetRequest::
-_ha_get_row(std::string& key,
-            std::vector<ColumnOrSuperColumn>& columns)
+ha_get_row(std::string& key,
+           std::vector<ColumnOrSuperColumn>& columns)
 {
   // Call _get_row with a consistency level of ONE.
   // If this throws an NotFound exception, retry with QUORUM.
 }
 
 void Cache::GetRequest::
-_ha_get_columns(std::string& key,
-                std::vector<std::string>& names,
-                std::vector<ColumnOrSuperColumn>& columns)
+ha_get_columns(std::string& key,
+               std::vector<std::string>& names,
+               std::vector<ColumnOrSuperColumn>& columns)
 {
   // Call _get_columns with a consistency level of ONE.
   // If this throws an NotFound exception, retry with QUORUM.
 }
 
 void Cache::GetRequest::
-_ha_get_columns_with_prefix(std::string& key,
-                            std::string& prefix,
-                            std::vector<ColumnOrSuperColumn>& columns)
+ha_get_columns_with_prefix(std::string& key,
+                           std::string& prefix,
+                           std::vector<ColumnOrSuperColumn>& columns)
 {
   // Call _get_columns_with_prefix with a consistency level of ONE.
   // If this throws an NotFound exception, retry with QUORUM.
 }
 
 void Cache::GetRequest::
-_get_row(std::string& key,
-         std::vector<ColumnOrSuperColumn>& columns,
-         ConsistencyLevel consistency_level)
+get_row(std::string& key,
+        std::vector<ColumnOrSuperColumn>& columns,
+        ConsistencyLevel consistency_level)
 {
   // Create a slice prediciate that gets all columns.
   // _issue_get_for_key()
 }
 
 void Cache::GetRequest::
-_get_columns(std::string& key,
-             std::vector<std::string>& names,
-             std::vector<ColumnOrSuperColumn>& columns,
-             ConsistencyLevel consistency_level)
+get_columns(std::string& key,
+            std::vector<std::string>& names,
+            std::vector<ColumnOrSuperColumn>& columns,
+            ConsistencyLevel consistency_level)
 {
   // Create a slice prediciate that gets the specified columns.
   // _issue_get_for_key()
 }
 
 void Cache::GetRequest::
-_get_columns_with_prefix(std::string& key,
-                         std::string& prefix,
-                         std::vector<ColumnOrSuperColumn>& columns,
-                         ConsistencyLevel consistency_level)
+get_columns_with_prefix(std::string& key,
+                        std::string& prefix,
+                        std::vector<ColumnOrSuperColumn>& columns,
+                        ConsistencyLevel consistency_level)
 {
   // Create a slice prediciate that gets columns that have the specified prefix.
   // Fill in the `columns` vector with the results.
@@ -189,9 +189,9 @@ _get_columns_with_prefix(std::string& key,
 }
 
 void Cache::GetRequest::
-_issue_get_for_key(std::string& key,
-                   SlicePredicate& predicate,
-                   std::vector<ColumnOrSuperColumn>& columns)
+issue_get_for_key(std::string& key,
+                  SlicePredicate& predicate,
+                  std::vector<ColumnOrSuperColumn>& columns)
 {
   // Create a keyrange specifying the key.
   // Call _get_client()->get_range_slices()
@@ -211,8 +211,8 @@ _issue_get_for_key(std::string& key,
 
 
 void Cache::DeleteRowsRequest::
-_delete_row(std::string& key,
-            int64_t timestamp)
+delete_row(std::string& key,
+           int64_t timestamp)
 {
   // Create a ColumnPath specifying all columns.
   // Call _get_client->remove()
@@ -233,7 +233,7 @@ _delete_row(std::string& key,
 
 
 
-void Cache::PutIMSSubscription::_process()
+void Cache::PutIMSSubscription::process()
 {
   // _put_columns()
   // Catch thrift exceptions and convert to error codes.
@@ -241,7 +241,7 @@ void Cache::PutIMSSubscription::_process()
 }
 
 
-void Cache::PutAssociatedPublicID::_process()
+void Cache::PutAssociatedPublicID::process()
 {
   // Add a assoc_public_ prefix to the public ID.
   // _put_columns()
@@ -250,7 +250,7 @@ void Cache::PutAssociatedPublicID::_process()
 }
 
 
-void Cache::PutAuthVector::_process()
+void Cache::PutAuthVector::process()
 {
   // Convert the DigestAuthVector to a map of columns names => values.
   // _put_columns()
@@ -259,7 +259,7 @@ void Cache::PutAuthVector::_process()
 }
 
 
-void Cache::GetIMSSubscription::_process()
+void Cache::GetIMSSubscription::process()
 {
   // _ha_get_column()
   // Catch thrift exceptions and convert to error codes.
@@ -267,7 +267,7 @@ void Cache::GetIMSSubscription::_process()
 }
 
 
-void Cache::GetAssociatedPublicIDs::_process()
+void Cache::GetAssociatedPublicIDs::process()
 {
   // _ha_get_columns_with_prefix()
   // Catch thrift exceptions and convert to error codes.
@@ -275,7 +275,7 @@ void Cache::GetAssociatedPublicIDs::_process()
 }
 
 
-void Cache::GetAuthVector::_process()
+void Cache::GetAuthVector::process()
 {
   // _ha_get_columns()
   // Construct a DigestAuthVector from the values returned (error if some are
@@ -284,14 +284,14 @@ void Cache::GetAuthVector::_process()
   // Call on_success or on_falure as appropriate.
 }
 
-void Cache::DeletePublicIDs::_process()
+void Cache::DeletePublicIDs::process()
 {
   // _delete_row()
   // Catch thrift exceptions and convert to error codes.
   // Call on_success or on_falure as appropriate.
 }
 
-void Cache::DeletePrivateIDs::_process()
+void Cache::DeletePrivateIDs::process()
 {
   // _delete_row()
   // Catch thrift exceptions and convert to error codes.
@@ -302,13 +302,13 @@ void Cache::DeletePrivateIDs::_process()
 
 
 
-void Cache::CacheThreadPool::_process_work(Request *request)
+void Cache::CacheThreadPool::process_work(Request *request)
 {
   // Call request->_process()
   // Catch unhandled exceptions and log them.
 }
 
-void Cache::CacheThreadPool::_on_thread_shutdown()
+void Cache::CacheThreadPool::on_thread_shutdown()
 {
   // Call _release_client().
 }

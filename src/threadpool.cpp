@@ -68,7 +68,7 @@ void ThreadPool<T>::add_work(T& work)
 }
 
 template <class T>
-void ThreadPool<T>::_worker_loop()
+void ThreadPool<T>::worker_loop()
 {
   // Call _on_thread_startup.
   // While work queue is open, pop item off it and call _process_work.
