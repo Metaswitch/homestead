@@ -37,38 +37,25 @@
 #ifndef AUTHVECTOR_H__
 #define AUTHVECTOR_H__
 
-class AuthVector
+struct AuthVector
 {
-public:
   virtual ~AuthVector();
-
-  virtual std::string* to_json() = 0;
 };
 
-class DigestAuthVector
+struct DigestAuthVector : AuthVector
 {
-public:
-  DigestAuthVector(std::string& ha1, std::string& realm, std::string& qop, bool preferred) :
-    _ha1(ha1), _realm(realm), _qop(qop), _preferred(preferred)
-  {};
   virtual ~DigestAuthVector();
 
-private:
   std::string _ha1;
   std::string _realm;
   std::string _qop;
   bool _preferred;
 };
 
-class AKAAuthVector
+struct AKAAuthVector : AuthVector
 {
-public:
-  AKAAuthVector(std::string& challenge, std::string& response, std::string& crypt_key, std::string& integrity_key) :
-    _challenge(challenge), _response(response), _crypt_key(crypt_key), _integrity_key(integrity_key)
-  {};
-  virtual ~AKAAuthVector ();
+  virtual ~AKAAuthVector();
 
-private:
   std::string _challenge;
   std::string _response;
   std::string _crypt_key;
