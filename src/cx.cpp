@@ -43,12 +43,12 @@ Dictionary::Dictionary() :
   CX("Cx"),
   MULTIMEDIA_AUTH_REQUEST("Multimedia-Auth-Request"),
   MULTIMEDIA_AUTH_ANSWER("Multimedia-Auth-Answer"),
-  SUPPORTED_FEATURES("Supported-Features"),
-  PUBLIC_IDENTITY("Public-Identity"),
-  SIP_AUTH_DATA_ITEM("SIP-Auth-Data-Item"),
-  SIP_AUTH_SCHEME("SIP-Auth-Scheme"),
-  SIP_NUMBER_AUTH_ITEMS("SIP-Number-Auth-Items"),
-  SERVER_NAME("Server-Name")
+  SUPPORTED_FEATURES("3GPP", "Supported-Features"),
+  PUBLIC_IDENTITY("3GPP", "Public-Identity"),
+  SIP_AUTH_DATA_ITEM("3GPP", "SIP-Auth-Data-Item"),
+  SIP_AUTH_SCHEME("3GPP", "SIP-Auth-Scheme"),
+  SIP_NUMBER_AUTH_ITEMS("3GPP", "SIP-Number-Auth-Items"),
+  SERVER_NAME("3GPP", "Server-Name")
 {
 }
 
