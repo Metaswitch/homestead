@@ -162,8 +162,9 @@ public:
   inline AVP& operator=(AVP const& avp) {_avp = avp.avp(); return *this;}
   inline struct avp* avp() const {return _avp;}
 
-  inline iterator begin();
-  inline iterator end();
+  inline iterator begin() const;
+  inline iterator begin(const Dictionary::AVP& type) const;
+  inline iterator end() const;
 
   inline std::string val_str() const
   {
@@ -239,15 +240,50 @@ private:
   }
 };
 
+class Message
+{
+public:
+  inline Message(const Dictionary* dict, const Dictionary::Message& type) : _dict(dict)
+  {
+    fd_msg_new(type.dict(), MSGFL_ALLOC_ETEID, &_msg);
+  }
+  inline Message(Dictionary* dict, struct msg* msg) : _dict(dict), _msg(msg) {};
+  virtual ~Message();
+  inline const Dictionary* dict() const {return _dict;}
+  inline struct msg* msg() const {return _msg;}
+  inline Message& add(AVP& avp)
+  {
+    fd_msg_avp_add(_msg, MSG_BRW_LAST_CHILD, avp.avp());
+    return *this;
+  }
+  inline AVP::iterator begin() const;
+  inline AVP::iterator begin(const Dictionary::AVP& type) const;
+  inline AVP::iterator end() const;
+  virtual void send();
+  virtual void send(Transaction* tsx);
+  virtual void send(Transaction* tsx, unsigned int timeout_ms);
+
+private:
+  const Dictionary* _dict;
+  struct msg* _msg;
+};
 
 class AVP::iterator
 {
 public:
-  inline iterator(AVP& avp) : _avp(avp) {};
-  inline iterator(struct avp* avp) : _avp(avp) {};
+  inline iterator(const AVP& parent_avp) : _avp(find_first_child(parent_avp.avp())) {memset(&_filter_avp_data, 0, sizeof(_filter_avp_data));}
+  inline iterator(const AVP& parent_avp, const Dictionary::AVP& child_type) : _filter_avp_data(get_avp_data(child_type.dict())), _avp(find_first_child(parent_avp.avp(), _filter_avp_data)) {}
+  inline iterator(const Message& parent_msg) : _avp(find_first_child(parent_msg.msg())) {memset(&_filter_avp_data, 0, sizeof(_filter_avp_data));}
+  inline iterator(const Message& parent_msg, const Dictionary::AVP& child_type) : _filter_avp_data(get_avp_data(child_type.dict())), _avp(find_first_child(parent_msg.msg(), _filter_avp_data)) {}
+  inline iterator(struct avp* avp) : _avp(avp) {memset(&_filter_avp_data, 0, sizeof(_filter_avp_data));};
   inline ~iterator() {};
 
-  inline iterator& operator=(const iterator& other) {_avp = other._avp; return *this;}
+  inline iterator& operator=(const iterator& other)
+  {
+    _avp = other._avp;
+    _filter_avp_data = other._filter_avp_data;
+    return *this;
+  }
   inline bool operator==(const iterator& other) const {return (_avp.avp() == other._avp.avp());}
   inline bool operator!=(const iterator& other) const {return (_avp.avp() != other._avp.avp());}
 
@@ -272,32 +308,62 @@ public:
   inline AVP* operator->() {return &_avp;}
 
 private:
+  inline static dict_avp_data get_avp_data(struct dict_object* dict)
+  {
+    struct dict_avp_data avp_data;
+    fd_dict_getval(dict, &avp_data);
+    return avp_data;
+  }
+  inline static struct avp* find_first_child(msg_or_avp* parent)
+  {
+    msg_or_avp* first_child = NULL;
+    fd_msg_browse_internal(parent, MSG_BRW_FIRST_CHILD, &first_child, NULL);
+    return (struct avp*)first_child;
+  }
+  static struct avp* find_first_child(msg_or_avp* parent, struct dict_avp_data& avp_data)
+  {
+    struct avp* avp = find_first_child(parent);
+    if (avp != NULL)
+    {
+      struct avp_hdr* hdr;
+      fd_msg_avp_hdr(avp, &hdr);
+      if (!(((avp_data.avp_code == 0) && (avp_data.avp_vendor == 0)) ||
+           ((hdr->avp_code == avp_data.avp_code) && (hdr->avp_vendor == avp_data.avp_vendor))))
+      {
+        avp = find_next(avp, avp_data);
+      }
+    }
+    return avp;
+  }
+  inline static struct avp* find_next(struct avp* avp, struct dict_avp_data& avp_data)
+  {
+    fd_msg_browse_internal(avp, MSG_BRW_NEXT, (msg_or_avp**)&avp, NULL);
+    if ((avp_data.avp_code != 0) || (avp_data.avp_vendor != 0))
+    {
+      for (fd_msg_browse_internal(avp, MSG_BRW_NEXT, (msg_or_avp**)&avp, NULL);
+           avp != NULL;
+           fd_msg_browse_internal(avp, MSG_BRW_NEXT, (msg_or_avp**)&avp, NULL))
+      {
+        struct avp_hdr* hdr;
+        fd_msg_avp_hdr(avp, &hdr);
+        if ((hdr->avp_code == avp_data.avp_code) && (hdr->avp_vendor == avp_data.avp_vendor))
+        {
+          break;
+        }
+      }
+    }
+    return avp;
+  }
+
+  struct dict_avp_data _filter_avp_data;
   AVP _avp;
 };
 
-AVP::iterator AVP::begin() {return AVP::iterator(*this);}
-AVP::iterator AVP::end() {return AVP::iterator(NULL);}
+AVP::iterator AVP::begin() const {return AVP::iterator(*this);}
+AVP::iterator AVP::begin(const Dictionary::AVP& type) const {return AVP::iterator(*this, type);}
+AVP::iterator AVP::end() const {return AVP::iterator(NULL);}
 
-class Message
-{
-public:
-  inline Message(const Dictionary* dict, const Dictionary::Message& type) : _dict(dict)
-  {
-    fd_msg_new(type.dict(), MSGFL_ALLOC_ETEID, &_msg);
-  }
-  inline Message(Dictionary* dict, struct msg* msg) : _dict(dict), _msg(msg) {};
-  virtual ~Message();
-  inline Message& add(AVP& avp)
-  {
-    fd_msg_avp_add(_msg, MSG_BRW_LAST_CHILD, avp.avp());
-    return *this;
-  }
-  virtual void send();
-  virtual void send(Transaction* tsx);
-  virtual void send(Transaction* tsx, unsigned int timeout_ms);
-
-private:
-  const Dictionary* _dict;
-  struct msg* _msg;
-};
+AVP::iterator Message::begin() const {return AVP::iterator(*this);}
+AVP::iterator Message::begin(const Dictionary::AVP& type) const {return AVP::iterator(*this, type);}
+AVP::iterator Message::end() const {return AVP::iterator(NULL);}
 };

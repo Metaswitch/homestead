@@ -70,3 +70,14 @@ MultimediaAuthRequest::MultimediaAuthRequest(const Dictionary* dict,
   add(Diameter::AVP(dict->SIP_NUMBER_AUTH_ITEMS).val_i32(1));
   add(Diameter::AVP(dict->SERVER_NAME).val_str(server_name));
 }
+
+std::string MultimediaAuthRequest::impu() const
+{
+  Diameter::AVP::iterator avps = begin(dict()->USER_NAME);
+  std::string impu;
+  if (avps != end())
+  {
+    impu = avps->val_str();
+  }
+  return impu;
+}
