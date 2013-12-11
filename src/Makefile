@@ -11,10 +11,10 @@ GMOCK_DIR := $(ROOT)/modules/gmock
 TARGET := homestead
 TARGET_TEST := homestead_test
 
-TARGET_SOURCES := cassandracache.cpp \
+TARGET_SOURCES := cache.cpp \
                   diameterstack.cpp \
                   httpstack.cpp \
-									threadpool.cpp
+                  threadpool.cpp
 
 TARGET_SOURCES_BUILD := main.cpp
 
@@ -22,8 +22,8 @@ TARGET_SOURCES_TEST := test_main.cpp
 
 # Put the interposer in here, so it will be loaded early.
 TARGET_EXTRA_OBJS_TEST := gmock-all.o \
-	                  gtest-all.o \
-	                  test_interposer.so
+                          gtest-all.o \
+                          test_interposer.so
 
 TEST_XML = $(TEST_OUT_DIR)/test_detail_$(TARGET_TEST).xml
 COVERAGE_XML = $(TEST_OUT_DIR)/coverage_$(TARGET_TEST).xml

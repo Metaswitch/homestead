@@ -1,5 +1,5 @@
 /**
- * @file cassandracache.cpp implementation of a cassandra-backed cache.
+ * @file cache.cpp implementation of a cassandra-backed cache.
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2013  Metaswitch Networks Ltd
@@ -34,21 +34,23 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#include <cassandracache.h>
+#include <cache.h>
 
-void CassandraCache::initialize()
+using namespace org::apache::cassandra;
+
+void Cache::initialize()
 {
   // No-op
 }
 
-void CassandraCache::configure(std::string cass_hostname,
-                               uint16_t cass_port)
+void Cache::configure(std::string cass_hostname,
+                      uint16_t cass_port)
 {
   _cass_host = cass_hostname;
   _cass_port = cass_port;
 }
 
-CassandraCache::ResultCode CassandraCache::start()
+Cache::ResultCode Cache::start()
 {
   // Check connectivity to cassandra. Return an error code if there is a
   // problem.
@@ -58,17 +60,17 @@ CassandraCache::ResultCode CassandraCache::start()
   return ResultCode::OK;
 }
 
-void CassandraCache::stop()
+void Cache::stop()
 {
   // Stop the thread pool.
 }
 
-void CassandraCache::wait_stopped()
+void Cache::wait_stopped()
 {
   // Join the thread pool.
 }
 
-CassandraClient* CassandraCache::_get_client()
+CassandraClient* Cache::_get_client()
 {
   // Get client out of thread-local data.
   // If not found create one and store in thread local data.
@@ -76,13 +78,13 @@ CassandraClient* CassandraCache::_get_client()
   return NULL;
 }
 
-void CassandraCache::_release_client()
+void Cache::_release_client()
 {
   // Get client out of thread-local data. Delete it. Write a NULL back to
   // thread-local data.
 }
 
-void CassandraCache::_queue_request(Request *request)
+void Cache::_queue_request(Request *request)
 {
   // Add the request to the cache's thread pool.
 }
@@ -96,7 +98,7 @@ void CassandraCache::_queue_request(Request *request)
 
 
 
-void CassandraCache::Request::send(CassandraCache *cache)
+void Cache::Request::send(Cache *cache)
 {
   // Push the request onto the cache's thread pool.
 }
@@ -109,7 +111,7 @@ void CassandraCache::Request::send(CassandraCache *cache)
 
 
 
-void CassandraCache::PutRequest::
+void Cache::PutRequest::
 _put_columns(std::vector<std::string>& keys,
              std::map<std::string, std::string>& columns,
              int64_t timestamp,
@@ -130,7 +132,7 @@ _put_columns(std::vector<std::string>& keys,
 
 
 
-void CassandraCache::GetRequest::
+void Cache::GetRequest::
 _ha_get_row(std::string& key,
             std::vector<ColumnOrSuperColumn>& columns)
 {
@@ -138,7 +140,7 @@ _ha_get_row(std::string& key,
   // If this throws an NotFound exception, retry with QUORUM.
 }
 
-void CassandraCache::GetRequest::
+void Cache::GetRequest::
 _ha_get_columns(std::string& key,
                 std::vector<std::string>& names,
                 std::vector<ColumnOrSuperColumn>& columns)
@@ -147,7 +149,7 @@ _ha_get_columns(std::string& key,
   // If this throws an NotFound exception, retry with QUORUM.
 }
 
-void CassandraCache::GetRequest::
+void Cache::GetRequest::
 _ha_get_columns_with_prefix(std::string& key,
                             std::string& prefix,
                             std::vector<ColumnOrSuperColumn>& columns)
@@ -156,7 +158,7 @@ _ha_get_columns_with_prefix(std::string& key,
   // If this throws an NotFound exception, retry with QUORUM.
 }
 
-void CassandraCache::GetRequest::
+void Cache::GetRequest::
 _get_row(std::string& key,
          std::vector<ColumnOrSuperColumn>& columns,
          ConsistencyLevel consistency_level)
@@ -165,7 +167,7 @@ _get_row(std::string& key,
   // _issue_get_for_key()
 }
 
-void CassandraCache::GetRequest::
+void Cache::GetRequest::
 _get_columns(std::string& key,
              std::vector<std::string>& names,
              std::vector<ColumnOrSuperColumn>& columns,
@@ -175,7 +177,7 @@ _get_columns(std::string& key,
   // _issue_get_for_key()
 }
 
-void CassandraCache::GetRequest::
+void Cache::GetRequest::
 _get_columns_with_prefix(std::string& key,
                          std::string& prefix,
                          std::vector<ColumnOrSuperColumn>& columns,
@@ -186,7 +188,7 @@ _get_columns_with_prefix(std::string& key,
   // Strip the prefix off the resulting columns.
 }
 
-void CassandraCache::GetRequest::
+void Cache::GetRequest::
 _issue_get_for_key(std::string& key,
                    SlicePredicate& predicate,
                    std::vector<ColumnOrSuperColumn>& columns)
@@ -208,7 +210,7 @@ _issue_get_for_key(std::string& key,
 
 
 
-void CassandraCache::DeleteRowsRequest::
+void Cache::DeleteRowsRequest::
 _delete_row(std::string& key,
             int64_t timestamp)
 {
@@ -231,7 +233,7 @@ _delete_row(std::string& key,
 
 
 
-void CassandraCache::PutIMSSubscription::_process()
+void Cache::PutIMSSubscription::_process()
 {
   // _put_columns()
   // Catch thrift exceptions and convert to error codes.
@@ -239,7 +241,7 @@ void CassandraCache::PutIMSSubscription::_process()
 }
 
 
-void CassandraCache::PutAssociatedPublicID::_process()
+void Cache::PutAssociatedPublicID::_process()
 {
   // Add a assoc_public_ prefix to the public ID.
   // _put_columns()
@@ -248,7 +250,7 @@ void CassandraCache::PutAssociatedPublicID::_process()
 }
 
 
-void CassandraCache::PutAuthVector::_process()
+void Cache::PutAuthVector::_process()
 {
   // Convert the DigestAuthVector to a map of columns names => values.
   // _put_columns()
@@ -257,7 +259,7 @@ void CassandraCache::PutAuthVector::_process()
 }
 
 
-void CassandraCache::GetIMSSubscription::_process()
+void Cache::GetIMSSubscription::_process()
 {
   // _ha_get_column()
   // Catch thrift exceptions and convert to error codes.
@@ -265,7 +267,7 @@ void CassandraCache::GetIMSSubscription::_process()
 }
 
 
-void CassandraCache::GetAssociatedPublicIDs::_process()
+void Cache::GetAssociatedPublicIDs::_process()
 {
   // _ha_get_columns_with_prefix()
   // Catch thrift exceptions and convert to error codes.
@@ -273,7 +275,7 @@ void CassandraCache::GetAssociatedPublicIDs::_process()
 }
 
 
-void CassandraCache::GetAuthVector::_process()
+void Cache::GetAuthVector::_process()
 {
   // _ha_get_columns()
   // Construct a DigestAuthVector from the values returned (error if some are
@@ -282,14 +284,14 @@ void CassandraCache::GetAuthVector::_process()
   // Call on_success or on_falure as appropriate.
 }
 
-void CassandraCache::DeletePublicIDs::_process()
+void Cache::DeletePublicIDs::_process()
 {
   // _delete_row()
   // Catch thrift exceptions and convert to error codes.
   // Call on_success or on_falure as appropriate.
 }
 
-void CassandraCache::DeletePrivateIDs::_process()
+void Cache::DeletePrivateIDs::_process()
 {
   // _delete_row()
   // Catch thrift exceptions and convert to error codes.
@@ -300,13 +302,13 @@ void CassandraCache::DeletePrivateIDs::_process()
 
 
 
-void CassandraCache::CacheThreadPool::_process_work(Request *request)
+void Cache::CacheThreadPool::_process_work(Request *request)
 {
   // Call request->_process()
   // Catch unhandled exceptions and log them.
 }
 
-void CassandraCache::CacheThreadPool::_on_thread_shutdown()
+void Cache::CacheThreadPool::_on_thread_shutdown()
 {
   // Call _release_client().
 }

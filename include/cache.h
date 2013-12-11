@@ -38,18 +38,14 @@
 #include "authvector.h"
 #include "threadpool.h"
 
-#ifndef CASSANDRACACHE_H__
-#define CASSANDRACACHE_H__
-
-// Use the apache cassandra namespace. It's not ideal to do this in a header
-// file, but our method declarations get stupidly long otherwise.
-using namespace org::apache::cassandra;
+#ifndef CACHE_H__
+#define CACHE_H__
 
 // Singleton class representing a cassandra-backed subscriber cache.
-class CassandraCache
+class Cache
 {
 public:
-  virtual ~CassandraCache();
+  virtual ~Cache();
 
   enum ResultCode
   {
@@ -60,7 +56,7 @@ public:
   // Methods to manage the cache instance. These mirror the methods used to
   // mange the HTTP and Diameter stacks.
   //
-  static inline CassandraCache* get_instance() { return INSTANCE; }
+  static inline Cache* get_instance() { return INSTANCE; }
 
   void initialize();
   void configure(std::string cass_hostname,
@@ -76,7 +72,7 @@ public:
     Request(std::string& table);
     virtual ~Request();
 
-    virtual void send(CassandraCache *cache);
+    virtual void send(Cache *cache);
 
   private:
     virtual void on_success() {};
@@ -128,33 +124,33 @@ public:
 
   private:
     void _ha_get_row(std::string& key,
-                     std::vector<ColumnOrSuperColumn>& columns);
+                     std::vector<org::apache::cassandra::ColumnOrSuperColumn>& columns);
 
     void _ha_get_columns(std::string& key,
                          std::vector<std::string>& names,
-                         std::vector<ColumnOrSuperColumn>& columns);
+                         std::vector<org::apache::cassandra::ColumnOrSuperColumn>& columns);
 
     void _ha_get_columns_with_prefix(std::string& key,
                                      std::string& prefix,
-                                     std::vector<ColumnOrSuperColumn>& columns);
+                                     std::vector<org::apache::cassandra::ColumnOrSuperColumn>& columns);
 
     void _get_row(std::string& key,
-                  std::vector<ColumnOrSuperColumn>& columns,
-                  ConsistencyLevel consistency_level);
+                  std::vector<org::apache::cassandra::ColumnOrSuperColumn>& columns,
+                  org::apache::cassandra::ConsistencyLevel consistency_level);
 
     void _get_columns(std::string& key,
                       std::vector<std::string>& names,
-                      std::vector<ColumnOrSuperColumn>& columns,
-                      ConsistencyLevel consistency_level);
+                      std::vector<org::apache::cassandra::ColumnOrSuperColumn>& columns,
+                      org::apache::cassandra::ConsistencyLevel consistency_level);
 
     void _get_columns_with_prefix(std::string& key,
                                   std::string& prefix,
-                                  std::vector<ColumnOrSuperColumn>& columns,
-                                  ConsistencyLevel consistency_level);
+                                  std::vector<org::apache::cassandra::ColumnOrSuperColumn>& columns,
+                                  org::apache::cassandra::ConsistencyLevel consistency_level);
 
     void _issue_get_for_key(std::string& key,
-                            SlicePredicate& predicate,
-                            std::vector<ColumnOrSuperColumn>& columns);
+                            org::apache::cassandra::SlicePredicate& predicate,
+                            std::vector<org::apache::cassandra::ColumnOrSuperColumn>& columns);
   };
 
   // Class representing a request to delete some rows from the cassandra cache.
@@ -317,8 +313,8 @@ private:
   };
 
   // Singleton variables.
-  static CassandraCache* INSTANCE;
-  static CassandraCache DEFAULT_INSTANCE;
+  static Cache* INSTANCE;
+  static Cache DEFAULT_INSTANCE;
 
   static const std::string KEYSPACE;
 
@@ -331,14 +327,14 @@ private:
   void _queue_request(Request *request);
 
   // Get a thread-specific Cassandra connection.
-  CassandraClient* _get_client();
+  org::apache::cassandra::CassandraClient* _get_client();
   void _release_client();
 
   // The constructors and assignment operation are private to prevent multiple
   // instances of the class from being created.
-  CassandraCache();
-  CassandraCache(CassandraCache const &);
-  void operator=(CassandraCache const &);
+  Cache();
+  Cache(Cache const &);
+  void operator=(Cache const &);
 };
 
 #endif
