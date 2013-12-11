@@ -72,10 +72,8 @@ public:
     Request(std::string& table);
     virtual ~Request();
 
-    virtual void send(Cache *cache);
-
   private:
-    virtual void process();
+    virtual void process(org::apache::cassandra::CassandraClient* client);
 
     std::string _table;
   };
@@ -102,7 +100,8 @@ public:
   private:
     int32_t _ttl;
 
-    void put_columns(std::vector<std::string>& keys,
+    void put_columns(org::apache::cassandra::CassandraClient* client,
+                     std::vector<std::string>& keys,
                      std::map<std::string, std::string>& columns,
                      int64_t timestamp,
                      int32_t ttl);
@@ -116,32 +115,39 @@ public:
     virtual ~GetRequest();
 
   private:
-    void ha_get_row(std::string& key,
+    void ha_get_row(org::apache::cassandra::CassandraClient* client,
+                    std::string& key,
                     std::vector<org::apache::cassandra::ColumnOrSuperColumn>& columns);
 
-    void ha_get_columns(std::string& key,
+    void ha_get_columns(org::apache::cassandra::CassandraClient* client,
+                        std::string& key,
                         std::vector<std::string>& names,
                         std::vector<org::apache::cassandra::ColumnOrSuperColumn>& columns);
 
-    void ha_get_columns_with_prefix(std::string& key,
+    void ha_get_columns_with_prefix(org::apache::cassandra::CassandraClient* client,
+                                    std::string& key,
                                     std::string& prefix,
                                     std::vector<org::apache::cassandra::ColumnOrSuperColumn>& columns);
 
-    void get_row(std::string& key,
+    void get_row(org::apache::cassandra::CassandraClient* client,
+                 std::string& key,
                  std::vector<org::apache::cassandra::ColumnOrSuperColumn>& columns,
                  org::apache::cassandra::ConsistencyLevel consistency_level);
 
-    void get_columns(std::string& key,
+    void get_columns(org::apache::cassandra::CassandraClient* client,
+                     std::string& key,
                      std::vector<std::string>& names,
                      std::vector<org::apache::cassandra::ColumnOrSuperColumn>& columns,
                      org::apache::cassandra::ConsistencyLevel consistency_level);
 
-    void get_columns_with_prefix(std::string& key,
+    void get_columns_with_prefix(org::apache::cassandra::CassandraClient* client,
+                                 std::string& key,
                                  std::string& prefix,
                                  std::vector<org::apache::cassandra::ColumnOrSuperColumn>& columns,
                                  org::apache::cassandra::ConsistencyLevel consistency_level);
 
-    void issue_get_for_key(std::string& key,
+    void issue_get_for_key(org::apache::cassandra::CassandraClient* client,
+                           std::string& key,
                            org::apache::cassandra::SlicePredicate& predicate,
                            std::vector<org::apache::cassandra::ColumnOrSuperColumn>& columns);
   };
@@ -156,7 +162,8 @@ public:
     virtual ~DeleteRowsRequest();
 
   private:
-    void delete_row(std::string& key,
+    void delete_row(org::apache::cassandra::CassandraClient* client,
+                    std::string& key,
                     int64_t timestamp);
   };
 
@@ -178,7 +185,9 @@ public:
     std::vector<std::string> _public_ids;
     std::string _xml;
 
-    void process();
+    virtual void on_success();
+    virtual void on_failure(ResultCode error);
+    void process(org::apache::cassandra::CassandraClient* client);
   };
 
   // A request to associate a public ID with a particular private ID.
@@ -192,10 +201,12 @@ public:
     virtual ~PutAssociatedPublicID();
 
   private:
-    std::string& _private_id;
+    std::string _private_id;
     std::string _assoc_public_id;
 
-    void process();
+    virtual void on_success();
+    virtual void on_failure(ResultCode error);
+    void process(org::apache::cassandra::CassandraClient* client);
   };
 
   // A request to add an authorization vector to the cache.
@@ -210,9 +221,11 @@ public:
 
   private:
     std::string _private_id;
-    DigestAuthVector *auth_vector;
+    DigestAuthVector *_auth_vector;
 
-    void process();
+    virtual void on_success();
+    virtual void on_failure(ResultCode error);
+    void process(org::apache::cassandra::CassandraClient* client);
   };
 
   // A request to get the IMS subscription XML for a public ID.
@@ -225,8 +238,9 @@ public:
   private:
     std::string _public_id;
 
-    void on_success(std::string& xml) {};
-    void process();
+    virtual void on_success(std::string& xml);
+    virtual void on_failure(ResultCode error);
+    void process(org::apache::cassandra::CassandraClient* client);
   };
 
   // A request to get the public IDs associated with a private ID.
@@ -238,8 +252,9 @@ public:
   private:
     std::string _private_id;
 
-    void on_success(std::vector<std::string>& public_ids) {};
-    void process();
+    virtual void on_success(std::vector<std::string>& public_ids);
+    virtual void on_failure(ResultCode error);
+    void process(org::apache::cassandra::CassandraClient* client);
   };
 
   // A request to get the authorization vector for a private ID.
@@ -255,8 +270,9 @@ public:
     std::string _private_id;
     std::string _public_id;
 
-    void on_success(DigestAuthVector *auth_vector);
-    void process();
+    virtual void on_success(DigestAuthVector *auth_vector);
+    virtual void on_failure(ResultCode error);
+    void process(org::apache::cassandra::CassandraClient* client);
   };
 
   // A request to delete one or more public IDs.
@@ -269,9 +285,11 @@ public:
     virtual ~DeletePublicIDs();
 
   private:
-    std::vector<std::string> public_ids;
+    std::vector<std::string> _public_ids;
 
-    void process();
+    virtual void on_success();
+    virtual void on_failure(ResultCode error);
+    void process(org::apache::cassandra::CassandraClient* client);
   };
 
   // A request to delete one or more private IDs.
@@ -284,14 +302,18 @@ public:
     virtual ~DeletePrivateIDs();
 
   private:
-    std::vector<std::string> public_ids;
+    std::vector<std::string> _private_ids;
 
-    void process();
+    virtual void on_success();
+    virtual void on_failure(ResultCode error);
+    void process(org::apache::cassandra::CassandraClient* client);
   };
 
   // Return the current time (in micro-seconds). This timestamp is suitable to
   // use with methods that modify the cache.
-  int64_t generate_timestamp(void);
+  static int64_t generate_timestamp(void);
+
+  void send(Request *request);
 
 private:
   class CacheThreadPool : ThreadPool<Request *>
@@ -316,8 +338,6 @@ private:
 
   CacheThreadPool _thread_pool;
   pthread_key_t _thread_local;
-
-  void queue_request(Request *request);
 
   // Get a thread-specific Cassandra connection.
   org::apache::cassandra::CassandraClient* get_client();

@@ -43,26 +43,46 @@ template <class T>
 class ThreadPool
 {
 public:
-  ThreadPool(unsigned int num_threads, unsigned int max_queue = 0);
-  virtual ~ThreadPool();
+  ThreadPool(unsigned int num_threads,
+             unsigned int max_queue) :
+    _threads(num_threads),
+    _queue(max_queue)
+  {}
 
-  void start();
-  void stop();
-  void join();
+  virtual ~ThreadPool() {};
 
-  void add_work(T& work);
+  void start()
+  {
+    // create threads.
+  }
+
+  void stop()
+  {
+    // Terminate event q.
+  }
+
+  void join()
+  {
+    // Join all threads.
+  }
+
+  void add_work(T& work)
+  {
+    // Queue work
+  }
+
+  void worker_loop()
+  {
+    // Call _on_thread_startup.
+    // While work queue is open, pop item off it and call _process_work.
+    // Call _on_thread_shutdown.
+  }
 
 private:
   std::vector<pthread_t> _threads;
   eventq<T> _queue;
 
-  static void* worker_thread_func(void *pool)
-  {
-    ((ThreadPool*)(pool))->worker_loop();
-    return NULL;
-  }
-
-  void worker_loop();
+  void *worker_thread_func(void *pool);
 
   virtual void on_thread_startup() {};
   virtual void on_thread_shutdown() {};

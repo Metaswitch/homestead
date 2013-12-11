@@ -84,7 +84,7 @@ void Cache::release_client()
   // thread-local data.
 }
 
-void Cache::queue_request(Request *request)
+void Cache::send(Request *request)
 {
   // Add the request to the cache's thread pool.
 }
@@ -98,11 +98,6 @@ void Cache::queue_request(Request *request)
 
 
 
-void Cache::Request::send(Cache *cache)
-{
-  // Push the request onto the cache's thread pool.
-}
-
 
 
 
@@ -112,7 +107,8 @@ void Cache::Request::send(Cache *cache)
 
 
 void Cache::PutRequest::
-put_columns(std::vector<std::string>& keys,
+put_columns(CassandraClient* client,
+            std::vector<std::string>& keys,
             std::map<std::string, std::string>& columns,
             int64_t timestamp,
             int32_t ttl)
@@ -133,7 +129,8 @@ put_columns(std::vector<std::string>& keys,
 
 
 void Cache::GetRequest::
-ha_get_row(std::string& key,
+ha_get_row(CassandraClient* client,
+           std::string& key,
            std::vector<ColumnOrSuperColumn>& columns)
 {
   // Call _get_row with a consistency level of ONE.
@@ -141,7 +138,8 @@ ha_get_row(std::string& key,
 }
 
 void Cache::GetRequest::
-ha_get_columns(std::string& key,
+ha_get_columns(CassandraClient* client,
+               std::string& key,
                std::vector<std::string>& names,
                std::vector<ColumnOrSuperColumn>& columns)
 {
@@ -150,7 +148,8 @@ ha_get_columns(std::string& key,
 }
 
 void Cache::GetRequest::
-ha_get_columns_with_prefix(std::string& key,
+ha_get_columns_with_prefix(CassandraClient* client,
+                           std::string& key,
                            std::string& prefix,
                            std::vector<ColumnOrSuperColumn>& columns)
 {
@@ -159,7 +158,8 @@ ha_get_columns_with_prefix(std::string& key,
 }
 
 void Cache::GetRequest::
-get_row(std::string& key,
+get_row(CassandraClient* client,
+        std::string& key,
         std::vector<ColumnOrSuperColumn>& columns,
         ConsistencyLevel consistency_level)
 {
@@ -168,7 +168,8 @@ get_row(std::string& key,
 }
 
 void Cache::GetRequest::
-get_columns(std::string& key,
+get_columns(CassandraClient* client,
+            std::string& key,
             std::vector<std::string>& names,
             std::vector<ColumnOrSuperColumn>& columns,
             ConsistencyLevel consistency_level)
@@ -178,7 +179,8 @@ get_columns(std::string& key,
 }
 
 void Cache::GetRequest::
-get_columns_with_prefix(std::string& key,
+get_columns_with_prefix(CassandraClient* client,
+                        std::string& key,
                         std::string& prefix,
                         std::vector<ColumnOrSuperColumn>& columns,
                         ConsistencyLevel consistency_level)
@@ -189,7 +191,8 @@ get_columns_with_prefix(std::string& key,
 }
 
 void Cache::GetRequest::
-issue_get_for_key(std::string& key,
+issue_get_for_key(CassandraClient* client,
+                  std::string& key,
                   SlicePredicate& predicate,
                   std::vector<ColumnOrSuperColumn>& columns)
 {
@@ -211,7 +214,8 @@ issue_get_for_key(std::string& key,
 
 
 void Cache::DeleteRowsRequest::
-delete_row(std::string& key,
+delete_row(CassandraClient* client,
+           std::string& key,
            int64_t timestamp)
 {
   // Create a ColumnPath specifying all columns.
@@ -233,7 +237,7 @@ delete_row(std::string& key,
 
 
 
-void Cache::PutIMSSubscription::process()
+void Cache::PutIMSSubscription::process(CassandraClient* client)
 {
   // _put_columns()
   // Catch thrift exceptions and convert to error codes.
@@ -241,7 +245,7 @@ void Cache::PutIMSSubscription::process()
 }
 
 
-void Cache::PutAssociatedPublicID::process()
+void Cache::PutAssociatedPublicID::process(CassandraClient* client)
 {
   // Add a assoc_public_ prefix to the public ID.
   // _put_columns()
@@ -250,7 +254,7 @@ void Cache::PutAssociatedPublicID::process()
 }
 
 
-void Cache::PutAuthVector::process()
+void Cache::PutAuthVector::process(CassandraClient* client)
 {
   // Convert the DigestAuthVector to a map of columns names => values.
   // _put_columns()
@@ -259,7 +263,7 @@ void Cache::PutAuthVector::process()
 }
 
 
-void Cache::GetIMSSubscription::process()
+void Cache::GetIMSSubscription::process(CassandraClient* client)
 {
   // _ha_get_column()
   // Catch thrift exceptions and convert to error codes.
@@ -267,7 +271,7 @@ void Cache::GetIMSSubscription::process()
 }
 
 
-void Cache::GetAssociatedPublicIDs::process()
+void Cache::GetAssociatedPublicIDs::process(CassandraClient* client)
 {
   // _ha_get_columns_with_prefix()
   // Catch thrift exceptions and convert to error codes.
@@ -275,7 +279,7 @@ void Cache::GetAssociatedPublicIDs::process()
 }
 
 
-void Cache::GetAuthVector::process()
+void Cache::GetAuthVector::process(CassandraClient* client)
 {
   // _ha_get_columns()
   // Construct a DigestAuthVector from the values returned (error if some are
@@ -284,14 +288,14 @@ void Cache::GetAuthVector::process()
   // Call on_success or on_falure as appropriate.
 }
 
-void Cache::DeletePublicIDs::process()
+void Cache::DeletePublicIDs::process(CassandraClient* client)
 {
   // _delete_row()
   // Catch thrift exceptions and convert to error codes.
   // Call on_success or on_falure as appropriate.
 }
 
-void Cache::DeletePrivateIDs::process()
+void Cache::DeletePrivateIDs::process(CassandraClient* client)
 {
   // _delete_row()
   // Catch thrift exceptions and convert to error codes.
@@ -304,7 +308,7 @@ void Cache::DeletePrivateIDs::process()
 
 void Cache::CacheThreadPool::process_work(Request *request)
 {
-  // Call request->_process()
+  // Call request->_process(CassandraClient* client)
   // Catch unhandled exceptions and log them.
 }
 

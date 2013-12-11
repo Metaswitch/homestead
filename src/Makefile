@@ -13,8 +13,7 @@ TARGET_TEST := homestead_test
 
 TARGET_SOURCES := cache.cpp \
                   diameterstack.cpp \
-                  httpstack.cpp \
-                  threadpool.cpp
+                  httpstack.cpp
 
 TARGET_SOURCES_BUILD := main.cpp
 
