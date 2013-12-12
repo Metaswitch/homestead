@@ -194,7 +194,7 @@ private:
   virtual void on_thread_shutdown() {};
 
   // Process a work item. This method must be overriden by the subclass.
-  virtual void process_work(T& work);
+  virtual void process_work(T& work) = 0;
 };
 
 #endif

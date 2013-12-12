@@ -39,27 +39,27 @@
 
 struct AuthVector
 {
-  virtual ~AuthVector();
+  virtual ~AuthVector() {};
 };
 
 struct DigestAuthVector : AuthVector
 {
-  virtual ~DigestAuthVector();
+  virtual ~DigestAuthVector() {};
 
-  std::string _ha1;
-  std::string _realm;
-  std::string _qop;
-  bool _preferred;
+  std::string ha1;
+  std::string realm;
+  std::string qop;
+  bool preferred;
 };
 
 struct AKAAuthVector : AuthVector
 {
-  virtual ~AKAAuthVector();
+  virtual ~AKAAuthVector() {};
 
-  std::string _challenge;
-  std::string _response;
-  std::string _crypt_key;
-  std::string _integrity_key;
+  std::string challenge;
+  std::string response;
+  std::string crypt_key;
+  std::string integrity_key;
 };
 
 #endif

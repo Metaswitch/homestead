@@ -171,7 +171,7 @@ private:
   private:
     Cache *_cache;
 
-    void process_work(Request *);
+    void process_work(Request*&);
   };
 
   // Thread pool is a friend so that it can call get_client().
@@ -184,7 +184,6 @@ private:
   // Cassandra connection information.
   std::string _cass_hostname;
   uint16_t _cass_port;
-  static const std::string KEYSPACE;
 
   // Thread pool management.
   //
@@ -222,16 +221,15 @@ public:
   class Request
   {
   public:
-    Request(std::string& table);
+    Request(std::string& column_family);
     virtual ~Request();
 
     virtual void run(Cache::CacheClient* client);
-    virtual void perform(Cache::CacheClient* client);
-    virtual void on_failure(ResultCode error, std::string& text);
+    virtual void perform(Cache::CacheClient* client) = 0;
+    virtual void on_failure(ResultCode error, std::string& text) = 0;
 
-  private:
-
-    std::string _table;
+  protected:
+    std::string _column_family;
   };
 
   // Class representing a request to modify the cassandra cache - for example
@@ -239,10 +237,10 @@ public:
   class ModificationRequest : public Request
   {
   public:
-    ModificationRequest(std::string& table, int64_t timestamp);
+    ModificationRequest(std::string& column_family, int64_t timestamp);
     virtual ~ModificationRequest();
 
-  private:
+  protected:
     int64_t _timestamp;
   };
 
@@ -250,13 +248,14 @@ public:
   class PutRequest : public ModificationRequest
   {
   public:
-    PutRequest(std::string& table, int64_t timestamp, int32_t ttl = 0);
+    PutRequest(std::string& column_family, int64_t timestamp, int32_t ttl = 0);
     virtual ~PutRequest();
 
-  private:
+  protected:
     int32_t _ttl;
 
     void put_columns(CacheClient* client,
+                     std::string& column_family,
                      std::vector<std::string>& keys,
                      std::map<std::string, std::string>& columns,
                      int64_t timestamp,
@@ -268,57 +267,66 @@ public:
   class GetRequest : public Request
   {
   public:
+    GetRequest(std::string& column_family);
     virtual ~GetRequest();
 
-  private:
+  protected:
     void ha_get_row(CacheClient* client,
+                    std::string& column_family,
                     std::string& key,
                     std::vector<org::apache::cassandra::ColumnOrSuperColumn>& columns);
 
     void ha_get_columns(CacheClient* client,
+                        std::string& column_family,
                         std::string& key,
                         std::vector<std::string>& names,
                         std::vector<org::apache::cassandra::ColumnOrSuperColumn>& columns);
 
     void ha_get_columns_with_prefix(CacheClient* client,
+                                    std::string& column_family,
                                     std::string& key,
                                     std::string& prefix,
                                     std::vector<org::apache::cassandra::ColumnOrSuperColumn>& columns);
 
     void get_row(CacheClient* client,
+                 std::string& column_family,
                  std::string& key,
                  std::vector<org::apache::cassandra::ColumnOrSuperColumn>& columns,
-                 org::apache::cassandra::ConsistencyLevel consistency_level);
+                 org::apache::cassandra::ConsistencyLevel::type consistency_level);
 
     void get_columns(CacheClient* client,
+                     std::string& column_family,
                      std::string& key,
                      std::vector<std::string>& names,
                      std::vector<org::apache::cassandra::ColumnOrSuperColumn>& columns,
-                     org::apache::cassandra::ConsistencyLevel consistency_level);
+                     org::apache::cassandra::ConsistencyLevel::type consistency_level);
 
     void get_columns_with_prefix(CacheClient* client,
+                                 std::string& column_family,
                                  std::string& key,
                                  std::string& prefix,
                                  std::vector<org::apache::cassandra::ColumnOrSuperColumn>& columns,
-                                 org::apache::cassandra::ConsistencyLevel consistency_level);
+                                 org::apache::cassandra::ConsistencyLevel::type consistency_level);
 
     void issue_get_for_key(CacheClient* client,
+                           std::string& column_family,
                            std::string& key,
                            org::apache::cassandra::SlicePredicate& predicate,
-                           std::vector<org::apache::cassandra::ColumnOrSuperColumn>& columns);
+                           std::vector<org::apache::cassandra::ColumnOrSuperColumn>& columns,
+                           org::apache::cassandra::ConsistencyLevel::type consistency_level);
   };
 
   // Class representing a request to delete some rows from the cassandra cache.
   class DeleteRowsRequest : public ModificationRequest
   {
   public:
-    DeleteRowsRequest(std::string& table,
-                      std::vector<std::string>& keys,
+    DeleteRowsRequest(std::string& column_family,
                       int64_t timestamp);
     virtual ~DeleteRowsRequest();
 
-  private:
+  protected:
     void delete_row(CacheClient* client,
+                    std::string& column_family,
                     std::string& key,
                     int64_t timestamp);
   };
@@ -339,12 +347,11 @@ public:
 
     void perform(CacheClient* client);
 
-  private:
+  protected:
     std::vector<std::string> _public_ids;
     std::string _xml;
 
-    virtual void on_success();
-    virtual void on_failure(ResultCode error);
+    virtual void on_success() = 0;
   };
 
   // A request to associate a public ID with a particular private ID.
@@ -359,12 +366,11 @@ public:
 
     void perform(CacheClient* client);
 
-  private:
+  protected:
     std::string _private_id;
     std::string _assoc_public_id;
 
-    virtual void on_success();
-    virtual void on_failure(ResultCode error);
+    virtual void on_success() = 0;
   };
 
   // A request to add an authorization vector to the cache.
@@ -379,12 +385,11 @@ public:
 
     void perform(CacheClient* client);
 
-  private:
-    std::string _private_id;
-    DigestAuthVector *_auth_vector;
+  protected:
+    std::vector<std::string> _private_ids;
+    DigestAuthVector _auth_vector;
 
-    virtual void on_success();
-    virtual void on_failure(ResultCode error);
+    virtual void on_success() = 0;
   };
 
   // A request to get the IMS subscription XML for a public ID.
@@ -396,11 +401,10 @@ public:
 
     void perform(CacheClient* client);
 
-  private:
+  protected:
     std::string _public_id;
 
-    virtual void on_success(std::string& xml);
-    virtual void on_failure(ResultCode error);
+    virtual void on_success(std::string& xml) = 0;
   };
 
   // A request to get the public IDs associated with a private ID.
@@ -411,11 +415,10 @@ public:
 
     void perform(CacheClient* client);
 
-  private:
+  protected:
     std::string _private_id;
 
-    virtual void on_success(std::vector<std::string>& public_ids);
-    virtual void on_failure(ResultCode error);
+    virtual void on_success(std::vector<std::string>& public_ids) = 0;
   };
 
   // A request to get the authorization vector for a private ID.
@@ -429,12 +432,11 @@ public:
 
     void perform(CacheClient* client);
 
-  private:
+  protected:
     std::string _private_id;
     std::string _public_id;
 
-    virtual void on_success(DigestAuthVector *auth_vector);
-    virtual void on_failure(ResultCode error);
+    virtual void on_success(DigestAuthVector& auth_vector) = 0;
   };
 
   // A request to delete one or more public IDs.
@@ -448,11 +450,10 @@ public:
 
     void perform(CacheClient* client);
 
-  private:
+  protected:
     std::vector<std::string> _public_ids;
 
-    virtual void on_success();
-    virtual void on_failure(ResultCode error);
+    virtual void on_success() = 0;
   };
 
   // A request to delete one or more private IDs.
@@ -466,11 +467,10 @@ public:
 
     void perform(CacheClient* client);
 
-  private:
+  protected:
     std::vector<std::string> _private_ids;
 
-    virtual void on_success();
-    virtual void on_failure(ResultCode error);
+    virtual void on_success() = 0;
   };
 };
 
