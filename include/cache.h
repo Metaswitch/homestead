@@ -131,26 +131,6 @@ public:
   /// @param request object describing the request.
   void send(Request *request);
 
-private:
-  /// @class CacheThreadPool
-  ///
-  /// The thread pool used by the cache.  This is a simple subclass of
-  /// ThreadPool that also stores a pointer back to the cache.
-  class CacheThreadPool : public ThreadPool<Request *>
-  {
-  public:
-    CacheThreadPool(Cache *cache,
-                    unsigned int num_threads,
-                    unsigned int max_queue = 0);
-    virtual ~CacheThreadPool();
-
-  private:
-    Cache *_cache;
-
-    void process_work(Request *);
-  };
-  friend class CacheThreadPool;
-
   /// @class CacheClient
   ///
   /// Simple subclass of a normal cassandra client but that automatically opens
@@ -174,6 +154,28 @@ private:
   private:
     boost::shared_ptr<apache::thrift::transport::TFramedTransport> _transport;
   };
+
+private:
+  /// @class CacheThreadPool
+  ///
+  /// The thread pool used by the cache.  This is a simple subclass of
+  /// ThreadPool that also stores a pointer back to the cache.
+  class CacheThreadPool : public ThreadPool<Request *>
+  {
+  public:
+    CacheThreadPool(Cache *cache,
+                    unsigned int num_threads,
+                    unsigned int max_queue = 0);
+    virtual ~CacheThreadPool();
+
+  private:
+    Cache *_cache;
+
+    void process_work(Request *);
+  };
+
+  // Thread pool is a friend so that it can call get_client().
+  friend class CacheThreadPool;
 
   // Singleton variables.
   static Cache* INSTANCE;
@@ -205,7 +207,7 @@ private:
   //   it. It allows a thread to pro-actively delete it's client.
   pthread_key_t _thread_local;
 
-  org::apache::cassandra::CassandraClient* get_client();
+  CacheClient* get_client();
   void release_client();
   static void delete_client(void *client);
 
@@ -223,7 +225,9 @@ public:
     Request(std::string& table);
     virtual ~Request();
 
-    virtual void run(org::apache::cassandra::CassandraClient* client);
+    virtual void run(Cache::CacheClient* client);
+    virtual void perform(Cache::CacheClient* client);
+    virtual void on_failure(ResultCode error, std::string& text);
 
   private:
 
@@ -252,7 +256,7 @@ public:
   private:
     int32_t _ttl;
 
-    void put_columns(org::apache::cassandra::CassandraClient* client,
+    void put_columns(CacheClient* client,
                      std::vector<std::string>& keys,
                      std::map<std::string, std::string>& columns,
                      int64_t timestamp,
@@ -267,38 +271,38 @@ public:
     virtual ~GetRequest();
 
   private:
-    void ha_get_row(org::apache::cassandra::CassandraClient* client,
+    void ha_get_row(CacheClient* client,
                     std::string& key,
                     std::vector<org::apache::cassandra::ColumnOrSuperColumn>& columns);
 
-    void ha_get_columns(org::apache::cassandra::CassandraClient* client,
+    void ha_get_columns(CacheClient* client,
                         std::string& key,
                         std::vector<std::string>& names,
                         std::vector<org::apache::cassandra::ColumnOrSuperColumn>& columns);
 
-    void ha_get_columns_with_prefix(org::apache::cassandra::CassandraClient* client,
+    void ha_get_columns_with_prefix(CacheClient* client,
                                     std::string& key,
                                     std::string& prefix,
                                     std::vector<org::apache::cassandra::ColumnOrSuperColumn>& columns);
 
-    void get_row(org::apache::cassandra::CassandraClient* client,
+    void get_row(CacheClient* client,
                  std::string& key,
                  std::vector<org::apache::cassandra::ColumnOrSuperColumn>& columns,
                  org::apache::cassandra::ConsistencyLevel consistency_level);
 
-    void get_columns(org::apache::cassandra::CassandraClient* client,
+    void get_columns(CacheClient* client,
                      std::string& key,
                      std::vector<std::string>& names,
                      std::vector<org::apache::cassandra::ColumnOrSuperColumn>& columns,
                      org::apache::cassandra::ConsistencyLevel consistency_level);
 
-    void get_columns_with_prefix(org::apache::cassandra::CassandraClient* client,
+    void get_columns_with_prefix(CacheClient* client,
                                  std::string& key,
                                  std::string& prefix,
                                  std::vector<org::apache::cassandra::ColumnOrSuperColumn>& columns,
                                  org::apache::cassandra::ConsistencyLevel consistency_level);
 
-    void issue_get_for_key(org::apache::cassandra::CassandraClient* client,
+    void issue_get_for_key(CacheClient* client,
                            std::string& key,
                            org::apache::cassandra::SlicePredicate& predicate,
                            std::vector<org::apache::cassandra::ColumnOrSuperColumn>& columns);
@@ -314,7 +318,7 @@ public:
     virtual ~DeleteRowsRequest();
 
   private:
-    void delete_row(org::apache::cassandra::CassandraClient* client,
+    void delete_row(CacheClient* client,
                     std::string& key,
                     int64_t timestamp);
   };
@@ -333,7 +337,7 @@ public:
                        int32_t ttl = 0);
     virtual ~PutIMSSubscription();
 
-    void run(org::apache::cassandra::CassandraClient* client);
+    void perform(CacheClient* client);
 
   private:
     std::vector<std::string> _public_ids;
@@ -353,7 +357,7 @@ public:
                           int32_t ttl = 0);
     virtual ~PutAssociatedPublicID();
 
-    void run(org::apache::cassandra::CassandraClient* client);
+    void perform(CacheClient* client);
 
   private:
     std::string _private_id;
@@ -373,7 +377,7 @@ public:
                   int32_t ttl = 0);
     virtual ~PutAuthVector();
 
-    void run(org::apache::cassandra::CassandraClient* client);
+    void perform(CacheClient* client);
 
   private:
     std::string _private_id;
@@ -390,7 +394,7 @@ public:
     GetIMSSubscription(std::string& public_id);
     virtual ~GetIMSSubscription();
 
-    void run(org::apache::cassandra::CassandraClient* client);
+    void perform(CacheClient* client);
 
   private:
     std::string _public_id;
@@ -405,7 +409,7 @@ public:
     GetAssociatedPublicIDs(std::string& private_id);
     virtual ~GetAssociatedPublicIDs();
 
-    void run(org::apache::cassandra::CassandraClient* client);
+    void perform(CacheClient* client);
 
   private:
     std::string _private_id;
@@ -423,7 +427,7 @@ public:
                   std::string& public_id);
     virtual ~GetAuthVector();
 
-    void run(org::apache::cassandra::CassandraClient* client);
+    void perform(CacheClient* client);
 
   private:
     std::string _private_id;
@@ -442,7 +446,7 @@ public:
                     int64_t timestamp);
     virtual ~DeletePublicIDs();
 
-    void run(org::apache::cassandra::CassandraClient* client);
+    void perform(CacheClient* client);
 
   private:
     std::vector<std::string> _public_ids;
@@ -460,7 +464,7 @@ public:
                      int64_t timestamp);
     virtual ~DeletePrivateIDs();
 
-    void run(org::apache::cassandra::CassandraClient* client);
+    void perform(CacheClient* client);
 
   private:
     std::vector<std::string> _private_ids;

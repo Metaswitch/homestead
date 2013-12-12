@@ -35,6 +35,7 @@
  */
 
 #include <cache.h>
+#include <boost/format.hpp>
 
 using namespace apache::thrift;
 using namespace apache::thrift::transport;
@@ -62,10 +63,12 @@ Cache::Cache() :
   pthread_key_create(&_thread_local, delete_client);
 }
 
+
 void Cache::initialize()
 {
   // There is nothing ti initialize - this is intentionally a no-op.
 }
+
 
 void Cache::configure(std::string cass_hostname,
                       uint16_t cass_port,
@@ -77,6 +80,7 @@ void Cache::configure(std::string cass_hostname,
   _num_threads = num_threads;
   _max_queue = max_queue;
 }
+
 
 Cache::ResultCode Cache::start()
 {
@@ -117,6 +121,7 @@ Cache::ResultCode Cache::start()
   return rc;
 }
 
+
 void Cache::stop()
 {
   if (_thread_pool != NULL)
@@ -124,6 +129,7 @@ void Cache::stop()
     _thread_pool->stop();
   }
 }
+
 
 void Cache::wait_stopped()
 {
@@ -136,6 +142,7 @@ void Cache::wait_stopped()
   }
 }
 
+
 Cache::~Cache()
 {
   // It is only safe to destroy the cache once the thread pool has been deleted
@@ -144,11 +151,12 @@ Cache::~Cache()
   wait_stopped();
 }
 
-CassandraClient* Cache::get_client()
+
+Cache::CacheClient* Cache::get_client()
 {
   // See if we've already got a client for this thread.  If not allocate a new
   // one and write it back into thread-local storage.
-  CassandraClient* client = (CassandraClient*)pthread_getspecific(_thread_local);
+  Cache::CacheClient* client = (Cache::CacheClient*)pthread_getspecific(_thread_local);
 
   if (client == NULL)
   {
@@ -158,7 +166,7 @@ CassandraClient* Cache::get_client()
         boost::shared_ptr<TFramedTransport>(new TFramedTransport(socket));
     boost::shared_ptr<TProtocol> protocol =
         boost::shared_ptr<TBinaryProtocol>(new TBinaryProtocol(transport));
-    client = new CacheClient(protocol, transport);
+    client = new Cache::CacheClient(protocol, transport);
     client->set_keyspace(KEYSPACE);
     pthread_setspecific(_thread_local, client);
   }
@@ -166,11 +174,12 @@ CassandraClient* Cache::get_client()
   return client;
 }
 
+
 void Cache::release_client()
 {
   // If this thread already has a client delete it and remove it from
   // thread-local storage.
-  CassandraClient* client = (CassandraClient*)pthread_getspecific(_thread_local);
+  Cache::CacheClient* client = (Cache::CacheClient*)pthread_getspecific(_thread_local);
 
   if (client != NULL)
   {
@@ -179,10 +188,12 @@ void Cache::release_client()
   }
 }
 
+
 void Cache::delete_client(void *client)
 {
-  delete (CassandraClient *)client; client = NULL;
+  delete (Cache::CacheClient *)client; client = NULL;
 }
+
 
 void Cache::send(Request *request)
 {
@@ -190,9 +201,11 @@ void Cache::send(Request *request)
   request = NULL;
 }
 
+
 //
 // CacheThreadPool methods
 //
+
 Cache::CacheThreadPool::CacheThreadPool(Cache *cache,
                                         unsigned int num_threads,
                                         unsigned int max_queue) :
@@ -218,6 +231,45 @@ void Cache::CacheThreadPool::process_work(Request *request)
   delete request; request = NULL;
 }
 
+//
+// Request methods
+//
+
+Cache::Request::Request(std::string& table) :
+  _table(table)
+{}
+
+void Cache::Request::run(Cache::CacheClient *client)
+{
+  ResultCode rc = ResultCode::OK;
+  std::string error_text = "";
+
+  try
+  {
+    perform(client);
+  }
+  catch(TTransportException te)
+  {
+    rc = ResultCode::CONNECTION_ERROR;
+    error_text = (boost::format("Exception: %s [%d]\n") % te.what() % te.getType()).str();
+  }
+  catch(InvalidRequestException ire)
+  {
+    rc = ResultCode::INVALID_REQUEST;
+    error_text = (boost::format("Exception: %s [%s]\n") % ire.what() % ire.why.c_str()).str();
+  }
+  catch(NotFoundException nfe)
+  {
+    rc = ResultCode::NOT_FOUND;
+    error_text = (boost::format("Exception: %s\n") % nfe.what()).str();
+  }
+
+  if (rc != ResultCode::OK)
+  {
+    on_failure(rc, error_text);
+  }
+}
+
 
 
 
@@ -233,7 +285,7 @@ void Cache::CacheThreadPool::process_work(Request *request)
 
 
 void Cache::PutRequest::
-put_columns(CassandraClient* client,
+put_columns(Cache::CacheClient* client,
             std::vector<std::string>& keys,
             std::map<std::string, std::string>& columns,
             int64_t timestamp,
@@ -248,7 +300,7 @@ put_columns(CassandraClient* client,
 }
 
 void Cache::GetRequest::
-ha_get_row(CassandraClient* client,
+ha_get_row(Cache::CacheClient* client,
            std::string& key,
            std::vector<ColumnOrSuperColumn>& columns)
 {
@@ -257,7 +309,7 @@ ha_get_row(CassandraClient* client,
 }
 
 void Cache::GetRequest::
-ha_get_columns(CassandraClient* client,
+ha_get_columns(Cache::CacheClient* client,
                std::string& key,
                std::vector<std::string>& names,
                std::vector<ColumnOrSuperColumn>& columns)
@@ -267,7 +319,7 @@ ha_get_columns(CassandraClient* client,
 }
 
 void Cache::GetRequest::
-ha_get_columns_with_prefix(CassandraClient* client,
+ha_get_columns_with_prefix(Cache::CacheClient* client,
                            std::string& key,
                            std::string& prefix,
                            std::vector<ColumnOrSuperColumn>& columns)
@@ -277,7 +329,7 @@ ha_get_columns_with_prefix(CassandraClient* client,
 }
 
 void Cache::GetRequest::
-get_row(CassandraClient* client,
+get_row(Cache::CacheClient* client,
         std::string& key,
         std::vector<ColumnOrSuperColumn>& columns,
         ConsistencyLevel consistency_level)
@@ -287,7 +339,7 @@ get_row(CassandraClient* client,
 }
 
 void Cache::GetRequest::
-get_columns(CassandraClient* client,
+get_columns(Cache::CacheClient* client,
             std::string& key,
             std::vector<std::string>& names,
             std::vector<ColumnOrSuperColumn>& columns,
@@ -298,7 +350,7 @@ get_columns(CassandraClient* client,
 }
 
 void Cache::GetRequest::
-get_columns_with_prefix(CassandraClient* client,
+get_columns_with_prefix(Cache::CacheClient* client,
                         std::string& key,
                         std::string& prefix,
                         std::vector<ColumnOrSuperColumn>& columns,
@@ -310,7 +362,7 @@ get_columns_with_prefix(CassandraClient* client,
 }
 
 void Cache::GetRequest::
-issue_get_for_key(CassandraClient* client,
+issue_get_for_key(Cache::CacheClient* client,
                   std::string& key,
                   SlicePredicate& predicate,
                   std::vector<ColumnOrSuperColumn>& columns)
@@ -333,7 +385,7 @@ issue_get_for_key(CassandraClient* client,
 
 
 void Cache::DeleteRowsRequest::
-delete_row(CassandraClient* client,
+delete_row(Cache::CacheClient* client,
            std::string& key,
            int64_t timestamp)
 {
@@ -356,7 +408,7 @@ delete_row(CassandraClient* client,
 
 
 
-void Cache::PutIMSSubscription::run(CassandraClient* client)
+void Cache::PutIMSSubscription::perform(Cache::CacheClient* client)
 {
   // _put_columns()
   // Catch thrift exceptions and convert to error codes.
@@ -364,7 +416,7 @@ void Cache::PutIMSSubscription::run(CassandraClient* client)
 }
 
 
-void Cache::PutAssociatedPublicID::run(CassandraClient* client)
+void Cache::PutAssociatedPublicID::perform(Cache::CacheClient* client)
 {
   // Add a assoc_public_ prefix to the public ID.
   // _put_columns()
@@ -373,7 +425,7 @@ void Cache::PutAssociatedPublicID::run(CassandraClient* client)
 }
 
 
-void Cache::PutAuthVector::run(CassandraClient* client)
+void Cache::PutAuthVector::perform(Cache::CacheClient* client)
 {
   // Convert the DigestAuthVector to a map of columns names => values.
   // _put_columns()
@@ -382,7 +434,7 @@ void Cache::PutAuthVector::run(CassandraClient* client)
 }
 
 
-void Cache::GetIMSSubscription::run(CassandraClient* client)
+void Cache::GetIMSSubscription::perform(Cache::CacheClient* client)
 {
   // _ha_get_column()
   // Catch thrift exceptions and convert to error codes.
@@ -390,7 +442,7 @@ void Cache::GetIMSSubscription::run(CassandraClient* client)
 }
 
 
-void Cache::GetAssociatedPublicIDs::run(CassandraClient* client)
+void Cache::GetAssociatedPublicIDs::perform(Cache::CacheClient* client)
 {
   // _ha_get_columns_with_prefix()
   // Catch thrift exceptions and convert to error codes.
@@ -398,7 +450,7 @@ void Cache::GetAssociatedPublicIDs::run(CassandraClient* client)
 }
 
 
-void Cache::GetAuthVector::run(CassandraClient* client)
+void Cache::GetAuthVector::perform(Cache::CacheClient* client)
 {
   // _ha_get_columns()
   // Construct a DigestAuthVector from the values returned (error if some are
@@ -407,14 +459,14 @@ void Cache::GetAuthVector::run(CassandraClient* client)
   // Call on_success or on_falure as appropriate.
 }
 
-void Cache::DeletePublicIDs::run(CassandraClient* client)
+void Cache::DeletePublicIDs::perform(Cache::CacheClient* client)
 {
   // _delete_row()
   // Catch thrift exceptions and convert to error codes.
   // Call on_success or on_falure as appropriate.
 }
 
-void Cache::DeletePrivateIDs::run(CassandraClient* client)
+void Cache::DeletePrivateIDs::perform(Cache::CacheClient* client)
 {
   // _delete_row()
   // Catch thrift exceptions and convert to error codes.
