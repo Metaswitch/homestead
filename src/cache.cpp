@@ -36,61 +36,187 @@
 
 #include <cache.h>
 
+using namespace apache::thrift;
+using namespace apache::thrift::transport;
+using namespace apache::thrift::protocol;
 using namespace org::apache::cassandra;
+
+Cache* Cache::INSTANCE = &DEFAULT_INSTANCE;
+Cache Cache::DEFAULT_INSTANCE;
+const std::string Cache::KEYSPACE = "homestead_cache";
+
+//
+// Cache methods
+//
+
+Cache::Cache() :
+  _cass_hostname(""),
+  _cass_port(0),
+  _num_threads(0),
+  _max_queue(0),
+  _thread_pool(NULL),
+  _thread_local()
+{
+  // Create the thread-local storage that stores cassandra connections.
+  // delete_client is a destroy callback that is called when the thread exits.
+  pthread_key_create(&_thread_local, delete_client);
+}
 
 void Cache::initialize()
 {
-  // No-op
+  // There is nothing ti initialize - this is intentionally a no-op.
 }
 
 void Cache::configure(std::string cass_hostname,
-                      uint16_t cass_port)
+                      uint16_t cass_port,
+                      unsigned int num_threads,
+                      unsigned int max_queue)
 {
-  _cass_host = cass_hostname;
+  _cass_hostname = cass_hostname;
   _cass_port = cass_port;
+  _num_threads = num_threads;
+  _max_queue = max_queue;
 }
 
 Cache::ResultCode Cache::start()
 {
-  // Check connectivity to cassandra. Return an error code if there is a
-  // problem.
-  //
-  // Initialize the thread pool.
+  ResultCode rc = ResultCode::OK;
 
-  return ResultCode::OK;
+  // Check that we can connect to cassandra by getting a client. This logs in
+  // and switches to the cache keyspace, so is a good test of whether cassandra
+  // is working properly.
+  try
+  {
+    get_client();
+    release_client();
+  }
+  catch(TTransportException te)
+  {
+    rc = ResultCode::CONNECTION_ERROR;
+  }
+  catch(NotFoundException nfe)
+  {
+    rc = ResultCode::NOT_FOUND;
+  }
+  catch(...)
+  {
+    rc = ResultCode::UNKNOWN_ERROR;
+  }
+
+  // Start the thread pool.
+  if (rc == ResultCode::OK)
+  {
+    _thread_pool = new CacheThreadPool(this, _num_threads, _max_queue);
+
+    if (!_thread_pool->start())
+    {
+      rc = ResultCode::RESOURCE_ERROR;
+    }
+  }
+
+  return rc;
 }
 
 void Cache::stop()
 {
-  // Stop the thread pool.
+  if (_thread_pool != NULL)
+  {
+    _thread_pool->stop();
+  }
 }
 
 void Cache::wait_stopped()
 {
-  // Join the thread pool.
+  if (_thread_pool != NULL)
+  {
+    _thread_pool->join();
+
+    delete _thread_pool;
+    _thread_pool = NULL;
+  }
+}
+
+Cache::~Cache()
+{
+  // It is only safe to destroy the cache once the thread pool has been deleted
+  // (as the poool stores a pointer to the cache). Make sure this is the case.
+  stop();
+  wait_stopped();
 }
 
 CassandraClient* Cache::get_client()
 {
-  // Get client out of thread-local data.
-  // If not found create one and store in thread local data.
-  // Return client.
-  return NULL;
+  // See if we've already got a client for this thread.  If not allocate a new
+  // one and write it back into thread-local storage.
+  CassandraClient* client = (CassandraClient*)pthread_getspecific(_thread_local);
+
+  if (client == NULL)
+  {
+    boost::shared_ptr<TTransport> socket =
+        boost::shared_ptr<TSocket>(new TSocket(_cass_hostname, _cass_port));
+    boost::shared_ptr<TFramedTransport> transport =
+        boost::shared_ptr<TFramedTransport>(new TFramedTransport(socket));
+    boost::shared_ptr<TProtocol> protocol =
+        boost::shared_ptr<TBinaryProtocol>(new TBinaryProtocol(transport));
+    client = new CacheClient(protocol, transport);
+    client->set_keyspace(KEYSPACE);
+    pthread_setspecific(_thread_local, client);
+  }
+
+  return client;
 }
 
 void Cache::release_client()
 {
-  // Get client out of thread-local data. Delete it. Write a NULL back to
-  // thread-local data.
+  // If this thread already has a client delete it and remove it from
+  // thread-local storage.
+  CassandraClient* client = (CassandraClient*)pthread_getspecific(_thread_local);
+
+  if (client != NULL)
+  {
+    delete_client(client); client = NULL;
+    pthread_setspecific(_thread_local, NULL);
+  }
+}
+
+void Cache::delete_client(void *client)
+{
+  delete (CassandraClient *)client; client = NULL;
 }
 
 void Cache::send(Request *request)
 {
-  // Add the request to the cache's thread pool.
+  _thread_pool->add_work(request);
+  request = NULL;
 }
 
+//
+// CacheThreadPool methods
+//
+Cache::CacheThreadPool::CacheThreadPool(Cache *cache,
+                                        unsigned int num_threads,
+                                        unsigned int max_queue) :
+  ThreadPool<Cache::Request *>(num_threads, max_queue),
+  _cache(cache)
+{}
 
 
+void Cache::CacheThreadPool::process_work(Request *request)
+{
+  // Run the request.  Catch all exceptions to stop an error from killing the
+  // worker thread.
+  try
+  {
+    request->run(_cache->get_client());
+  }
+  catch(...)
+  {
+    LOG_ERROR("Unhandled exception when processing cache request");
+  }
+
+  // We own the request so we have to free it.
+  delete request; request = NULL;
+}
 
 
 
@@ -120,13 +246,6 @@ put_columns(CassandraClient* client,
   //
   // Catch thrift exceptions and convert them into on_error calls.
 }
-
-
-
-
-
-
-
 
 void Cache::GetRequest::
 ha_get_row(CassandraClient* client,
@@ -237,7 +356,7 @@ delete_row(CassandraClient* client,
 
 
 
-void Cache::PutIMSSubscription::process(CassandraClient* client)
+void Cache::PutIMSSubscription::run(CassandraClient* client)
 {
   // _put_columns()
   // Catch thrift exceptions and convert to error codes.
@@ -245,7 +364,7 @@ void Cache::PutIMSSubscription::process(CassandraClient* client)
 }
 
 
-void Cache::PutAssociatedPublicID::process(CassandraClient* client)
+void Cache::PutAssociatedPublicID::run(CassandraClient* client)
 {
   // Add a assoc_public_ prefix to the public ID.
   // _put_columns()
@@ -254,7 +373,7 @@ void Cache::PutAssociatedPublicID::process(CassandraClient* client)
 }
 
 
-void Cache::PutAuthVector::process(CassandraClient* client)
+void Cache::PutAuthVector::run(CassandraClient* client)
 {
   // Convert the DigestAuthVector to a map of columns names => values.
   // _put_columns()
@@ -263,7 +382,7 @@ void Cache::PutAuthVector::process(CassandraClient* client)
 }
 
 
-void Cache::GetIMSSubscription::process(CassandraClient* client)
+void Cache::GetIMSSubscription::run(CassandraClient* client)
 {
   // _ha_get_column()
   // Catch thrift exceptions and convert to error codes.
@@ -271,7 +390,7 @@ void Cache::GetIMSSubscription::process(CassandraClient* client)
 }
 
 
-void Cache::GetAssociatedPublicIDs::process(CassandraClient* client)
+void Cache::GetAssociatedPublicIDs::run(CassandraClient* client)
 {
   // _ha_get_columns_with_prefix()
   // Catch thrift exceptions and convert to error codes.
@@ -279,7 +398,7 @@ void Cache::GetAssociatedPublicIDs::process(CassandraClient* client)
 }
 
 
-void Cache::GetAuthVector::process(CassandraClient* client)
+void Cache::GetAuthVector::run(CassandraClient* client)
 {
   // _ha_get_columns()
   // Construct a DigestAuthVector from the values returned (error if some are
@@ -288,14 +407,14 @@ void Cache::GetAuthVector::process(CassandraClient* client)
   // Call on_success or on_falure as appropriate.
 }
 
-void Cache::DeletePublicIDs::process(CassandraClient* client)
+void Cache::DeletePublicIDs::run(CassandraClient* client)
 {
   // _delete_row()
   // Catch thrift exceptions and convert to error codes.
   // Call on_success or on_falure as appropriate.
 }
 
-void Cache::DeletePrivateIDs::process(CassandraClient* client)
+void Cache::DeletePrivateIDs::run(CassandraClient* client)
 {
   // _delete_row()
   // Catch thrift exceptions and convert to error codes.
@@ -304,15 +423,3 @@ void Cache::DeletePrivateIDs::process(CassandraClient* client)
 
 
 
-
-
-void Cache::CacheThreadPool::process_work(Request *request)
-{
-  // Call request->_process(CassandraClient* client)
-  // Catch unhandled exceptions and log them.
-}
-
-void Cache::CacheThreadPool::on_thread_shutdown()
-{
-  // Call _release_client().
-}

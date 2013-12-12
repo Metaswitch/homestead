@@ -82,12 +82,12 @@ public:
     bool success = true;
     pthread_t thread_handle;
 
-    for (int ii = 0; ii < _num_threads; ++ii)
+    for (unsigned int ii = 0; ii < _num_threads; ++ii)
     {
       int rc = pthread_create(&thread_handle,
                               NULL,
-                              std::mem_fun(&ThreadPool<T>::worker_thread_func),
-                              NULL);
+                              static_worker_thread_func,
+                              this);
       if (rc == 0)
       {
         _threads.push_back(thread_handle);
@@ -122,7 +122,7 @@ public:
   // Wait for the threadpool to shutdown.
   void join()
   {
-    for (int ii = 0; ii < _threads.size(); ++ii)
+    for (unsigned int ii = 0; ii < _threads.size(); ++ii)
     {
       pthread_join(_threads[ii], NULL);
     }
@@ -141,12 +141,22 @@ private:
   std::vector<pthread_t> _threads;
   eventq<T> _queue;
 
+  // Static worker thread function that is passed into pthread_create.
+  //
+  // We can't use a mem_fun here as we can't convert the resulting mem_fun_t to
+  // the void *(*)(void *) required by pthreads.
+  //
+  // @param pool pointer to the worker pool.
+  // @return NULL (required by the pthreads API).
+  static void *static_worker_thread_func(void *pool)
+  {
+    ((ThreadPool<T> *)pool)->worker_thread_func();
+    return NULL;
+  }
+
   // Function executed by a single worker thread. Thsi loops pulling work off
   // the queue and processing it.
-  //
-  // @param ignored an ignored parameter (required by the pthreads API).
-  // @return NULL (required by the pthreads API).
-  void *worker_thread_func(void *ignored)
+  void worker_thread_func()
   {
     bool got_work;
     T work;
@@ -169,8 +179,6 @@ private:
 
     // Shutdown hook.
     on_thread_shutdown();
-
-    return NULL;
   }
 
   // (Optional) thread startup hook.  This is called by each worker thread just

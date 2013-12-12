@@ -33,6 +33,12 @@
  * under which the OpenSSL Project distributes the OpenSSL toolkit software,
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
+#include "thrift/Thrift.h"
+#include "thrift/transport/TSocket.h"
+#include "thrift/transport/TTransport.h"
+#include "thrift/transport/TBufferTransports.h"
+#include "thrift/protocol/TProtocol.h"
+#include "thrift/protocol/TBinaryProtocol.h"
 #include "Cassandra.h"
 
 #include "authvector.h"
@@ -41,30 +47,175 @@
 #ifndef CACHE_H__
 #define CACHE_H__
 
-// Singleton class representing a cassandra-backed subscriber cache.
+/// @class Cache
+///
+/// Singleton class representing a cassandra-backed subscriber cache.
+///
+/// The usage is as follows:
+/// -  At start of day the user calls initialize()
+/// -  Configure the cache by calling configure()
+/// -  Start the cache by calling start()
+/// -  To send a request build a request object (as subclass of Cache::Request)
+///    and call send(). The on_success / on_failure method of the request will
+///    be called when the request resolves.
+/// -  Stop the cache by calling stop().  Optionally call wait_stop() to block
+///    until the cache has finished stopping.
+///
+/// The cache can be reconfigured by doing stop(), wait_stop(), configure(),
+/// start().
 class Cache
 {
 public:
+  class Request;
+
   virtual ~Cache();
 
   enum ResultCode
   {
-    OK = 0
+    OK = 0,
+    INVALID_REQUEST,
+    NOT_FOUND,
+    RESOURCE_ERROR,
+    CONNECTION_ERROR,
+    UNKNOWN_ERROR
   };
 
-  //
-  // Methods to manage the cache instance. These mirror the methods used to
-  // mange the HTTP and Diameter stacks.
-  //
+  /// @return the singleton cache instance.
   static inline Cache* get_instance() { return INSTANCE; }
 
+  /// Initialize the cache.
   void initialize();
+
+  /// Configure cache settings.
+  ///
+  /// @param cass_hostname the hostname for the cassandra database.
+  /// @param cass_port the port to connect to cassnadra on.
+  /// @param num_threads the number of worker threads to use for processing
+  ///   cache requests.
+  /// @param max_queue the maximum number of requests that can be queued waiting
+  ///   for a worker thread.  If more requests are added the call to send() will
+  ///   block until some existing requests have been processed.  0 => no limit.
   void configure(std::string cass_hostname,
-                 uint16_t cass_port);
+                 uint16_t cass_port,
+                 unsigned int num_threads,
+                 unsigned int max_queue = 0);
+
+  /// Start the cache.
+  ///
+  /// Check that the cache can connect to cassandra, and start
+  /// the worker threads.
+  ///
+  /// @return the result of starting the cache.
   ResultCode start();
+
+  /// Stop the cache.
+  ///
+  /// This discards any queued requests and terminates the worker threads once
+  /// their current request has completed.
   void stop();
+
+  /// Wait until the cache has completely stopped.  This method my block.
   void wait_stopped();
 
+  /// Generate a timestamp suitable for supplying on cache modification
+  /// requests.
+  ///
+  /// @return the current time (in micro-seconds).
+  static int64_t generate_timestamp();
+
+  /// Send a request to cassandra.
+  ///
+  /// The cache takes ownership of the request and will destroy it once it has
+  /// resolved.
+  ///
+  /// @param request object describing the request.
+  void send(Request *request);
+
+private:
+  /// @class CacheThreadPool
+  ///
+  /// The thread pool used by the cache.  This is a simple subclass of
+  /// ThreadPool that also stores a pointer back to the cache.
+  class CacheThreadPool : public ThreadPool<Request *>
+  {
+  public:
+    CacheThreadPool(Cache *cache,
+                    unsigned int num_threads,
+                    unsigned int max_queue = 0);
+    virtual ~CacheThreadPool();
+
+  private:
+    Cache *_cache;
+
+    void process_work(Request *);
+  };
+  friend class CacheThreadPool;
+
+  /// @class CacheClient
+  ///
+  /// Simple subclass of a normal cassandra client but that automatically opens
+  /// and closes it's transport.
+  class CacheClient : public org::apache::cassandra::CassandraClient
+  {
+  public:
+    CacheClient(boost::shared_ptr<apache::thrift::protocol::TProtocol> prot,
+                boost::shared_ptr<apache::thrift::transport::TFramedTransport> transport) :
+      org::apache::cassandra::CassandraClient(prot),
+      _transport(transport)
+    {
+      transport->open();
+    }
+
+    virtual ~CacheClient()
+    {
+      _transport->close();
+    }
+
+  private:
+    boost::shared_ptr<apache::thrift::transport::TFramedTransport> _transport;
+  };
+
+  // Singleton variables.
+  static Cache* INSTANCE;
+  static Cache DEFAULT_INSTANCE;
+
+  // Cassandra connection information.
+  std::string _cass_hostname;
+  uint16_t _cass_port;
+  static const std::string KEYSPACE;
+
+  // Thread pool management.
+  //
+  // _num_threads and _max_queue are set up by the call to configure().  These
+  // are used when creating the thread pool in the call to start().
+  unsigned int _num_threads;
+  unsigned int _max_queue;
+  CacheThreadPool *_thread_pool;
+
+  // Cassandra connection management.
+  //
+  // Each worker thread has it's own cassandra client. This is created only when
+  // required, and deleted when the thread exits.
+  //
+  // - _thread_local stores the client as a thread-local variable.
+  // - get_client() creates and stores a new client.
+  // - delete_client deletes a client (and is automatically called when the
+  //   thread exits).
+  // - release_client() removes the client from thread-local storage and deletes
+  //   it. It allows a thread to pro-actively delete it's client.
+  pthread_key_t _thread_local;
+
+  org::apache::cassandra::CassandraClient* get_client();
+  void release_client();
+  static void delete_client(void *client);
+
+  // The constructors and assignment operation are private to prevent multiple
+  // instances of the class from being created.
+  Cache();
+  Cache(Cache const &);
+  void operator=(Cache const &);
+
+public:
   // Class representing a cassandra request.
   class Request
   {
@@ -72,15 +223,16 @@ public:
     Request(std::string& table);
     virtual ~Request();
 
+    virtual void run(org::apache::cassandra::CassandraClient* client);
+
   private:
-    virtual void process(org::apache::cassandra::CassandraClient* client);
 
     std::string _table;
   };
 
   // Class representing a request to modify the cassandra cache - for example
   // putting some columns, deleting rows, etc.
-  class ModificationRequest : Request
+  class ModificationRequest : public Request
   {
   public:
     ModificationRequest(std::string& table, int64_t timestamp);
@@ -91,7 +243,7 @@ public:
   };
 
   // Class rerpresenting a request to put some data into the cassandra cache.
-  class PutRequest : ModificationRequest
+  class PutRequest : public ModificationRequest
   {
   public:
     PutRequest(std::string& table, int64_t timestamp, int32_t ttl = 0);
@@ -109,7 +261,7 @@ public:
   };
 
   // Class representing a request to get some data from the cassandra cache.
-  class GetRequest : Request
+  class GetRequest : public Request
   {
   public:
     virtual ~GetRequest();
@@ -153,7 +305,7 @@ public:
   };
 
   // Class representing a request to delete some rows from the cassandra cache.
-  class DeleteRowsRequest : ModificationRequest
+  class DeleteRowsRequest : public ModificationRequest
   {
   public:
     DeleteRowsRequest(std::string& table,
@@ -168,7 +320,7 @@ public:
   };
 
   // A request to put an IMS subscription XML document into the cache.
-  class PutIMSSubscription : PutRequest
+  class PutIMSSubscription : public PutRequest
   {
   public:
     PutIMSSubscription(std::string& public_id,
@@ -181,17 +333,18 @@ public:
                        int32_t ttl = 0);
     virtual ~PutIMSSubscription();
 
+    void run(org::apache::cassandra::CassandraClient* client);
+
   private:
     std::vector<std::string> _public_ids;
     std::string _xml;
 
     virtual void on_success();
     virtual void on_failure(ResultCode error);
-    void process(org::apache::cassandra::CassandraClient* client);
   };
 
   // A request to associate a public ID with a particular private ID.
-  class PutAssociatedPublicID : PutRequest
+  class PutAssociatedPublicID : public PutRequest
   {
   public:
     PutAssociatedPublicID(std::string& private_id,
@@ -200,17 +353,18 @@ public:
                           int32_t ttl = 0);
     virtual ~PutAssociatedPublicID();
 
+    void run(org::apache::cassandra::CassandraClient* client);
+
   private:
     std::string _private_id;
     std::string _assoc_public_id;
 
     virtual void on_success();
     virtual void on_failure(ResultCode error);
-    void process(org::apache::cassandra::CassandraClient* client);
   };
 
   // A request to add an authorization vector to the cache.
-  class PutAuthVector : PutRequest
+  class PutAuthVector : public PutRequest
   {
   public:
     PutAuthVector(std::string& private_id,
@@ -219,46 +373,49 @@ public:
                   int32_t ttl = 0);
     virtual ~PutAuthVector();
 
+    void run(org::apache::cassandra::CassandraClient* client);
+
   private:
     std::string _private_id;
     DigestAuthVector *_auth_vector;
 
     virtual void on_success();
     virtual void on_failure(ResultCode error);
-    void process(org::apache::cassandra::CassandraClient* client);
   };
 
   // A request to get the IMS subscription XML for a public ID.
-  class GetIMSSubscription : GetRequest
+  class GetIMSSubscription : public GetRequest
   {
   public:
     GetIMSSubscription(std::string& public_id);
     virtual ~GetIMSSubscription();
+
+    void run(org::apache::cassandra::CassandraClient* client);
 
   private:
     std::string _public_id;
 
     virtual void on_success(std::string& xml);
     virtual void on_failure(ResultCode error);
-    void process(org::apache::cassandra::CassandraClient* client);
   };
 
   // A request to get the public IDs associated with a private ID.
-  class GetAssociatedPublicIDs : GetRequest
+  class GetAssociatedPublicIDs : public GetRequest
   {
     GetAssociatedPublicIDs(std::string& private_id);
     virtual ~GetAssociatedPublicIDs();
+
+    void run(org::apache::cassandra::CassandraClient* client);
 
   private:
     std::string _private_id;
 
     virtual void on_success(std::vector<std::string>& public_ids);
     virtual void on_failure(ResultCode error);
-    void process(org::apache::cassandra::CassandraClient* client);
   };
 
   // A request to get the authorization vector for a private ID.
-  class GetAuthVector : GetRequest
+  class GetAuthVector : public GetRequest
   {
   public:
     GetAuthVector(std::string& private_id);
@@ -266,17 +423,18 @@ public:
                   std::string& public_id);
     virtual ~GetAuthVector();
 
+    void run(org::apache::cassandra::CassandraClient* client);
+
   private:
     std::string _private_id;
     std::string _public_id;
 
     virtual void on_success(DigestAuthVector *auth_vector);
     virtual void on_failure(ResultCode error);
-    void process(org::apache::cassandra::CassandraClient* client);
   };
 
   // A request to delete one or more public IDs.
-  class DeletePublicIDs : DeleteRowsRequest
+  class DeletePublicIDs : public DeleteRowsRequest
   {
   public:
     DeletePublicIDs(std::string& public_id, int64_t timestamp);
@@ -284,16 +442,17 @@ public:
                     int64_t timestamp);
     virtual ~DeletePublicIDs();
 
+    void run(org::apache::cassandra::CassandraClient* client);
+
   private:
     std::vector<std::string> _public_ids;
 
     virtual void on_success();
     virtual void on_failure(ResultCode error);
-    void process(org::apache::cassandra::CassandraClient* client);
   };
 
   // A request to delete one or more private IDs.
-  class DeletePrivateIDs : DeleteRowsRequest
+  class DeletePrivateIDs : public DeleteRowsRequest
   {
   public:
     DeletePrivateIDs(std::string& public_id, int64_t timestamp);
@@ -301,53 +460,14 @@ public:
                      int64_t timestamp);
     virtual ~DeletePrivateIDs();
 
+    void run(org::apache::cassandra::CassandraClient* client);
+
   private:
     std::vector<std::string> _private_ids;
 
     virtual void on_success();
     virtual void on_failure(ResultCode error);
-    void process(org::apache::cassandra::CassandraClient* client);
   };
-
-  // Return the current time (in micro-seconds). This timestamp is suitable to
-  // use with methods that modify the cache.
-  static int64_t generate_timestamp(void);
-
-  void send(Request *request);
-
-private:
-  class CacheThreadPool : ThreadPool<Request *>
-  {
-  public:
-    CacheThreadPool(unsigned int num_threads, unsigned int max_queue = 0);
-    virtual ~CacheThreadPool();
-
-  private:
-    void process_work(Request *);
-    void on_thread_shutdown();
-  };
-
-  // Singleton variables.
-  static Cache* INSTANCE;
-  static Cache DEFAULT_INSTANCE;
-
-  static const std::string KEYSPACE;
-
-  std::string _cass_host;
-  uint16_t _cass_port;
-
-  CacheThreadPool _thread_pool;
-  pthread_key_t _thread_local;
-
-  // Get a thread-specific Cassandra connection.
-  org::apache::cassandra::CassandraClient* get_client();
-  void release_client();
-
-  // The constructors and assignment operation are private to prevent multiple
-  // instances of the class from being created.
-  Cache();
-  Cache(Cache const &);
-  void operator=(Cache const &);
 };
 
 #endif
