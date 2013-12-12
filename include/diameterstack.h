@@ -49,38 +49,6 @@ class Transaction;
 class AVP;
 class Message;
 
-class Stack
-{
-public:
-  class Exception
-  {
-  public:
-    inline Exception(const char* func, int rc) : _func(func), _rc(rc) {};
-    const char* _func;
-    const int _rc;
-  };
-
-  static inline Stack* get_instance() {return INSTANCE;};
-  virtual void initialize();
-  virtual void configure(std::string filename);
-  virtual void start();
-  virtual void stop();
-  virtual void wait_stopped();
-
-private:
-  static Stack* INSTANCE;
-  static Stack DEFAULT_INSTANCE;
-
-  Stack();
-  virtual ~Stack();
-
-  // Don't implement the following, to avoid copies of this instance.
-  Stack(Stack const&);
-  void operator=(Stack const&);
-
-  bool _initialized;
-};
-
 class Dictionary
 {
 public:
@@ -133,6 +101,39 @@ public:
   const AVP DESTINATION_HOST;
   const AVP USER_NAME;
   const AVP RESULT_CODE;
+};
+
+class Stack
+{
+public:
+  class Exception
+  {
+  public:
+    inline Exception(const char* func, int rc) : _func(func), _rc(rc) {};
+    const char* _func;
+    const int _rc;
+  };
+
+  static inline Stack* get_instance() {return INSTANCE;};
+  virtual void initialize();
+  virtual void configure(std::string filename);
+  virtual void advertize_application(const Dictionary::Application& app);
+  virtual void start();
+  virtual void stop();
+  virtual void wait_stopped();
+
+private:
+  static Stack* INSTANCE;
+  static Stack DEFAULT_INSTANCE;
+
+  Stack();
+  virtual ~Stack();
+
+  // Don't implement the following, to avoid copies of this instance.
+  Stack(Stack const&);
+  void operator=(Stack const&);
+
+  bool _initialized;
 };
 
 class Transaction
@@ -246,14 +247,25 @@ private:
 class Message
 {
 public:
-  inline Message(const Dictionary* dict, const Dictionary::Message& type) : _dict(dict)
+  inline Message(const Dictionary* dict, const Dictionary::Message& type) : _dict(dict), _free_on_delete(true)
   {
     fd_msg_new(type.dict(), MSGFL_ALLOC_ETEID, &_msg);
   }
-  inline Message(Dictionary* dict, struct msg* msg) : _dict(dict), _msg(msg) {};
+  inline Message(Dictionary* dict, struct msg* msg) : _dict(dict), _msg(msg), _free_on_delete(true) {};
+  inline Message(const Message& msg) : _dict(msg._dict), _msg(msg._msg), _free_on_delete(false) {};
   virtual ~Message();
   inline const Dictionary* dict() const {return _dict;}
   inline struct msg* msg() const {return _msg;}
+  inline Message& add_new_session_id()
+  {
+    fd_msg_new_session(_msg, NULL, 0);
+    return *this;
+  }
+  inline Message& add_origin()
+  {
+    fd_msg_add_origin(_msg, 0);
+    return *this;
+  }
   inline Message& add(AVP& avp)
   {
     fd_msg_avp_add(_msg, MSG_BRW_LAST_CHILD, avp.avp());
@@ -269,6 +281,7 @@ public:
 private:
   const Dictionary* _dict;
   struct msg* _msg;
+  bool _free_on_delete;
 };
 
 class AVP::iterator
@@ -294,9 +307,7 @@ public:
   {
     if (_avp.avp() != NULL)
     {
-      msg_or_avp* next = _avp.avp();
-      fd_msg_browse_internal(next, MSG_BRW_NEXT, &next, NULL);
-      _avp = AVP((struct avp*)next);
+      _avp = AVP(find_next(_avp.avp(), _filter_avp_data));
     }
     return *this;
   }
@@ -343,9 +354,7 @@ private:
     fd_msg_browse_internal(avp, MSG_BRW_NEXT, (msg_or_avp**)&avp, NULL);
     if ((avp_data.avp_code != 0) || (avp_data.avp_vendor != 0))
     {
-      for (fd_msg_browse_internal(avp, MSG_BRW_NEXT, (msg_or_avp**)&avp, NULL);
-           avp != NULL;
-           fd_msg_browse_internal(avp, MSG_BRW_NEXT, (msg_or_avp**)&avp, NULL))
+       while (avp != NULL)
       {
         struct avp_hdr* hdr;
         fd_msg_avp_hdr(avp, &hdr);
@@ -353,6 +362,7 @@ private:
         {
           break;
         }
+        fd_msg_browse_internal(avp, MSG_BRW_NEXT, (msg_or_avp**)&avp, NULL);
       }
     }
     return avp;

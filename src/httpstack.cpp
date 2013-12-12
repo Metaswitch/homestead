@@ -64,15 +64,11 @@ void HttpStack::configure(const std::string& bind_address, unsigned short bind_p
 
 void HttpStack::register_handler(Handler* handler)
 {
-  evhtp_callback_t* cb = evhtp_set_cb(_evhtp, handler->path().c_str(), handler_callback_fn, handler);
+  evhtp_callback_t* cb = evhtp_set_regex_cb(_evhtp, handler->path().c_str(), handler_callback_fn, handler);
   if (cb == NULL)
   {
     throw Exception("evhtp_set_cb", 0);
   }
-}
-
-void HttpStack::unregister_handler(Handler* handler)
-{
 }
 
 void HttpStack::start()

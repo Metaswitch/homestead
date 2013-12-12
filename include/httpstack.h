@@ -57,6 +57,12 @@ public:
   {
   public:
     Request(evhtp_request_t* req) : _req(req) {}
+    inline std::string path() const {return std::string(_req->uri->path->path);}
+    inline std::string param(const std::string& name) const
+    {
+      const char* param = evhtp_kv_find(_req->uri->query, name.c_str());
+      return std::string(param != NULL ? param : "");
+    }
     void add_content(const std::string& content) {evbuffer_add(_req->buffer_out, content.c_str(), content.length());}
     void send_reply(int rc) {evhtp_send_reply(_req, rc);}
   private:
@@ -79,7 +85,6 @@ public:
   void initialize();
   void configure(const std::string& bind_address, unsigned short port, int num_threads);
   void register_handler(Handler* handler);
-  void unregister_handler(Handler* handler);
   void start();
   void stop();
   void wait_stopped();

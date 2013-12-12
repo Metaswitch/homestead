@@ -36,8 +36,52 @@
 
 #include "handlers.h"
 
+#include "rapidjson/writer.h"
+#include "rapidjson/stringbuffer.h"
+
 void PingHandler::handle(HttpStack::Request& req)
 {
   req.add_content("OK");
   req.send_reply(200);
+}
+
+void ImpiDigestHandler::handle(HttpStack::Request& req)
+{
+  std::string impi = req.path().substr(sizeof("/impi/") - 1, req.path().length() - sizeof("/impi/"));
+  std::string impu = req.param("impu");
+  Cx::MultimediaAuthRequest* mar = new Cx::MultimediaAuthRequest(&_dict, _dest_realm, _dest_host, impi, impu, _server_name, "SIP Digest");
+  Transaction* tsx = new Transaction(&_dict, req);
+  mar->send(tsx, 200);
+}
+
+void ImpiDigestHandler::Transaction::on_response(Diameter::Message& rsp)
+{
+  Cx::MultimediaAuthAnswer maa(rsp);
+  switch (maa.result_code())
+  {
+    case 2001:
+      if (maa.sip_auth_scheme() == "SIP Digest")
+      {
+        rapidjson::StringBuffer sb;
+        rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
+        writer.StartObject();
+        writer.String("digest_ha1");
+        writer.String(maa.digest_ha1().c_str());
+        writer.EndObject();
+        _req.add_content(sb.GetString());
+      }
+      _req.send_reply(200);
+      break;
+    case 5001:
+      _req.send_reply(404);
+      break;
+    default:
+      _req.send_reply(500);
+      break;
+  }
+}
+
+void ImpiDigestHandler::Transaction::on_timeout()
+{
+  _req.send_reply(503);
 }

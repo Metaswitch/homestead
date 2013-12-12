@@ -62,6 +62,8 @@ int main(int argc, char**argv)
   {
     diameter_stack->initialize();
     diameter_stack->configure("/var/lib/homestead/homestead.conf");
+    Cx::Dictionary dict;
+    diameter_stack->advertize_application(dict.CX);
     diameter_stack->start();
   }
   catch (Diameter::Stack::Exception& e)
@@ -71,11 +73,13 @@ int main(int argc, char**argv)
 
   HttpStack* http_stack = HttpStack::get_instance();
   PingHandler ping_handler;
+  ImpiDigestHandler impi_digest_handler(diameter_stack, "realm", "host", "server-name");
   try
   {
     http_stack->initialize();
     http_stack->configure(bind_address, port, 10);
     http_stack->register_handler(&ping_handler);
+    http_stack->register_handler(&impi_digest_handler);
     http_stack->start();
   }
   catch (HttpStack::Exception& e)

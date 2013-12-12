@@ -74,6 +74,16 @@ void Stack::configure(std::string filename)
   }
 }
 
+void Stack::advertize_application(const Dictionary::Application& app)
+{
+  initialize();
+  int rc = fd_disp_app_support(app.dict(), NULL, 1, 0);
+  if (rc != 0)
+  {
+    throw Exception("fd_disp_app_support", rc);
+  }
+}
+
 void Stack::start()
 {
   initialize();
@@ -113,6 +123,10 @@ struct dict_object* Dictionary::Vendor::find(const std::string vendor)
 {
   struct dict_object* dict;
   fd_dict_search(fd_g_config->cnf_dict, DICT_VENDOR, VENDOR_BY_NAME, vendor.c_str(), &dict, ENOENT);
+  if (dict == NULL)
+  {
+    throw Diameter::Stack::Exception(vendor.c_str(), 0);
+  }
   return dict;
 }
 
@@ -120,6 +134,10 @@ struct dict_object* Dictionary::Application::find(const std::string application)
 {
   struct dict_object* dict;
   fd_dict_search(fd_g_config->cnf_dict, DICT_APPLICATION, APPLICATION_BY_NAME, application.c_str(), &dict, ENOENT);
+  if (dict == NULL)
+  {
+    throw Diameter::Stack::Exception(application.c_str(), 0);
+  }
   return dict;
 }
 
@@ -127,6 +145,10 @@ struct dict_object* Dictionary::Message::find(const std::string message)
 {
   struct dict_object* dict;
   fd_dict_search(fd_g_config->cnf_dict, DICT_COMMAND, CMD_BY_NAME, message.c_str(), &dict, ENOENT);
+  if (dict == NULL)
+  {
+    throw Diameter::Stack::Exception(message.c_str(), 0);
+  }
   return dict;
 }
 
@@ -134,6 +156,10 @@ struct dict_object* Dictionary::AVP::find(const std::string avp)
 {
   struct dict_object* dict;
   fd_dict_search(fd_g_config->cnf_dict, DICT_AVP, AVP_BY_NAME, avp.c_str(), &dict, ENOENT);
+  if (dict == NULL)
+  {
+    throw Diameter::Stack::Exception(avp.c_str(), 0);
+  }
   return dict;
 }
 
@@ -154,6 +180,10 @@ struct dict_object* Dictionary::AVP::find(const std::string vendor, const std::s
   avp_req.avp_name = (char*)avp.c_str();
   struct dict_object* dict;
   fd_dict_search(fd_g_config->cnf_dict, DICT_AVP, AVP_BY_NAME_AND_VENDOR, &avp_req, &dict, ENOENT);
+  if (dict == NULL)
+  {
+    throw Diameter::Stack::Exception(avp.c_str(), 0);
+  }
   return dict;
 }
 
@@ -183,18 +213,21 @@ void Transaction::on_response(void* data, struct msg** rsp)
   Transaction* tsx = (Transaction*)data;
   Message msg(tsx->_dict, *rsp);
   tsx->on_response(msg);
+  delete tsx;
 }
 
 void Transaction::on_timeout(void* data, DiamId_t to, size_t to_len, struct msg** req)
 {
   Transaction* tsx = (Transaction*)data;
+  Message msg(tsx->_dict, *req);
   tsx->on_timeout();
+  delete tsx;
 }
 
 
 Message::~Message()
 {
-  if (_msg != NULL)
+  if (_free_on_delete)
   {
     fd_msg_free(_msg);
   }
@@ -203,11 +236,13 @@ Message::~Message()
 void Message::send()
 {
   fd_msg_send(&_msg, NULL, NULL);
+  _free_on_delete = false;
 }
 
 void Message::send(Transaction* tsx)
 {
   fd_msg_send(&_msg, Transaction::on_response, tsx);
+  _free_on_delete = false;
 }
 
 void Message::send(Transaction* tsx, unsigned int timeout_ms)
@@ -220,4 +255,5 @@ void Message::send(Transaction* tsx, unsigned int timeout_ms)
   timeout_ts.tv_sec += timeout_ms / 1000 + timeout_ts.tv_nsec / (1000 * 1000 * 1000);
   timeout_ts.tv_nsec = timeout_ts.tv_nsec % (1000 * 1000 * 1000);
   fd_msg_send_timeout(&_msg, Transaction::on_response, tsx, Transaction::on_timeout, &timeout_ts);
+  _free_on_delete = false;
 }

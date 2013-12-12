@@ -41,14 +41,17 @@ using namespace Cx;
 Dictionary::Dictionary() :
   TGPP("3GPP"),
   CX("Cx"),
-  MULTIMEDIA_AUTH_REQUEST("Multimedia-Auth-Request"),
-  MULTIMEDIA_AUTH_ANSWER("Multimedia-Auth-Answer"),
+  MULTIMEDIA_AUTH_REQUEST("3GPP/Multimedia-Auth-Request"),
+  MULTIMEDIA_AUTH_ANSWER("3GPP/Multimedia-Auth-Answer"),
   SUPPORTED_FEATURES("3GPP", "Supported-Features"),
   PUBLIC_IDENTITY("3GPP", "Public-Identity"),
   SIP_AUTH_DATA_ITEM("3GPP", "SIP-Auth-Data-Item"),
-  SIP_AUTH_SCHEME("3GPP", "SIP-Auth-Scheme"),
+  SIP_AUTH_SCHEME("3GPP", "SIP-Authentication-Scheme"),
   SIP_NUMBER_AUTH_ITEMS("3GPP", "SIP-Number-Auth-Items"),
-  SERVER_NAME("3GPP", "Server-Name")
+  SERVER_NAME("3GPP", "Server-Name"),
+  SIP_DIGEST_AUTHENTICATE("3GPP", "SIP-Digest-Authenticate"),
+  DIGEST_HA1("3GPP", "Digest-HA1"),
+  DIGEST_REALM("3GPP", "Digest-Realm")
 {
 }
 
@@ -61,8 +64,11 @@ MultimediaAuthRequest::MultimediaAuthRequest(const Dictionary* dict,
                                              const std::string& sip_auth_scheme) :
                                              Diameter::Message(dict, dict->MULTIMEDIA_AUTH_REQUEST)
 {
+  add_new_session_id();
+  add(Diameter::AVP(dict->AUTH_SESSION_STATE).val_i32(1));
   add(Diameter::AVP(dict->DESTINATION_REALM).val_str(dest_realm));
   add(Diameter::AVP(dict->DESTINATION_HOST).val_str(dest_host));
+  add_origin();
   add(Diameter::AVP(dict->USER_NAME).val_str(impi));
   add(Diameter::AVP(dict->PUBLIC_IDENTITY).val_str(impu));
   add(Diameter::AVP(dict->SIP_AUTH_DATA_ITEM).add(
@@ -73,11 +79,63 @@ MultimediaAuthRequest::MultimediaAuthRequest(const Dictionary* dict,
 
 std::string MultimediaAuthRequest::impu() const
 {
-  Diameter::AVP::iterator avps = begin(dict()->USER_NAME);
   std::string impu;
+  Diameter::AVP::iterator avps = begin(dict()->USER_NAME);
   if (avps != end())
   {
     impu = avps->val_str();
   }
   return impu;
+}
+
+MultimediaAuthAnswer::MultimediaAuthAnswer(const Dictionary* dict,
+                                           int result_code) :
+                                           Diameter::Message(dict, dict->MULTIMEDIA_AUTH_ANSWER)
+{
+  add(Diameter::AVP(dict->RESULT_CODE).val_i32(result_code));
+}
+
+int MultimediaAuthAnswer::result_code() const
+{
+  int result_code = 0;
+  Diameter::AVP::iterator avps = begin(dict()->RESULT_CODE);
+  if (avps != end())
+  {
+    result_code = avps->val_i32();
+  }
+  return result_code;
+}
+
+std::string MultimediaAuthAnswer::sip_auth_scheme() const
+{
+  std::string sip_auth_scheme;
+  Diameter::AVP::iterator avps = begin(((Cx::Dictionary*)dict())->SIP_AUTH_DATA_ITEM);
+  if (avps != end())
+  {
+    avps = avps->begin(((Cx::Dictionary*)dict())->SIP_AUTH_SCHEME);
+    if (avps != end())
+    {
+      sip_auth_scheme = avps->val_str();
+    }
+  }
+  return sip_auth_scheme;
+}
+
+std::string MultimediaAuthAnswer::digest_ha1() const
+{
+  std::string digest_ha1;
+  Diameter::AVP::iterator avps = begin(((Cx::Dictionary*)dict())->SIP_AUTH_DATA_ITEM);
+  if (avps != end())
+  {
+    avps = avps->begin(((Cx::Dictionary*)dict())->SIP_DIGEST_AUTHENTICATE);
+    if (avps != end())
+    {
+      avps = avps->begin(((Cx::Dictionary*)dict())->DIGEST_HA1);
+      if (avps != end())
+      {
+        digest_ha1 = avps->val_str();
+      }
+    }
+  }
+  return digest_ha1;
 }

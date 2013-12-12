@@ -55,6 +55,9 @@ public:
   Diameter::Dictionary::AVP SIP_AUTH_SCHEME;
   Diameter::Dictionary::AVP SIP_NUMBER_AUTH_ITEMS;
   Diameter::Dictionary::AVP SERVER_NAME;
+  Diameter::Dictionary::AVP SIP_DIGEST_AUTHENTICATE;
+  Diameter::Dictionary::AVP DIGEST_HA1;
+  Diameter::Dictionary::AVP DIGEST_REALM;
 };
 
 class MultimediaAuthRequest : public Diameter::Message
@@ -73,6 +76,18 @@ public:
   std::string impu() const;
   std::string server_name() const;
   std::string sip_auth_scheme() const;
+};
+
+class MultimediaAuthAnswer : public Diameter::Message
+{
+public:
+  MultimediaAuthAnswer(const Dictionary* dict,
+                       int result_code);
+  inline MultimediaAuthAnswer(Diameter::Message& msg) : Diameter::Message(msg) {};
+
+  int result_code() const;
+  std::string sip_auth_scheme() const;
+  std::string digest_ha1() const;
 };
 };
 

@@ -37,14 +37,48 @@
 #ifndef HANDLERS_H__
 #define HANDLERS_H__
 
+#include "cx.h"
 #include "diameterstack.h"
 #include "httpstack.h"
 
 class PingHandler : public HttpStack::Handler
 {
 public:
-  PingHandler() : HttpStack::Handler("/ping") {};
+  PingHandler() : HttpStack::Handler("^/ping$") {};
   void handle(HttpStack::Request& req);
+};
+
+class ImpiDigestHandler : public HttpStack::Handler
+{
+public:
+  ImpiDigestHandler(Diameter::Stack* diameter_stack,
+                    const std::string& dest_realm,
+                    const std::string& dest_host,
+                    const std::string& server_name) :
+                    HttpStack::Handler("^/impi/[^/]*/digest$"),
+                    _diameter_stack(diameter_stack),
+                    _dest_realm(dest_realm),
+                    _dest_host(dest_host),
+                    _server_name(server_name) {};
+  void handle(HttpStack::Request& req);
+
+private:
+  class Transaction : public Diameter::Transaction
+  {
+  public:
+    Transaction(Cx::Dictionary* dict, HttpStack::Request& req) : Diameter::Transaction(dict), _req(req) {};
+    void on_response(Diameter::Message& rsp);
+    void on_timeout();
+
+  private:
+    HttpStack::Request _req;
+  };
+
+  Diameter::Stack* _diameter_stack;
+  std::string _dest_realm;
+  std::string _dest_host;
+  std::string _server_name;
+  Cx::Dictionary _dict;
 };
 
 #endif

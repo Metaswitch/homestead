@@ -86,5 +86,5 @@ LoadExtension = "/usr/share/clearwater/lib/freeDiameter/dict_dcca_3gpp.fdx";
 # with the peers listed here.
 # For only accepting incoming connections, see the acl_wl.fx extension.
 
-ConnectPeer = "$hss_hostname" { No_TLS; };
+ConnectPeer = "$hss_hostname" { No_TLS; No_SCTP; };
 EOF
