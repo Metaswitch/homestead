@@ -34,6 +34,9 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
+#ifndef DIAMETER_H__
+#define DIAMETER_H__
+
 #include <string>
 
 #include <freeDiameter/freeDiameter-host.h>
@@ -367,3 +370,5 @@ AVP::iterator Message::begin() const {return AVP::iterator(*this);}
 AVP::iterator Message::begin(const Dictionary::AVP& type) const {return AVP::iterator(*this, type);}
 AVP::iterator Message::end() const {return AVP::iterator(NULL);}
 };
+
+#endif

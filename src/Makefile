@@ -14,6 +14,7 @@ TARGET_TEST := homestead_test
 TARGET_SOURCES := cache.cpp \
                   cx.cpp \
                   diameterstack.cpp \
+                  handlers.cpp \
                   httpstack.cpp
 
 TARGET_SOURCES_BUILD := main.cpp

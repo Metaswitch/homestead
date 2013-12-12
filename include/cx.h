@@ -34,6 +34,9 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
+#ifndef CX_H__
+#define CX_H__
+
 #include "diameterstack.h"
 
 namespace Cx
@@ -72,3 +75,5 @@ public:
   std::string sip_auth_scheme() const;
 };
 };
+
+#endif

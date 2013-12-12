@@ -39,6 +39,7 @@
 
 #include "diameterstack.h"
 #include "httpstack.h"
+#include "handlers.h"
 
 static sem_t term_sem;
 
@@ -69,10 +70,12 @@ int main(int argc, char**argv)
   }
 
   HttpStack* http_stack = HttpStack::get_instance();
+  PingHandler ping_handler;
   try
   {
     http_stack->initialize();
     http_stack->configure(bind_address, port, 10);
+    http_stack->register_handler(&ping_handler);
     http_stack->start();
   }
   catch (HttpStack::Exception& e)

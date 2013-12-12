@@ -62,6 +62,19 @@ void HttpStack::configure(const std::string& bind_address, unsigned short bind_p
   _num_threads = num_threads;
 }
 
+void HttpStack::register_handler(Handler* handler)
+{
+  evhtp_callback_t* cb = evhtp_set_cb(_evhtp, handler->path().c_str(), handler_callback_fn, handler);
+  if (cb == NULL)
+  {
+    throw Exception("evhtp_set_cb", 0);
+  }
+}
+
+void HttpStack::unregister_handler(Handler* handler)
+{
+}
+
 void HttpStack::start()
 {
   initialize();
@@ -94,6 +107,12 @@ void HttpStack::stop()
 void HttpStack::wait_stopped()
 {
   pthread_join(_event_base_thread, NULL);
+}
+
+void HttpStack::handler_callback_fn(evhtp_request_t* req, void* handler_ptr)
+{
+  Request request(req);
+  ((Handler*)handler_ptr)->handle(request);
 }
 
 void* HttpStack::event_base_thread_fn(void* http_stack_ptr)
