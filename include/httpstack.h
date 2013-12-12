@@ -35,6 +35,7 @@
  */
 
 #include <pthread.h>
+#include <string>
 
 #include <evhtp.h>
 
@@ -51,7 +52,7 @@ public:
 
   static inline HttpStack* get_instance() {return INSTANCE;};
   void initialize();
-  void configure(int num_threads);
+  void configure(const std::string& bind_address, unsigned short port, int num_threads);
   void start();
   void stop();
   void wait_stopped();
@@ -68,6 +69,8 @@ private:
   HttpStack(HttpStack const&);
   void operator=(HttpStack const&);
 
+  std::string _bind_address;
+  unsigned short _bind_port;
   int _num_threads;
   evbase_t* _evbase;
   evhtp_t* _evhtp;

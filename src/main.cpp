@@ -50,6 +50,9 @@ void terminate_handler(int sig)
 
 int main(int argc, char**argv)
 {
+  std::string bind_address = "0.0.0.0";
+  unsigned short port = 8888;
+
   sem_init(&term_sem, 0, 0);
   signal(SIGTERM, terminate_handler);
 
@@ -57,22 +60,24 @@ int main(int argc, char**argv)
   try
   {
     diameter_stack->initialize();
-    //diameter_stack->configure();
+    diameter_stack->configure("/var/lib/homestead/homestead.conf");
     diameter_stack->start();
   }
   catch (Diameter::Stack::Exception& e)
   {
+    fprintf(stderr, "Caught Diameter::Stack::Exception - %s - %d\n", e._func, e._rc);
   }
 
   HttpStack* http_stack = HttpStack::get_instance();
   try
   {
     http_stack->initialize();
-    http_stack->configure(10);
+    http_stack->configure(bind_address, port, 10);
     http_stack->start();
   }
   catch (HttpStack::Exception& e)
   {
+    fprintf(stderr, "Caught HttpStack::Exception - %s - %d\n", e._func, e._rc);
   }
 
   sem_wait(&term_sem);
@@ -84,6 +89,7 @@ int main(int argc, char**argv)
   }
   catch (HttpStack::Exception& e)
   {
+    fprintf(stderr, "Caught HttpStack::Exception - %s - %d\n", e._func, e._rc);
   }
 
   try
@@ -93,6 +99,7 @@ int main(int argc, char**argv)
   }
   catch (Diameter::Stack::Exception& e)
   {
+    fprintf(stderr, "Caught Diameter::Stack::Exception - %s - %d\n", e._func, e._rc);
   }
 
   signal(SIGTERM, SIG_DFL);

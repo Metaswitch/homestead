@@ -9,9 +9,14 @@ Build-Depends: debhelper (>= 8.0.0)
 Standards-Version: 3.9.2
 Homepage: http://projectclearwater.org/
 
+Package: homestead-libs
+Architecture: any
+Depends: libsctp1
+Description: Libraries for homestead
+
 Package: homestead
 Architecture: any
-Depends: clearwater-infrastructure, clearwater-tcp-scalability, clearwater-log-cleanup, libzmq3
+Depends: clearwater-infrastructure, clearwater-tcp-scalability, clearwater-log-cleanup, homestead-libs, libzmq3
 Suggests: homestead-dbg, clearwater-logging
 Description: homestead, the HSS Cache/Gateway 
 
