@@ -257,9 +257,11 @@ void Cache::Request::run(Cache::CacheClient *client)
   ResultCode rc = ResultCode::OK;
   std::string error_text = "";
 
+  _client = client;
+
   try
   {
-    perform(client);
+    perform();
   }
   catch(TTransportException te)
   {
@@ -317,9 +319,7 @@ Cache::PutRequest::~PutRequest()
 
 
 void Cache::PutRequest::
-put_columns(Cache::CacheClient* client,
-            std::string& column_family,
-            std::vector<std::string>& keys,
+put_columns(std::vector<std::string>& keys,
             std::map<std::string, std::string>& columns,
             int64_t timestamp,
             int32_t ttl)
@@ -351,10 +351,10 @@ put_columns(Cache::CacheClient* client,
        it != keys.end();
        ++it)
   {
-    mutmap[*it][column_family] = mutations;
+    mutmap[*it][_column_family] = mutations;
   }
 
-  client->batch_mutate(mutmap, ConsistencyLevel::ONE);
+  _client->batch_mutate(mutmap, ConsistencyLevel::ONE);
 }
 
 //
@@ -383,41 +383,33 @@ Cache::GetRequest::~GetRequest()
 
 
 void Cache::GetRequest::
-ha_get_row(Cache::CacheClient* client,
-           std::string& column_family,
-           std::string& key,
+ha_get_row(std::string& key,
            std::vector<ColumnOrSuperColumn>& columns)
 {
-  HA(get_row, client, column_family, key, columns);
+  HA(get_row, key, columns);
 }
 
 
 void Cache::GetRequest::
-ha_get_columns(Cache::CacheClient* client,
-               std::string& column_family,
-               std::string& key,
+ha_get_columns(std::string& key,
                std::vector<std::string>& names,
                std::vector<ColumnOrSuperColumn>& columns)
 {
-  HA(get_columns, client, column_family, key, names, columns);
+  HA(get_columns, key, names, columns);
 }
 
 
 void Cache::GetRequest::
-ha_get_columns_with_prefix(Cache::CacheClient* client,
-                           std::string& column_family,
-                           std::string& key,
+ha_get_columns_with_prefix(std::string& key,
                            std::string& prefix,
                            std::vector<ColumnOrSuperColumn>& columns)
 {
-  HA(get_columns_with_prefix, client, column_family, key, prefix, columns);
+  HA(get_columns_with_prefix, key, prefix, columns);
 }
 
 
 void Cache::GetRequest::
-get_row(Cache::CacheClient* client,
-        std::string& column_family,
-        std::string& key,
+get_row(std::string& key,
         std::vector<ColumnOrSuperColumn>& columns,
         ConsistencyLevel::type consistency_level)
 {
@@ -429,14 +421,12 @@ get_row(Cache::CacheClient* client,
   sp.slice_range = sr;
   sp.__isset.slice_range = true;
 
-  issue_get_for_key(client, column_family, key, sp, columns, consistency_level);
+  issue_get_for_key(key, sp, columns, consistency_level);
 }
 
 
 void Cache::GetRequest::
-get_columns(Cache::CacheClient* client,
-            std::string& column_family,
-            std::string& key,
+get_columns(std::string& key,
             std::vector<std::string>& names,
             std::vector<ColumnOrSuperColumn>& columns,
             ConsistencyLevel::type consistency_level)
@@ -445,14 +435,12 @@ get_columns(Cache::CacheClient* client,
   sp.column_names = names;
   sp.__isset.column_names = true;
 
-  issue_get_for_key(client, column_family, key, sp, columns, consistency_level);
+  issue_get_for_key(key, sp, columns, consistency_level);
 }
 
 
 void Cache::GetRequest::
-get_columns_with_prefix(Cache::CacheClient* client,
-                        std::string& column_family,
-                        std::string& key,
+get_columns_with_prefix(std::string& key,
                         std::string& prefix,
                         std::vector<ColumnOrSuperColumn>& columns,
                         ConsistencyLevel::type consistency_level)
@@ -465,7 +453,7 @@ get_columns_with_prefix(Cache::CacheClient* client,
   sp.slice_range = sr;
   sp.__isset.slice_range = true;
 
-  issue_get_for_key(client, column_family, key, sp, columns, consistency_level);
+  issue_get_for_key(key, sp, columns, consistency_level);
 
   for (std::vector<ColumnOrSuperColumn>::iterator it = columns.begin();
        it != columns.end();
@@ -477,15 +465,13 @@ get_columns_with_prefix(Cache::CacheClient* client,
 
 
 void Cache::GetRequest::
-issue_get_for_key(Cache::CacheClient* client,
-                  std::string& column_family,
-                  std::string& key,
+issue_get_for_key(std::string& key,
                   SlicePredicate& predicate,
                   std::vector<ColumnOrSuperColumn>& columns,
                   ConsistencyLevel::type consistency_level)
 {
   ColumnParent cparent;
-  cparent.column_family = column_family;
+  cparent.column_family = _column_family;
 
   KeyRange range;
   range.start_key = key;
@@ -494,7 +480,7 @@ issue_get_for_key(Cache::CacheClient* client,
   range.__isset.end_key = true;
 
   std::vector<KeySlice> results;
-  client->get_range_slices(results, cparent, predicate, range, consistency_level);
+  _client->get_range_slices(results, cparent, predicate, range, consistency_level);
 
   columns = results[0].columns;
 }
@@ -514,14 +500,12 @@ Cache::DeleteRowsRequest::~DeleteRowsRequest()
 
 
 void Cache::DeleteRowsRequest::
-delete_row(Cache::CacheClient* client,
-           std::string& column_family,
-           std::string& key,
+delete_row(std::string& key,
            int64_t timestamp)
 {
   ColumnPath cp;
-  cp.column_family = column_family;
-  client->remove(key, cp, timestamp, ConsistencyLevel::ONE);
+  cp.column_family = _column_family;
+  _client->remove(key, cp, timestamp, ConsistencyLevel::ONE);
 }
 
 //
@@ -554,12 +538,12 @@ Cache::PutIMSSubscription::
 
 std::string IMS_SUB_XML_COLUMN_NAME = "ims_subscription_xml";
 
-void Cache::PutIMSSubscription::perform(Cache::CacheClient* client)
+void Cache::PutIMSSubscription::perform()
 {
   std::map<std::string, std::string> columns;
   columns[IMS_SUB_XML_COLUMN_NAME] = _xml;
 
-  put_columns(client, _column_family, _public_ids, columns, _timestamp, _ttl);
+  put_columns(_public_ids, columns, _timestamp, _ttl);
   on_success();
 }
 
@@ -584,14 +568,14 @@ Cache::PutAssociatedPublicID::
 {}
 
 
-void Cache::PutAssociatedPublicID::perform(Cache::CacheClient* client)
+void Cache::PutAssociatedPublicID::perform()
 {
   std::map<std::string, std::string> columns;
   columns[ASSOC_PUBLIC_ID_COLUMN_PREFIX + _assoc_public_id] = "";
 
   std::vector<std::string> keys(1, _private_id);
 
-  put_columns(client, _column_family, keys, columns, _timestamp, _ttl);
+  put_columns(keys, columns, _timestamp, _ttl);
   on_success();
 }
 
@@ -619,7 +603,7 @@ std::string DIGEST_REALM_COLUMN_NAME    = "digest_realm";
 std::string DIGEST_QOP_COLUMN_NAME      = "digest_qop";
 std::string KNOWN_PREFERRED_COLUMN_NAME = "known_preferred";
 
-void Cache::PutAuthVector::perform(Cache::CacheClient* client)
+void Cache::PutAuthVector::perform()
 {
   std::map<std::string, std::string> columns;
   columns[DIGEST_HA1_COLUMN_NAME]      = _auth_vector.ha1;
@@ -627,7 +611,7 @@ void Cache::PutAuthVector::perform(Cache::CacheClient* client)
   columns[DIGEST_QOP_COLUMN_NAME]      = _auth_vector.qop;
   columns[KNOWN_PREFERRED_COLUMN_NAME] = _auth_vector.preferred ? "\x01" : "\x00";
 
-  put_columns(client, _column_family, _private_ids, columns, _timestamp, _ttl);
+  put_columns(_private_ids, columns, _timestamp, _ttl);
 
   on_success();
 }
@@ -649,12 +633,12 @@ Cache::GetIMSSubscription::
 {}
 
 
-void Cache::GetIMSSubscription::perform(Cache::CacheClient* client)
+void Cache::GetIMSSubscription::perform()
 {
   std::vector<ColumnOrSuperColumn> results;
   std::vector<std::string> requested_columns(1, IMS_SUB_XML_COLUMN_NAME);
 
-  ha_get_columns(client, IMPU, _public_id, requested_columns, results);
+  ha_get_columns(_public_id, requested_columns, results);
 
   on_success(results[0].column.value);
 }
@@ -677,14 +661,12 @@ Cache::GetAssociatedPublicIDs::
 {}
 
 
-void Cache::GetAssociatedPublicIDs::perform(Cache::CacheClient* client)
+void Cache::GetAssociatedPublicIDs::perform()
 {
   std::vector<ColumnOrSuperColumn> columns;
   std::vector<std::string> results;
 
-  ha_get_columns_with_prefix(client,
-                             _column_family,
-                             _private_id,
+  ha_get_columns_with_prefix(_private_id,
                              ASSOC_PUBLIC_ID_COLUMN_PREFIX,
                              columns);
 
@@ -726,7 +708,7 @@ Cache::GetAuthVector::
 
 
 
-void Cache::GetAuthVector::perform(Cache::CacheClient* client)
+void Cache::GetAuthVector::perform()
 {
   std::vector<std::string> requested_columns;
   std::string requested_public_id_col = "";
@@ -743,7 +725,7 @@ void Cache::GetAuthVector::perform(Cache::CacheClient* client)
   }
 
   std::vector<ColumnOrSuperColumn> results;
-  ha_get_columns(client, IMPI, _private_id, requested_columns, results);
+  ha_get_columns(_private_id, requested_columns, results);
 
   DigestAuthVector av;
 
@@ -807,13 +789,13 @@ Cache::DeletePublicIDs::
 ~DeletePublicIDs()
 {}
 
-void Cache::DeletePublicIDs::perform(Cache::CacheClient* client)
+void Cache::DeletePublicIDs::perform()
 {
   for (std::vector<std::string>::iterator it = _public_ids.begin();
        it != _public_ids.end();
        ++it)
   {
-    delete_row(client, _column_family, *it, _timestamp);
+    delete_row(*it, _timestamp);
   }
 
   on_success();
@@ -839,13 +821,13 @@ Cache::DeletePrivateIDs::
 ~DeletePrivateIDs()
 {}
 
-void Cache::DeletePrivateIDs::perform(Cache::CacheClient* client)
+void Cache::DeletePrivateIDs::perform()
 {
   for (std::vector<std::string>::iterator it = _private_ids.begin();
        it != _private_ids.end();
        ++it)
   {
-    delete_row(client, _column_family, *it, _timestamp);
+    delete_row(*it, _timestamp);
   }
 
   on_success();
