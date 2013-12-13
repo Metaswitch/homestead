@@ -216,6 +216,8 @@ void Transaction::on_response(void* data, struct msg** rsp)
   Message msg(tsx->_dict, *rsp);
   tsx->on_response(msg);
   delete tsx;
+  // Null out the message so that freeDiameter doesn't try to send it on.
+  *rsp = NULL;
 }
 
 void Transaction::on_timeout(void* data, DiamId_t to, size_t to_len, struct msg** req)
@@ -224,6 +226,8 @@ void Transaction::on_timeout(void* data, DiamId_t to, size_t to_len, struct msg*
   Message msg(tsx->_dict, *req);
   tsx->on_timeout();
   delete tsx;
+  // Null out the message so that freeDiameter doesn't try to send it on.
+  *req = NULL;
 }
 
 
