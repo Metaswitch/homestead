@@ -47,6 +47,8 @@
 #ifndef CACHE_H__
 #define CACHE_H__
 
+#define CASS org::apache::cassandra
+
 /// @class Cache
 ///
 /// Singleton class representing a cassandra-backed subscriber cache.
@@ -135,12 +137,12 @@ public:
   ///
   /// Simple subclass of a normal cassandra client but that automatically opens
   /// and closes it's transport.
-  class CacheClient : public org::apache::cassandra::CassandraClient
+  class CacheClient : public CASS::CassandraClient
   {
   public:
     CacheClient(boost::shared_ptr<apache::thrift::protocol::TProtocol> prot,
                 boost::shared_ptr<apache::thrift::transport::TFramedTransport> transport) :
-      org::apache::cassandra::CassandraClient(prot),
+      CASS::CassandraClient(prot),
       _transport(transport)
     {
       transport->open();
@@ -340,7 +342,7 @@ public:
     /// @param key row key
     /// @param columns (out) columns in the row
     void ha_get_row(std::string& key,
-                    std::vector<org::apache::cassandra::ColumnOrSuperColumn>& columns);
+                    std::vector<CASS::ColumnOrSuperColumn>& columns);
 
     /// HA get specific columns in a row.
     ///
@@ -349,7 +351,7 @@ public:
     /// @param columns (out) the retireved columns
     void ha_get_columns(std::string& key,
                         std::vector<std::string>& names,
-                        std::vector<org::apache::cassandra::ColumnOrSuperColumn>& columns);
+                        std::vector<CASS::ColumnOrSuperColumn>& columns);
 
     /// HA get all columns in a row that have a particular prefix to their name.
     /// This is useful when working with dynamic columns.
@@ -360,27 +362,27 @@ public:
     ///   their prefix removed.
     void ha_get_columns_with_prefix(std::string& key,
                                     std::string& prefix,
-                                    std::vector<org::apache::cassandra::ColumnOrSuperColumn>& columns);
+                                    std::vector<CASS::ColumnOrSuperColumn>& columns);
 
     /// Get an entire row (non-HA).
     /// @param consistency_level cassandra consistency level.
     void get_row(std::string& key,
-                 std::vector<org::apache::cassandra::ColumnOrSuperColumn>& columns,
-                 org::apache::cassandra::ConsistencyLevel::type consistency_level);
+                 std::vector<CASS::ColumnOrSuperColumn>& columns,
+                 CASS::ConsistencyLevel::type consistency_level);
 
     /// Get specific columns in a row (non-HA).
     /// @param consistency_level cassandra consistency level.
     void get_columns(std::string& key,
                      std::vector<std::string>& names,
-                     std::vector<org::apache::cassandra::ColumnOrSuperColumn>& columns,
-                     org::apache::cassandra::ConsistencyLevel::type consistency_level);
+                     std::vector<CASS::ColumnOrSuperColumn>& columns,
+                     CASS::ConsistencyLevel::type consistency_level);
 
     /// Get columns whose names begin with the specified prefix. (non-HA).
     /// @param consistency_level cassandra consistency level.
     void get_columns_with_prefix(std::string& key,
                                  std::string& prefix,
-                                 std::vector<org::apache::cassandra::ColumnOrSuperColumn>& columns,
-                                 org::apache::cassandra::ConsistencyLevel::type consistency_level);
+                                 std::vector<CASS::ColumnOrSuperColumn>& columns,
+                                 CASS::ConsistencyLevel::type consistency_level);
 
     /// Utility method to issue a get request for a particular key.
     ///
@@ -389,9 +391,9 @@ public:
     /// @param columns (out) the retrieved columns.
     /// @param consistency_level cassandra consistency level.
     void issue_get_for_key(std::string& key,
-                           org::apache::cassandra::SlicePredicate& predicate,
-                           std::vector<org::apache::cassandra::ColumnOrSuperColumn>& columns,
-                           org::apache::cassandra::ConsistencyLevel::type consistency_level);
+                           CASS::SlicePredicate& predicate,
+                           std::vector<CASS::ColumnOrSuperColumn>& columns,
+                           CASS::ConsistencyLevel::type consistency_level);
   };
 
   /// @class DeleteRowsRequest a request to delete one or more rows from the
@@ -612,4 +614,5 @@ public:
   };
 };
 
+#undef CASS
 #endif
