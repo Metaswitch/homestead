@@ -48,29 +48,26 @@ public:
   void handle(HttpStack::Request& req);
 };
 
-class ImpiDigestHandler : public HttpStack::Handler
+class DiameterHttpHandler : public HttpStack::Handler
 {
 public:
-  ImpiDigestHandler(Diameter::Stack* diameter_stack,
-                    const std::string& dest_realm,
-                    const std::string& dest_host,
-                    const std::string& server_name) :
-                    HttpStack::Handler("^/impi/[^/]*/digest$"),
-                    _diameter_stack(diameter_stack),
-                    _dest_realm(dest_realm),
-                    _dest_host(dest_host),
-                    _server_name(server_name) {};
-  void handle(HttpStack::Request& req);
+  DiameterHttpHandler(const std::string& path,
+                      Diameter::Stack* diameter_stack,
+                      const std::string& dest_realm,
+                      const std::string& dest_host,
+                      const std::string& server_name) :
+                      HttpStack::Handler(path),
+                      _diameter_stack(diameter_stack),
+                      _dest_realm(dest_realm),
+                      _dest_host(dest_host),
+                      _server_name(server_name) {};
 
-private:
   class Transaction : public Diameter::Transaction
   {
   public:
     Transaction(Cx::Dictionary* dict, HttpStack::Request& req) : Diameter::Transaction(dict), _req(req) {};
-    void on_response(Diameter::Message& rsp);
     void on_timeout();
 
-  private:
     HttpStack::Request _req;
   };
 
@@ -79,6 +76,50 @@ private:
   std::string _dest_host;
   std::string _server_name;
   Cx::Dictionary _dict;
+};
+
+class ImpiDigestHandler : public DiameterHttpHandler
+{
+public:
+  ImpiDigestHandler(Diameter::Stack* diameter_stack,
+                    const std::string& dest_realm,
+                    const std::string& dest_host,
+                    const std::string& server_name) :
+                    DiameterHttpHandler("^/impi/[^/]*/digest$",
+                                        diameter_stack,
+                                        dest_realm,
+                                        dest_host,
+                                        server_name) {};
+  void handle(HttpStack::Request& req);
+
+  class Transaction : public DiameterHttpHandler::Transaction
+  {
+  public:
+    Transaction(Cx::Dictionary* dict, HttpStack::Request& req) : DiameterHttpHandler::Transaction(dict, req) {};
+    void on_response(Diameter::Message& rsp);
+  };
+};
+
+class ImpiAvHandler : public DiameterHttpHandler
+{
+public:
+  ImpiAvHandler(Diameter::Stack* diameter_stack,
+                const std::string& dest_realm,
+                const std::string& dest_host,
+                const std::string& server_name) :
+                DiameterHttpHandler("^/impi/[^/]*/av",
+                                    diameter_stack,
+                                    dest_realm,
+                                    dest_host,
+                                    server_name) {};
+  void handle(HttpStack::Request& req);
+
+  class Transaction : public DiameterHttpHandler::Transaction
+  {
+  public:
+    Transaction(Cx::Dictionary* dict, HttpStack::Request& req) : DiameterHttpHandler::Transaction(dict, req) {};
+    void on_response(Diameter::Message& rsp);
+  };
 };
 
 #endif

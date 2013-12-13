@@ -103,6 +103,7 @@ public:
   const AVP RESULT_CODE;
   const AVP DIGEST_HA1;
   const AVP DIGEST_REALM;
+  const AVP DIGEST_QOP;
 };
 
 class Stack

@@ -52,6 +52,7 @@ Dictionary::Dictionary() :
   PUBLIC_IDENTITY("3GPP", "Public-Identity"),
   SIP_AUTH_DATA_ITEM("3GPP", "SIP-Auth-Data-Item"),
   SIP_AUTH_SCHEME("3GPP", "SIP-Authentication-Scheme"),
+  SIP_AUTHORIZATION("3GPP", "SIP-Authorization"),
   SIP_NUMBER_AUTH_ITEMS("3GPP", "SIP-Number-Auth-Items"),
   SERVER_NAME("3GPP", "Server-Name"),
   SIP_DIGEST_AUTHENTICATE("3GPP", "SIP-Digest-Authenticate"),
@@ -66,6 +67,10 @@ Dictionary::Dictionary() :
   ORIGINATING_REQUEST("3GPP", "Originating-Request"),
   USER_DATA_ALREADY_AVAILABLE("3GPP", "User-Data-Already-Available"),
   USER_DATA("3GPP", "User-Data")
+  CX_DIGEST_QOP("3GPP", "Digest-QoP"),
+  SIP_AUTHENTICATE("3GPP", "SIP-Authenticate"),
+  CONFIDENTIALITY_KEY("3GPP", "Confidentiality-Key"),
+  INTEGRITY_KEY("3GPP", "Integrity-Key")
 {
 }
 
@@ -133,7 +138,8 @@ MultimediaAuthRequest::MultimediaAuthRequest(const Dictionary* dict,
                                              const std::string& impi,
                                              const std::string& impu,
                                              const std::string& server_name,
-                                             const std::string& sip_auth_scheme) :
+                                             const std::string& sip_auth_scheme,
+                                             const std::string& sip_authorization) :
                                              Diameter::Message(dict, dict->MULTIMEDIA_AUTH_REQUEST)
 {
   add_new_session_id();
@@ -143,8 +149,13 @@ MultimediaAuthRequest::MultimediaAuthRequest(const Dictionary* dict,
   add_origin();
   add(Diameter::AVP(dict->USER_NAME).val_str(impi));
   add(Diameter::AVP(dict->PUBLIC_IDENTITY).val_str(impu));
-  add(Diameter::AVP(dict->SIP_AUTH_DATA_ITEM).add(
-        Diameter::AVP(dict->SIP_AUTH_SCHEME).val_str(sip_auth_scheme)));
+  Diameter::AVP sip_auth_data_item(dict->SIP_AUTH_DATA_ITEM);
+  sip_auth_data_item.add(Diameter::AVP(dict->SIP_AUTH_SCHEME).val_str(sip_auth_scheme));
+  if (!sip_authorization.empty())
+  {
+    sip_auth_data_item.add(Diameter::AVP(dict->SIP_AUTHORIZATION).val_str(sip_authorization));
+  }
+  add(sip_auth_data_item);
   add(Diameter::AVP(dict->SIP_NUMBER_AUTH_ITEMS).val_i32(1));
   add(Diameter::AVP(dict->SERVER_NAME).val_str(server_name));
 }
@@ -193,19 +204,20 @@ std::string MultimediaAuthAnswer::sip_auth_scheme() const
   return sip_auth_scheme;
 }
 
-std::string MultimediaAuthAnswer::digest_ha1() const
+DigestAuthVector MultimediaAuthAnswer::digest_auth_vector() const
 {
-  std::string digest_ha1;
+  DigestAuthVector digest_auth_vector;
   Diameter::AVP::iterator avps = begin(((Cx::Dictionary*)dict())->SIP_AUTH_DATA_ITEM);
   if (avps != end())
   {
     avps = avps->begin(((Cx::Dictionary*)dict())->SIP_DIGEST_AUTHENTICATE);
     if (avps != end())
     {
+      // Look for the digest.
       Diameter::AVP::iterator avps2 = avps->begin(((Cx::Dictionary*)dict())->CX_DIGEST_HA1);
       if (avps2 != end())
       {
-        digest_ha1 = avps2->val_str();
+        digest_auth_vector.ha1 = avps2->val_str();
       }
       else
       {
@@ -213,12 +225,76 @@ std::string MultimediaAuthAnswer::digest_ha1() const
         avps2 = avps->begin(((Cx::Dictionary*)dict())->DIGEST_HA1);
         if (avps2 != end())
         {
-          digest_ha1 = avps2->val_str();
+          digest_auth_vector.ha1 = avps2->val_str();
+        }
+      }
+      // Look for the realm.
+      avps2 = avps->begin(((Cx::Dictionary*)dict())->CX_DIGEST_REALM);
+      if (avps2 != end())
+      {
+        digest_auth_vector.realm = avps2->val_str();
+      }
+      else
+      {
+        // Some HSSs (in particular OpenIMSCore), use non-3GPP Digest-Realm.  Check for this too.
+        avps2 = avps->begin(((Cx::Dictionary*)dict())->DIGEST_REALM);
+        if (avps2 != end())
+        {
+          digest_auth_vector.realm = avps2->val_str();
+        }
+      }
+      // Look for the QoP.
+      avps2 = avps->begin(((Cx::Dictionary*)dict())->CX_DIGEST_QOP);
+      if (avps2 != end())
+      {
+        digest_auth_vector.qop = avps2->val_str();
+      }
+      else
+      {
+        // Some HSSs (in particular OpenIMSCore), use non-3GPP Digest-QoP.  Check for this too.
+        avps2 = avps->begin(((Cx::Dictionary*)dict())->DIGEST_QOP);
+        if (avps2 != end())
+        {
+          digest_auth_vector.qop = avps2->val_str();
         }
       }
     }
   }
-  return digest_ha1;
+  return digest_auth_vector;
+}
+
+AKAAuthVector MultimediaAuthAnswer::aka_auth_vector() const
+{
+  AKAAuthVector aka_auth_vector;
+  Diameter::AVP::iterator avps = begin(((Cx::Dictionary*)dict())->SIP_AUTH_DATA_ITEM);
+  if (avps != end())
+  {
+    // Look for the challenge.
+    Diameter::AVP::iterator avps2 = avps->begin(((Cx::Dictionary*)dict())->SIP_AUTHENTICATE);
+    if (avps2 != end())
+    {
+      aka_auth_vector.challenge = avps2->val_str();
+    }
+    // Look for the response.
+    avps2 = avps->begin(((Cx::Dictionary*)dict())->SIP_AUTHORIZATION);
+    if (avps2 != end())
+    {
+      aka_auth_vector.response = avps2->val_str();
+    }
+    // Look for the encryption key.
+    avps2 = avps->begin(((Cx::Dictionary*)dict())->CONFIDENTIALITY_KEY);
+    if (avps2 != end())
+    {
+      aka_auth_vector.crypt_key = avps2->val_str();
+    }
+    // Look for the integrity key.
+    avps2 = avps->begin(((Cx::Dictionary*)dict())->INTEGRITY_KEY);
+    if (avps2 != end())
+    {
+      aka_auth_vector.integrity_key = avps2->val_str();
+    }
+  }
+  return aka_auth_vector;
 }
 
 ServerAssignmentRequest::ServerAssignmentRequest(const Dictionary* dict,

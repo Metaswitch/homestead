@@ -58,6 +58,7 @@ public:
   public:
     Request(evhtp_request_t* req) : _req(req) {}
     inline std::string path() const {return std::string(_req->uri->path->path);}
+    inline std::string file() const {return std::string(_req->uri->path->file);}
     inline std::string param(const std::string& name) const
     {
       const char* param = evhtp_kv_find(_req->uri->query, name.c_str());
