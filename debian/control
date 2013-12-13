@@ -14,6 +14,14 @@ Architecture: any
 Depends: libsctp1
 Description: Libraries for homestead
 
+Package: homestead-libs-dbg
+Architecture: any
+Section: debug
+Priority: extra
+Depends: homestead-libs (= ${binary:Version})
+Recommends: gdb
+Description: Debugging symbols for homestead-libs
+
 Package: homestead
 Architecture: any
 Depends: clearwater-infrastructure, clearwater-tcp-scalability, clearwater-log-cleanup, homestead-libs, libzmq3
@@ -25,5 +33,5 @@ Architecture: any
 Section: debug
 Priority: extra
 Depends: homestead (= ${binary:Version})
-Recommends: gdb
+Recommends: gdb, homestead-libs-dbg
 Description: Debugging symbols for homestead, the HSS Cache/Gateway
