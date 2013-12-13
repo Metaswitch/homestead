@@ -46,8 +46,8 @@
 // - Create a subclass of ThreadPool.
 // - Create a new instance of this class (called `pool` for example).
 // - Call pool->start() to start the pool and create its threads.
-// - Call pool->add_work to give the pooool work to process.
-// - Call pool->stop() to stop the poool and terminate its threads.
+// - Call pool->add_work to give the pool work to process.
+// - Call pool->stop() to stop the pool and terminate its threads.
 // - (optionally) Call pool->join() to wait until the pool is fully stopped.
 //
 // Note that start may only be called once. Once the pool has been stopped it
@@ -109,7 +109,7 @@ public:
   }
 
   // Stop the thread pool and shutdown the worker threads.  Work items on the
-  // queue are not guaraneted to be processed.
+  // queue are not guaranteed to be processed.
   void stop()
   {
     // Purge any pending work items (to ensure the threads stop promptly) and
@@ -154,7 +154,7 @@ private:
     return NULL;
   }
 
-  // Function executed by a single worker thread. Thsi loops pulling work off
+  // Function executed by a single worker thread. This loops pulling work off
   // the queue and processing it.
   void worker_thread_func()
   {
@@ -174,7 +174,7 @@ private:
       }
 
       // If we haven't got any work then the queue must have been terminated,
-      // which in turn means the threadpool hsa been shut down.  Exit the loop.
+      // which in turn means the threadpool has been shut down.  Exit the loop.
     } while (got_work);
 
     // Shutdown hook.
@@ -193,7 +193,7 @@ private:
   // The default implementation of this hook is a no-op.
   virtual void on_thread_shutdown() {};
 
-  // Process a work item. This method must be overriden by the subclass.
+  // Process a work item. This method must be overridden by the subclass.
   virtual void process_work(T& work) = 0;
 };
 

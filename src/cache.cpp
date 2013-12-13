@@ -161,7 +161,7 @@ void Cache::wait_stopped()
 Cache::~Cache()
 {
   // It is only safe to destroy the cache once the thread pool has been deleted
-  // (as the poool stores a pointer to the cache). Make sure this is the case.
+  // (as the pool stores a pointer to the cache). Make sure this is the case.
   stop();
   wait_stopped();
 }
@@ -350,7 +350,7 @@ put_columns(std::vector<std::string>& keys,
   // Vector of mutations (one per column being modified).
   std::vector<Mutation> mutations;
 
-  // The mutaion map is of the form {"key": {"column_family": [mutations] } }
+  // The mutation map is of the form {"key": {"column_family": [mutations] } }
   std::map<std::string, std::map<std::string, std::vector<Mutation>>> mutmap;
 
   // Populate the mutations vector.
@@ -409,7 +409,7 @@ Cache::GetRequest::~GetRequest()
 // -  If this raises a NotFoundException, try again with a consistency level of
 //    QUORUM.
 // -  If this fails again with either NotFoundException or UnavailableException
-//    (meaning the necessary servers are not currently available), rethrow the
+//    (meaning the necessary servers are not currently available), re-throw the
 //    original exception.
 #define HA(METHOD, ...)                                                      \
         try                                                                  \
@@ -502,8 +502,6 @@ get_columns_with_prefix(std::string& key,
                         ConsistencyLevel::type consistency_level)
 {
   // This slice range gets all columns with the specified prefix.
-  //
-  // TODO make this work properly.
   SliceRange sr;
   sr.start = prefix;
   sr.finish = prefix + "\xFF";
@@ -809,7 +807,7 @@ void Cache::GetAuthVector::perform()
     }
     else if (col->name == KNOWN_PREFERRED_COLUMN_NAME)
     {
-      // Cassnadra boolenas are byte string of length 1, with a value f 0
+      // Cassnadra booleans are byte string of length 1, with a value f 0
       // (false) or 1 (true).
       av.preferred = (col->value == "\x01");
     }

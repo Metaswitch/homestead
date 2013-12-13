@@ -91,7 +91,7 @@ public:
   /// Configure cache settings.
   ///
   /// @param cass_hostname the hostname for the cassandra database.
-  /// @param cass_port the port to connect to cassnadra on.
+  /// @param cass_port the port to connect to cassandra on.
   /// @param num_threads the number of worker threads to use for processing
   ///   cache requests.
   /// @param max_queue the maximum number of requests that can be queued waiting
@@ -222,17 +222,17 @@ public:
   //
   // Request objects.
   //
-  // Each request to the cache is represted by a request object. There are a
+  // Each request to the cache is represented by a request object. There are a
   // number of different request classes which do different things.
   //
-  // Request objects are passed to the cache object which prcoesses them
+  // Request objects are passed to the cache object which processes them
   // asynchronously.  Once complete the request's on_success or on_failure
   // method is called (depending on the result of the request).
   //
   // To issue a request to the cache a user should:
   // -  Select the appropriate request class.
   // -  Create a subclass that implements on_success and on_failure.
-  // -  Create a nrew instance of that class.
+  // -  Create a new instance of that class.
   // -  Call Cache::send, passing in the request object.
 
   /// @class Request base class for all cache requests.
@@ -348,7 +348,7 @@ public:
     ///
     /// @param key row key
     /// @param names the names of the columns to retrieve
-    /// @param columns (out) the retireved columns
+    /// @param columns (out) the retrieved columns
     void ha_get_columns(std::string& key,
                         std::vector<std::string>& names,
                         std::vector<CASS::ColumnOrSuperColumn>& columns);
@@ -510,7 +510,7 @@ public:
 
     void perform();
 
-    /// Sucess callback.
+    /// Success callback.
     ///
     /// @param xml the IMS subscription XML document.
     virtual void on_success(std::string& xml) = 0;
