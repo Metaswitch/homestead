@@ -38,6 +38,7 @@
 #define CX_H__
 
 #include "diameterstack.h"
+#include "authvector.h"
 
 namespace Cx
 {
@@ -53,11 +54,16 @@ public:
   Diameter::Dictionary::AVP PUBLIC_IDENTITY;
   Diameter::Dictionary::AVP SIP_AUTH_DATA_ITEM;
   Diameter::Dictionary::AVP SIP_AUTH_SCHEME;
+  Diameter::Dictionary::AVP SIP_AUTHORIZATION;
   Diameter::Dictionary::AVP SIP_NUMBER_AUTH_ITEMS;
   Diameter::Dictionary::AVP SERVER_NAME;
   Diameter::Dictionary::AVP SIP_DIGEST_AUTHENTICATE;
   Diameter::Dictionary::AVP CX_DIGEST_HA1;
   Diameter::Dictionary::AVP CX_DIGEST_REALM;
+  Diameter::Dictionary::AVP CX_DIGEST_QOP;
+  Diameter::Dictionary::AVP SIP_AUTHENTICATE;
+  Diameter::Dictionary::AVP CONFIDENTIALITY_KEY;
+  Diameter::Dictionary::AVP INTEGRITY_KEY;
 };
 
 class MultimediaAuthRequest : public Diameter::Message
@@ -69,7 +75,8 @@ public:
                         const std::string& impi,
                         const std::string& impu,
                         const std::string& server_name,
-                        const std::string& sip_auth_scheme);
+                        const std::string& sip_auth_scheme,
+                        const std::string& sip_authorization = "");
   inline MultimediaAuthRequest(Diameter::Message& msg) : Diameter::Message(msg) {};
 
   std::string impi() const;
@@ -87,7 +94,8 @@ public:
 
   int result_code() const;
   std::string sip_auth_scheme() const;
-  std::string digest_ha1() const;
+  DigestAuthVector digest_auth_vector() const;
+  AKAAuthVector aka_auth_vector() const;
 };
 };
 

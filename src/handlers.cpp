@@ -52,8 +52,10 @@ void DiameterHttpHandler::Transaction::on_timeout()
 
 void ImpiDigestHandler::handle(HttpStack::Request& req)
 {
-  std::string impi = req.path().substr(sizeof("/impi/") - 1, req.path().length() - sizeof("/impi/"));
-  std::string impu = req.param("impu");
+  const std::string prefix = "/impi/";
+  std::string path = req.path();
+  std::string impi = path.substr(prefix.length(), path.find_first_of("/", prefix.length()) - prefix.length());
+  std::string impu = req.param("public_id");
   Cx::MultimediaAuthRequest* mar = new Cx::MultimediaAuthRequest(&_dict, _dest_realm, _dest_host, impi, impu, _server_name, "SIP Digest");
   Transaction* tsx = new Transaction(&_dict, req);
   mar->send(tsx, 200);
@@ -67,15 +69,127 @@ void ImpiDigestHandler::Transaction::on_response(Diameter::Message& rsp)
     case 2001:
       if (maa.sip_auth_scheme() == "SIP Digest")
       {
+        DigestAuthVector digest_auth_vector = maa.digest_auth_vector();
         rapidjson::StringBuffer sb;
         rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
         writer.StartObject();
         writer.String("digest_ha1");
-        writer.String(maa.digest_ha1().c_str());
+        writer.String(digest_auth_vector.ha1.c_str());
         writer.EndObject();
         _req.add_content(sb.GetString());
+        _req.send_reply(200);
       }
-      _req.send_reply(200);
+      else
+      {
+        _req.send_reply(404);
+      }
+      break;
+    case 5001:
+      _req.send_reply(404);
+      break;
+    default:
+      _req.send_reply(500);
+      break;
+  }
+}
+
+void ImpiAvHandler::handle(HttpStack::Request& req)
+{
+  const std::string prefix = "/impi/";
+  std::string path = req.path();
+  std::string impi = path.substr(prefix.length(), path.find_first_of("/", prefix.length()) - prefix.length());
+  std::string scheme = req.file();
+  if (scheme == "av")
+  {
+    scheme = "unknown";
+  }
+  else if (scheme == "digest")
+  {
+    scheme = "SIP Digest";
+  }
+  else if (scheme == "aka")
+  {
+    scheme = "Digest-AKAv1-MD5";
+  }
+  else
+  {
+    req.send_reply(404);
+    return;
+  }
+  std::string impu = req.param("impu");
+  std::string authorization = req.param("autn");
+  Cx::MultimediaAuthRequest* mar = new Cx::MultimediaAuthRequest(&_dict, _dest_realm, _dest_host, impi, impu, _server_name, scheme, authorization);
+  Transaction* tsx = new Transaction(&_dict, req);
+  mar->send(tsx, 200);
+}
+
+void ImpiAvHandler::Transaction::on_response(Diameter::Message& rsp)
+{
+  Cx::MultimediaAuthAnswer maa(rsp);
+  switch (maa.result_code())
+  {
+    case 2001:
+      {
+        std::string sip_auth_scheme = maa.sip_auth_scheme();
+        if (sip_auth_scheme == "SIP Digest")
+        {
+          DigestAuthVector digest_auth_vector = maa.digest_auth_vector();
+          digest_auth_vector.qop = (!digest_auth_vector.qop.empty()) ? digest_auth_vector.qop : "auth";
+
+          rapidjson::StringBuffer sb;
+          rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
+
+          writer.StartObject();
+          {
+            writer.String("digest");
+            writer.StartObject();
+            {
+              writer.String("ha1");
+              writer.String(digest_auth_vector.ha1.c_str());
+              writer.String("realm");
+              writer.String(digest_auth_vector.realm.c_str());
+              writer.String("qop");
+              writer.String(digest_auth_vector.qop.c_str());
+            }
+            writer.EndObject();
+          }
+          writer.EndObject();
+
+          _req.add_content(sb.GetString());
+          _req.send_reply(200);
+        }
+        else if (sip_auth_scheme == "Digest-AKA-v1-MD5")
+        {
+          AKAAuthVector aka_auth_vector = maa.aka_auth_vector();
+          rapidjson::StringBuffer sb;
+          rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
+
+          writer.StartObject();
+          {
+            writer.String("aka");
+            writer.StartObject();
+            {
+              writer.String("challenge");
+              writer.String(aka_auth_vector.challenge.c_str());
+              writer.String("response");
+              writer.String(aka_auth_vector.response.c_str());
+              writer.String("cryptkey");
+              writer.String(aka_auth_vector.crypt_key.c_str());
+              writer.String("integritykey");
+              writer.String(aka_auth_vector.integrity_key.c_str());
+            }
+            writer.EndObject();
+          }
+          writer.EndObject();
+
+          _req.add_content(sb.GetString());
+          _req.send_reply(200);
+        }
+        else
+        {
+          _req.send_reply(404);
+        }
+      }
       break;
     case 5001:
       _req.send_reply(404);
