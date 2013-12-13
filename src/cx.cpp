@@ -41,9 +41,14 @@ using namespace Cx;
 Dictionary::Dictionary() :
   TGPP("3GPP"),
   CX("Cx"),
+  USER_AUTHORIZATION_REQUEST("3GPP/User-Authorization-Request"),
+  USER_AUTHORIZATION_ANSWER("3GPP/User-Authorization-Answer"),
+  LOCATION_INFO_REQUEST("3GPP/Location-Info-Request"),
+  LOCATION_INFO_ANSWER("3GPP/Location-Info-Answer"),
   MULTIMEDIA_AUTH_REQUEST("3GPP/Multimedia-Auth-Request"),
   MULTIMEDIA_AUTH_ANSWER("3GPP/Multimedia-Auth-Answer"),
-  SUPPORTED_FEATURES("3GPP", "Supported-Features"),
+  SERVER_ASSIGNMENT_REQUEST("3GPP/Server-Assignment-Request"),
+  SERVER_ASSIGNMENT_ANSWER("3GPP/Server-Assignment-Answer"),
   PUBLIC_IDENTITY("3GPP", "Public-Identity"),
   SIP_AUTH_DATA_ITEM("3GPP", "SIP-Auth-Data-Item"),
   SIP_AUTH_SCHEME("3GPP", "SIP-Authentication-Scheme"),
@@ -51,8 +56,75 @@ Dictionary::Dictionary() :
   SERVER_NAME("3GPP", "Server-Name"),
   SIP_DIGEST_AUTHENTICATE("3GPP", "SIP-Digest-Authenticate"),
   CX_DIGEST_HA1("3GPP", "Digest-HA1"),
-  CX_DIGEST_REALM("3GPP", "Digest-Realm")
+  CX_DIGEST_REALM("3GPP", "Digest-Realm"),
+  VISITED_NETWORK_IDENTIFIER("3GPP", "Visited-Network-Identifier"),
+  SERVER_CAPABILITIES("3GPP", "Server-Capabilities"),
+  MANDATORY_CAPABILITY("3GPP", "Mandatory-Capability"),
+  OPTIONAL_CAPABILITY("3GPP", "Optional-Capability"),
+  SERVER_ASSIGNMENT_TYPE("3GPP", "Server-Assignment-Type"),
+  USER_AUTHORIZATION_TYPE("3GPP", "User-Authorization-Type"),
+  ORIGINATING_REQUEST("3GPP", "Originating-Request"),
+  USER_DATA_ALREADY_AVAILABLE("3GPP", "User-Data-Already-Available"),
+  USER_DATA("3GPP", "User-Data")
 {
+}
+
+UserAuthorizationRequest::UserAuthorizationRequest(const Dictionary* dict,
+                                                   const std::string& dest_host,
+                                                   const std::string& dest_realm,
+                                                   const std::string& impi,
+                                                   const std::string& impu,
+                                                   const std::string& visited_network_identifier,
+                                                   int user_authorization_type) :
+                                                   Diameter::Message(dict, dict->USER_AUTHORIZATION_REQUEST)
+{
+  add_new_session_id();
+  add(Diameter::AVP(dict->AUTH_SESSION_STATE).val_i32(1));
+  add_origin();
+  add(Diameter::AVP(dict->DESTINATION_HOST).val_str(dest_host));
+  add(Diameter::AVP(dict->DESTINATION_REALM).val_str(dest_realm));
+  add(Diameter::AVP(dict->USER_NAME).val_str(impi));
+  add(Diameter::AVP(dict->PUBLIC_IDENTITY).val_str(impu));
+  add(Diameter::AVP(dict->VISITED_NETWORK_IDENTIFIER).val_str(visited_network_identifier));
+  add(Diameter::AVP(dict->USER_AUTHORIZATION_TYPE).val_i32(user_authorization_type));
+}
+
+UserAuthorizationAnswer::UserAuthorizationAnswer(const Dictionary* dict,
+                                                 int result_code) :
+                                                 Diameter::Message(dict, dict->USER_AUTHORIZATION_ANSWER)
+{
+  add(Diameter::AVP(dict->RESULT_CODE).val_i32(result_code));
+}
+
+LocationInfoRequest::LocationInfoRequest(const Dictionary* dict,
+                                         const std::string& dest_host,
+                                         const std::string& dest_realm,
+                                         int originating_request,
+                                         const std::string& impu,
+                                         int user_authorization_type) :
+                                         Diameter::Message(dict, dict->LOCATION_INFO_REQUEST)
+{
+  add_new_session_id();
+  add(Diameter::AVP(dict->AUTH_SESSION_STATE).val_i32(1));
+  add_origin();
+  add(Diameter::AVP(dict->DESTINATION_HOST).val_str(dest_host));
+  add(Diameter::AVP(dict->DESTINATION_REALM).val_str(dest_realm));
+  if (originating_request)
+  {
+    add(Diameter::AVP(dict->ORIGINATING_REQUEST).val_i32(0));
+  }
+  add(Diameter::AVP(dict->PUBLIC_IDENTITY).val_str(impu));
+  if (user_authorization_type)
+  {
+    add(Diameter::AVP(dict->USER_AUTHORIZATION_TYPE).val_i32(3));
+  }
+}
+
+LocationInfoAnswer::LocationInfoAnswer(const Dictionary* dict,
+                                       int result_code) :
+                                       Diameter::Message(dict, dict->LOCATION_INFO_ANSWER)
+{
+  add(Diameter::AVP(dict->RESULT_CODE).val_i32(result_code));
 }
 
 MultimediaAuthRequest::MultimediaAuthRequest(const Dictionary* dict,
@@ -147,4 +219,61 @@ std::string MultimediaAuthAnswer::digest_ha1() const
     }
   }
   return digest_ha1;
+}
+
+ServerAssignmentRequest::ServerAssignmentRequest(const Dictionary* dict,
+                                                 const std::string& dest_host,
+                                                 const std::string& dest_realm,
+                                                 const std::string& impi,
+                                                 const std::string& impu,
+                                                 const std::string& server_name) :
+                                                 Diameter::Message(dict, dict->SERVER_ASSIGNMENT_REQUEST)
+{
+  add_new_session_id();
+  add(Diameter::AVP(dict->AUTH_SESSION_STATE).val_i32(1));
+  add_origin();
+  add(Diameter::AVP(dict->DESTINATION_HOST).val_str(dest_host));
+  add(Diameter::AVP(dict->DESTINATION_REALM).val_str(dest_realm));
+  if (!impi.empty())
+  {
+    add(Diameter::AVP(dict->USER_NAME).val_str(impi));
+  }
+  add(Diameter::AVP(dict->PUBLIC_IDENTITY).val_str(impu));
+  add(Diameter::AVP(dict->SERVER_NAME).val_str(server_name));
+  if (!impi.empty())
+  {
+    add(Diameter::AVP(dict->SERVER_ASSIGNMENT_TYPE).val_i32(1));
+  }
+  else
+  {
+    add(Diameter::AVP(dict->SERVER_ASSIGNMENT_TYPE).val_i32(3));
+  }
+  add(Diameter::AVP(dict->USER_DATA_ALREADY_AVAILABLE).val_i32(0));
+}
+
+ServerAssignmentAnswer::ServerAssignmentAnswer(const Dictionary* dict) :
+                                               Diameter::Message(dict, dict->SERVER_ASSIGNMENT_ANSWER)
+{
+}
+
+int ServerAssignmentAnswer::result_code() const
+{
+  int result_code = 0;
+  Diameter::AVP::iterator avps = begin(dict()->RESULT_CODE);
+  if (avps != end())
+  {
+    result_code = avps->val_i32();
+  }
+  return result_code;
+}
+
+std::string ServerAssignmentAnswer::user_data() const
+{
+  std::string user_data;
+  Diameter::AVP::iterator avps = begin(((Cx::Dictionary*)dict())->USER_DATA);
+  if (avps != end())
+  {
+    user_data = avps->val_str();
+  }
+  return user_data;
 }
