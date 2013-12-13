@@ -2,3 +2,4 @@
 /usr/
 /build/
 *.o
+/tags
