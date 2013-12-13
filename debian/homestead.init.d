@@ -118,7 +118,11 @@ do_start()
         # enable gdb to dump a parent homestead process's stack
         echo 0 > /proc/sys/kernel/yama/ptrace_scope
         get_settings
-        DAEMON_ARGS="-a $log_directory
+        DAEMON_ARGS="--diameter-conf /var/lib/homestead/homestead.conf
+                     --dest-realm $home_domain
+                     --dest-host $hss_hostname
+                     --server-name sip:$sprout_hostname:5054
+                     -a $log_directory
                      -F $log_directory
                      -L $log_level"
 

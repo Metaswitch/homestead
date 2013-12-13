@@ -11,7 +11,7 @@ MODULE_DIR := ${ROOT}/modules
 
 DEB_COMPONENT := homestead
 DEB_MAJOR_VERSION := 1.0
-DEB_NAMES := homestead homestead-dbg
+DEB_NAMES := homestead-libs homestead-libs-dbg homestead homestead-dbg
 
 INCLUDE_DIR := ${INSTALL_DIR}/include
 LIB_DIR := ${INSTALL_DIR}/lib

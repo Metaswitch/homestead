@@ -34,7 +34,11 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
+#ifndef HTTP_H__
+#define HTTP_H__
+
 #include <pthread.h>
+#include <string>
 
 #include <evhtp.h>
 
@@ -49,9 +53,39 @@ public:
     const int _rc;
   };
 
-  static inline HttpStack* getInstance() {return INSTANCE;};
+  class Request
+  {
+  public:
+    Request(evhtp_request_t* req) : _req(req) {}
+    inline std::string path() const {return std::string(_req->uri->path->path);}
+    inline std::string file() const {return std::string(_req->uri->path->file);}
+    inline std::string param(const std::string& name) const
+    {
+      const char* param = evhtp_kv_find(_req->uri->query, name.c_str());
+      return std::string(param != NULL ? param : "");
+    }
+    void add_content(const std::string& content) {evbuffer_add(_req->buffer_out, content.c_str(), content.length());}
+    void send_reply(int rc) {evhtp_send_reply(_req, rc);}
+  private:
+    evhtp_request_t* _req;
+  };
+
+  class Handler
+  {
+  public:
+    inline Handler(const std::string& path) : _path(path) {}
+    virtual ~Handler() {}
+    inline const std::string path() const {return _path;}
+    virtual void handle(Request& req) = 0;
+
+  private:
+    std::string _path;
+  };
+
+  static inline HttpStack* get_instance() {return INSTANCE;};
   void initialize();
-  void configure(int num_threads);
+  void configure(const std::string& bind_address, unsigned short port, int num_threads);
+  void register_handler(Handler* handler);
   void start();
   void stop();
   void wait_stopped();
@@ -61,6 +95,7 @@ private:
   static HttpStack DEFAULT_INSTANCE;
 
   HttpStack();
+  static void handler_callback_fn(evhtp_request_t* req, void* handler_ptr);
   static void* event_base_thread_fn(void* http_stack_ptr); 
   void event_base_thread_fn();
 
@@ -68,8 +103,12 @@ private:
   HttpStack(HttpStack const&);
   void operator=(HttpStack const&);
 
+  std::string _bind_address;
+  unsigned short _bind_port;
   int _num_threads;
   evbase_t* _evbase;
   evhtp_t* _evhtp;
   pthread_t _event_base_thread;
 };
+
+#endif
