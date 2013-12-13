@@ -66,7 +66,7 @@ Dictionary::Dictionary() :
   USER_AUTHORIZATION_TYPE("3GPP", "User-Authorization-Type"),
   ORIGINATING_REQUEST("3GPP", "Originating-Request"),
   USER_DATA_ALREADY_AVAILABLE("3GPP", "User-Data-Already-Available"),
-  USER_DATA("3GPP", "User-Data")
+  USER_DATA("3GPP", "User-Data"),
   CX_DIGEST_QOP("3GPP", "Digest-QoP"),
   SIP_AUTHENTICATE("3GPP", "SIP-Authenticate"),
   CONFIDENTIALITY_KEY("3GPP", "Confidentiality-Key"),
