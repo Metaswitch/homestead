@@ -45,6 +45,11 @@ void PingHandler::handle(HttpStack::Request& req)
   req.send_reply(200);
 }
 
+void DiameterHttpHandler::Transaction::on_timeout()
+{
+  _req.send_reply(503);
+}
+
 void ImpiDigestHandler::handle(HttpStack::Request& req)
 {
   std::string impi = req.path().substr(sizeof("/impi/") - 1, req.path().length() - sizeof("/impi/"));
@@ -79,9 +84,4 @@ void ImpiDigestHandler::Transaction::on_response(Diameter::Message& rsp)
       _req.send_reply(500);
       break;
   }
-}
-
-void ImpiDigestHandler::Transaction::on_timeout()
-{
-  _req.send_reply(503);
 }
