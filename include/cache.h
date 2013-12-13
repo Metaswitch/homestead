@@ -220,25 +220,65 @@ public:
   //
   // Request objects.
   //
+  // Each request to the cache is represted by a request object. There are a
+  // number of different request classes which do different things.
+  //
+  // Request objects are passed to the cache object which prcoesses them
+  // asynchronously.  Once complete the request's on_success or on_failure
+  // method is called (depending on the result of the request).
+  //
+  // To issue a request to the cache a user should:
+  // -  Select the appropriate request class.
+  // -  Create a subclass that implements on_success and on_failure.
+  // -  Create a nrew instance of that class.
+  // -  Call Cache::send, passing in the request object.
 
+  /// @class Request base class for all cache requests.
   class Request
   {
   public:
+    /// Constructor.
+    /// @param column_family the column family the request operates on.
     Request(std::string& column_family);
     virtual ~Request();
 
+    /// Execute a request.
+    ///
+    /// This method is called automatically by the cache when the request is
+    /// ready to be run.
+    ///
+    /// @param client the client to use to interact with the database.
     virtual void run(Cache::CacheClient* client);
-    virtual void perform() = 0;
+
+    /// Failure callback common to all requests.  Must be implemented by
+    /// subclasses.
+    ///
+    /// @param error the reason for the error.
+    /// @param text extra text detailing the failure.
     virtual void on_failure(ResultCode error, std::string& text) = 0;
 
   protected:
+    /// Method that contains the business logic of the request.
+    ///
+    /// This is called by run from within an exception handler(). It is safe to
+    /// throw exceptions from perform, as run() will catch them and convert them
+    /// to appropriate error codes.
+    virtual void perform() {};
+
     std::string _column_family;
     CacheClient *_client;
   };
 
+  /// @class ModificationRequest a request to modify the cache (e.g. write
+  /// columns or delete rows).
   class ModificationRequest : public Request
   {
   public:
+    /// Constructor
+    ///
+    /// @param timestamp the timestamp of the request.  Should be filled in with
+    ///   the result from generate_timestamp().  To ensure consistency, related
+    ///   cache updates should all be made with the same timestamp.
     ModificationRequest(std::string& column_family, int64_t timestamp);
     virtual ~ModificationRequest();
 
@@ -246,60 +286,116 @@ public:
     int64_t _timestamp;
   };
 
+  /// @class PutRequest a request to write to the database.
   class PutRequest : public ModificationRequest
   {
   public:
+    /// Constructor
+    /// @param ttl the time-to-live of the written data (after which it expires
+    ///   and is deleted). 0 => no expiry.
     PutRequest(std::string& column_family, int64_t timestamp, int32_t ttl = 0);
     virtual ~PutRequest();
 
   protected:
     int32_t _ttl;
 
+    /// Write columns to a row/rows.
+    ///
+    /// If multiple rows are specified the same columns are written to all rows.
+    ///
+    /// @param keys the row keys
+    /// @param columns the columns to write. Specified as a map {name => value}
     void put_columns(std::vector<std::string>& keys,
                      std::map<std::string, std::string>& columns,
                      int64_t timestamp,
                      int32_t ttl);
-
   };
 
+  /// @class GetRequest a request to read data from the cache.
   class GetRequest : public Request
   {
   public:
+    /// Constructor.
     GetRequest(std::string& column_family);
     virtual ~GetRequest();
 
   protected:
+    // After growing a cluster, Cassandra does not pro-actively populate the
+    // new nodes with their data (the nodes are expected to use `nodetool
+    // repair` if they need to get their data).  Combining this with
+    // the fact that we generally use consistency ONE when reading data, the
+    // behaviour on new nodes is to return NotFoundException or empty result
+    // sets to queries, even though the other nodes have a copy of the data.
+    //
+    // To resolve this issue, we define ha_ versions of various get methods.
+    // These attempt a QUORUM read in the event that a ONE read returns
+    // no data.  If the QUORUM read fails due to unreachable nodes, the
+    // original result will be used.
+    //
+    // To implement this, the non-HA versions must take the consistency level as
+    // their last parameter.
+
+    /// HA get an entire row.
+    ///
+    /// @param key row key
+    /// @param columns (out) columns in the row
     void ha_get_row(std::string& key,
                     std::vector<org::apache::cassandra::ColumnOrSuperColumn>& columns);
 
+    /// HA get specific columns in a row.
+    ///
+    /// @param key row key
+    /// @param names the names of the columns to retrieve
+    /// @param columns (out) the retireved columns
     void ha_get_columns(std::string& key,
                         std::vector<std::string>& names,
                         std::vector<org::apache::cassandra::ColumnOrSuperColumn>& columns);
 
+    /// HA get all columns in a row that have a particular prefix to their name.
+    /// This is useful when working with dynamic columns.
+    ///
+    /// @param key row key
+    /// @param prefix the prefix
+    /// @param columns (out) the retrieved columns. NOTE: the column names have
+    ///   their prefix removed.
     void ha_get_columns_with_prefix(std::string& key,
                                     std::string& prefix,
                                     std::vector<org::apache::cassandra::ColumnOrSuperColumn>& columns);
 
+    /// Get an entire row (non-HA).
+    /// @param consistency_level cassandra consistency level.
     void get_row(std::string& key,
                  std::vector<org::apache::cassandra::ColumnOrSuperColumn>& columns,
                  org::apache::cassandra::ConsistencyLevel::type consistency_level);
 
+    /// Get specific columns in a row (non-HA).
+    /// @param consistency_level cassandra consistency level.
     void get_columns(std::string& key,
                      std::vector<std::string>& names,
                      std::vector<org::apache::cassandra::ColumnOrSuperColumn>& columns,
                      org::apache::cassandra::ConsistencyLevel::type consistency_level);
 
+    /// Get columns whose names begin with the specified prefix. (non-HA).
+    /// @param consistency_level cassandra consistency level.
     void get_columns_with_prefix(std::string& key,
                                  std::string& prefix,
                                  std::vector<org::apache::cassandra::ColumnOrSuperColumn>& columns,
                                  org::apache::cassandra::ConsistencyLevel::type consistency_level);
 
+    /// Utility method to issue a get request for a particular key.
+    ///
+    /// @param key row key
+    /// @param predicate slice predicate specifying what columns to get.
+    /// @param columns (out) the retrieved columns.
+    /// @param consistency_level cassandra consistency level.
     void issue_get_for_key(std::string& key,
                            org::apache::cassandra::SlicePredicate& predicate,
                            std::vector<org::apache::cassandra::ColumnOrSuperColumn>& columns,
                            org::apache::cassandra::ConsistencyLevel::type consistency_level);
   };
 
+  /// @class DeleteRowsRequest a request to delete one or more rows from the
+  /// cache.
   class DeleteRowsRequest : public ModificationRequest
   {
   public:
@@ -308,141 +404,210 @@ public:
     virtual ~DeleteRowsRequest();
 
   protected:
+    /// Delete a row from the cache.
+    ///
+    /// @param key key of the row to delete
     void delete_row(std::string& key,
                     int64_t timestamp);
   };
 
+  /// @class PutIMSSubscription write the IMS subscription XML for a public ID.
   class PutIMSSubscription : public PutRequest
   {
   public:
+    /// Constructor that sets the IMS subscription XML for a *single* public ID.
+    ///
+    /// @param public_id the public ID.
+    /// @param xml the subscription XML.
     PutIMSSubscription(std::string& public_id,
                        std::string& xml,
                        int64_t timestamp,
                        int32_t ttl = 0);
+
+    /// Constructor that sets the same  IMS subscription XML for multiple public
+    /// IDs.
+    ///
+    /// @param public_ids a vector of public IDs to set the XML for.
+    /// @param xml the subscription XML.
     PutIMSSubscription(std::vector<std::string>& public_ids,
                        std::string& xml,
                        int64_t timestamp,
                        int32_t ttl = 0);
     virtual ~PutIMSSubscription();
 
-    void perform();
-
   protected:
     std::vector<std::string> _public_ids;
     std::string _xml;
 
+    void perform();
+
+    /// Success callback.
     virtual void on_success() = 0;
   };
 
   class PutAssociatedPublicID : public PutRequest
   {
   public:
+    /// Give a private_id an associated public ID.
+    ///
+    /// @param private_id the private ID in question.
+    /// @param assoc_public_id the public ID to associate with it.
     PutAssociatedPublicID(std::string& private_id,
                           std::string& assoc_public_id,
                           int64_t timestamp,
                           int32_t ttl = 0);
     virtual ~PutAssociatedPublicID();
 
-    void perform();
-
   protected:
     std::string _private_id;
     std::string _assoc_public_id;
 
+    void perform();
+
+    /// Success callback.
     virtual void on_success() = 0;
   };
 
   class PutAuthVector : public PutRequest
   {
   public:
+    /// Set the authorization vector used for a private ID.
+    ///
+    /// This request does not support AKAAuthVectors (it is not possible to
+    /// cache these due to the sequence numbers they contain).
+    ///
+    /// @param private_id the private ID in question.
+    /// @param auth_vector the auth vector to store.
     PutAuthVector(std::string& private_id,
                   DigestAuthVector& auth_vector,
                   int64_t timestamp,
                   int32_t ttl = 0);
     virtual ~PutAuthVector();
 
-    void perform();
-
   protected:
     std::vector<std::string> _private_ids;
     DigestAuthVector _auth_vector;
 
+    void perform();
+
+    /// Success callback.
     virtual void on_success() = 0;
   };
 
   class GetIMSSubscription : public GetRequest
   {
   public:
+    /// Get the IMS subscription XML for a public identity.
+    ///
+    /// @param public_id the public identity.
     GetIMSSubscription(std::string& public_id);
     virtual ~GetIMSSubscription();
-
-    void perform();
 
   protected:
     std::string _public_id;
 
+    void perform();
+
+    /// Sucess callback.
+    ///
+    /// @param xml the IMS subscription XML document.
     virtual void on_success(std::string& xml) = 0;
   };
 
   class GetAssociatedPublicIDs : public GetRequest
   {
+    /// Get the public Ids that are associated with a private ID.
+    ///
+    /// @param private_id the private ID.
     GetAssociatedPublicIDs(std::string& private_id);
     virtual ~GetAssociatedPublicIDs();
-
-    void perform();
 
   protected:
     std::string _private_id;
 
+    void perform();
+
+    /// Success callback.
+    ///
+    /// @param public_ids A vector of public IDs associated with the private ID.
     virtual void on_success(std::vector<std::string>& public_ids) = 0;
   };
 
   class GetAuthVector : public GetRequest
   {
   public:
+    /// Get the auth vector of a private ID.
+    ///
+    /// @param private_id the private ID.
     GetAuthVector(std::string& private_id);
+
+    /// Get the auth vector of a private ID that has an associated public ID.
+    ///
+    /// If the private ID exists but the public ID is not associated with it,
+    /// the on_failure will be called with a NOT_FOUND result.
+    ///
+    /// @param private_id the private ID.
     GetAuthVector(std::string& private_id,
                   std::string& public_id);
     virtual ~GetAuthVector();
-
-    void perform();
 
   protected:
     std::string _private_id;
     std::string _public_id;
 
+    void perform();
+
+    /// Success callback.
+    ///
+    /// @param auth_vector the digest auth vector for the private ID.
     virtual void on_success(DigestAuthVector& auth_vector) = 0;
   };
 
   class DeletePublicIDs : public DeleteRowsRequest
   {
   public:
+    /// Delete an single public ID from the cache.
+    ///
+    /// @param public_id the public ID to delete.
     DeletePublicIDs(std::string& public_id, int64_t timestamp);
+
+    /// Delete several public IDs from the cache.
+    ///
+    /// @param public_ids the public IDs to delete.
     DeletePublicIDs(std::vector<std::string>& public_ids,
                     int64_t timestamp);
     virtual ~DeletePublicIDs();
 
-    void perform();
-
   protected:
     std::vector<std::string> _public_ids;
 
+    void perform();
+
+    /// Success callback.
     virtual void on_success() = 0;
   };
 
   class DeletePrivateIDs : public DeleteRowsRequest
   {
   public:
+    /// Delete an single private ID from the cache.
+    ///
+    /// @param private_id the private ID to delete.
     DeletePrivateIDs(std::string& public_id, int64_t timestamp);
+
+    /// Delete an single private ID from the cache.
+    ///
+    /// @param private_id the private ID to delete.
     DeletePrivateIDs(std::vector<std::string>& public_ids,
                      int64_t timestamp);
     virtual ~DeletePrivateIDs();
 
-    void perform();
-
   protected:
     std::vector<std::string> _private_ids;
 
+    void perform();
+
+    /// Success callback.
     virtual void on_success() = 0;
   };
 };
