@@ -36,6 +36,12 @@
 
 #include "cx.h"
 
+#include <string>
+#include <sstream>
+#include <boost/archive/iterators/base64_from_binary.hpp>
+#include <boost/archive/iterators/transform_width.hpp>
+#include <boost/archive/iterators/ostream_iterator.hpp>
+
 using namespace Cx;
 
 Dictionary::Dictionary() :
@@ -115,6 +121,21 @@ int MultimediaAuthAnswer::result_code() const
     result_code = avps->val_i32();
   }
   return result_code;
+}
+
+int MultimediaAuthAnswer::experimental_result_code() const
+{
+  int experimental_result_code = 0;
+  Diameter::AVP::iterator avps = begin(((Cx::Dictionary*)dict())->EXPERIMENTAL_RESULT);
+  if (avps != end())
+  {
+    avps = avps->begin(((Cx::Dictionary*)dict())->EXPERIMENTAL_RESULT_CODE);
+    if (avps != end())
+    {
+      experimental_result_code = avps->val_i32();
+    }
+  }
+  return experimental_result_code;
 }
 
 std::string MultimediaAuthAnswer::sip_auth_scheme() const
@@ -201,26 +222,57 @@ AKAAuthVector MultimediaAuthAnswer::aka_auth_vector() const
     Diameter::AVP::iterator avps2 = avps->begin(((Cx::Dictionary*)dict())->SIP_AUTHENTICATE);
     if (avps2 != end())
     {
-      aka_auth_vector.challenge = avps2->val_str();
+      size_t len;
+      const uint8_t* data = avps2->val_os(len);
+      aka_auth_vector.challenge = base64(data, len);
     }
     // Look for the response.
     avps2 = avps->begin(((Cx::Dictionary*)dict())->SIP_AUTHORIZATION);
     if (avps2 != end())
     {
-      aka_auth_vector.response = avps2->val_str();
+      size_t len;
+      const uint8_t* data = avps2->val_os(len);
+      aka_auth_vector.response = hex(data, len);
     }
     // Look for the encryption key.
     avps2 = avps->begin(((Cx::Dictionary*)dict())->CONFIDENTIALITY_KEY);
     if (avps2 != end())
     {
-      aka_auth_vector.crypt_key = avps2->val_str();
+      size_t len;
+      const uint8_t* data = avps2->val_os(len);
+      aka_auth_vector.crypt_key = hex(data, len);
     }
     // Look for the integrity key.
     avps2 = avps->begin(((Cx::Dictionary*)dict())->INTEGRITY_KEY);
     if (avps2 != end())
     {
-      aka_auth_vector.integrity_key = avps2->val_str();
+      size_t len;
+      const uint8_t* data = avps2->val_os(len);
+      aka_auth_vector.integrity_key = hex(data, len);
     }
   }
   return aka_auth_vector;
+}
+
+std::string MultimediaAuthAnswer::hex(const uint8_t* data, size_t len)
+{
+  static const char* const hex_lookup = "0123456789abcdef";
+  std::string result;
+  result.reserve(2 * len);
+  for (size_t ii = 0; ii < len; ++ii)
+  {
+    const uint8_t b = data[ii];
+    result.push_back(hex_lookup[b >> 4]);
+    result.push_back(hex_lookup[b & 0x0f]);
+  }
+  return result;
+}
+
+std::string MultimediaAuthAnswer::base64(const uint8_t* data, size_t len)
+{
+  std::stringstream os;
+  std::copy(boost::archive::iterators::base64_from_binary<boost::archive::iterators::transform_width<const uint8_t*,6,8> >(data),
+            boost::archive::iterators::base64_from_binary<boost::archive::iterators::transform_width<const uint8_t*,6,8> >(data + len),
+            boost::archive::iterators::ostream_iterator<char>(os));
+  return os.str();
 }

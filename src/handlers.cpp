@@ -158,7 +158,7 @@ void ImpiAvHandler::Transaction::on_response(Diameter::Message& rsp)
           _req.add_content(sb.GetString());
           _req.send_reply(200);
         }
-        else if (sip_auth_scheme == "Digest-AKA-v1-MD5")
+        else if (sip_auth_scheme == "Digest-AKAv1-MD5")
         {
           AKAAuthVector aka_auth_vector = maa.aka_auth_vector();
           rapidjson::StringBuffer sb;

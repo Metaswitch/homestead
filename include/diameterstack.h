@@ -104,6 +104,8 @@ public:
   const AVP DIGEST_HA1;
   const AVP DIGEST_REALM;
   const AVP DIGEST_QOP;
+  const AVP EXPERIMENTAL_RESULT;
+  const AVP EXPERIMENTAL_RESULT_CODE;
 };
 
 class Stack
