@@ -74,8 +74,9 @@ SCTP_streams = 3;
 # Uncomment to display periodic state information
 LoadExtension = "/usr/share/clearwater/lib/freeDiameter/dbg_monitor.fdx";
 
-# Load the 3GPP dictionary objects
+# Load the SIP and 3GPP dictionary objects
 LoadExtension = "/usr/share/clearwater/lib/freeDiameter/dict_nasreq.fdx";
+LoadExtension = "/usr/share/clearwater/lib/freeDiameter/dict_sip.fdx";
 LoadExtension = "/usr/share/clearwater/lib/freeDiameter/dict_dcca.fdx";
 LoadExtension = "/usr/share/clearwater/lib/freeDiameter/dict_dcca_3gpp.fdx";
 

@@ -195,7 +195,9 @@ Dictionary::Dictionary() :
   DESTINATION_REALM("Destination-Realm"),
   DESTINATION_HOST("Destination-Host"),
   USER_NAME("User-Name"),
-  RESULT_CODE("Result-Code")
+  RESULT_CODE("Result-Code"),
+  DIGEST_HA1("Digest-HA1"),
+  DIGEST_REALM("Digest-Realm")
 {
 }
 

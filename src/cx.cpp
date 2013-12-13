@@ -50,8 +50,8 @@ Dictionary::Dictionary() :
   SIP_NUMBER_AUTH_ITEMS("3GPP", "SIP-Number-Auth-Items"),
   SERVER_NAME("3GPP", "Server-Name"),
   SIP_DIGEST_AUTHENTICATE("3GPP", "SIP-Digest-Authenticate"),
-  DIGEST_HA1("3GPP", "Digest-HA1"),
-  DIGEST_REALM("3GPP", "Digest-Realm")
+  CX_DIGEST_HA1("3GPP", "Digest-HA1"),
+  CX_DIGEST_REALM("3GPP", "Digest-Realm")
 {
 }
 
@@ -130,10 +130,19 @@ std::string MultimediaAuthAnswer::digest_ha1() const
     avps = avps->begin(((Cx::Dictionary*)dict())->SIP_DIGEST_AUTHENTICATE);
     if (avps != end())
     {
-      avps = avps->begin(((Cx::Dictionary*)dict())->DIGEST_HA1);
-      if (avps != end())
+      Diameter::AVP::iterator avps2 = avps->begin(((Cx::Dictionary*)dict())->CX_DIGEST_HA1);
+      if (avps2 != end())
       {
-        digest_ha1 = avps->val_str();
+        digest_ha1 = avps2->val_str();
+      }
+      else
+      {
+        // Some HSSs (in particular OpenIMSCore), use non-3GPP Digest-HA1.  Check for this too.
+        avps2 = avps->begin(((Cx::Dictionary*)dict())->DIGEST_HA1);
+        if (avps2 != end())
+        {
+          digest_ha1 = avps2->val_str();
+        }
       }
     }
   }

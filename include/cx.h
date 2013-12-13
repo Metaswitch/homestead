@@ -56,8 +56,8 @@ public:
   Diameter::Dictionary::AVP SIP_NUMBER_AUTH_ITEMS;
   Diameter::Dictionary::AVP SERVER_NAME;
   Diameter::Dictionary::AVP SIP_DIGEST_AUTHENTICATE;
-  Diameter::Dictionary::AVP DIGEST_HA1;
-  Diameter::Dictionary::AVP DIGEST_REALM;
+  Diameter::Dictionary::AVP CX_DIGEST_HA1;
+  Diameter::Dictionary::AVP CX_DIGEST_REALM;
 };
 
 class MultimediaAuthRequest : public Diameter::Message

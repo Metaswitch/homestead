@@ -101,6 +101,8 @@ public:
   const AVP DESTINATION_HOST;
   const AVP USER_NAME;
   const AVP RESULT_CODE;
+  const AVP DIGEST_HA1;
+  const AVP DIGEST_REALM;
 };
 
 class Stack
