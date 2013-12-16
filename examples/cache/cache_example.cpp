@@ -50,6 +50,10 @@ public:
     T(arg1)
   {}
 
+  ExampleRequest(string& arg1, string& arg2, int64_t arg3) :
+    T(arg1, arg2, arg3)
+  {}
+
   virtual ~ExampleRequest() {}
 
   void on_failure(Cache::ResultCode rc, std::string& text)
@@ -64,6 +68,12 @@ public:
     sem_post(&sem);
   }
 
+  void on_success()
+  {
+    cout << "Request succeeded" << endl;
+    sem_post(&sem);
+  }
+
 private:
   pthread_mutex_t _lock;
 };
@@ -73,25 +83,44 @@ int main(int argc, char *argv[])
 {
   sem_init(&sem, 0, 0);
 
-  cout << "------------ Cache Test ---------------" << endl;
   Cache* cache = Cache::get_instance();
 
   std::string alice_pub = "sip:alice@example.com";
   std::string alice_priv = "alice@example.com";
+  std::string alice_ims_sub_xml = "Alice IMS subscription XML body";
 
+  cout << "------------ Startup ---------------" << endl;
   cache->initialize();
   cache->configure("localhost", 9160, 1);
   Cache::ResultCode rc = cache->start();
   cout << "Start return code is " << rc << endl;
+  cout << "------------ Done ---------------" << endl;
 
+  cout << "------------ Get IMS sub (not present) ---------------" << endl;
   ExampleRequest<Cache::GetIMSSubscription>* req1 =
     new ExampleRequest<Cache::GetIMSSubscription>(alice_pub);
-  cache->send(req1);
+  cache->send(req1); req1 = NULL;
   sem_wait(&sem);
+  cout << "------------ Done ---------------" << endl;
 
+  cout << "------------ Put IMS sub ---------------" << endl;
+  ExampleRequest<Cache::PutIMSSubscription>* req2 = 
+    new ExampleRequest<Cache::PutIMSSubscription>(alice_pub, alice_ims_sub_xml, Cache::generate_timestamp());
+  cache->send(req2); req2 = NULL;
+  sem_wait(&sem);
+  cout << "------------ Done ---------------" << endl;
+
+  cout << "------------ Get IMS sub (present) ---------------" << endl;
+  ExampleRequest<Cache::GetIMSSubscription>* req3 =
+    new ExampleRequest<Cache::GetIMSSubscription>(alice_pub);
+  cache->send(req3); req3 = NULL;
+  sem_wait(&sem);
+  cout << "------------ Done ---------------" << endl;
+
+  cout << "------------ Stopping ---------------" << endl;
   cache->stop();
   cache->wait_stopped();
+  cout << "------------ Done ---------------" << endl;
 
-  cout << "------------ Test Complete ---------------" << endl;
   return 0;
 }
