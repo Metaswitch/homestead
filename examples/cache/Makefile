@@ -11,3 +11,5 @@ clean:
 run:
 	@LD_LIBRARY_PATH=../../usr/lib/ ./cache_example
 
+debug:
+	@LD_LIBRARY_PATH=../../usr/lib/ gdb ./cache_example

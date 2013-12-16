@@ -55,13 +55,13 @@ public:
   void on_failure(Cache::ResultCode rc, std::string& text)
   {
     cout << "Request failed\n  Result: " << rc <<"\n  Text: " << text << endl;
-    sem_post(sem);
+    sem_post(&sem);
   }
 
   void on_success(std::string& xml)
   {
     cout << "Request succeeded:\n  XML:" << xml << endl;
-    sem_post(sem);
+    sem_post(&sem);
   }
 
 private:
@@ -85,7 +85,7 @@ int main(int argc, char *argv[])
   cout << "Start return code is " << rc << endl;
 
   ExampleRequest<Cache::GetIMSSubscription>* req1 =
-    new ExampleRequest<Cache::GetIMSSubscription>(alice);
+    new ExampleRequest<Cache::GetIMSSubscription>(alice_pub);
   cache->send(req1);
   sem_wait(&sem);
 
