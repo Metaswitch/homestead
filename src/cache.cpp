@@ -730,7 +730,16 @@ void Cache::GetIMSSubscription::perform()
   std::vector<std::string> requested_columns(1, IMS_SUB_XML_COLUMN_NAME);
 
   ha_get_columns(_public_id, requested_columns, results);
-  on_success(results[0].column.value);
+
+  if (results.size() == 0)
+  {
+    std::string error_text("IMS subscription XML not found");
+    on_failure(ResultCode::NOT_FOUND, error_text);
+  }
+  else
+  {
+    on_success(results[0].column.value);
+  }
 }
 
 //
