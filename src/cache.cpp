@@ -158,6 +158,21 @@ void Cache::wait_stopped()
 }
 
 
+int64_t generate_timestamp()
+{
+  // Return the current time in microseconds.
+  timespec clock_time;
+  int64_t timestamp;
+
+  clock_gettime(CLOCK_REALTIME, &clock_time);
+  timestamp = clock_time.tv_sec;
+  timestamp *= 1000000;
+  timestamp += (clock_time.tv_nsec / 1000);
+
+  return timestamp;
+}
+
+
 Cache::~Cache()
 {
   // It is only safe to destroy the cache once the thread pool has been deleted
