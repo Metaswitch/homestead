@@ -158,7 +158,7 @@ void Cache::wait_stopped()
 }
 
 
-int64_t generate_timestamp()
+int64_t Cache::generate_timestamp()
 {
   // Return the current time in microseconds.
   timespec clock_time;
