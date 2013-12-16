@@ -48,9 +48,14 @@ public:
   Dictionary();
   const Diameter::Dictionary::Vendor TGPP;
   const Diameter::Dictionary::Application CX;
+  const Diameter::Dictionary::Message USER_AUTHORIZATION_REQUEST;
+  const Diameter::Dictionary::Message USER_AUTHORIZATION_ANSWER;
+  const Diameter::Dictionary::Message LOCATION_INFO_REQUEST;
+  const Diameter::Dictionary::Message LOCATION_INFO_ANSWER;
   const Diameter::Dictionary::Message MULTIMEDIA_AUTH_REQUEST;
   const Diameter::Dictionary::Message MULTIMEDIA_AUTH_ANSWER;
-  const Diameter::Dictionary::AVP SUPPORTED_FEATURES;
+  const Diameter::Dictionary::Message SERVER_ASSIGNMENT_REQUEST;
+  const Diameter::Dictionary::Message SERVER_ASSIGNMENT_ANSWER;
   const Diameter::Dictionary::AVP PUBLIC_IDENTITY;
   const Diameter::Dictionary::AVP SIP_AUTH_DATA_ITEM;
   const Diameter::Dictionary::AVP SIP_AUTH_SCHEME;
@@ -60,10 +65,65 @@ public:
   const Diameter::Dictionary::AVP SIP_DIGEST_AUTHENTICATE;
   const Diameter::Dictionary::AVP CX_DIGEST_HA1;
   const Diameter::Dictionary::AVP CX_DIGEST_REALM;
+  const Diameter::Dictionary::AVP VISITED_NETWORK_IDENTIFIER;
+  const Diameter::Dictionary::AVP SERVER_CAPABILITIES;
+  const Diameter::Dictionary::AVP MANDATORY_CAPABILITY;
+  const Diameter::Dictionary::AVP OPTIONAL_CAPABILITY;
+  const Diameter::Dictionary::AVP SERVER_ASSIGNMENT_TYPE;
+  const Diameter::Dictionary::AVP USER_AUTHORIZATION_TYPE;
+  const Diameter::Dictionary::AVP ORIGINATING_REQUEST;
+  const Diameter::Dictionary::AVP USER_DATA_ALREADY_AVAILABLE;
+  const Diameter::Dictionary::AVP USER_DATA;
   const Diameter::Dictionary::AVP CX_DIGEST_QOP;
   const Diameter::Dictionary::AVP SIP_AUTHENTICATE;
   const Diameter::Dictionary::AVP CONFIDENTIALITY_KEY;
   const Diameter::Dictionary::AVP INTEGRITY_KEY;
+};
+
+class UserAuthorizationRequest : public Diameter::Message
+{
+public:
+  UserAuthorizationRequest(const Dictionary* dict,
+                           const std::string& dest_host,
+                           const std::string& dest_realm,
+                           const std::string& impi,
+                           const std::string& impu,
+                           const std::string& visited_network_identifier,
+                           int user_authorization_type);
+  inline UserAuthorizationRequest(Diameter::Message& msg) : Diameter::Message(msg) {};
+};
+
+class UserAuthorizationAnswer : public Diameter::Message
+{
+public:
+  UserAuthorizationAnswer(const Dictionary* dict,
+                          int result_code);
+  inline UserAuthorizationAnswer(Diameter::Message& msg) : Diameter::Message(msg) {};
+
+  int result_code() const;
+};
+
+
+class LocationInfoRequest : public Diameter::Message
+{
+public:
+  LocationInfoRequest(const Dictionary* dict,
+                      const std::string& dest_host,
+                      const std::string& dest_realm,
+                      int originating_request,
+                      const std::string& impu,
+                      int user_authorization_type);
+  inline LocationInfoRequest(Diameter::Message& msg) : Diameter::Message(msg) {};
+};
+
+class LocationInfoAnswer : public Diameter::Message
+{
+public:
+  LocationInfoAnswer(const Dictionary* dict,
+                     int result_code);
+  inline LocationInfoAnswer(Diameter::Message& msg) : Diameter::Message(msg) {};
+
+  int result_code() const;
 };
 
 class MultimediaAuthRequest : public Diameter::Message
@@ -101,6 +161,28 @@ public:
 private:
   static std::string hex(const uint8_t* data, size_t len);
   static std::string base64(const uint8_t* data, size_t len);
+};
+
+class ServerAssignmentRequest : public Diameter::Message
+{
+public:
+  ServerAssignmentRequest(const Dictionary* dict,
+                          const std::string& dest_host,
+                          const std::string& dest_realm,
+                          const std::string& impi,
+                          const std::string& impu,
+                          const std::string& server_name);
+  inline ServerAssignmentRequest(Diameter::Message& msg) : Diameter::Message(msg) {};
+};
+
+class ServerAssignmentAnswer : public Diameter::Message
+{
+public:
+  ServerAssignmentAnswer(const Dictionary* dict);
+  inline ServerAssignmentAnswer(Diameter::Message& msg) : Diameter::Message(msg) {};
+
+  int result_code() const;
+  std::string user_data() const;
 };
 };
 

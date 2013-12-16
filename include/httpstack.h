@@ -58,6 +58,7 @@ public:
   public:
     Request(evhtp_request_t* req) : _req(req) {}
     inline std::string path() const {return std::string(_req->uri->path->path);}
+    inline std::string full_path() const {return std::string(_req->uri->path->full);}
     inline std::string file() const {return std::string(_req->uri->path->file);}
     inline std::string param(const std::string& name) const
     {

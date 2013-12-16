@@ -189,6 +189,8 @@ struct dict_object* Dictionary::AVP::find(const std::string vendor, const std::s
 
 Dictionary::Dictionary() :
   SESSION_ID("Session-Id"),
+  VENDOR_SPECIFIC_APPLICATION_ID("Vendor-Specific-Application-Id"),
+  VENDOR_ID("Vendor-Id"),
   AUTH_SESSION_STATE("Auth-Session-State"),
   ORIGIN_REALM("Origin-Realm"),
   ORIGIN_HOST("Origin-Host"),

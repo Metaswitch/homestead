@@ -122,4 +122,27 @@ public:
   };
 };
 
+class ImpuIMSSubscriptionHandler : public DiameterHttpHandler
+{
+public:
+  ImpuIMSSubscriptionHandler(Diameter::Stack* diameter_stack,
+                             const std::string& dest_host,
+                             const std::string& dest_realm,
+                             const std::string& server_name) :
+                             DiameterHttpHandler("/impu/",
+                                                 diameter_stack,
+                                                 dest_realm,
+                                                 dest_host,
+                                                 server_name) {};
+  void handle(HttpStack::Request& req);
+
+  class Transaction : public DiameterHttpHandler::Transaction
+  {
+  public:
+    Transaction(Cx::Dictionary* dict, HttpStack::Request& req) : DiameterHttpHandler::Transaction(dict, req) {};
+    void on_response(Diameter::Message& rsp);
+  };
+};
+
+
 #endif
