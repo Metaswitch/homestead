@@ -199,3 +199,35 @@ void ImpiAvHandler::Transaction::on_response(Diameter::Message& rsp)
       break;
   }
 }
+
+void ImpuIMSSubscriptionHandler::handle(HttpStack::Request& req)
+{
+  const std::string prefix = "/impu/";
+  std::string path = req.full_path();
+  std::string impu = path.substr(prefix.length());
+  std::string impi = req.param("private_id");
+  Cx::ServerAssignmentRequest* sar = new Cx::ServerAssignmentRequest(&_dict, _dest_host, _dest_realm, impi, impu, _server_name);
+  Transaction* tsx = new Transaction(&_dict, req);
+  sar->send(tsx, 200);
+}
+
+void ImpuIMSSubscriptionHandler::Transaction::on_response(Diameter::Message& rsp)
+{
+  Cx::ServerAssignmentAnswer saa(rsp);
+  switch (saa.result_code())
+  {
+    case 2001:
+      {
+        std::string user_data = saa.user_data();
+        _req.add_content(user_data);
+        _req.send_reply(200);
+      }
+      break;
+    case 5001:
+      _req.send_reply(404);
+      break;
+    default:
+      _req.send_reply(500);
+      break;
+  }
+}

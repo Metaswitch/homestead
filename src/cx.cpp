@@ -84,6 +84,9 @@ UserAuthorizationRequest::UserAuthorizationRequest(const Dictionary* dict,
                                                    Diameter::Message(dict, dict->USER_AUTHORIZATION_REQUEST)
 {
   add_new_session_id();
+  Diameter::AVP vendor_specific_application_id(dict->VENDOR_SPECIFIC_APPLICATION_ID);
+  vendor_specific_application_id.add(Diameter::AVP(dict->VENDOR_ID).val_i32(10415));
+  add(vendor_specific_application_id);
   add(Diameter::AVP(dict->AUTH_SESSION_STATE).val_i32(1));
   add_origin();
   add(Diameter::AVP(dict->DESTINATION_HOST).val_str(dest_host));
@@ -110,6 +113,9 @@ LocationInfoRequest::LocationInfoRequest(const Dictionary* dict,
                                          Diameter::Message(dict, dict->LOCATION_INFO_REQUEST)
 {
   add_new_session_id();
+  Diameter::AVP vendor_specific_application_id(dict->VENDOR_SPECIFIC_APPLICATION_ID);
+  vendor_specific_application_id.add(Diameter::AVP(dict->VENDOR_ID).val_i32(10415));
+  add(vendor_specific_application_id);
   add(Diameter::AVP(dict->AUTH_SESSION_STATE).val_i32(1));
   add_origin();
   add(Diameter::AVP(dict->DESTINATION_HOST).val_str(dest_host));
@@ -143,6 +149,9 @@ MultimediaAuthRequest::MultimediaAuthRequest(const Dictionary* dict,
                                              Diameter::Message(dict, dict->MULTIMEDIA_AUTH_REQUEST)
 {
   add_new_session_id();
+  Diameter::AVP vendor_specific_application_id(dict->VENDOR_SPECIFIC_APPLICATION_ID);
+  vendor_specific_application_id.add(Diameter::AVP(dict->VENDOR_ID).val_i32(10415));
+  add(vendor_specific_application_id);
   add(Diameter::AVP(dict->AUTH_SESSION_STATE).val_i32(1));
   add(Diameter::AVP(dict->DESTINATION_REALM).val_str(dest_realm));
   add(Diameter::AVP(dict->DESTINATION_HOST).val_str(dest_host));
@@ -306,6 +315,9 @@ ServerAssignmentRequest::ServerAssignmentRequest(const Dictionary* dict,
                                                  Diameter::Message(dict, dict->SERVER_ASSIGNMENT_REQUEST)
 {
   add_new_session_id();
+  Diameter::AVP vendor_specific_application_id(dict->VENDOR_SPECIFIC_APPLICATION_ID);
+  vendor_specific_application_id.add(Diameter::AVP(dict->VENDOR_ID).val_i32(10415));
+  add(vendor_specific_application_id);
   add(Diameter::AVP(dict->AUTH_SESSION_STATE).val_i32(1));
   add_origin();
   add(Diameter::AVP(dict->DESTINATION_HOST).val_str(dest_host));

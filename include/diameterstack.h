@@ -94,6 +94,8 @@ public:
 
   Dictionary();
   const AVP SESSION_ID;
+  const AVP VENDOR_SPECIFIC_APPLICATION_ID;
+  const AVP VENDOR_ID;
   const AVP AUTH_SESSION_STATE;
   const AVP ORIGIN_REALM;
   const AVP ORIGIN_HOST;
