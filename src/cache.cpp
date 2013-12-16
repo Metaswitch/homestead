@@ -389,8 +389,13 @@ put_columns(std::vector<std::string>& keys,
     column->__isset.value = true;
     column->timestamp = timestamp;
     column->__isset.timestamp = true;
-    column->ttl = ttl;
-    column->__isset.ttl = true;
+
+    // A ttl of 0 => no expiry. 
+    if (ttl > 0)
+    {
+      column->ttl = ttl;
+      column->__isset.ttl = true;
+    }
 
     mutation.column_or_supercolumn.__isset.column = true;
     mutation.__isset.column_or_supercolumn = true;
