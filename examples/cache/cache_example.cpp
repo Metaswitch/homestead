@@ -35,6 +35,10 @@
  */
 
 #include <cache.h>
+#include <unistd.h>
+#include <semaphore.h>
+
+sem_t sem;
 
 using namespace std;
 
@@ -51,11 +55,13 @@ public:
   void on_failure(Cache::ResultCode rc, std::string& text)
   {
     cout << "Request failed\n  Result: " << rc <<"\n  Text: " << text << endl;
+    sem_post(sem);
   }
 
   void on_success(std::string& xml)
   {
     cout << "Request succeeded:\n  XML:" << xml << endl;
+    sem_post(sem);
   }
 
 private:
@@ -65,17 +71,23 @@ private:
 
 int main(int argc, char *argv[])
 {
+  sem_init(&sem, 0, 0);
+
   cout << "------------ Cache Test ---------------" << endl;
   Cache* cache = Cache::get_instance();
+
+  std::string alice_pub = "sip:alice@example.com";
+  std::string alice_priv = "alice@example.com";
 
   cache->initialize();
   cache->configure("localhost", 9160, 1);
   Cache::ResultCode rc = cache->start();
   cout << "Start return code is " << rc << endl;
 
-  std::string alice ("alice");
-  ExampleRequest<Cache::GetIMSSubscription>* req =
+  ExampleRequest<Cache::GetIMSSubscription>* req1 =
     new ExampleRequest<Cache::GetIMSSubscription>(alice);
+  cache->send(req1);
+  sem_wait(&sem);
 
   cache->stop();
   cache->wait_stopped();
