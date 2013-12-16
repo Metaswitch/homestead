@@ -198,7 +198,9 @@ Dictionary::Dictionary() :
   RESULT_CODE("Result-Code"),
   DIGEST_HA1("Digest-HA1"),
   DIGEST_REALM("Digest-Realm"),
-  DIGEST_QOP("Digest-QoP")
+  DIGEST_QOP("Digest-QoP"),
+  EXPERIMENTAL_RESULT("Experimental-Result"),
+  EXPERIMENTAL_RESULT_CODE("Experimental-Result-Code")
 {
 }
 

@@ -46,24 +46,24 @@ class Dictionary : public Diameter::Dictionary
 {
 public:
   Dictionary();
-  Diameter::Dictionary::Vendor TGPP;
-  Diameter::Dictionary::Application CX;
-  Diameter::Dictionary::Message MULTIMEDIA_AUTH_REQUEST;
-  Diameter::Dictionary::Message MULTIMEDIA_AUTH_ANSWER;
-  Diameter::Dictionary::AVP SUPPORTED_FEATURES;
-  Diameter::Dictionary::AVP PUBLIC_IDENTITY;
-  Diameter::Dictionary::AVP SIP_AUTH_DATA_ITEM;
-  Diameter::Dictionary::AVP SIP_AUTH_SCHEME;
-  Diameter::Dictionary::AVP SIP_AUTHORIZATION;
-  Diameter::Dictionary::AVP SIP_NUMBER_AUTH_ITEMS;
-  Diameter::Dictionary::AVP SERVER_NAME;
-  Diameter::Dictionary::AVP SIP_DIGEST_AUTHENTICATE;
-  Diameter::Dictionary::AVP CX_DIGEST_HA1;
-  Diameter::Dictionary::AVP CX_DIGEST_REALM;
-  Diameter::Dictionary::AVP CX_DIGEST_QOP;
-  Diameter::Dictionary::AVP SIP_AUTHENTICATE;
-  Diameter::Dictionary::AVP CONFIDENTIALITY_KEY;
-  Diameter::Dictionary::AVP INTEGRITY_KEY;
+  const Diameter::Dictionary::Vendor TGPP;
+  const Diameter::Dictionary::Application CX;
+  const Diameter::Dictionary::Message MULTIMEDIA_AUTH_REQUEST;
+  const Diameter::Dictionary::Message MULTIMEDIA_AUTH_ANSWER;
+  const Diameter::Dictionary::AVP SUPPORTED_FEATURES;
+  const Diameter::Dictionary::AVP PUBLIC_IDENTITY;
+  const Diameter::Dictionary::AVP SIP_AUTH_DATA_ITEM;
+  const Diameter::Dictionary::AVP SIP_AUTH_SCHEME;
+  const Diameter::Dictionary::AVP SIP_AUTHORIZATION;
+  const Diameter::Dictionary::AVP SIP_NUMBER_AUTH_ITEMS;
+  const Diameter::Dictionary::AVP SERVER_NAME;
+  const Diameter::Dictionary::AVP SIP_DIGEST_AUTHENTICATE;
+  const Diameter::Dictionary::AVP CX_DIGEST_HA1;
+  const Diameter::Dictionary::AVP CX_DIGEST_REALM;
+  const Diameter::Dictionary::AVP CX_DIGEST_QOP;
+  const Diameter::Dictionary::AVP SIP_AUTHENTICATE;
+  const Diameter::Dictionary::AVP CONFIDENTIALITY_KEY;
+  const Diameter::Dictionary::AVP INTEGRITY_KEY;
 };
 
 class MultimediaAuthRequest : public Diameter::Message
@@ -93,9 +93,14 @@ public:
   inline MultimediaAuthAnswer(Diameter::Message& msg) : Diameter::Message(msg) {};
 
   int result_code() const;
+  int experimental_result_code() const;
   std::string sip_auth_scheme() const;
   DigestAuthVector digest_auth_vector() const;
   AKAAuthVector aka_auth_vector() const;
+
+private:
+  static std::string hex(const uint8_t* data, size_t len);
+  static std::string base64(const uint8_t* data, size_t len);
 };
 };
 
