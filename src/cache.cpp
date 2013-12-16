@@ -35,7 +35,9 @@
  */
 
 #include <cache.h>
+
 #include <boost/format.hpp>
+#include <time.h>
 
 using namespace apache::thrift;
 using namespace apache::thrift::transport;
@@ -155,6 +157,21 @@ void Cache::wait_stopped()
     delete _thread_pool;
     _thread_pool = NULL;
   }
+}
+
+
+int64_t Cache::generate_timestamp()
+{
+  // Return the current time in microseconds.
+  timespec clock_time;
+  int64_t timestamp;
+
+  clock_gettime(CLOCK_REALTIME, &clock_time);
+  timestamp = clock_time.tv_sec;
+  timestamp *= 1000000;
+  timestamp += (clock_time.tv_nsec / 1000);
+
+  return timestamp;
 }
 
 
@@ -279,23 +296,29 @@ void Cache::Request::run(Cache::CacheClient *client)
   {
     perform();
   }
-  catch(TTransportException te)
+  catch(TTransportException& te)
   {
     rc = ResultCode::CONNECTION_ERROR;
     error_text = (boost::format("Exception: %s [%d]\n")
                   % te.what() % te.getType()).str();
   }
-  catch(InvalidRequestException ire)
+  catch(InvalidRequestException& ire)
   {
     rc = ResultCode::INVALID_REQUEST;
     error_text = (boost::format("Exception: %s [%s]\n")
                   % ire.what() % ire.why.c_str()).str();
   }
-  catch(NotFoundException nfe)
+  catch(NotFoundException& nfe)
   {
     rc = ResultCode::NOT_FOUND;
     error_text = (boost::format("Exception: %s\n")
                   % nfe.what()).str();
+  }
+  catch(Cache::RowNotFoundException& row_nfe)
+  {
+    rc = ResultCode::NOT_FOUND;
+    error_text = (boost::format("Row %s not present in column_family %s\n")
+                  % row_nfe.get_key() % row_nfe.get_column_family()).str();
   }
   catch(...)
   {
@@ -366,8 +389,13 @@ put_columns(std::vector<std::string>& keys,
     column->__isset.value = true;
     column->timestamp = timestamp;
     column->__isset.timestamp = true;
-    column->ttl = ttl;
-    column->__isset.ttl = true;
+
+    // A ttl of 0 => no expiry.
+    if (ttl > 0)
+    {
+      column->ttl = ttl;
+      column->__isset.ttl = true;
+    }
 
     mutation.column_or_supercolumn.__isset.column = true;
     mutation.__isset.column_or_supercolumn = true;
@@ -504,7 +532,9 @@ get_columns_with_prefix(std::string& key,
   // This slice range gets all columns with the specified prefix.
   SliceRange sr;
   sr.start = prefix;
-  sr.finish = prefix + "\xFF";
+  // Increment the last character of the "finish" field. 
+  sr.finish = prefix;
+  *sr.finish.rbegin() = (*sr.finish.rbegin() + 1);
 
   SlicePredicate sp;
   sp.slice_range = sr;
@@ -541,8 +571,16 @@ issue_get_for_key(std::string& key,
   std::vector<KeySlice> results;
   _client->get_range_slices(results, cparent, predicate, range, consistency_level);
 
-  // We only asked for one key, so there is only one row in our results.
-  columns = results[0].columns;
+  if (results.size() == 0)
+  {
+    Cache::RowNotFoundException row_not_found_ex(_column_family, key);
+    throw row_not_found_ex;
+  }
+  else
+  {
+    // We only asked for one key, so there is only one row in our results.
+    columns = results[0].columns;
+  }
 }
 
 //
@@ -694,7 +732,16 @@ void Cache::GetIMSSubscription::perform()
   std::vector<std::string> requested_columns(1, IMS_SUB_XML_COLUMN_NAME);
 
   ha_get_columns(_public_id, requested_columns, results);
-  on_success(results[0].column.value);
+
+  if (results.size() == 0)
+  {
+    std::string error_text("IMS subscription XML not found");
+    on_failure(ResultCode::NOT_FOUND, error_text);
+  }
+  else
+  {
+    on_success(results[0].column.value);
+  }
 }
 
 //
@@ -764,7 +811,9 @@ Cache::GetAuthVector::
 void Cache::GetAuthVector::perform()
 {
   std::vector<std::string> requested_columns;
-  std::string requested_public_id_col = "";
+  std::string public_id_col = "";
+  bool public_id_requested = false;
+  bool public_id_found = false;
 
   requested_columns.push_back(DIGEST_HA1_COLUMN_NAME);
   requested_columns.push_back(DIGEST_REALM_COLUMN_NAME);
@@ -777,8 +826,9 @@ void Cache::GetAuthVector::perform()
     // So request the public ID column as well.
     //
     // This is a dynamic column so we include it's prefix.
-    requested_public_id_col = ASSOC_PUBLIC_ID_COLUMN_PREFIX + _public_id;
-    requested_columns.push_back(requested_public_id_col);
+    public_id_col = ASSOC_PUBLIC_ID_COLUMN_PREFIX + _public_id;
+    requested_columns.push_back(public_id_col);
+    public_id_requested = true;
   }
 
   std::vector<ColumnOrSuperColumn> results;
@@ -811,28 +861,30 @@ void Cache::GetAuthVector::perform()
       // (false) or 1 (true).
       av.preferred = (col->value == "\x01");
     }
-    else if (col->name == requested_public_id_col)
+    else if (col->name == public_id_col)
     {
-      // Found the necessary public ID. Unset the variable so it looks like we
-      // haven;t been asked to verify it.
-      requested_public_id_col = "";
+      public_id_found = true;
     }
   }
 
-  if (requested_public_id_col.length() == 0)
-  {
-    // We either weren't asked to verify the public ID, or we we're and found
-    // it. All is well.
-    on_success(av);
-  }
-  else
+  if (public_id_requested && !public_id_found)
   {
     // We were asked to verify a public ID, but that public ID that was not
     // found.  This is a failure.
     std::string error_text = (boost::format(
         "Private ID '%s' exists but does not have associated public ID '%s'")
-        % _private_id, _public_id);
+        % _private_id % _public_id).str();
     on_failure(ResultCode::NOT_FOUND, error_text);
+  }
+  else if (av.ha1 == "")
+  {
+    // The HA1 column was not found.  This cannot be defaulted so is an error.
+    std::string error_text = "HA1 column not found";
+    on_failure(ResultCode::NOT_FOUND, error_text);
+  }
+  else
+  {
+    on_success(av);
   }
 }
 

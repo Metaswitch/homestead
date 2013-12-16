@@ -219,6 +219,27 @@ private:
   void operator=(Cache const &);
 
 public:
+  /// @class RowNotFoundException exception that is thrown to indicate that a
+  //requested row does not exist.
+  class RowNotFoundException
+  {
+  public:
+    RowNotFoundException(std::string& column_family, std::string& key) :
+      _column_family(column_family),
+      _key(key)
+    {};
+
+    virtual ~RowNotFoundException() {} ;
+
+    std::string& get_column_family() { return _column_family; };
+    std::string& get_key() { return _key; };
+
+  private:
+    std::string _column_family;
+    std::string _key;
+  };
+
+
   //
   // Request objects.
   //
@@ -345,6 +366,10 @@ public:
                     std::vector<CASS::ColumnOrSuperColumn>& columns);
 
     /// HA get specific columns in a row.
+    ///
+    /// Note that if a requested row does not exist in cassandra, this method
+    /// will return only the rows that do exist. It will not throw an exception
+    /// in this case.
     ///
     /// @param key row key
     /// @param names the names of the columns to retrieve
@@ -518,6 +543,7 @@ public:
 
   class GetAssociatedPublicIDs : public GetRequest
   {
+  public:
     /// Get the public Ids that are associated with a private ID.
     ///
     /// @param private_id the private ID.
