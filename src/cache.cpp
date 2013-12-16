@@ -35,7 +35,9 @@
  */
 
 #include <cache.h>
+
 #include <boost/format.hpp>
+#include <time.h>
 
 using namespace apache::thrift;
 using namespace apache::thrift::transport;
