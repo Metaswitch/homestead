@@ -35,8 +35,11 @@
  */
 
 #include <cache.h>
+#include <authvector.h>
 #include <unistd.h>
 #include <semaphore.h>
+#include <algorithm>
+#include <iterator>
 
 sem_t sem;
 
@@ -46,13 +49,11 @@ template <typename T>
 class ExampleRequest : public T
 {
 public:
-  ExampleRequest(std::string& arg1) :
-    T(arg1)
-  {}
-
-  ExampleRequest(string& arg1, string& arg2, int64_t arg3) :
-    T(arg1, arg2, arg3)
-  {}
+  ExampleRequest(std::string& arg1) : T(arg1) {}
+  ExampleRequest(string& arg1, string& arg2, int64_t arg3) : T(arg1, arg2, arg3) {}
+  ExampleRequest(string& arg1, int64_t arg2) : T(arg1, arg2) {}
+  ExampleRequest(string& arg1, DigestAuthVector& arg2, int64_t arg3) : T(arg1, arg2, arg3) {}
+  ExampleRequest(string& arg1, string& arg2) : T(arg1, arg2) {}
 
   virtual ~ExampleRequest() {}
 
@@ -74,6 +75,23 @@ public:
     sem_post(&sem);
   }
 
+  void on_success(DigestAuthVector& av)
+  {
+    cout << "Request suceeded:\n  digest_ha1: " << av.ha1 << "\n  realm: " << av.realm << 
+            "\n  qop: " << av.qop << "\n  preferred: " << av.preferred << endl;
+    sem_post(&sem);
+  }
+
+  void on_success(vector<string>& vs)
+  {
+    cout << "Request succeeded:";
+    for (vector<string>::iterator it = vs.begin(); it != vs.end(); ++it) {
+      cout << "\n  " << *it;
+    } 
+    cout << endl;
+    sem_post(&sem);
+  }
+
 private:
   pthread_mutex_t _lock;
 };
@@ -82,10 +100,13 @@ private:
 int main(int argc, char *argv[])
 {
   sem_init(&sem, 0, 0);
+  Cache::Request* req;
+  DigestAuthVector av;
 
   Cache* cache = Cache::get_instance();
 
   std::string alice_pub = "sip:alice@example.com";
+  std::string alice_pub2 = "sip:bob@example.com";
   std::string alice_priv = "alice@example.com";
   std::string alice_ims_sub_xml = "Alice IMS subscription XML body";
 
@@ -94,33 +115,102 @@ int main(int argc, char *argv[])
   cache->configure("localhost", 9160, 1);
   Cache::ResultCode rc = cache->start();
   cout << "Start return code is " << rc << endl;
-  cout << "------------ Done ---------------" << endl;
+  cout << "------------ Done ---------------" << endl << endl;
 
   cout << "------------ Get IMS sub (not present) ---------------" << endl;
-  ExampleRequest<Cache::GetIMSSubscription>* req1 =
-    new ExampleRequest<Cache::GetIMSSubscription>(alice_pub);
-  cache->send(req1); req1 = NULL;
+  req = new ExampleRequest<Cache::GetIMSSubscription>(alice_pub);
+  cache->send(req); req = NULL;
   sem_wait(&sem);
-  cout << "------------ Done ---------------" << endl;
+  cout << "------------ Done ---------------" << endl << endl;
 
   cout << "------------ Put IMS sub ---------------" << endl;
-  ExampleRequest<Cache::PutIMSSubscription>* req2 = 
-    new ExampleRequest<Cache::PutIMSSubscription>(alice_pub, alice_ims_sub_xml, Cache::generate_timestamp());
-  cache->send(req2); req2 = NULL;
+  req = new ExampleRequest<Cache::PutIMSSubscription>(alice_pub, alice_ims_sub_xml, Cache::generate_timestamp());
+  cache->send(req); req = NULL;
   sem_wait(&sem);
-  cout << "------------ Done ---------------" << endl;
+  cout << "------------ Done ---------------" << endl << endl;
 
   cout << "------------ Get IMS sub (present) ---------------" << endl;
-  ExampleRequest<Cache::GetIMSSubscription>* req3 =
-    new ExampleRequest<Cache::GetIMSSubscription>(alice_pub);
-  cache->send(req3); req3 = NULL;
+  req = new ExampleRequest<Cache::GetIMSSubscription>(alice_pub);
+  cache->send(req); req = NULL;
   sem_wait(&sem);
-  cout << "------------ Done ---------------" << endl;
+  cout << "------------ Done ---------------" << endl << endl;
+
+  cout << "------------ Delete public ID ---------------" << endl;
+  req = new ExampleRequest<Cache::DeletePublicIDs>(alice_pub, Cache::generate_timestamp());
+  cache->send(req); req = NULL;
+  sem_wait(&sem);
+
+  cout << "Check " << alice_pub << " is no longer present" << endl;
+  req = new ExampleRequest<Cache::GetIMSSubscription>(alice_pub);
+  cache->send(req); req = NULL;
+  sem_wait(&sem);
+  cout << "------------ Done ---------------" << endl << endl;
+
+  cout << "------------ Get AV (not present) ---------------" << endl;
+  req = new ExampleRequest<Cache::GetAuthVector>(alice_priv);
+  cache->send(req); req = NULL;
+  sem_wait(&sem);
+  cout << "------------ Done ---------------" << endl << endl;
+
+  cout << "------------ Put AV ---------------" << endl;
+  av.ha1 = "Some-hash";
+  av.realm = "example.com";
+  av.qop = "auth";
+  av.preferred = true;
+  req = new ExampleRequest<Cache::PutAuthVector>(alice_priv, av, Cache::generate_timestamp());
+  cache->send(req); req = NULL;
+  sem_wait(&sem);
+  cout << "------------ Done ---------------" << endl << endl;
+
+  cout << "------------ Get AV (present) ---------------" << endl;
+  req = new ExampleRequest<Cache::GetAuthVector>(alice_priv);
+  cache->send(req); req = NULL;
+  sem_wait(&sem);
+  cout << "------------ Done ---------------" << endl << endl;
+
+  cout << "------------ Get AV (no assoc public ID) ---------------" << endl;
+  req = new ExampleRequest<Cache::GetAuthVector>(alice_priv, alice_pub);
+  cache->send(req); req = NULL;
+  sem_wait(&sem);
+  cout << "------------ Done ---------------" << endl << endl;
+
+  cout << "------------ Associate some public IDs ---------------" << endl;
+  req = new ExampleRequest<Cache::PutAssociatedPublicID>(alice_priv, alice_pub, Cache::generate_timestamp());
+  cache->send(req); req = NULL;
+  sem_wait(&sem);
+  req = new ExampleRequest<Cache::PutAssociatedPublicID>(alice_priv, alice_pub2, Cache::generate_timestamp());
+  cache->send(req); req = NULL;
+  sem_wait(&sem);
+  cout << "------------ Done ---------------" << endl << endl;
+
+  cout << "------------ Get assoc public IDs ---------------" << endl;
+  req = new ExampleRequest<Cache::GetAssociatedPublicIDs>(alice_priv);
+  cache->send(req); req = NULL;
+  sem_wait(&sem);
+  cout << "------------ Done ---------------" << endl << endl;
+
+  cout << "------------ Get AV (with assoc public ID) ---------------" << endl;
+  req = new ExampleRequest<Cache::GetAuthVector>(alice_priv, alice_pub);
+  cache->send(req); req = NULL;
+  sem_wait(&sem);
+  cout << "------------ Done ---------------" << endl << endl;
+
+  cout << "------------ Delete private ID ---------------" << endl;
+  req = new ExampleRequest<Cache::DeletePrivateIDs>(alice_priv, Cache::generate_timestamp());
+  cache->send(req); req = NULL;
+  sem_wait(&sem);
+
+  cout << "Check " << alice_priv << " is no longer present" << endl;
+  req = new ExampleRequest<Cache::GetIMSSubscription>(alice_priv);
+  cache->send(req); req = NULL;
+  sem_wait(&sem);
+  cout << "------------ Done ---------------" << endl << endl;
 
   cout << "------------ Stopping ---------------" << endl;
   cache->stop();
   cache->wait_stopped();
-  cout << "------------ Done ---------------" << endl;
+  cout << "Stopped OK" << endl;
+  cout << "------------ Done ---------------" << endl << endl;
 
   return 0;
 }
