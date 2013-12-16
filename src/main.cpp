@@ -42,6 +42,8 @@
 #include "httpstack.h"
 #include "handlers.h"
 
+#include "cache.h"
+
 struct options
 {
   std::string diameter_conf;
@@ -101,7 +103,7 @@ int init_options(int argc, char**argv, struct options& options)
       options.http_address = std::string(optarg);
       // TODO: Parse optional HTTP port.
       break;
-      
+
     case 'D':
       options.dest_realm = std::string(optarg);
       break;
@@ -192,7 +194,20 @@ int main(int argc, char**argv)
     fprintf(stderr, "Caught HttpStack::Exception - %s - %d\n", e._func, e._rc);
   }
 
+  Cache* cache = Cache::get_instance();
+  cache->initialize();
+  cache->configure("localhost", 9160, 10);
+  Cache::ResultCode rc = cache->start();
+
+  if (rc != Cache::ResultCode::OK)
+  {
+    fprintf(stderr, "Error starting cache: %d\n", rc);
+  }
+
   sem_wait(&term_sem);
+
+  cache->stop();
+  cache->wait_stopped();
 
   try
   {

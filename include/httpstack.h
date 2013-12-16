@@ -96,7 +96,7 @@ private:
 
   HttpStack();
   static void handler_callback_fn(evhtp_request_t* req, void* handler_ptr);
-  static void* event_base_thread_fn(void* http_stack_ptr); 
+  static void* event_base_thread_fn(void* http_stack_ptr);
   void event_base_thread_fn();
 
   // Don't implement the following, to avoid copies of this instance.

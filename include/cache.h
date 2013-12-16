@@ -33,6 +33,35 @@
  * under which the OpenSSL Project distributes the OpenSSL toolkit software,
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
+#ifndef CACHE_H__
+#define CACHE_H__
+
+// TODO sort this out properly.
+//
+// Well this is fun.  Free diameter uses cmake to define some compile time
+// options.  Thrift also defines these options.  So an app that uses both won't
+// compile because of the multiple definition.
+//
+// To work around this undefine any troublesome macros here. This means that any
+// code that includes DiameterStack and Cache headers must include the Cache
+// last.
+#ifdef HAVE_CLOCK_GETTIME
+#undef HAVE_CLOCK_GETTIME
+#endif
+
+#ifdef HAVE_MALLOC_H
+#undef HAVE_MALLOC_H
+#endif
+
+#ifdef ntohll
+#undef ntohll
+#endif
+
+#ifdef htonll
+#undef htonll
+#endif
+
+
 #include "thrift/Thrift.h"
 #include "thrift/transport/TSocket.h"
 #include "thrift/transport/TTransport.h"
@@ -43,9 +72,6 @@
 
 #include "authvector.h"
 #include "threadpool.h"
-
-#ifndef CACHE_H__
-#define CACHE_H__
 
 #define CASS org::apache::cassandra
 
