@@ -390,7 +390,7 @@ put_columns(std::vector<std::string>& keys,
     column->timestamp = timestamp;
     column->__isset.timestamp = true;
 
-    // A ttl of 0 => no expiry. 
+    // A ttl of 0 => no expiry.
     if (ttl > 0)
     {
       column->ttl = ttl;
@@ -809,7 +809,9 @@ Cache::GetAuthVector::
 void Cache::GetAuthVector::perform()
 {
   std::vector<std::string> requested_columns;
-  std::string requested_public_id_col = "";
+  std::string public_id_col = "";
+  bool public_id_requested = false;
+  bool public_id_found = false;
 
   requested_columns.push_back(DIGEST_HA1_COLUMN_NAME);
   requested_columns.push_back(DIGEST_REALM_COLUMN_NAME);
@@ -822,8 +824,9 @@ void Cache::GetAuthVector::perform()
     // So request the public ID column as well.
     //
     // This is a dynamic column so we include it's prefix.
-    requested_public_id_col = ASSOC_PUBLIC_ID_COLUMN_PREFIX + _public_id;
-    requested_columns.push_back(requested_public_id_col);
+    public_id_col = ASSOC_PUBLIC_ID_COLUMN_PREFIX + _public_id;
+    requested_columns.push_back(public_id_col);
+    public_id_requested = true;
   }
 
   std::vector<ColumnOrSuperColumn> results;
@@ -856,21 +859,13 @@ void Cache::GetAuthVector::perform()
       // (false) or 1 (true).
       av.preferred = (col->value == "\x01");
     }
-    else if (col->name == requested_public_id_col)
+    else if (col->name == public_id_col)
     {
-      // Found the necessary public ID. Unset the variable so it looks like we
-      // haven;t been asked to verify it.
-      requested_public_id_col = "";
+      public_id_found = true;
     }
   }
 
-  if (requested_public_id_col.length() == 0)
-  {
-    // We either weren't asked to verify the public ID, or we we're and found
-    // it. All is well.
-    on_success(av);
-  }
-  else
+  if (public_id_requested && !public_id_found)
   {
     // We were asked to verify a public ID, but that public ID that was not
     // found.  This is a failure.
@@ -878,6 +873,16 @@ void Cache::GetAuthVector::perform()
         "Private ID '%s' exists but does not have associated public ID '%s'")
         % _private_id, _public_id);
     on_failure(ResultCode::NOT_FOUND, error_text);
+  }
+  else if (av.ha1 == "")
+  {
+    // The HA1 column was not found.  This cannot be defaulted so is an error.
+    std::string error_text = "HA1 column not found";
+    on_failure(ResultCode::NOT_FOUND, error_text);
+  }
+  else
+  {
+    on_success(av);
   }
 }
 
