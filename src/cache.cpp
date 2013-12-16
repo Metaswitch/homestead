@@ -279,23 +279,29 @@ void Cache::Request::run(Cache::CacheClient *client)
   {
     perform();
   }
-  catch(TTransportException te)
+  catch(TTransportException& te)
   {
     rc = ResultCode::CONNECTION_ERROR;
     error_text = (boost::format("Exception: %s [%d]\n")
                   % te.what() % te.getType()).str();
   }
-  catch(InvalidRequestException ire)
+  catch(InvalidRequestException& ire)
   {
     rc = ResultCode::INVALID_REQUEST;
     error_text = (boost::format("Exception: %s [%s]\n")
                   % ire.what() % ire.why.c_str()).str();
   }
-  catch(NotFoundException nfe)
+  catch(NotFoundException& nfe)
   {
     rc = ResultCode::NOT_FOUND;
     error_text = (boost::format("Exception: %s\n")
                   % nfe.what()).str();
+  }
+  catch(Cache::RowNotFoundException& row_nfe)
+  {
+    rc = ResultCode::NOT_FOUND;
+    error_text = (boost::format("Row %s not present in column_family %s\n")
+                  % row_nfe.get_key() % row_nfe.get_column_family()).str();
   }
   catch(...)
   {
@@ -541,8 +547,16 @@ issue_get_for_key(std::string& key,
   std::vector<KeySlice> results;
   _client->get_range_slices(results, cparent, predicate, range, consistency_level);
 
-  // We only asked for one key, so there is only one row in our results.
-  columns = results[0].columns;
+  if (results.size() == 0)
+  {
+    Cache::RowNotFoundException row_not_found_ex(_column_family, key);
+    throw row_not_found_ex;
+  }
+  else
+  {
+    // We only asked for one key, so there is only one row in our results.
+    columns = results[0].columns;
+  }
 }
 
 //
