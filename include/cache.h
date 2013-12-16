@@ -543,6 +543,7 @@ public:
 
   class GetAssociatedPublicIDs : public GetRequest
   {
+  public:
     /// Get the public Ids that are associated with a private ID.
     ///
     /// @param private_id the private ID.

@@ -532,7 +532,9 @@ get_columns_with_prefix(std::string& key,
   // This slice range gets all columns with the specified prefix.
   SliceRange sr;
   sr.start = prefix;
-  sr.finish = prefix + "\xFF";
+  // Increment the last character of the "finish" field. 
+  sr.finish = prefix;
+  *sr.finish.rbegin() = (*sr.finish.rbegin() + 1);
 
   SlicePredicate sp;
   sp.slice_range = sr;
@@ -871,7 +873,7 @@ void Cache::GetAuthVector::perform()
     // found.  This is a failure.
     std::string error_text = (boost::format(
         "Private ID '%s' exists but does not have associated public ID '%s'")
-        % _private_id, _public_id);
+        % _private_id % _public_id).str();
     on_failure(ResultCode::NOT_FOUND, error_text);
   }
   else if (av.ha1 == "")
