@@ -50,6 +50,8 @@ struct options
   std::string dest_realm;
   std::string dest_host;
   std::string server_name;
+  std::string log_directory;
+  int log_level;
 };
 
 void usage(void)
