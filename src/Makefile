@@ -16,7 +16,8 @@ TARGET_SOURCES := cache.cpp \
                   diameterstack.cpp \
                   handlers.cpp \
                   httpstack.cpp \
-                  logger.cpp
+                  logger.cpp \
+									log.cpp
 
 TARGET_SOURCES_BUILD := main.cpp
 
