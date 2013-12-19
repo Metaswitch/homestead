@@ -38,6 +38,7 @@
 #include <signal.h>
 #include <semaphore.h>
 
+#include "log.h"
 #include "diameterstack.h"
 #include "httpstack.h"
 #include "handlers.h"
@@ -159,7 +160,7 @@ int main(int argc, char**argv)
   options.dest_realm = "dest-realm.unknown";
   options.dest_host = "dest-host.unknown";
   options.server_name = "sip:server-name.unknown";
-  options.log_file = "";
+  options.log_directory = "";
   options.log_level = 0;
 
   if (init_options(argc, argv, options) != 0)
@@ -178,8 +179,8 @@ int main(int argc, char**argv)
       prog_name = slash_ptr + 1;
     }
     Log::setLogger(new Logger(options.log_directory, prog_name));
-    LOG_STATUS("Log level set to %d", opt.log_level);
   }
+  LOG_STATUS("Log level set to %d", options.log_level);
 
   sem_init(&term_sem, 0, 0);
   signal(SIGTERM, terminate_handler);
