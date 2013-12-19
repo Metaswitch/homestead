@@ -15,7 +15,9 @@ TARGET_SOURCES := cache.cpp \
                   cx.cpp \
                   diameterstack.cpp \
                   handlers.cpp \
-                  httpstack.cpp
+                  httpstack.cpp \
+									logger.cpp \
+									log.cpp
 
 TARGET_SOURCES_BUILD := main.cpp
 
@@ -47,7 +49,11 @@ CPPFLAGS += -Wno-write-strings \
             -ggdb3 -std=c++0x
 CPPFLAGS += -I${ROOT}/include \
             -I${ROOT}/usr/include \
-            -I${ROOT}/modules/rapidjson/include
+            -I${ROOT}/modules/rapidjson/include \
+						-I${ROOT}/modules/cpp-common/include
+
+#	Add modules/cpp-common/src as a VPATH to pull in required common modules
+VPATH := ${ROOT}/modules/cpp-common/src
 
 # Production build:
 #
