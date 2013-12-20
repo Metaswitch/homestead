@@ -177,18 +177,22 @@ int main(int argc, char**argv)
   }
 
   HttpStack* http_stack = HttpStack::get_instance();
-  PingHandler ping_handler;
-  ImpiDigestHandler impi_digest_handler(diameter_stack, options.dest_realm, options.dest_host, options.server_name);
-  ImpiAvHandler impi_av_handler(diameter_stack, options.dest_realm, options.dest_host, options.server_name);
-  ImpuIMSSubscriptionHandler impu_ims_subscription_handler(diameter_stack, options.dest_host, options.dest_realm, options.server_name);
+  HssCacheHandler::configure_diameter(diameter_stack,
+                                      options.dest_realm,
+                                      options.dest_host,
+                                      options.server_name);
   try
   {
     http_stack->initialize();
     http_stack->configure(options.http_address, options.http_port, 10);
-    http_stack->register_handler(&ping_handler);
-    http_stack->register_handler(&impi_digest_handler);
-    http_stack->register_handler(&impi_av_handler);
-    http_stack->register_handler(&impu_ims_subscription_handler);
+    http_stack->register_handler("^/ping$",
+                                 HttpStack::handler_factory<PingHandler>);
+    http_stack->register_handler("^/impi/[^/]*/digest$",
+                                 HttpStack::handler_factory<ImpiDigestHandler>);
+    http_stack->register_handler("^/impi/[^/]*/av",
+                                 HttpStack::handler_factory<ImpiDigestHandler>);
+    http_stack->register_handler("^/impu/",
+                                 HttpStack::handler_factory<ImpiDigestHandler>);
     http_stack->start();
   }
   catch (HttpStack::Exception& e)

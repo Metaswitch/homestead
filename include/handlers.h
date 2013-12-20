@@ -44,105 +44,121 @@
 class PingHandler : public HttpStack::Handler
 {
 public:
-  PingHandler() : HttpStack::Handler("^/ping$") {};
-  void handle(HttpStack::Request& req);
+  PingHandler(HttpStack::Request& req) : HttpStack::Handler(req) {};
+  void run();
 };
 
-class DiameterHttpHandler : public HttpStack::Handler
+class HssCacheHandler : public HttpStack::Handler
 {
 public:
-  DiameterHttpHandler(const std::string& path,
-                      Diameter::Stack* diameter_stack,
-                      const std::string& dest_realm,
-                      const std::string& dest_host,
-                      const std::string& server_name) :
-                      HttpStack::Handler(path),
-                      _diameter_stack(diameter_stack),
-                      _dest_realm(dest_realm),
-                      _dest_host(dest_host),
-                      _server_name(server_name) {};
+  HssCacheHandler(HttpStack::Request& req) : HttpStack::Handler(req) {};
 
-  class Transaction : public Diameter::Transaction
+  static void configure_diameter(Diameter::Stack* diameter_stack,
+                                 const std::string& dest_realm,
+                                 const std::string& dest_host,
+                                 const std::string& server_name);
+
+  void on_diameter_timeout();
+
+
+  class DiameterTransaction : public Diameter::Transaction
   {
   public:
-    Transaction(Cx::Dictionary* dict, HttpStack::Request& req) : Diameter::Transaction(dict), _req(req) {};
+    DiameterTransaction(Cx::Dictionary* dict, HssCacheHandler* handler) :
+      Diameter::Transaction(dict), _handler(handler)
+    {};
+
     void on_timeout();
 
-    HttpStack::Request _req;
+  protected:
+    HssCacheHandler* _handler;
   };
 
-  Diameter::Stack* _diameter_stack;
-  std::string _dest_realm;
-  std::string _dest_host;
-  std::string _server_name;
-  Cx::Dictionary _dict;
+protected:
+  static Diameter::Stack* _diameter_stack;
+  static std::string _dest_realm;
+  static std::string _dest_host;
+  static std::string _server_name;
+  static Cx::Dictionary _dict;
 };
 
-class ImpiDigestHandler : public DiameterHttpHandler
+class ImpiDigestHandler : public HssCacheHandler
 {
 public:
-  ImpiDigestHandler(Diameter::Stack* diameter_stack,
-                    const std::string& dest_realm,
-                    const std::string& dest_host,
-                    const std::string& server_name) :
-                    DiameterHttpHandler("^/impi/[^/]*/digest$",
-                                        diameter_stack,
-                                        dest_realm,
-                                        dest_host,
-                                        server_name) {};
-  void handle(HttpStack::Request& req);
+  ImpiDigestHandler(HttpStack::Request& req) :
+    HssCacheHandler(req), _impi(), _impu()
+  {}
 
-  class Transaction : public DiameterHttpHandler::Transaction
+  void run();
+  void on_mar_response(Diameter::Message& rsp);
+
+  class DiameterTransaction : public HssCacheHandler::DiameterTransaction
   {
   public:
-    Transaction(Cx::Dictionary* dict, HttpStack::Request& req) : DiameterHttpHandler::Transaction(dict, req) {};
+    DiameterTransaction(Cx::Dictionary* dict, ImpiDigestHandler* handler) :
+      HssCacheHandler::DiameterTransaction(dict, handler)
+    {}
+
     void on_response(Diameter::Message& rsp);
   };
+
+private:
+  std::string _impi;
+  std::string _impu;
 };
 
-class ImpiAvHandler : public DiameterHttpHandler
+
+class ImpiAvHandler : public HssCacheHandler
 {
 public:
-  ImpiAvHandler(Diameter::Stack* diameter_stack,
-                const std::string& dest_realm,
-                const std::string& dest_host,
-                const std::string& server_name) :
-                DiameterHttpHandler("^/impi/[^/]*/av",
-                                    diameter_stack,
-                                    dest_realm,
-                                    dest_host,
-                                    server_name) {};
-  void handle(HttpStack::Request& req);
+  ImpiAvHandler(HttpStack::Request& req) :
+    HssCacheHandler(req), _impi(), _impu(), _scheme(), _authorization()
+  {}
 
-  class Transaction : public DiameterHttpHandler::Transaction
+  void run();
+  void on_mar_response(Diameter::Message& rsp);
+
+  class DiameterTransaction : public HssCacheHandler::DiameterTransaction
   {
   public:
-    Transaction(Cx::Dictionary* dict, HttpStack::Request& req) : DiameterHttpHandler::Transaction(dict, req) {};
+    DiameterTransaction(Cx::Dictionary* dict, ImpiAvHandler* handler) :
+      HssCacheHandler::DiameterTransaction(dict, handler)
+    {}
+
     void on_response(Diameter::Message& rsp);
   };
+
+private:
+  std::string _impi;
+  std::string _impu;
+  std::string _scheme;
+  std::string _authorization;
 };
 
-class ImpuIMSSubscriptionHandler : public DiameterHttpHandler
+
+class ImpuIMSSubscriptionHandler : public HssCacheHandler
 {
 public:
-  ImpuIMSSubscriptionHandler(Diameter::Stack* diameter_stack,
-                             const std::string& dest_host,
-                             const std::string& dest_realm,
-                             const std::string& server_name) :
-                             DiameterHttpHandler("/impu/",
-                                                 diameter_stack,
-                                                 dest_realm,
-                                                 dest_host,
-                                                 server_name) {};
-  void handle(HttpStack::Request& req);
+  ImpuIMSSubscriptionHandler(HttpStack::Request& req) :
+    HssCacheHandler(req), _impi(), _impu()
+  {}
 
-  class Transaction : public DiameterHttpHandler::Transaction
+  void run();
+  void on_sar_response(Diameter::Message& rsp);
+
+  class DiameterTransaction : public HssCacheHandler::DiameterTransaction
   {
   public:
-    Transaction(Cx::Dictionary* dict, HttpStack::Request& req) : DiameterHttpHandler::Transaction(dict, req) {};
+    DiameterTransaction(Cx::Dictionary* dict, ImpuIMSSubscriptionHandler* handler) :
+      HssCacheHandler::DiameterTransaction(dict, handler)
+    {}
+
     void on_response(Diameter::Message& rsp);
   };
-};
 
+private:
+  std::string _impi;
+  std::string _impu;
+};
 
 #endif
