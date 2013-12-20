@@ -66,12 +66,6 @@ void HssCacheHandler::configure_diameter(Diameter::Stack* diameter_stack,
 }
 
 
-void HssCacheHandler::DiameterTransaction::on_timeout()
-{
-  _handler->on_diameter_timeout();
-}
-
-
 void HssCacheHandler::on_diameter_timeout()
 {
   _req.send_reply(503);
@@ -99,13 +93,8 @@ void ImpiDigestHandler::run()
                                   _server_name,
                                   "SIP Digest");
   DiameterTransaction* tsx = new DiameterTransaction(&_dict, this);
+  tsx->set_response_clbk(&ImpiDigestHandler::on_mar_response);
   mar->send(tsx, 200);
-}
-
-
-void ImpiDigestHandler::DiameterTransaction::on_response(Diameter::Message& rsp)
-{
-  dynamic_cast<ImpiDigestHandler*>(_handler)->on_mar_response(rsp);
 }
 
 
@@ -187,17 +176,13 @@ void ImpiAvHandler::run()
                                     _scheme,
                                     _authorization);
     DiameterTransaction* tsx = new DiameterTransaction(&_dict, this);
+    tsx->set_response_clbk(&ImpiAvHandler::on_mar_response);
     mar->send(tsx, 200);
   }
   else
   {
     delete this;
   }
-}
-
-void ImpiAvHandler::DiameterTransaction::on_response(Diameter::Message& rsp)
-{
-  dynamic_cast<ImpiAvHandler*>(_handler)->on_mar_response(rsp);
 }
 
 void ImpiAvHandler::on_mar_response(Diameter::Message& rsp)
@@ -299,13 +284,8 @@ void ImpuIMSSubscriptionHandler::run()
                                     _impu,
                                     _server_name);
   DiameterTransaction* tsx = new DiameterTransaction(&_dict, this);
+  tsx->set_response_clbk(&ImpuIMSSubscriptionHandler::on_sar_response);
   sar->send(tsx, 200);
-}
-
-void ImpuIMSSubscriptionHandler::DiameterTransaction::on_response(Diameter::Message& rsp)
-{
-  dynamic_cast<ImpuIMSSubscriptionHandler*>(_handler)->on_sar_response(rsp);
-
 }
 
 void ImpuIMSSubscriptionHandler::on_sar_response(Diameter::Message& rsp)

@@ -37,6 +37,8 @@
 #ifndef HANDLERS_H__
 #define HANDLERS_H__
 
+#include <boost/bind.hpp>
+
 #include "cx.h"
 #include "diameterstack.h"
 #include "httpstack.h"
@@ -60,18 +62,50 @@ public:
 
   void on_diameter_timeout();
 
-
+  template <class H>
   class DiameterTransaction : public Diameter::Transaction
   {
   public:
-    DiameterTransaction(Cx::Dictionary* dict, HssCacheHandler* handler) :
-      Diameter::Transaction(dict), _handler(handler)
+    DiameterTransaction(Cx::Dictionary* dict, H* handler) :
+      Diameter::Transaction(dict),
+      _handler(handler),
+      _timeout_clbk(&HssCacheHandler::on_diameter_timeout),
+      _response_clbk(NULL)
     {};
 
-    void on_timeout();
+    typedef void(H::*timeout_clbk_t)();
+    typedef void(H::*response_clbk_t)(Diameter::Message&);
+
+    void set_timeout_clbk(timeout_clbk_t fun)
+    {
+      _timeout_clbk = fun;
+    }
+
+    void set_response_clbk(response_clbk_t fun)
+    {
+      _response_clbk = fun;
+    }
 
   protected:
-    HssCacheHandler* _handler;
+    H* _handler;
+    timeout_clbk_t _timeout_clbk;
+    response_clbk_t _response_clbk;
+
+    void on_timeout()
+    {
+      if ((_handler != NULL) && (_timeout_clbk != NULL))
+      {
+        boost::bind(_timeout_clbk, _handler)();
+      }
+    }
+
+    void on_response(Diameter::Message& rsp)
+    {
+      if ((_handler != NULL) && (_response_clbk != NULL))
+      {
+        boost::bind(_response_clbk, _handler, rsp);
+      }
+    }
   };
 
 protected:
@@ -92,15 +126,7 @@ public:
   void run();
   void on_mar_response(Diameter::Message& rsp);
 
-  class DiameterTransaction : public HssCacheHandler::DiameterTransaction
-  {
-  public:
-    DiameterTransaction(Cx::Dictionary* dict, ImpiDigestHandler* handler) :
-      HssCacheHandler::DiameterTransaction(dict, handler)
-    {}
-
-    void on_response(Diameter::Message& rsp);
-  };
+  typedef HssCacheHandler::DiameterTransaction<ImpiDigestHandler> DiameterTransaction;
 
 private:
   std::string _impi;
@@ -118,15 +144,7 @@ public:
   void run();
   void on_mar_response(Diameter::Message& rsp);
 
-  class DiameterTransaction : public HssCacheHandler::DiameterTransaction
-  {
-  public:
-    DiameterTransaction(Cx::Dictionary* dict, ImpiAvHandler* handler) :
-      HssCacheHandler::DiameterTransaction(dict, handler)
-    {}
-
-    void on_response(Diameter::Message& rsp);
-  };
+  typedef HssCacheHandler::DiameterTransaction<ImpiAvHandler> DiameterTransaction;
 
 private:
   std::string _impi;
@@ -146,15 +164,7 @@ public:
   void run();
   void on_sar_response(Diameter::Message& rsp);
 
-  class DiameterTransaction : public HssCacheHandler::DiameterTransaction
-  {
-  public:
-    DiameterTransaction(Cx::Dictionary* dict, ImpuIMSSubscriptionHandler* handler) :
-      HssCacheHandler::DiameterTransaction(dict, handler)
-    {}
-
-    void on_response(Diameter::Message& rsp);
-  };
+  typedef HssCacheHandler::DiameterTransaction<ImpuIMSSubscriptionHandler> DiameterTransaction;
 
 private:
   std::string _impi;
