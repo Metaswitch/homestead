@@ -227,10 +227,9 @@ void Cache::delete_client(void *client)
 }
 
 
-void Cache::send(Request *request)
+void Cache::send(Cache::Transaction* trx)
 {
-  _thread_pool->add_work(request);
-  request = NULL;
+  _thread_pool->add_work(trx); trx = NULL;
 }
 
 
@@ -241,7 +240,7 @@ void Cache::send(Request *request)
 Cache::CacheThreadPool::CacheThreadPool(Cache *cache,
                                         unsigned int num_threads,
                                         unsigned int max_queue) :
-  ThreadPool<Cache::Request *>(num_threads, max_queue),
+  ThreadPool<Cache::Transaction *>(num_threads, max_queue),
   _cache(cache)
 {}
 
@@ -250,13 +249,13 @@ Cache::CacheThreadPool::~CacheThreadPool()
 {}
 
 
-void Cache::CacheThreadPool::process_work(Request* &request)
+void Cache::CacheThreadPool::process_work(Transaction* &trx)
 {
   // Run the request.  Catch all exceptions to stop an error from killing the
   // worker thread.
   try
   {
-    request->run(_cache->get_client());
+    trx->run(_cache->get_client());
   }
   catch(...)
   {
@@ -264,12 +263,26 @@ void Cache::CacheThreadPool::process_work(Request* &request)
   }
 
   // We own the request so we have to free it.
-  delete request; request = NULL;
+  delete trx; trx = NULL;
 }
 
 //
 // Request methods
 //
+
+Cache::Transaction::Transaction(Request *req) :
+  _req(req)
+{}
+
+Cache::Transaction::~Transaction()
+{
+  delete _req; _req = NULL;
+}
+
+void Cache::Transaction::run(Cache::CacheClient* client)
+{
+  _req->run(client, this);
+}
 
 
 Cache::Request::Request(std::string& column_family) :
@@ -281,14 +294,15 @@ Cache::Request::~Request()
 {}
 
 
-void Cache::Request::run(Cache::CacheClient *client)
+void Cache::Request::run(Cache::CacheClient *client, Cache::Transaction* trx)
 {
   ResultCode rc = ResultCode::OK;
   std::string error_text = "";
 
-  // Store the client pointer so it's available to subclasses that override
-  // perform().
+  // Store the client and transaction pointers so they are available to
+  // subclasses that override perform().
   _client = client;
+  _trx = trx;
 
   // Call perform() to actually do the business logic of the request.  Catch
   // exceptions and turn them into return codes and error text.
@@ -330,7 +344,7 @@ void Cache::Request::run(Cache::CacheClient *client)
   {
     // We caught an exception so call the error callback to notify the cache
     // user.
-    on_failure(rc, error_text);
+    _trx->on_failure(rc, error_text);
   }
 }
 
@@ -532,7 +546,7 @@ get_columns_with_prefix(std::string& key,
   // This slice range gets all columns with the specified prefix.
   SliceRange sr;
   sr.start = prefix;
-  // Increment the last character of the "finish" field. 
+  // Increment the last character of the "finish" field.
   sr.finish = prefix;
   *sr.finish.rbegin() = (*sr.finish.rbegin() + 1);
 
@@ -643,7 +657,7 @@ void Cache::PutIMSSubscription::perform()
   columns[IMS_SUB_XML_COLUMN_NAME] = _xml;
 
   put_columns(_public_ids, columns, _timestamp, _ttl);
-  on_success();
+  _trx->on_success();
 }
 
 //
@@ -674,7 +688,7 @@ void Cache::PutAssociatedPublicID::perform()
   std::vector<std::string> keys(1, _private_id);
 
   put_columns(keys, columns, _timestamp, _ttl);
-  on_success();
+  _trx->on_success();
 }
 
 //
@@ -706,7 +720,7 @@ void Cache::PutAuthVector::perform()
   columns[KNOWN_PREFERRED_COLUMN_NAME] = _auth_vector.preferred ? "\x01" : "\x00";
 
   put_columns(_private_ids, columns, _timestamp, _ttl);
-  on_success();
+  _trx->on_success();
 }
 
 
@@ -717,7 +731,8 @@ void Cache::PutAuthVector::perform()
 Cache::GetIMSSubscription::
 GetIMSSubscription(std::string& public_id) :
   GetRequest(IMPU),
-  _public_id(public_id)
+  _public_id(public_id),
+  _xml()
 {}
 
 
@@ -736,12 +751,18 @@ void Cache::GetIMSSubscription::perform()
   if (results.size() == 0)
   {
     std::string error_text("IMS subscription XML not found");
-    on_failure(ResultCode::NOT_FOUND, error_text);
+    _trx->on_failure(ResultCode::NOT_FOUND, error_text);
   }
   else
   {
-    on_success(results[0].column.value);
+    _xml = results[0].column.value;
+    _trx->on_success();
   }
+}
+
+void Cache::GetIMSSubscription::get_result(std::string& xml)
+{
+  xml = _xml;
 }
 
 //
@@ -751,7 +772,8 @@ void Cache::GetIMSSubscription::perform()
 Cache::GetAssociatedPublicIDs::
 GetAssociatedPublicIDs(std::string& private_id) :
   GetRequest(IMPI),
-  _private_id(private_id)
+  _private_id(private_id),
+  _public_ids()
 {}
 
 
@@ -763,7 +785,6 @@ Cache::GetAssociatedPublicIDs::
 void Cache::GetAssociatedPublicIDs::perform()
 {
   std::vector<ColumnOrSuperColumn> columns;
-  std::vector<std::string> results;
 
   ha_get_columns_with_prefix(_private_id,
                              ASSOC_PUBLIC_ID_COLUMN_PREFIX,
@@ -776,10 +797,15 @@ void Cache::GetAssociatedPublicIDs::perform()
       it != columns.end();
       ++it)
   {
-    results.push_back(it->column.name);
+    _public_ids.push_back(it->column.name);
   }
 
-  on_success(results);
+  _trx->on_success();
+}
+
+void Cache::GetAssociatedPublicIDs::get_result(std::vector<std::string>& ids)
+{
+  ids = _public_ids;
 }
 
 //
@@ -790,7 +816,8 @@ Cache::GetAuthVector::
 GetAuthVector(std::string& private_id) :
   GetRequest(IMPI),
   _private_id(private_id),
-  _public_id("")
+  _public_id(""),
+  _auth_vector()
 {}
 
 
@@ -799,7 +826,8 @@ GetAuthVector(std::string& private_id,
               std::string& public_id) :
   GetRequest(IMPI),
   _private_id(private_id),
-  _public_id(public_id)
+  _public_id(public_id),
+  _auth_vector()
 {}
 
 
@@ -834,9 +862,6 @@ void Cache::GetAuthVector::perform()
   std::vector<ColumnOrSuperColumn> results;
   ha_get_columns(_private_id, requested_columns, results);
 
-  // Turn the returned columns vector into a digest AV structure.
-  DigestAuthVector av;
-
   for (std::vector<ColumnOrSuperColumn>::const_iterator it = results.begin();
        it != results.end();
        ++it)
@@ -845,21 +870,21 @@ void Cache::GetAuthVector::perform()
 
     if (col->name == DIGEST_HA1_COLUMN_NAME)
     {
-      av.ha1 = col->value;
+      _auth_vector.ha1 = col->value;
     }
     else if (col->name == DIGEST_REALM_COLUMN_NAME)
     {
-      av.realm = col->value;
+      _auth_vector.realm = col->value;
     }
     else if (col->name == DIGEST_QOP_COLUMN_NAME)
     {
-      av.qop = col->value;
+      _auth_vector.qop = col->value;
     }
     else if (col->name == KNOWN_PREFERRED_COLUMN_NAME)
     {
       // Cassnadra booleans are byte string of length 1, with a value f 0
       // (false) or 1 (true).
-      av.preferred = (col->value == "\x01");
+      _auth_vector.preferred = (col->value == "\x01");
     }
     else if (col->name == public_id_col)
     {
@@ -874,18 +899,23 @@ void Cache::GetAuthVector::perform()
     std::string error_text = (boost::format(
         "Private ID '%s' exists but does not have associated public ID '%s'")
         % _private_id % _public_id).str();
-    on_failure(ResultCode::NOT_FOUND, error_text);
+    _trx->on_failure(ResultCode::NOT_FOUND, error_text);
   }
-  else if (av.ha1 == "")
+  else if (_auth_vector.ha1 == "")
   {
     // The HA1 column was not found.  This cannot be defaulted so is an error.
     std::string error_text = "HA1 column not found";
-    on_failure(ResultCode::NOT_FOUND, error_text);
+    _trx->on_failure(ResultCode::NOT_FOUND, error_text);
   }
   else
   {
-    on_success(av);
+    _trx->on_success();
   }
+}
+
+void Cache::GetAuthVector::get_result(DigestAuthVector& av)
+{
+  av = _auth_vector;
 }
 
 //
@@ -919,7 +949,7 @@ void Cache::DeletePublicIDs::perform()
     delete_row(*it, _timestamp);
   }
 
-  on_success();
+  _trx->on_success();
 }
 
 //
@@ -954,5 +984,5 @@ void Cache::DeletePrivateIDs::perform()
     delete_row(*it, _timestamp);
   }
 
-  on_success();
+  _trx->on_success();
 }
