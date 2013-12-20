@@ -180,6 +180,7 @@ int main(int argc, char**argv)
   PingHandler ping_handler;
   ImpiDigestHandler impi_digest_handler(diameter_stack, options.dest_realm, options.dest_host, options.server_name);
   ImpiAvHandler impi_av_handler(diameter_stack, options.dest_realm, options.dest_host, options.server_name);
+  ImpuIMSSubscriptionHandler impu_ims_subscription_handler(diameter_stack, options.dest_host, options.dest_realm, options.server_name);
   try
   {
     http_stack->initialize();
@@ -187,6 +188,7 @@ int main(int argc, char**argv)
     http_stack->register_handler(&ping_handler);
     http_stack->register_handler(&impi_digest_handler);
     http_stack->register_handler(&impi_av_handler);
+    http_stack->register_handler(&impu_ims_subscription_handler);
     http_stack->start();
   }
   catch (HttpStack::Exception& e)
