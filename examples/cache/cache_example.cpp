@@ -56,14 +56,14 @@ public:
   {
     cout << "Request succeeded" << endl;
 
-    if (typeid(_req) == typeid(Cache::GetIMSSubscription))
+    if (typeid(*_req) == typeid(Cache::GetIMSSubscription))
     {
       std::string xml;
       dynamic_cast<Cache::GetIMSSubscription*>(_req)->get_result(xml);
 
       cout << "  XML:" << xml << endl;
     }
-    else if (typeid(_req) == typeid(Cache::GetAuthVector))
+    else if (typeid(*_req) == typeid(Cache::GetAuthVector))
     {
       DigestAuthVector av;
       dynamic_cast<Cache::GetAuthVector*>(_req)->get_result(av);
@@ -71,12 +71,12 @@ public:
       cout << "  digest_ha1: " << av.ha1 << "\n  realm: " << av.realm <<
         "\n  qop: " << av.qop << "\n  preferred: " << av.preferred << endl;
     }
-    else if (typeid(_req) == typeid(Cache::GetAssociatedPublicIDs))
+    else if (typeid(*_req) == typeid(Cache::GetAssociatedPublicIDs))
     {
       std::vector<std::string> ids;
       dynamic_cast<Cache::GetAssociatedPublicIDs*>(_req)->get_result(ids);
 
-      cout << "IDs:" << endl;
+      cout << "IDs:";
       for (vector<string>::iterator it = ids.begin(); it != ids.end(); ++it) {
         cout << "\n    " << *it;
       }
