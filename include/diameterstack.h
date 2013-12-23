@@ -268,6 +268,13 @@ public:
     fd_msg_new_session(_msg, NULL, 0);
     return *this;
   }
+  inline Message& add_vendor_spec_app_id()
+  {
+    Diameter::AVP vendor_specific_application_id(dict()->VENDOR_SPECIFIC_APPLICATION_ID);
+    vendor_specific_application_id.add(Diameter::AVP(dict()->VENDOR_ID).val_i32(10415));
+    add(vendor_specific_application_id);
+    return *this;
+  }
   inline Message& add_origin()
   {
     fd_msg_add_origin(_msg, 0);
@@ -278,6 +285,10 @@ public:
     fd_msg_avp_add(_msg, MSG_BRW_LAST_CHILD, avp.avp());
     return *this;
   }
+  std::string get_str_from_avp(const Dictionary::AVP& type) const;
+  int get_i32_from_avp(const Dictionary::AVP& type) const;
+  int get_result_code() const;
+  int get_experimental_result_code() const;
   inline AVP::iterator begin() const;
   inline AVP::iterator begin(const Dictionary::AVP& type) const;
   inline AVP::iterator end() const;

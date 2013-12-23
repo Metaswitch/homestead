@@ -90,9 +90,7 @@ UserAuthorizationRequest::UserAuthorizationRequest(const Dictionary* dict,
                                                    Diameter::Message(dict, dict->USER_AUTHORIZATION_REQUEST)
 {
   add_new_session_id();
-  Diameter::AVP vendor_specific_application_id(dict->VENDOR_SPECIFIC_APPLICATION_ID);
-  vendor_specific_application_id.add(Diameter::AVP(dict->VENDOR_ID).val_i32(10415));
-  add(vendor_specific_application_id);
+  add_vendor_spec_app_id();  
   add(Diameter::AVP(dict->AUTH_SESSION_STATE).val_i32(1));
   add_origin();
   add(Diameter::AVP(dict->DESTINATION_HOST).val_str(dest_host));
@@ -103,11 +101,46 @@ UserAuthorizationRequest::UserAuthorizationRequest(const Dictionary* dict,
   add(Diameter::AVP(dict->USER_AUTHORIZATION_TYPE).val_i32(user_authorization_type));
 }
 
-UserAuthorizationAnswer::UserAuthorizationAnswer(const Dictionary* dict,
-                                                 int result_code) :
+UserAuthorizationAnswer::UserAuthorizationAnswer(const Dictionary* dict) :
                                                  Diameter::Message(dict, dict->USER_AUTHORIZATION_ANSWER)
 {
-  add(Diameter::AVP(dict->RESULT_CODE).val_i32(result_code));
+}
+
+int UserAuthorizationAnswer::result_code() const
+{
+  return get_result_code();
+}
+
+int UserAuthorizationAnswer::experimental_result_code() const
+{
+  return get_experimental_result_code();
+}
+
+std::string UserAuthorizationAnswer::server_name() const
+{
+  return get_str_from_avp(((Cx::Dictionary*)dict())->SERVER_NAME);
+}
+
+ServerCapabilities UserAuthorizationAnswer::server_capabilities() const
+{
+  ServerCapabilities server_capabilities;
+  Diameter::AVP::iterator avps = begin(((Cx::Dictionary*)dict())->SERVER_CAPABILITIES);
+  if (avps != end())
+  {
+    Diameter::AVP::iterator avps2 = avps->begin(((Cx::Dictionary*)dict())->MANDATORY_CAPABILITY);
+    while (avps2 != end())
+    {
+      server_capabilities.mandatory_capabilities.push_back(avps2->val_i32());
+      avps2++;
+    }
+    avps2 = avps->begin(((Cx::Dictionary*)dict())->OPTIONAL_CAPABILITY);
+    while (avps2 != end())
+    {
+      server_capabilities.optional_capabilities.push_back(avps2->val_i32());
+      avps2++;
+    }
+  }
+  return server_capabilities;
 }
 
 LocationInfoRequest::LocationInfoRequest(const Dictionary* dict,
@@ -119,9 +152,7 @@ LocationInfoRequest::LocationInfoRequest(const Dictionary* dict,
                                          Diameter::Message(dict, dict->LOCATION_INFO_REQUEST)
 {
   add_new_session_id();
-  Diameter::AVP vendor_specific_application_id(dict->VENDOR_SPECIFIC_APPLICATION_ID);
-  vendor_specific_application_id.add(Diameter::AVP(dict->VENDOR_ID).val_i32(10415));
-  add(vendor_specific_application_id);
+  add_vendor_spec_app_id();
   add(Diameter::AVP(dict->AUTH_SESSION_STATE).val_i32(1));
   add_origin();
   add(Diameter::AVP(dict->DESTINATION_HOST).val_str(dest_host));
@@ -137,11 +168,46 @@ LocationInfoRequest::LocationInfoRequest(const Dictionary* dict,
   }
 }
 
-LocationInfoAnswer::LocationInfoAnswer(const Dictionary* dict,
-                                       int result_code) :
+LocationInfoAnswer::LocationInfoAnswer(const Dictionary* dict) :
                                        Diameter::Message(dict, dict->LOCATION_INFO_ANSWER)
 {
-  add(Diameter::AVP(dict->RESULT_CODE).val_i32(result_code));
+}
+
+int LocationInfoAnswer::result_code() const
+{
+  return get_result_code();
+}
+
+int LocationInfoAnswer::experimental_result_code() const
+{
+  return get_experimental_result_code();
+}
+
+std::string LocationInfoAnswer::server_name() const
+{
+  return get_str_from_avp(((Cx::Dictionary*)dict())->SERVER_NAME);
+}
+
+ServerCapabilities LocationInfoAnswer::server_capabilities() const
+{
+  ServerCapabilities server_capabilities;
+  Diameter::AVP::iterator avps = begin(((Cx::Dictionary*)dict())->SERVER_CAPABILITIES);
+  if (avps != end())
+  {
+    Diameter::AVP::iterator avps2 = avps->begin(((Cx::Dictionary*)dict())->MANDATORY_CAPABILITY);
+    while (avps2 != end())
+    {
+      server_capabilities.mandatory_capabilities.push_back(avps2->val_i32());
+      avps2++;
+    }
+    avps2 = avps->begin(((Cx::Dictionary*)dict())->OPTIONAL_CAPABILITY);
+    while (avps2 != end())
+    {
+      server_capabilities.optional_capabilities.push_back(avps2->val_i32());
+      avps2++;
+    }
+  }
+  return server_capabilities;
 }
 
 MultimediaAuthRequest::MultimediaAuthRequest(const Dictionary* dict,
@@ -155,9 +221,7 @@ MultimediaAuthRequest::MultimediaAuthRequest(const Dictionary* dict,
                                              Diameter::Message(dict, dict->MULTIMEDIA_AUTH_REQUEST)
 {
   add_new_session_id();
-  Diameter::AVP vendor_specific_application_id(dict->VENDOR_SPECIFIC_APPLICATION_ID);
-  vendor_specific_application_id.add(Diameter::AVP(dict->VENDOR_ID).val_i32(10415));
-  add(vendor_specific_application_id);
+  add_vendor_spec_app_id();
   add(Diameter::AVP(dict->AUTH_SESSION_STATE).val_i32(1));
   add(Diameter::AVP(dict->DESTINATION_REALM).val_str(dest_realm));
   add(Diameter::AVP(dict->DESTINATION_HOST).val_str(dest_host));
@@ -177,13 +241,8 @@ MultimediaAuthRequest::MultimediaAuthRequest(const Dictionary* dict,
 
 std::string MultimediaAuthRequest::impu() const
 {
-  std::string impu;
-  Diameter::AVP::iterator avps = begin(dict()->USER_NAME);
-  if (avps != end())
-  {
-    impu = avps->val_str();
-  }
-  return impu;
+
+  return get_str_from_avp(dict()->USER_NAME);
 }
 
 MultimediaAuthAnswer::MultimediaAuthAnswer(const Dictionary* dict,
@@ -195,28 +254,12 @@ MultimediaAuthAnswer::MultimediaAuthAnswer(const Dictionary* dict,
 
 int MultimediaAuthAnswer::result_code() const
 {
-  int result_code = 0;
-  Diameter::AVP::iterator avps = begin(dict()->RESULT_CODE);
-  if (avps != end())
-  {
-    result_code = avps->val_i32();
-  }
-  return result_code;
+  return get_result_code();
 }
 
 int MultimediaAuthAnswer::experimental_result_code() const
 {
-  int experimental_result_code = 0;
-  Diameter::AVP::iterator avps = begin(((Cx::Dictionary*)dict())->EXPERIMENTAL_RESULT);
-  if (avps != end())
-  {
-    avps = avps->begin(((Cx::Dictionary*)dict())->EXPERIMENTAL_RESULT_CODE);
-    if (avps != end())
-    {
-      experimental_result_code = avps->val_i32();
-    }
-  }
-  return experimental_result_code;
+  return get_experimental_result_code();
 }
 
 std::string MultimediaAuthAnswer::sip_auth_scheme() const
@@ -367,9 +410,7 @@ ServerAssignmentRequest::ServerAssignmentRequest(const Dictionary* dict,
                                                  Diameter::Message(dict, dict->SERVER_ASSIGNMENT_REQUEST)
 {
   add_new_session_id();
-  Diameter::AVP vendor_specific_application_id(dict->VENDOR_SPECIFIC_APPLICATION_ID);
-  vendor_specific_application_id.add(Diameter::AVP(dict->VENDOR_ID).val_i32(10415));
-  add(vendor_specific_application_id);
+  add_vendor_spec_app_id();
   add(Diameter::AVP(dict->AUTH_SESSION_STATE).val_i32(1));
   add_origin();
   add(Diameter::AVP(dict->DESTINATION_HOST).val_str(dest_host));
@@ -398,22 +439,15 @@ ServerAssignmentAnswer::ServerAssignmentAnswer(const Dictionary* dict) :
 
 int ServerAssignmentAnswer::result_code() const
 {
-  int result_code = 0;
-  Diameter::AVP::iterator avps = begin(dict()->RESULT_CODE);
-  if (avps != end())
-  {
-    result_code = avps->val_i32();
-  }
-  return result_code;
+  return get_result_code();
+}
+
+int ServerAssignmentAnswer::experimental_result_code() const 
+{
+  return get_experimental_result_code();
 }
 
 std::string ServerAssignmentAnswer::user_data() const
 {
-  std::string user_data;
-  Diameter::AVP::iterator avps = begin(((Cx::Dictionary*)dict())->USER_DATA);
-  if (avps != end())
-  {
-    user_data = avps->val_str();
-  }
-  return user_data;
+  return get_str_from_avp(((Cx::Dictionary*)dict())->USER_DATA);
 }

@@ -244,6 +244,48 @@ Message::~Message()
   }
 }
 
+std::string Message::get_str_from_avp(const Dictionary::AVP& type) const
+{
+  std::string str;
+  AVP::iterator avps = begin(type);
+  if (avps != end())
+  {
+    str = avps->val_str();
+  }
+  return str; 
+}
+
+int Message::get_i32_from_avp(const Dictionary::AVP& type) const
+{
+  int i32 = 0;
+  AVP::iterator avps = begin(type);
+  if (avps != end())
+  {
+    i32 = avps->val_i32();
+  }
+  return i32;
+}
+
+int Message::get_result_code() const
+{
+  return get_i32_from_avp(dict()->RESULT_CODE);
+}
+
+int Message::get_experimental_result_code() const
+{
+  int experimental_result_code = 0;
+  AVP::iterator avps = begin(dict()->EXPERIMENTAL_RESULT);
+  if (avps != end())
+  {
+    avps = avps->begin(dict()->EXPERIMENTAL_RESULT_CODE);
+    if (avps != end())
+    {
+      experimental_result_code = avps->val_i32();
+    }
+  }
+  return experimental_result_code;
+}
+
 void Message::send()
 {
   fd_msg_send(&_msg, NULL, NULL);

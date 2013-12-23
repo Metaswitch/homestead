@@ -39,6 +39,7 @@
 
 #include "diameterstack.h"
 #include "authvector.h"
+#include "servercapabilities.h"
 
 namespace Cx
 {
@@ -96,11 +97,13 @@ public:
 class UserAuthorizationAnswer : public Diameter::Message
 {
 public:
-  UserAuthorizationAnswer(const Dictionary* dict,
-                          int result_code);
+  UserAuthorizationAnswer(const Dictionary* dict);
   inline UserAuthorizationAnswer(Diameter::Message& msg) : Diameter::Message(msg) {};
 
   int result_code() const;
+  int experimental_result_code() const;
+  std::string server_name() const;
+  ServerCapabilities server_capabilities() const;
 };
 
 
@@ -119,11 +122,13 @@ public:
 class LocationInfoAnswer : public Diameter::Message
 {
 public:
-  LocationInfoAnswer(const Dictionary* dict,
-                     int result_code);
+  LocationInfoAnswer(const Dictionary* dict);
   inline LocationInfoAnswer(Diameter::Message& msg) : Diameter::Message(msg) {};
 
   int result_code() const;
+  int experimental_result_code() const;
+  std::string server_name() const;
+  ServerCapabilities server_capabilities() const;
 };
 
 class MultimediaAuthRequest : public Diameter::Message
@@ -182,6 +187,7 @@ public:
   inline ServerAssignmentAnswer(Diameter::Message& msg) : Diameter::Message(msg) {};
 
   int result_code() const;
+  int experimental_result_code() const;
   std::string user_data() const;
 };
 };
