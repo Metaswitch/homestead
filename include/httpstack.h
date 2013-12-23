@@ -67,6 +67,7 @@ public:
     }
     void add_content(const std::string& content) {evbuffer_add(_req->buffer_out, content.c_str(), content.length());}
     void send_reply(int rc) {evhtp_send_reply(_req, rc);}
+
   private:
     evhtp_request_t* _req;
     std::string url_unescape(const std::string& s)
@@ -99,30 +100,35 @@ public:
   class Handler
   {
   public:
-    inline Handler(const std::string& path) : _path(path) {}
+    inline Handler(Request& req) : _req(req) {}
     virtual ~Handler() {}
-    inline const std::string path() const {return _path;}
-    virtual void handle(Request& req) = 0;
 
-  private:
-    std::string _path;
+    virtual void run() = 0;
+
+  protected:
+    Request _req;
   };
 
   static inline HttpStack* get_instance() {return INSTANCE;};
   void initialize();
   void configure(const std::string& bind_address, unsigned short port, int num_threads);
-  void register_handler(Handler* handler);
   void start();
   void stop();
   void wait_stopped();
+
+  template <class T>
+  static Handler* handler_factory(Request& req) { return new T(req); }
+
+  typedef Handler* (*handler_factory_t)(Request&);
+  void register_handler(char* path, handler_factory_t factory);
 
 private:
   static HttpStack* INSTANCE;
   static HttpStack DEFAULT_INSTANCE;
 
   HttpStack();
-  static void handler_callback_fn(evhtp_request_t* req, void* handler_ptr);
-  static void* event_base_thread_fn(void* http_stack_ptr); 
+  static void handler_callback_fn(evhtp_request_t* req, void* handler_factory);
+  static void* event_base_thread_fn(void* http_stack_ptr);
   void event_base_thread_fn();
 
   // Don't implement the following, to avoid copies of this instance.

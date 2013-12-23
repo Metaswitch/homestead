@@ -39,29 +39,66 @@
 #include "rapidjson/writer.h"
 #include "rapidjson/stringbuffer.h"
 
-void PingHandler::handle(HttpStack::Request& req)
+
+void PingHandler::run()
 {
-  req.add_content("OK");
-  req.send_reply(200);
+  _req.add_content("OK");
+  _req.send_reply(200);
+  delete this;
 }
 
-void DiameterHttpHandler::Transaction::on_timeout()
+
+Diameter::Stack* HssCacheHandler::_diameter_stack = NULL;
+std::string HssCacheHandler::_dest_realm;
+std::string HssCacheHandler::_dest_host;
+std::string HssCacheHandler::_server_name;
+Cx::Dictionary HssCacheHandler::_dict;
+
+void HssCacheHandler::configure_diameter(Diameter::Stack* diameter_stack,
+                                         const std::string& dest_realm,
+                                         const std::string& dest_host,
+                                         const std::string& server_name)
+{
+  _diameter_stack = diameter_stack;
+  _dest_realm = dest_realm;
+  _dest_host = dest_host;
+  _server_name = server_name;
+}
+
+
+void HssCacheHandler::on_diameter_timeout()
 {
   _req.send_reply(503);
+  delete this;
 }
 
-void ImpiDigestHandler::handle(HttpStack::Request& req)
+//
+// IMPI digest handling.
+//
+
+void ImpiDigestHandler::run()
 {
   const std::string prefix = "/impi/";
-  std::string path = req.path();
-  std::string impi = path.substr(prefix.length(), path.find_first_of("/", prefix.length()) - prefix.length());
-  std::string impu = req.param("public_id");
-  Cx::MultimediaAuthRequest* mar = new Cx::MultimediaAuthRequest(&_dict, _dest_realm, _dest_host, impi, impu, _server_name, "SIP Digest");
-  Transaction* tsx = new Transaction(&_dict, req);
+  std::string path = _req.path();
+
+  _impi = path.substr(prefix.length(), path.find_first_of("/", prefix.length()) - prefix.length());
+  _impu = _req.param("public_id");
+
+  Cx::MultimediaAuthRequest* mar =
+    new Cx::MultimediaAuthRequest(&_dict,
+                                  _dest_realm,
+                                  _dest_host,
+                                  _impi,
+                                  _impu,
+                                  _server_name,
+                                  "SIP Digest");
+  DiameterTransaction* tsx = new DiameterTransaction(&_dict, this);
+  tsx->set_response_clbk(&ImpiDigestHandler::on_mar_response);
   mar->send(tsx, 200);
 }
 
-void ImpiDigestHandler::Transaction::on_response(Diameter::Message& rsp)
+
+void ImpiDigestHandler::on_mar_response(Diameter::Message& rsp)
 {
   Cx::MultimediaAuthAnswer maa(rsp);
   switch (maa.result_code())
@@ -91,39 +128,64 @@ void ImpiDigestHandler::Transaction::on_response(Diameter::Message& rsp)
       _req.send_reply(500);
       break;
   }
+
+  delete this;
 }
 
-void ImpiAvHandler::handle(HttpStack::Request& req)
+//
+// IMPI AV handling.
+//
+
+void ImpiAvHandler::run()
 {
+  bool request_handled = false;
   const std::string prefix = "/impi/";
-  std::string path = req.path();
-  std::string impi = path.substr(prefix.length(), path.find_first_of("/", prefix.length()) - prefix.length());
-  std::string scheme = req.file();
-  if (scheme == "av")
+  std::string path = _req.path();
+
+  _impi = path.substr(prefix.length(), path.find_first_of("/", prefix.length()) - prefix.length());
+  _scheme = _req.file();
+  if (_scheme == "av")
   {
-    scheme = "unknown";
+    _scheme = "unknown";
   }
-  else if (scheme == "digest")
+  else if (_scheme == "digest")
   {
-    scheme = "SIP Digest";
+    _scheme = "SIP Digest";
   }
-  else if (scheme == "aka")
+  else if (_scheme == "aka")
   {
-    scheme = "Digest-AKAv1-MD5";
+    _scheme = "Digest-AKAv1-MD5";
   }
   else
   {
-    req.send_reply(404);
-    return;
+    _req.send_reply(404);
+    request_handled = true;
   }
-  std::string impu = req.param("impu");
-  std::string authorization = req.param("autn");
-  Cx::MultimediaAuthRequest* mar = new Cx::MultimediaAuthRequest(&_dict, _dest_realm, _dest_host, impi, impu, _server_name, scheme, authorization);
-  Transaction* tsx = new Transaction(&_dict, req);
-  mar->send(tsx, 200);
+  _impu = _req.param("impu");
+  _authorization = _req.param("autn");
+
+  if (!request_handled)
+  {
+    Cx::MultimediaAuthRequest* mar =
+      new Cx::MultimediaAuthRequest(&_dict,
+                                    _dest_realm,
+                                    _dest_host,
+                                    _impi,
+                                    _impu,
+                                    _server_name,
+                                    _scheme,
+                                    _authorization);
+    DiameterTransaction* tsx = new DiameterTransaction(&_dict, this);
+    tsx->set_response_clbk(&ImpiAvHandler::on_mar_response);
+    mar->send(tsx, 200);
+  }
+  else
+  {
+    delete this;
+  }
 }
 
-void ImpiAvHandler::Transaction::on_response(Diameter::Message& rsp)
+void ImpiAvHandler::on_mar_response(Diameter::Message& rsp)
 {
   Cx::MultimediaAuthAnswer maa(rsp);
   switch (maa.result_code())
@@ -198,20 +260,35 @@ void ImpiAvHandler::Transaction::on_response(Diameter::Message& rsp)
       _req.send_reply(500);
       break;
   }
+
+  delete this;
 }
 
-void ImpuIMSSubscriptionHandler::handle(HttpStack::Request& req)
+//
+// IMPU handling
+//
+
+void ImpuIMSSubscriptionHandler::run()
 {
   const std::string prefix = "/impu/";
-  std::string path = req.full_path();
-  std::string impu = path.substr(prefix.length());
-  std::string impi = req.param("private_id");
-  Cx::ServerAssignmentRequest* sar = new Cx::ServerAssignmentRequest(&_dict, _dest_host, _dest_realm, impi, impu, _server_name);
-  Transaction* tsx = new Transaction(&_dict, req);
+  std::string path = _req.full_path();
+
+  _impu = path.substr(prefix.length());
+  _impi = _req.param("private_id");
+
+  Cx::ServerAssignmentRequest* sar =
+    new Cx::ServerAssignmentRequest(&_dict,
+                                    _dest_host,
+                                    _dest_realm,
+                                    _impi,
+                                    _impu,
+                                    _server_name);
+  DiameterTransaction* tsx = new DiameterTransaction(&_dict, this);
+  tsx->set_response_clbk(&ImpuIMSSubscriptionHandler::on_sar_response);
   sar->send(tsx, 200);
 }
 
-void ImpuIMSSubscriptionHandler::Transaction::on_response(Diameter::Message& rsp)
+void ImpuIMSSubscriptionHandler::on_sar_response(Diameter::Message& rsp)
 {
   Cx::ServerAssignmentAnswer saa(rsp);
   switch (saa.result_code())

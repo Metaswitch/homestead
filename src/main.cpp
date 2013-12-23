@@ -42,6 +42,8 @@
 #include "httpstack.h"
 #include "handlers.h"
 
+#include "cache.h"
+
 struct options
 {
   std::string diameter_conf;
@@ -101,7 +103,7 @@ int init_options(int argc, char**argv, struct options& options)
       options.http_address = std::string(optarg);
       // TODO: Parse optional HTTP port.
       break;
-      
+
     case 'D':
       options.dest_realm = std::string(optarg);
       break;
@@ -175,18 +177,22 @@ int main(int argc, char**argv)
   }
 
   HttpStack* http_stack = HttpStack::get_instance();
-  PingHandler ping_handler;
-  ImpiDigestHandler impi_digest_handler(diameter_stack, options.dest_realm, options.dest_host, options.server_name);
-  ImpiAvHandler impi_av_handler(diameter_stack, options.dest_realm, options.dest_host, options.server_name);
-  ImpuIMSSubscriptionHandler impu_ims_subscription_handler(diameter_stack, options.dest_host, options.dest_realm, options.server_name);
+  HssCacheHandler::configure_diameter(diameter_stack,
+                                      options.dest_realm,
+                                      options.dest_host,
+                                      options.server_name);
   try
   {
     http_stack->initialize();
     http_stack->configure(options.http_address, options.http_port, 10);
-    http_stack->register_handler(&ping_handler);
-    http_stack->register_handler(&impi_digest_handler);
-    http_stack->register_handler(&impi_av_handler);
-    http_stack->register_handler(&impu_ims_subscription_handler);
+    http_stack->register_handler("^/ping$",
+                                 HttpStack::handler_factory<PingHandler>);
+    http_stack->register_handler("^/impi/[^/]*/digest$",
+                                 HttpStack::handler_factory<ImpiDigestHandler>);
+    http_stack->register_handler("^/impi/[^/]*/av",
+                                 HttpStack::handler_factory<ImpiDigestHandler>);
+    http_stack->register_handler("^/impu/",
+                                 HttpStack::handler_factory<ImpiDigestHandler>);
     http_stack->start();
   }
   catch (HttpStack::Exception& e)
@@ -194,7 +200,20 @@ int main(int argc, char**argv)
     fprintf(stderr, "Caught HttpStack::Exception - %s - %d\n", e._func, e._rc);
   }
 
+  Cache* cache = Cache::get_instance();
+  cache->initialize();
+  cache->configure("localhost", 9160, 10);
+  Cache::ResultCode rc = cache->start();
+
+  if (rc != Cache::ResultCode::OK)
+  {
+    fprintf(stderr, "Error starting cache: %d\n", rc);
+  }
+
   sem_wait(&term_sem);
+
+  cache->stop();
+  cache->wait_stopped();
 
   try
   {
