@@ -1,5 +1,5 @@
 /**
- * @file logger.h Fake logger impleementation.
+ * @file accesslogger.cpp
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2013  Metaswitch Networks Ltd
@@ -34,10 +34,28 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#define LOG_ERROR(...)
-#define LOG_WARNING(...)
-#define LOG_STATUS(...)
-#define LOG_INFO(...)
-#define LOG_VERBOSE(...)
-#define LOG_DEBUG(...)
-#define LOG_BACKTRACE(...)
+#include <stdio.h>
+
+#include "accesslogger.h"
+
+AccessLogger::AccessLogger(const std::string& directory)
+{
+  _logger = new Logger(directory, std::string("access"));
+  _logger->set_flags(Logger::ADD_TIMESTAMPS|Logger::FLUSH_ON_WRITE);
+}
+
+AccessLogger::~AccessLogger()
+{
+  delete _logger;
+}
+
+void AccessLogger::log(const std::string& uri,
+                       int rc)
+{
+  char buf[BUFFER_SIZE];
+  snprintf(buf, sizeof(buf),
+           "%d GET %s\n",
+           rc,
+           uri.c_str());
+  _logger->write(buf);
+}

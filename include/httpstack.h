@@ -42,6 +42,8 @@
 
 #include <evhtp.h>
 
+#include "accesslogger.h"
+
 class HttpStack
 {
 public:
@@ -56,7 +58,7 @@ public:
   class Request
   {
   public:
-    Request(evhtp_request_t* req) : _req(req) {}
+    Request(HttpStack* stack, evhtp_request_t* req) : _stack(stack), _req(req) {}
     inline std::string path() {return url_unescape(std::string(_req->uri->path->path));}
     inline std::string full_path() {return url_unescape(std::string(_req->uri->path->full));}
     inline std::string file() {return url_unescape(std::string(_req->uri->path->file));}
@@ -66,9 +68,10 @@ public:
       return url_unescape(std::string(param != NULL ? param : ""));
     }
     void add_content(const std::string& content) {evbuffer_add(_req->buffer_out, content.c_str(), content.length());}
-    void send_reply(int rc) {evhtp_send_reply(_req, rc);}
+    void send_reply(int rc) {_stack->log(std::string(_req->uri->path->full), rc); evhtp_send_reply(_req, rc);}
 
   private:
+    HttpStack* _stack;
     evhtp_request_t* _req;
     std::string url_unescape(const std::string& s)
     {
@@ -111,10 +114,21 @@ public:
 
   static inline HttpStack* get_instance() {return INSTANCE;};
   void initialize();
-  void configure(const std::string& bind_address, unsigned short port, int num_threads);
+  void configure(const std::string& bind_address,
+                 unsigned short port,
+                 int num_threads,
+                 AccessLogger* access_logger = NULL);
   void start();
   void stop();
   void wait_stopped();
+
+  void log(const std::string uri, int rc)
+  {
+    if (_access_logger)
+    {
+      _access_logger->log(uri, rc);
+    }
+  };
 
   template <class T>
   static Handler* handler_factory(Request& req) { return new T(req); }
@@ -138,6 +152,7 @@ private:
   std::string _bind_address;
   unsigned short _bind_port;
   int _num_threads;
+  AccessLogger* _access_logger;
   evbase_t* _evbase;
   evhtp_t* _evhtp;
   pthread_t _event_base_thread;

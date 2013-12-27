@@ -38,11 +38,13 @@
 #include <signal.h>
 #include <semaphore.h>
 
+#include "accesslogger.h"
+#include "cache.h"
 #include "diameterstack.h"
 #include "httpstack.h"
 #include "handlers.h"
-
-#include "cache.h"
+#include "log.h"
+#include "logger.h"
 
 struct options
 {
@@ -52,7 +54,12 @@ struct options
   std::string dest_realm;
   std::string dest_host;
   std::string server_name;
-};
+  bool access_log_enabled;
+  std::string access_log_directory;
+  bool log_to_file;
+  std::string log_directory;
+  int log_level;
+}; 
 
 void usage(void)
 {
@@ -64,8 +71,8 @@ void usage(void)
        " -D, --dest-realm <name>    Set Destination-Realm on Cx messages\n"
        " -d, --dest-host <name>     Set Destination-Host on Cx messages\n"
        " -s, --server-name <name>   Set Server-Name on Cx messages\n"
-       " -a, --analytics <directory>\n"
-       "                            Generate analytics logs in specified directory\n"
+       " -a, --access-log <directory>\n"
+       "                            Generate access logs in specified directory\n"
        " -F, --log-file <directory>\n"
        "                            Log to file in specified directory\n"
        " -L, --log-level N          Set log level to N (default: 4)\n"
@@ -82,7 +89,7 @@ int init_options(int argc, char**argv, struct options& options)
     {"dest-realm",    required_argument, NULL, 'D'},
     {"dest-host",     required_argument, NULL, 'd'},
     {"server-name",   required_argument, NULL, 's'},
-    {"analytics",     required_argument, NULL, 'a'},
+    {"access-log",    required_argument, NULL, 'a'},
     {"log-file",      required_argument, NULL, 'F'},
     {"log-level",     required_argument, NULL, 'L'},
     {"help",          no_argument,       NULL, 'h'},
@@ -117,9 +124,17 @@ int init_options(int argc, char**argv, struct options& options)
       break;
 
     case 'a':
+      options.access_log_enabled = true;
+      options.access_log_directory = std::string(optarg);
+      break;
+
     case 'F':
+      options.log_to_file = true;
+      options.log_directory = std::string(optarg);
+      break;
+
     case 'L':
-      // TODO: Implement.
+      options.log_level = atoi(optarg);
       break;
 
     case 'h':
@@ -153,10 +168,31 @@ int main(int argc, char**argv)
   options.dest_realm = "dest-realm.unknown";
   options.dest_host = "dest-host.unknown";
   options.server_name = "sip:server-name.unknown";
+  options.access_log_enabled = false;
+  options.log_to_file = false;
+  options.log_level = 0;
 
   if (init_options(argc, argv, options) != 0)
   {
     return 1;
+  }
+
+  Log::setLoggingLevel(options.log_level);
+  if ((options.log_to_file) && (options.log_directory != ""))
+  {
+    // Work out the program name from argv[0], stripping anything before the final slash.
+    char* prog_name = argv[0];
+    char* slash_ptr = rindex(argv[0], '/');
+    if (slash_ptr != NULL) {
+      prog_name = slash_ptr + 1;
+    }
+    Log::setLogger(new Logger(options.log_directory, prog_name));
+  }
+
+  AccessLogger* access_logger = NULL;
+  if (options.access_log_enabled)
+  {
+    access_logger = new AccessLogger(options.access_log_directory);
   }
 
   sem_init(&term_sem, 0, 0);
@@ -197,7 +233,7 @@ int main(int argc, char**argv)
   try
   {
     http_stack->initialize();
-    http_stack->configure(options.http_address, options.http_port, 10);
+    http_stack->configure(options.http_address, options.http_port, 10, access_logger);
     http_stack->register_handler("^/ping$",
                                  HttpStack::handler_factory<PingHandler>);
     http_stack->register_handler("^/impi/[^/]*/digest$",

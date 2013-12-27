@@ -22,3 +22,6 @@
 [submodule "modules/libevhtp"]
 	path = modules/libevhtp
 	url = https://github.com/ellzey/libevhtp
+[submodule "modules/cpp-common"]
+	path = modules/cpp-common
+	url = git@github.com:Metaswitch/cpp-common.git

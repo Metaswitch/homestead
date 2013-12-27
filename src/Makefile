@@ -11,11 +11,14 @@ GMOCK_DIR := $(ROOT)/modules/gmock
 TARGET := homestead
 TARGET_TEST := homestead_test
 
-TARGET_SOURCES := cache.cpp \
+TARGET_SOURCES := accesslogger.cpp \
+                  cache.cpp \
                   cx.cpp \
                   diameterstack.cpp \
                   handlers.cpp \
-                  httpstack.cpp
+                  httpstack.cpp \
+                  log.cpp \
+                  logger.cpp
 
 TARGET_SOURCES_BUILD := main.cpp
 
@@ -47,7 +50,11 @@ CPPFLAGS += -Wno-write-strings \
             -ggdb3 -std=c++0x
 CPPFLAGS += -I${ROOT}/include \
             -I${ROOT}/usr/include \
+            -I${ROOT}/modules/cpp-common/include \
             -I${ROOT}/modules/rapidjson/include
+
+# Add cpp-common/src as VPATH so build will find modules there.
+VPATH = ${ROOT}/modules/cpp-common/src
 
 # Production build:
 #

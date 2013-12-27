@@ -55,11 +55,15 @@ void HttpStack::initialize()
   }
 }
 
-void HttpStack::configure(const std::string& bind_address, unsigned short bind_port, int num_threads)
+void HttpStack::configure(const std::string& bind_address,
+                          unsigned short bind_port,
+                          int num_threads,
+                          AccessLogger* access_logger)
 {
   _bind_address = bind_address;
   _bind_port = bind_port;
   _num_threads = num_threads;
+  _access_logger = access_logger;
 }
 
 void HttpStack::register_handler(char* path, handler_factory_t factory)
@@ -107,7 +111,7 @@ void HttpStack::wait_stopped()
 
 void HttpStack::handler_callback_fn(evhtp_request_t* req, void* handler_factory)
 {
-  Request request(req);
+  Request request(INSTANCE, req);
   Handler* handler = ((handler_factory_t)handler_factory)(request);
   handler->run();
 }

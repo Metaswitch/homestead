@@ -35,6 +35,7 @@
  */
 
 #include "diameterstack.h"
+#include "log.h"
 
 using namespace Diameter;
 
@@ -59,6 +60,11 @@ void Stack::initialize()
     if (rc != 0)
     {
       throw Exception("fd_core_initialize", rc);
+    }
+    rc = fd_log_handler_register(Stack::logger);
+    if (rc != 0)
+    {
+      throw Exception("fd_log_handler_register", rc);
     }
     _initialized = true;
   }
@@ -118,6 +124,35 @@ void Stack::wait_stopped()
   }
 }
 
+void Stack::logger(int fd_log_level, const char* fmt, va_list args)
+{
+  // freeDiameter log levels run from 1 (debug) to 6 (fatal).  (It also defines 0 for "annoying"
+  // logs that are only compiled into debug builds, which we don't use.)  See libfdproto.h for
+  // details.
+  //
+  // Our logger uses levels 0 (error) to 5 (debug).
+  //
+  // Map between the two.
+  int log_level;
+  switch (fd_log_level)
+  {
+    case FD_LOG_FATAL:
+    case FD_LOG_ERROR:
+      log_level = Log::ERROR_LEVEL;
+      break;
+
+    case FD_LOG_NOTICE:
+      log_level = Log::STATUS_LEVEL;
+      break;
+
+    case FD_LOG_DEBUG:
+    case FD_LOG_ANNOYING:
+    default:
+      log_level = Log::DEBUG_LEVEL;
+      break;
+  }
+  Log::_write(log_level, "freeDiameter", 0, fmt, args);
+}
 
 struct dict_object* Dictionary::Vendor::find(const std::string vendor)
 {
