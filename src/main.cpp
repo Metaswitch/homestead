@@ -39,12 +39,12 @@
 #include <semaphore.h>
 
 #include "accesslogger.h"
-#include "cache.h"
 #include "diameterstack.h"
 #include "httpstack.h"
 #include "handlers.h"
 #include "log.h"
 #include "logger.h"
+#include "cache.h"
 
 struct options
 {
