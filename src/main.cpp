@@ -203,7 +203,7 @@ int main(int argc, char**argv)
     http_stack->register_handler("^/impi/[^/]*/digest$",
                                  HttpStack::handler_factory<ImpiDigestHandler>);
     http_stack->register_handler("^/impi/[^/]*/av",
-                                 HttpStack::handler_factory<ImpiDigestHandler>);
+                                 HttpStack::handler_factory<ImpiAvHandler>);
     http_stack->register_handler("^/impu/",
                                  HttpStack::handler_factory<ImpuIMSSubscriptionHandler>);
     http_stack->start();

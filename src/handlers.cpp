@@ -79,18 +79,62 @@ void HssCacheHandler::on_diameter_timeout()
   delete this;
 }
 
-//
-// IMPI digest handling.
-//
+// General IMPI handling.
 
-void ImpiDigestHandler::run()
+void ImpiHandler::run()
 {
-  const std::string prefix = "/impi/";
-  std::string path = _req.path();
+  if (parse_request())
+  {
+    // TODO: Decide how this is enabled - we never actually cache this, so the only reason for a lookup is for non-HSS operation.
+    if (true)
+    {
+      query_cache();
+    }
+    else
+    {
+      send_mar();
+    }
+  }
+  else
+  {
+    _req.send_reply(404);
+    delete this;
+  }
+}
 
-  _impi = path.substr(prefix.length(), path.find_first_of("/", prefix.length()) - prefix.length());
-  _impu = _req.param("public_id");
+void ImpiHandler::query_cache()
+{
+  Cache::Request* get_av = new Cache::GetAuthVector(_impi, _impu);
+  CacheTransaction* tsx = new CacheTransaction(get_av, this);
+  tsx->set_success_clbk(&ImpiHandler::on_get_av_success);
+  tsx->set_failure_clbk(&ImpiHandler::on_get_av_failure);
+  _cache->send(tsx);
+}
 
+void ImpiHandler::on_get_av_success(Cache::Request* request)
+{
+  Cache::GetAuthVector* get_av = (Cache::GetAuthVector*)request;
+  DigestAuthVector av;
+  get_av->get_result(av);
+  send_reply(av);
+  delete this;
+}
+
+void ImpiHandler::on_get_av_failure(Cache::Request* request, Cache::ResultCode error, std::string& text)
+{
+  if (error == Cache::ResultCode::NOT_FOUND)
+  {
+    send_mar();
+  }
+  else
+  {
+    _req.send_reply(502);
+    delete this;
+  }
+}
+
+void ImpiHandler::send_mar()
+{
   Cx::MultimediaAuthRequest* mar =
     new Cx::MultimediaAuthRequest(_dict,
                                   _dest_realm,
@@ -98,34 +142,33 @@ void ImpiDigestHandler::run()
                                   _impi,
                                   _impu,
                                   _server_name,
-                                  "SIP Digest");
+                                  _scheme,
+                                  _authorization);
   DiameterTransaction* tsx = new DiameterTransaction(_dict, this);
-  tsx->set_response_clbk(&ImpiDigestHandler::on_mar_response);
+  tsx->set_response_clbk(&ImpiHandler::on_mar_response);
   mar->send(tsx, 200);
 }
 
-
-void ImpiDigestHandler::on_mar_response(Diameter::Message& rsp)
+void ImpiHandler::on_mar_response(Diameter::Message& rsp)
 {
   Cx::MultimediaAuthAnswer maa(rsp);
   switch (maa.result_code())
   {
     case 2001:
-      if (maa.sip_auth_scheme() == "SIP Digest")
       {
-        DigestAuthVector digest_auth_vector = maa.digest_auth_vector();
-        rapidjson::StringBuffer sb;
-        rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
-        writer.StartObject();
-        writer.String("digest_ha1");
-        writer.String(digest_auth_vector.ha1.c_str());
-        writer.EndObject();
-        _req.add_content(sb.GetString());
-        _req.send_reply(200);
-      }
-      else
-      {
-        _req.send_reply(404);
+        std::string sip_auth_scheme = maa.sip_auth_scheme();
+        if (sip_auth_scheme == "SIP Digest")
+        {
+          send_reply(maa.digest_auth_vector());
+        }
+        else if (sip_auth_scheme == "Digest-AKAv1-MD5")
+        {
+          send_reply(maa.aka_auth_vector());
+        }
+        else
+        {
+          _req.send_reply(404);
+        }
       }
       break;
     case 5001:
@@ -140,12 +183,46 @@ void ImpiDigestHandler::on_mar_response(Diameter::Message& rsp)
 }
 
 //
+// IMPI digest handling.
+//
+
+bool ImpiDigestHandler::parse_request()
+{
+  const std::string prefix = "/impi/";
+  std::string path = _req.path();
+
+  _impi = path.substr(prefix.length(), path.find_first_of("/", prefix.length()) - prefix.length());
+  _impu = _req.param("public_id");
+  _scheme = "SIP Digest";
+  _authorization = "";
+
+  return true;
+}
+
+void ImpiDigestHandler::send_reply(const DigestAuthVector& av)
+{
+  rapidjson::StringBuffer sb;
+  rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
+  writer.StartObject();
+  writer.String("digest_ha1");
+  writer.String(av.ha1.c_str());
+  writer.EndObject();
+  _req.add_content(sb.GetString());
+  _req.send_reply(200);
+}
+
+void ImpiDigestHandler::send_reply(const AKAAuthVector& av)
+{
+  // It is an error to request AKA authentication through the digest URL.
+  _req.send_reply(404);
+}
+
+//
 // IMPI AV handling.
 //
 
-void ImpiAvHandler::run()
+bool ImpiAvHandler::parse_request()
 {
-  bool request_handled = false;
   const std::string prefix = "/impi/";
   std::string path = _req.path();
 
@@ -165,110 +242,64 @@ void ImpiAvHandler::run()
   }
   else
   {
-    _req.send_reply(404);
-    request_handled = true;
+    return false;
   }
   _impu = _req.param("impu");
   _authorization = _req.param("autn");
 
-  if (!request_handled)
-  {
-    Cx::MultimediaAuthRequest* mar =
-      new Cx::MultimediaAuthRequest(_dict,
-                                    _dest_realm,
-                                    _dest_host,
-                                    _impi,
-                                    _impu,
-                                    _server_name,
-                                    _scheme,
-                                    _authorization);
-    DiameterTransaction* tsx = new DiameterTransaction(_dict, this);
-    tsx->set_response_clbk(&ImpiAvHandler::on_mar_response);
-    mar->send(tsx, 200);
-  }
-  else
-  {
-    delete this;
-  }
+  return true;
 }
 
-void ImpiAvHandler::on_mar_response(Diameter::Message& rsp)
+void ImpiAvHandler::send_reply(const DigestAuthVector& av)
 {
-  Cx::MultimediaAuthAnswer maa(rsp);
-  switch (maa.result_code())
+  rapidjson::StringBuffer sb;
+  rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
+
+  writer.StartObject();
   {
-    case 2001:
-      {
-        std::string sip_auth_scheme = maa.sip_auth_scheme();
-        if (sip_auth_scheme == "SIP Digest")
-        {
-          DigestAuthVector digest_auth_vector = maa.digest_auth_vector();
-          digest_auth_vector.qop = (!digest_auth_vector.qop.empty()) ? digest_auth_vector.qop : "auth";
-
-          rapidjson::StringBuffer sb;
-          rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
-
-          writer.StartObject();
-          {
-            writer.String("digest");
-            writer.StartObject();
-            {
-              writer.String("ha1");
-              writer.String(digest_auth_vector.ha1.c_str());
-              writer.String("realm");
-              writer.String(digest_auth_vector.realm.c_str());
-              writer.String("qop");
-              writer.String(digest_auth_vector.qop.c_str());
-            }
-            writer.EndObject();
-          }
-          writer.EndObject();
-
-          _req.add_content(sb.GetString());
-          _req.send_reply(200);
-        }
-        else if (sip_auth_scheme == "Digest-AKAv1-MD5")
-        {
-          AKAAuthVector aka_auth_vector = maa.aka_auth_vector();
-          rapidjson::StringBuffer sb;
-          rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
-
-          writer.StartObject();
-          {
-            writer.String("aka");
-            writer.StartObject();
-            {
-              writer.String("challenge");
-              writer.String(aka_auth_vector.challenge.c_str());
-              writer.String("response");
-              writer.String(aka_auth_vector.response.c_str());
-              writer.String("cryptkey");
-              writer.String(aka_auth_vector.crypt_key.c_str());
-              writer.String("integritykey");
-              writer.String(aka_auth_vector.integrity_key.c_str());
-            }
-            writer.EndObject();
-          }
-          writer.EndObject();
-
-          _req.add_content(sb.GetString());
-          _req.send_reply(200);
-        }
-        else
-        {
-          _req.send_reply(404);
-        }
-      }
-      break;
-    case 5001:
-      _req.send_reply(404);
-      break;
-    default:
-      _req.send_reply(500);
-      break;
+    writer.String("digest");
+    writer.StartObject();
+    {
+      writer.String("ha1");
+      writer.String(av.ha1.c_str());
+      writer.String("realm");
+      writer.String(av.realm.c_str());
+      writer.String("qop");
+      writer.String(av.qop.c_str());
+    }
+    writer.EndObject();
   }
+  writer.EndObject();
 
-  delete this;
+  _req.add_content(sb.GetString());
+  _req.send_reply(200);
+}
+
+void ImpiAvHandler::send_reply(const AKAAuthVector& av)
+{
+  rapidjson::StringBuffer sb;
+  rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
+
+  writer.StartObject();
+  {
+    writer.String("aka");
+    writer.StartObject();
+    {
+      writer.String("challenge");
+      writer.String(av.challenge.c_str());
+      writer.String("response");
+      writer.String(av.response.c_str());
+      writer.String("cryptkey");
+      writer.String(av.crypt_key.c_str());
+      writer.String("integritykey");
+      writer.String(av.integrity_key.c_str());
+    }
+    writer.EndObject();
+  }
+  writer.EndObject();
+
+  _req.add_content(sb.GetString());
+  _req.send_reply(200);
 }
 
 //

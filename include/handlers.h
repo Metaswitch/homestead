@@ -166,41 +166,54 @@ protected:
   static Cache* _cache;
 };
 
-class ImpiDigestHandler : public HssCacheHandler
+class ImpiHandler : public HssCacheHandler
 {
 public:
-  ImpiDigestHandler(HttpStack::Request& req) :
-    HssCacheHandler(req), _impi(), _impu()
-  {}
-
-  void run();
-  void on_mar_response(Diameter::Message& rsp);
-
-  typedef HssCacheHandler::DiameterTransaction<ImpiDigestHandler> DiameterTransaction;
-
-private:
-  std::string _impi;
-  std::string _impu;
-};
-
-
-class ImpiAvHandler : public HssCacheHandler
-{
-public:
-  ImpiAvHandler(HttpStack::Request& req) :
+  ImpiHandler(HttpStack::Request& req) :
     HssCacheHandler(req), _impi(), _impu(), _scheme(), _authorization()
   {}
 
   void run();
+  virtual bool parse_request() = 0;
+  void query_cache();
+  void on_get_av_success(Cache::Request* request);
+  void on_get_av_failure(Cache::Request* request, Cache::ResultCode error, std::string& text);
+  void send_mar();
   void on_mar_response(Diameter::Message& rsp);
+  virtual void send_reply(const DigestAuthVector& av) = 0;
+  virtual void send_reply(const AKAAuthVector& av) = 0;
 
-  typedef HssCacheHandler::DiameterTransaction<ImpiAvHandler> DiameterTransaction;
+  typedef HssCacheHandler::CacheTransaction<ImpiHandler> CacheTransaction;
+  typedef HssCacheHandler::DiameterTransaction<ImpiHandler> DiameterTransaction;
 
-private:
+protected:
   std::string _impi;
   std::string _impu;
   std::string _scheme;
   std::string _authorization;
+};
+
+class ImpiDigestHandler : public ImpiHandler
+{
+public:
+  ImpiDigestHandler(HttpStack::Request& req) : ImpiHandler(req)
+  {}
+
+  bool parse_request();
+  void send_reply(const DigestAuthVector& av);
+  void send_reply(const AKAAuthVector& av);
+};
+
+
+class ImpiAvHandler : public ImpiHandler
+{
+public:
+  ImpiAvHandler(HttpStack::Request& req) : ImpiHandler(req)
+  {}
+
+  bool parse_request();
+  void send_reply(const DigestAuthVector& av);
+  void send_reply(const AKAAuthVector& av);
 };
 
 
@@ -212,12 +225,12 @@ public:
   {}
 
   void run();
-  void on_get_ims_subscription_success(Cache::Request*);
-  void on_get_ims_subscription_failure(Cache::Request*, Cache::ResultCode, std::string& error);
+  void on_get_ims_subscription_success(Cache::Request* request);
+  void on_get_ims_subscription_failure(Cache::Request* request, Cache::ResultCode error, std::string& text);
   void on_sar_response(Diameter::Message& rsp);
 
-  typedef HssCacheHandler::DiameterTransaction<ImpuIMSSubscriptionHandler> DiameterTransaction;
   typedef HssCacheHandler::CacheTransaction<ImpuIMSSubscriptionHandler> CacheTransaction;
+  typedef HssCacheHandler::DiameterTransaction<ImpuIMSSubscriptionHandler> DiameterTransaction;
 
 private:
   std::string _impi;
