@@ -222,6 +222,8 @@ public:
 private:
   std::string _impi;
   std::string _impu;
+
+  static std::vector<std::string> get_public_ids(const std::string& user_data);
 };
 
 #endif

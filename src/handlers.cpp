@@ -38,7 +38,7 @@
 
 #include "rapidjson/writer.h"
 #include "rapidjson/stringbuffer.h"
-
+#include "rapidxml/rapidxml.hpp"
 
 void PingHandler::run()
 {
@@ -333,10 +333,14 @@ void ImpuIMSSubscriptionHandler::on_sar_response(Diameter::Message& rsp)
         _req.add_content(user_data);
         _req.send_reply(200);
 
-        // TODO: Make TTL configurable.
-        Cache::Request* put_ims_sub = new Cache::PutIMSSubscription(_impu, user_data, Cache::generate_timestamp(), 3600);
-        CacheTransaction* tsx = new CacheTransaction(put_ims_sub, this);
-        _cache->send(tsx);
+        std::vector<std::string> public_ids = get_public_ids(user_data);
+        if (!public_ids.empty())
+        {
+          // TODO: Make TTL configurable.
+          Cache::Request* put_ims_sub = new Cache::PutIMSSubscription(public_ids, user_data, Cache::generate_timestamp(), 3600);
+          CacheTransaction* tsx = new CacheTransaction(put_ims_sub, NULL);
+          _cache->send(tsx);
+        }
       }
       break;
     case 5001:
@@ -347,4 +351,49 @@ void ImpuIMSSubscriptionHandler::on_sar_response(Diameter::Message& rsp)
       break;
   }
   delete this;
+}
+
+std::vector<std::string> ImpuIMSSubscriptionHandler::get_public_ids(const std::string& user_data)
+{
+  std::vector<std::string> public_ids;
+
+  // Parse the XML document, saving off the passed-in string first (as parsing
+  // is destructive).
+  rapidxml::xml_document<> doc;
+  char* user_data_str = doc.allocate_string(user_data.c_str());
+
+  try
+  {
+    doc.parse<rapidxml::parse_strip_xml_namespaces>(user_data_str);
+  }
+  catch (rapidxml::parse_error err)
+  {
+    LOG_ERROR("Parse error in IMS Subscription document: %s\n\n%s", err.what(), user_data.c_str());
+    doc.clear();
+  }
+
+  // Walk through all nodes in the hierarchy IMSSubscription->ServiceProfile->PublicIdentity
+  // ->Identity.
+  rapidxml::xml_node<>* is = doc.first_node("IMSSubscription");
+  if (is)
+  {
+    for (rapidxml::xml_node<>* sp = is->first_node("ServiceProfile");
+         sp;
+         sp = is->next_sibling("ServiceProfile"))
+    {
+      for (rapidxml::xml_node<>* pi = sp->first_node("PublicIdentity");
+           pi;
+           pi = sp->next_sibling("PublicIdentity"))
+      {
+        for (rapidxml::xml_node<>* id = pi->first_node("Identity");
+             id;
+             id = pi->next_sibling("Identity"))
+        {
+          public_ids.push_back((std::string)id->value());
+        }
+      }
+    }
+  }
+  
+  return public_ids;
 }
