@@ -52,19 +52,26 @@ Diameter::Stack* HssCacheHandler::_diameter_stack = NULL;
 std::string HssCacheHandler::_dest_realm;
 std::string HssCacheHandler::_dest_host;
 std::string HssCacheHandler::_server_name;
-Cx::Dictionary HssCacheHandler::_dict;
+Cx::Dictionary* HssCacheHandler::_dict;
+Cache* HssCacheHandler::_cache = NULL;
 
 void HssCacheHandler::configure_diameter(Diameter::Stack* diameter_stack,
                                          const std::string& dest_realm,
                                          const std::string& dest_host,
-                                         const std::string& server_name)
+                                         const std::string& server_name,
+                                         Cx::Dictionary* dict)
 {
   _diameter_stack = diameter_stack;
   _dest_realm = dest_realm;
   _dest_host = dest_host;
   _server_name = server_name;
+  _dict = dict;
 }
 
+void HssCacheHandler::configure_cache(Cache* cache)
+{
+  _cache = cache;
+}
 
 void HssCacheHandler::on_diameter_timeout()
 {
@@ -85,14 +92,14 @@ void ImpiDigestHandler::run()
   _impu = _req.param("public_id");
 
   Cx::MultimediaAuthRequest* mar =
-    new Cx::MultimediaAuthRequest(&_dict,
+    new Cx::MultimediaAuthRequest(_dict,
                                   _dest_realm,
                                   _dest_host,
                                   _impi,
                                   _impu,
                                   _server_name,
                                   "SIP Digest");
-  DiameterTransaction* tsx = new DiameterTransaction(&_dict, this);
+  DiameterTransaction* tsx = new DiameterTransaction(_dict, this);
   tsx->set_response_clbk(&ImpiDigestHandler::on_mar_response);
   mar->send(tsx, 200);
 }
@@ -167,7 +174,7 @@ void ImpiAvHandler::run()
   if (!request_handled)
   {
     Cx::MultimediaAuthRequest* mar =
-      new Cx::MultimediaAuthRequest(&_dict,
+      new Cx::MultimediaAuthRequest(_dict,
                                     _dest_realm,
                                     _dest_host,
                                     _impi,
@@ -175,7 +182,7 @@ void ImpiAvHandler::run()
                                     _server_name,
                                     _scheme,
                                     _authorization);
-    DiameterTransaction* tsx = new DiameterTransaction(&_dict, this);
+    DiameterTransaction* tsx = new DiameterTransaction(_dict, this);
     tsx->set_response_clbk(&ImpiAvHandler::on_mar_response);
     mar->send(tsx, 200);
   }
@@ -276,16 +283,43 @@ void ImpuIMSSubscriptionHandler::run()
   _impu = path.substr(prefix.length());
   _impi = _req.param("private_id");
 
-  Cx::ServerAssignmentRequest* sar =
-    new Cx::ServerAssignmentRequest(&_dict,
-                                    _dest_host,
-                                    _dest_realm,
-                                    _impi,
-                                    _impu,
-                                    _server_name);
-  DiameterTransaction* tsx = new DiameterTransaction(&_dict, this);
-  tsx->set_response_clbk(&ImpuIMSSubscriptionHandler::on_sar_response);
-  sar->send(tsx, 200);
+  Cache::Request* get_ims_sub = new Cache::GetIMSSubscription(_impu);
+  CacheTransaction* tsx = new CacheTransaction(get_ims_sub, this);
+  tsx->set_success_clbk(&ImpuIMSSubscriptionHandler::on_get_ims_subscription_success);
+  tsx->set_failure_clbk(&ImpuIMSSubscriptionHandler::on_get_ims_subscription_failure);
+  _cache->send(tsx);
+}
+
+void ImpuIMSSubscriptionHandler::on_get_ims_subscription_success(Cache::Request* request)
+{
+  Cache::GetIMSSubscription* get_ims_sub = (Cache::GetIMSSubscription*)request;
+  std::string xml;
+  get_ims_sub->get_result(xml);
+  _req.add_content(xml);
+  _req.send_reply(200);
+  delete this;
+}
+
+void ImpuIMSSubscriptionHandler::on_get_ims_subscription_failure(Cache::Request* request, Cache::ResultCode error, std::string& text)
+{
+  if (error == Cache::ResultCode::NOT_FOUND)
+  {
+    Cx::ServerAssignmentRequest* sar =
+      new Cx::ServerAssignmentRequest(_dict,
+                                      _dest_host,
+                                      _dest_realm,
+                                      _impi,
+                                      _impu,
+                                      _server_name);
+    DiameterTransaction* tsx = new DiameterTransaction(_dict, this);
+    tsx->set_response_clbk(&ImpuIMSSubscriptionHandler::on_sar_response);
+    sar->send(tsx, 200);
+  }
+  else
+  {
+    _req.send_reply(502);
+    delete this;
+  }
 }
 
 void ImpuIMSSubscriptionHandler::on_sar_response(Diameter::Message& rsp)
@@ -298,6 +332,11 @@ void ImpuIMSSubscriptionHandler::on_sar_response(Diameter::Message& rsp)
         std::string user_data = saa.user_data();
         _req.add_content(user_data);
         _req.send_reply(200);
+
+        // TODO: Make TTL configurable.
+        Cache::Request* put_ims_sub = new Cache::PutIMSSubscription(_impu, user_data, Cache::generate_timestamp(), 3600);
+        CacheTransaction* tsx = new CacheTransaction(put_ims_sub, this);
+        _cache->send(tsx);
       }
       break;
     case 5001:
@@ -307,4 +346,5 @@ void ImpuIMSSubscriptionHandler::on_sar_response(Diameter::Message& rsp)
       _req.send_reply(500);
       break;
   }
+  delete this;
 }

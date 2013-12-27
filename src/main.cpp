@@ -163,41 +163,18 @@ int main(int argc, char**argv)
   signal(SIGTERM, terminate_handler);
 
   Diameter::Stack* diameter_stack = Diameter::Stack::get_instance();
+  Cx::Dictionary* dict = NULL;
   try
   {
     diameter_stack->initialize();
     diameter_stack->configure(options.diameter_conf);
-    Cx::Dictionary dict;
-    diameter_stack->advertize_application(dict.CX);
+    dict = new Cx::Dictionary();
+    diameter_stack->advertize_application(dict->CX);
     diameter_stack->start();
   }
   catch (Diameter::Stack::Exception& e)
   {
     fprintf(stderr, "Caught Diameter::Stack::Exception - %s - %d\n", e._func, e._rc);
-  }
-
-  HttpStack* http_stack = HttpStack::get_instance();
-  HssCacheHandler::configure_diameter(diameter_stack,
-                                      options.dest_realm,
-                                      options.dest_host,
-                                      options.server_name);
-  try
-  {
-    http_stack->initialize();
-    http_stack->configure(options.http_address, options.http_port, 10);
-    http_stack->register_handler("^/ping$",
-                                 HttpStack::handler_factory<PingHandler>);
-    http_stack->register_handler("^/impi/[^/]*/digest$",
-                                 HttpStack::handler_factory<ImpiDigestHandler>);
-    http_stack->register_handler("^/impi/[^/]*/av",
-                                 HttpStack::handler_factory<ImpiDigestHandler>);
-    http_stack->register_handler("^/impu/",
-                                 HttpStack::handler_factory<ImpiDigestHandler>);
-    http_stack->start();
-  }
-  catch (HttpStack::Exception& e)
-  {
-    fprintf(stderr, "Caught HttpStack::Exception - %s - %d\n", e._func, e._rc);
   }
 
   Cache* cache = Cache::get_instance();
@@ -210,10 +187,33 @@ int main(int argc, char**argv)
     fprintf(stderr, "Error starting cache: %d\n", rc);
   }
 
-  sem_wait(&term_sem);
+  HttpStack* http_stack = HttpStack::get_instance();
+  HssCacheHandler::configure_diameter(diameter_stack,
+                                      options.dest_realm,
+                                      options.dest_host,
+                                      options.server_name,
+                                      dict);
+  HssCacheHandler::configure_cache(cache);
+  try
+  {
+    http_stack->initialize();
+    http_stack->configure(options.http_address, options.http_port, 10);
+    http_stack->register_handler("^/ping$",
+                                 HttpStack::handler_factory<PingHandler>);
+    http_stack->register_handler("^/impi/[^/]*/digest$",
+                                 HttpStack::handler_factory<ImpiDigestHandler>);
+    http_stack->register_handler("^/impi/[^/]*/av",
+                                 HttpStack::handler_factory<ImpiDigestHandler>);
+    http_stack->register_handler("^/impu/",
+                                 HttpStack::handler_factory<ImpuIMSSubscriptionHandler>);
+    http_stack->start();
+  }
+  catch (HttpStack::Exception& e)
+  {
+    fprintf(stderr, "Caught HttpStack::Exception - %s - %d\n", e._func, e._rc);
+  }
 
-  cache->stop();
-  cache->wait_stopped();
+  sem_wait(&term_sem);
 
   try
   {
@@ -225,6 +225,9 @@ int main(int argc, char**argv)
     fprintf(stderr, "Caught HttpStack::Exception - %s - %d\n", e._func, e._rc);
   }
 
+  cache->stop();
+  cache->wait_stopped();
+
   try
   {
     diameter_stack->stop();
@@ -234,6 +237,7 @@ int main(int argc, char**argv)
   {
     fprintf(stderr, "Caught Diameter::Stack::Exception - %s - %d\n", e._func, e._rc);
   }
+  delete dict;
 
   signal(SIGTERM, SIG_DFL);
   sem_destroy(&term_sem);

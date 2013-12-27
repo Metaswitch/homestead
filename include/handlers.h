@@ -41,6 +41,7 @@
 
 #include "cx.h"
 #include "diameterstack.h"
+#include "cache.h"
 #include "httpstack.h"
 
 class PingHandler : public HttpStack::Handler
@@ -58,7 +59,9 @@ public:
   static void configure_diameter(Diameter::Stack* diameter_stack,
                                  const std::string& dest_realm,
                                  const std::string& dest_host,
-                                 const std::string& server_name);
+                                 const std::string& server_name,
+                                 Cx::Dictionary* dict);
+  static void configure_cache(Cache* cache);
 
   void on_diameter_timeout();
 
@@ -103,7 +106,53 @@ public:
     {
       if ((_handler != NULL) && (_response_clbk != NULL))
       {
-        boost::bind(_response_clbk, _handler, rsp);
+        boost::bind(_response_clbk, _handler, rsp)();
+      }
+    }
+  };
+
+  template <class H>
+  class CacheTransaction : public Cache::Transaction
+  {
+  public:
+    CacheTransaction(Cache::Request* request, H* handler) :
+      Cache::Transaction(request),
+      _handler(handler),
+      _success_clbk(NULL),
+      _failure_clbk(NULL)
+    {};
+
+    typedef void(H::*success_clbk_t)(Cache::Request*);
+    typedef void(H::*failure_clbk_t)(Cache::Request*, Cache::ResultCode, std::string&);
+
+    void set_success_clbk(success_clbk_t fun)
+    {
+      _success_clbk = fun;
+    }
+
+    void set_failure_clbk(failure_clbk_t fun)
+    {
+      _failure_clbk = fun;
+    }
+
+  protected:
+    H* _handler;
+    success_clbk_t _success_clbk;
+    failure_clbk_t _failure_clbk;
+
+    void on_success()
+    {
+      if ((_handler != NULL) && (_success_clbk != NULL))
+      {
+        boost::bind(_success_clbk, _handler, _req)();
+      }
+    }
+
+    void on_failure(Cache::ResultCode error, std::string& text)
+    {
+      if ((_handler != NULL) && (_failure_clbk != NULL))
+      {
+        boost::bind(_failure_clbk, _handler, _req, error, text)();
       }
     }
   };
@@ -113,7 +162,8 @@ protected:
   static std::string _dest_realm;
   static std::string _dest_host;
   static std::string _server_name;
-  static Cx::Dictionary _dict;
+  static Cx::Dictionary* _dict;
+  static Cache* _cache;
 };
 
 class ImpiDigestHandler : public HssCacheHandler
@@ -162,9 +212,12 @@ public:
   {}
 
   void run();
+  void on_get_ims_subscription_success(Cache::Request*);
+  void on_get_ims_subscription_failure(Cache::Request*, Cache::ResultCode, std::string& error);
   void on_sar_response(Diameter::Message& rsp);
 
   typedef HssCacheHandler::DiameterTransaction<ImpuIMSSubscriptionHandler> DiameterTransaction;
+  typedef HssCacheHandler::CacheTransaction<ImpuIMSSubscriptionHandler> CacheTransaction;
 
 private:
   std::string _impi;
