@@ -38,6 +38,7 @@
 #include <signal.h>
 #include <semaphore.h>
 
+#include "log.h"
 #include "diameterstack.h"
 #include "httpstack.h"
 #include "handlers.h"
@@ -52,6 +53,8 @@ struct options
   std::string dest_realm;
   std::string dest_host;
   std::string server_name;
+  std::string log_directory;
+  int log_level;
 };
 
 void usage(void)
@@ -117,9 +120,15 @@ int init_options(int argc, char**argv, struct options& options)
       break;
 
     case 'a':
-    case 'F':
-    case 'L':
       // TODO: Implement.
+      break;
+
+    case 'F':
+      options.log_directory = std::string(optarg);
+      break;
+
+    case 'L':
+      options.log_level = atoi(optarg);
       break;
 
     case 'h':
@@ -153,11 +162,27 @@ int main(int argc, char**argv)
   options.dest_realm = "dest-realm.unknown";
   options.dest_host = "dest-host.unknown";
   options.server_name = "sip:server-name.unknown";
+  options.log_directory = "";
+  options.log_level = 0;
 
   if (init_options(argc, argv, options) != 0)
   {
     return 1;
   }
+
+  Log::setLoggingLevel(options.log_level);
+  if (options.log_directory != "")
+  {
+    // Work out the program name from argv[0], stripping anything before the final slash.
+    char* prog_name = argv[0];
+    char* slash_ptr = rindex(argv[0], '/');
+    if (slash_ptr != NULL)
+    {
+      prog_name = slash_ptr + 1;
+    }
+    Log::setLogger(new Logger(options.log_directory, prog_name));
+  }
+  LOG_STATUS("Log level set to %d", options.log_level);
 
   sem_init(&term_sem, 0, 0);
   signal(SIGTERM, terminate_handler);
