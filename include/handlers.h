@@ -175,9 +175,13 @@ public:
 
   void run();
   virtual bool parse_request() = 0;
-  void query_cache();
+  void query_cache_av();
   void on_get_av_success(Cache::Request* request);
   void on_get_av_failure(Cache::Request* request, Cache::ResultCode error, std::string& text);
+  void get_av();
+  void query_cache_impu();
+  void on_get_impu_success(Cache::Request* request);
+  void on_get_impu_failure(Cache::Request* request, Cache::ResultCode error, std::string& text);
   void send_mar();
   void on_mar_response(Diameter::Message& rsp);
   virtual void send_reply(const DigestAuthVector& av) = 0;
@@ -187,6 +191,10 @@ public:
   typedef HssCacheHandler::DiameterTransaction<ImpiHandler> DiameterTransaction;
 
 protected:
+  static const std::string SCHEME_UNKNOWN;
+  static const std::string SCHEME_SIP_DIGEST;
+  static const std::string SCHEME_DIGEST_AKAV1_MD5;
+
   std::string _impi;
   std::string _impu;
   std::string _scheme;

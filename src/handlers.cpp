@@ -81,6 +81,10 @@ void HssCacheHandler::on_diameter_timeout()
 
 // General IMPI handling.
 
+const std::string ImpiHandler::SCHEME_UNKNOWN = "unknown";
+const std::string ImpiHandler::SCHEME_SIP_DIGEST = "SIP Digest";
+const std::string ImpiHandler::SCHEME_DIGEST_AKAV1_MD5 = "Digest-AKAv1-MD5";
+
 void ImpiHandler::run()
 {
   if (parse_request())
@@ -88,11 +92,11 @@ void ImpiHandler::run()
     // TODO: Decide how this is enabled - we never actually cache this, so the only reason for a lookup is for non-HSS operation.
     if (true)
     {
-      query_cache();
+      query_cache_av();
     }
     else
     {
-      send_mar();
+      get_av();
     }
   }
   else
@@ -102,7 +106,7 @@ void ImpiHandler::run()
   }
 }
 
-void ImpiHandler::query_cache()
+void ImpiHandler::query_cache_av()
 {
   Cache::Request* get_av = new Cache::GetAuthVector(_impi, _impu);
   CacheTransaction* tsx = new CacheTransaction(get_av, this);
@@ -124,13 +128,74 @@ void ImpiHandler::on_get_av_failure(Cache::Request* request, Cache::ResultCode e
 {
   if (error == Cache::ResultCode::NOT_FOUND)
   {
-    send_mar();
+    get_av();
   }
   else
   {
     _req.send_reply(502);
     delete this;
   }
+}
+
+void ImpiHandler::get_av()
+{
+  if (_impu.empty())
+  {
+    if (_scheme == SCHEME_DIGEST_AKAV1_MD5)
+    {
+      // If the requested scheme is AKA, there's no point in looking up the cached public ID.
+      // Even if we find it, we can't use it due to restrictions in the AKA protocol.
+      _req.send_reply(404);
+      delete this;
+    }
+    else
+    {
+      query_cache_impu();
+    }
+  }
+  else
+  {
+    send_mar();
+  }
+}
+
+void ImpiHandler::query_cache_impu()
+{
+  Cache::Request* get_public_ids = new Cache::GetAssociatedPublicIDs(_impi);
+  CacheTransaction* tsx = new CacheTransaction(get_public_ids, this);
+  tsx->set_success_clbk(&ImpiHandler::on_get_impu_success);
+  tsx->set_failure_clbk(&ImpiHandler::on_get_impu_failure);
+  _cache->send(tsx);
+}
+
+void ImpiHandler::on_get_impu_success(Cache::Request* request)
+{
+  Cache::GetAssociatedPublicIDs* get_public_ids = (Cache::GetAssociatedPublicIDs*)request;
+  std::vector<std::string> ids;
+  get_public_ids->get_result(ids);
+  if (!ids.empty())
+  {
+    _impu = ids[0];
+    send_mar();
+  }
+  else
+  {
+    _req.send_reply(404);
+    delete this;
+  }
+}
+
+void ImpiHandler::on_get_impu_failure(Cache::Request* request, Cache::ResultCode error, std::string& text)
+{
+  if (error == Cache::ResultCode::NOT_FOUND)
+  {
+    _req.send_reply(404);
+  }
+  else
+  {
+    _req.send_reply(502);
+  }
+  delete this;
 }
 
 void ImpiHandler::send_mar()
@@ -157,11 +222,19 @@ void ImpiHandler::on_mar_response(Diameter::Message& rsp)
     case 2001:
       {
         std::string sip_auth_scheme = maa.sip_auth_scheme();
-        if (sip_auth_scheme == "SIP Digest")
+        if (sip_auth_scheme == SCHEME_SIP_DIGEST)
         {
           send_reply(maa.digest_auth_vector());
+          // TODO: Make this configurable - we can disable if no TURN authentication required.
+          if (true)
+          {
+            // TODO: Make TTL configurable.
+            Cache::Request* put_public_id = new Cache::PutAssociatedPublicID(_impi, _impu, Cache::generate_timestamp(), 3600);
+            CacheTransaction* tsx = new CacheTransaction(put_public_id, NULL);
+            _cache->send(tsx);
+          }
         }
-        else if (sip_auth_scheme == "Digest-AKAv1-MD5")
+        else if (sip_auth_scheme == SCHEME_DIGEST_AKAV1_MD5)
         {
           send_reply(maa.aka_auth_vector());
         }
@@ -193,7 +266,7 @@ bool ImpiDigestHandler::parse_request()
 
   _impi = path.substr(prefix.length(), path.find_first_of("/", prefix.length()) - prefix.length());
   _impu = _req.param("public_id");
-  _scheme = "SIP Digest";
+  _scheme = SCHEME_SIP_DIGEST;
   _authorization = "";
 
   return true;
@@ -227,18 +300,18 @@ bool ImpiAvHandler::parse_request()
   std::string path = _req.path();
 
   _impi = path.substr(prefix.length(), path.find_first_of("/", prefix.length()) - prefix.length());
-  _scheme = _req.file();
-  if (_scheme == "av")
+  std::string scheme = _req.file();
+  if (scheme == "av")
   {
-    _scheme = "unknown";
+    _scheme = SCHEME_UNKNOWN;
   }
-  else if (_scheme == "digest")
+  else if (scheme == "digest")
   {
-    _scheme = "SIP Digest";
+    _scheme = SCHEME_SIP_DIGEST;
   }
-  else if (_scheme == "aka")
+  else if (scheme == "aka")
   {
-    _scheme = "Digest-AKAv1-MD5";
+    _scheme = SCHEME_DIGEST_AKAV1_MD5;
   }
   else
   {
