@@ -89,8 +89,7 @@ void ImpiHandler::run()
 {
   if (parse_request())
   {
-    // TODO: Decide how this is enabled - we never actually cache this, so the only reason for a lookup is for non-HSS operation.
-    if (true)
+    if (_cfg->query_cache_av)
     {
       query_cache_av();
     }
@@ -225,11 +224,9 @@ void ImpiHandler::on_mar_response(Diameter::Message& rsp)
         if (sip_auth_scheme == SCHEME_SIP_DIGEST)
         {
           send_reply(maa.digest_auth_vector());
-          // TODO: Make this configurable - we can disable if no TURN authentication required.
-          if (true)
+          if (_cfg->impu_cache_ttl != 0)
           {
-            // TODO: Make TTL configurable.
-            Cache::Request* put_public_id = new Cache::PutAssociatedPublicID(_impi, _impu, Cache::generate_timestamp(), 3600);
+            Cache::Request* put_public_id = new Cache::PutAssociatedPublicID(_impi, _impu, Cache::generate_timestamp(), _cfg->impu_cache_ttl);
             CacheTransaction* tsx = new CacheTransaction(put_public_id, NULL);
             _cache->send(tsx);
           }
@@ -437,13 +434,15 @@ void ImpuIMSSubscriptionHandler::on_sar_response(Diameter::Message& rsp)
         _req.add_content(user_data);
         _req.send_reply(200);
 
-        std::vector<std::string> public_ids = get_public_ids(user_data);
-        if (!public_ids.empty())
+        if (_cfg->ims_sub_cache_ttl != 0)
         {
-          // TODO: Make TTL configurable.
-          Cache::Request* put_ims_sub = new Cache::PutIMSSubscription(public_ids, user_data, Cache::generate_timestamp(), 3600);
-          CacheTransaction* tsx = new CacheTransaction(put_ims_sub, NULL);
-          _cache->send(tsx);
+          std::vector<std::string> public_ids = get_public_ids(user_data);
+          if (!public_ids.empty())
+          {
+            Cache::Request* put_ims_sub = new Cache::PutIMSSubscription(public_ids, user_data, Cache::generate_timestamp(), _cfg->ims_sub_cache_ttl);
+            CacheTransaction* tsx = new CacheTransaction(put_ims_sub, NULL);
+            _cache->send(tsx);
+          }
         }
       }
       break;

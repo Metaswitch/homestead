@@ -62,7 +62,7 @@ void HttpStack::configure(const std::string& bind_address, unsigned short bind_p
   _num_threads = num_threads;
 }
 
-void HttpStack::register_handler(char* path, handler_factory_t factory)
+void HttpStack::register_handler(char* path, HttpStack::BaseHandlerFactory* factory)
 {
   evhtp_callback_t* cb = evhtp_set_regex_cb(_evhtp, path, handler_callback_fn, (void*)factory);
   if (cb == NULL)
@@ -108,7 +108,7 @@ void HttpStack::wait_stopped()
 void HttpStack::handler_callback_fn(evhtp_request_t* req, void* handler_factory)
 {
   Request request(req);
-  Handler* handler = ((handler_factory_t)handler_factory)(request);
+  Handler* handler = ((HttpStack::BaseHandlerFactory*)handler_factory)->create(request);
   handler->run();
 }
 

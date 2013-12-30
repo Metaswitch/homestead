@@ -219,18 +219,24 @@ int main(int argc, char**argv)
                                       options.server_name,
                                       dict);
   HssCacheHandler::configure_cache(cache);
+  ImpiHandler::Config impi_handler_config(false, 0);
+  ImpuIMSSubscriptionHandler::Config impu_handler_config(3600);
+  HttpStack::HandlerFactory<PingHandler> ping_handler_factory;
+  HttpStack::ConfiguredHandlerFactory<ImpiDigestHandler, ImpiHandler::Config> impi_digest_handler_factory(&impi_handler_config);
+  HttpStack::ConfiguredHandlerFactory<ImpiAvHandler, ImpiHandler::Config> impi_av_handler_factory(&impi_handler_config);
+  HttpStack::ConfiguredHandlerFactory<ImpuIMSSubscriptionHandler, ImpuIMSSubscriptionHandler::Config> impu_ims_sub_handler_factory(&impu_handler_config);
   try
   {
     http_stack->initialize();
     http_stack->configure(options.http_address, options.http_port, 10);
     http_stack->register_handler("^/ping$",
-                                 HttpStack::handler_factory<PingHandler>);
+                                 &ping_handler_factory);
     http_stack->register_handler("^/impi/[^/]*/digest$",
-                                 HttpStack::handler_factory<ImpiDigestHandler>);
+                                 &impi_digest_handler_factory);
     http_stack->register_handler("^/impi/[^/]*/av",
-                                 HttpStack::handler_factory<ImpiAvHandler>);
+                                 &impi_av_handler_factory);
     http_stack->register_handler("^/impu/",
-                                 HttpStack::handler_factory<ImpuIMSSubscriptionHandler>);
+                                 &impu_ims_sub_handler_factory);
     http_stack->start();
   }
   catch (HttpStack::Exception& e)

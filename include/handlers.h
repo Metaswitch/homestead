@@ -169,8 +169,15 @@ protected:
 class ImpiHandler : public HssCacheHandler
 {
 public:
-  ImpiHandler(HttpStack::Request& req) :
-    HssCacheHandler(req), _impi(), _impu(), _scheme(), _authorization()
+  struct Config
+  {
+    Config(bool _query_cache_av = false, int _impu_cache_ttl = 0) : query_cache_av(_query_cache_av), impu_cache_ttl(_impu_cache_ttl) {}
+    bool query_cache_av;
+    int impu_cache_ttl;
+  };
+
+  ImpiHandler(HttpStack::Request& req, const Config* cfg) :
+    HssCacheHandler(req), _cfg(cfg), _impi(), _impu(), _scheme(), _authorization()
   {}
 
   void run();
@@ -195,6 +202,7 @@ protected:
   static const std::string SCHEME_SIP_DIGEST;
   static const std::string SCHEME_DIGEST_AKAV1_MD5;
 
+  const Config* _cfg;
   std::string _impi;
   std::string _impu;
   std::string _scheme;
@@ -204,8 +212,7 @@ protected:
 class ImpiDigestHandler : public ImpiHandler
 {
 public:
-  ImpiDigestHandler(HttpStack::Request& req) : ImpiHandler(req)
-  {}
+  ImpiDigestHandler(HttpStack::Request& req, const ImpiHandler::Config* cfg) : ImpiHandler(req, cfg) {}
 
   bool parse_request();
   void send_reply(const DigestAuthVector& av);
@@ -216,8 +223,7 @@ public:
 class ImpiAvHandler : public ImpiHandler
 {
 public:
-  ImpiAvHandler(HttpStack::Request& req) : ImpiHandler(req)
-  {}
+  ImpiAvHandler(HttpStack::Request& req, const ImpiHandler::Config* cfg) : ImpiHandler(req, cfg) {}
 
   bool parse_request();
   void send_reply(const DigestAuthVector& av);
@@ -228,8 +234,14 @@ public:
 class ImpuIMSSubscriptionHandler : public HssCacheHandler
 {
 public:
-  ImpuIMSSubscriptionHandler(HttpStack::Request& req) :
-    HssCacheHandler(req), _impi(), _impu()
+  struct Config
+  {
+    Config(int _ims_sub_cache_ttl = 3600) : ims_sub_cache_ttl(_ims_sub_cache_ttl) {}
+    int ims_sub_cache_ttl;
+  };
+
+  ImpuIMSSubscriptionHandler(HttpStack::Request& req, const Config* cfg) :
+    HssCacheHandler(req), _cfg(cfg), _impi(), _impu()
   {}
 
   void run();
@@ -241,6 +253,7 @@ public:
   typedef HssCacheHandler::DiameterTransaction<ImpuIMSSubscriptionHandler> DiameterTransaction;
 
 private:
+  const Config* _cfg;
   std::string _impi;
   std::string _impu;
 
