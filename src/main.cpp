@@ -39,10 +39,10 @@
 #include <semaphore.h>
 
 #include "accesslogger.h"
+#include "log.h"
 #include "diameterstack.h"
 #include "httpstack.h"
 #include "handlers.h"
-#include "log.h"
 #include "logger.h"
 #include "cache.h"
 
@@ -183,7 +183,8 @@ int main(int argc, char**argv)
     // Work out the program name from argv[0], stripping anything before the final slash.
     char* prog_name = argv[0];
     char* slash_ptr = rindex(argv[0], '/');
-    if (slash_ptr != NULL) {
+    if (slash_ptr != NULL)
+    {
       prog_name = slash_ptr + 1;
     }
     Log::setLogger(new Logger(options.log_directory, prog_name));
@@ -194,6 +195,8 @@ int main(int argc, char**argv)
   {
     access_logger = new AccessLogger(options.access_log_directory);
   }
+
+  LOG_STATUS("Log level set to %d", options.log_level);
 
   sem_init(&term_sem, 0, 0);
   signal(SIGTERM, terminate_handler);
@@ -239,7 +242,7 @@ int main(int argc, char**argv)
     http_stack->register_handler("^/impi/[^/]*/digest$",
                                  HttpStack::handler_factory<ImpiDigestHandler>);
     http_stack->register_handler("^/impi/[^/]*/av",
-                                 HttpStack::handler_factory<ImpiDigestHandler>);
+                                 HttpStack::handler_factory<ImpiAvHandler>);
     http_stack->register_handler("^/impu/",
                                  HttpStack::handler_factory<ImpuIMSSubscriptionHandler>);
     http_stack->start();

@@ -17,8 +17,8 @@ TARGET_SOURCES := accesslogger.cpp \
                   diameterstack.cpp \
                   handlers.cpp \
                   httpstack.cpp \
-                  log.cpp \
-                  logger.cpp
+                  logger.cpp \
+                  log.cpp
 
 TARGET_SOURCES_BUILD := main.cpp
 
@@ -53,8 +53,8 @@ CPPFLAGS += -I${ROOT}/include \
             -I${ROOT}/modules/cpp-common/include \
             -I${ROOT}/modules/rapidjson/include
 
-# Add cpp-common/src as VPATH so build will find modules there.
-VPATH = ${ROOT}/modules/cpp-common/src
+# Add modules/cpp-common/src as a VPATH to pull in required common modules
+VPATH := ${ROOT}/modules/cpp-common/src
 
 # Production build:
 #
