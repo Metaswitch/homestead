@@ -53,6 +53,8 @@ struct options
   std::string dest_realm;
   std::string dest_host;
   std::string server_name;
+  int impu_cache_ttl;
+  int ims_sub_cache_ttl;
   std::string log_directory;
   int log_level;
 };
@@ -67,6 +69,10 @@ void usage(void)
        " -D, --dest-realm <name>    Set Destination-Realm on Cx messages\n"
        " -d, --dest-host <name>     Set Destination-Host on Cx messages\n"
        " -s, --server-name <name>   Set Server-Name on Cx messages\n"
+       " -i, --impu-cache-ttl <secs>\n"
+       "                            IMPU cache time-to-live in seconds (default: 0)\n"
+       " -I, --ims-sub-cache-ttl <secs>\n"
+       "                            IMS subscription cache time-to-live in seconds (default: 0)\n"
        " -a, --analytics <directory>\n"
        "                            Generate analytics logs in specified directory\n"
        " -F, --log-file <directory>\n"
@@ -80,16 +86,18 @@ int init_options(int argc, char**argv, struct options& options)
 {
   struct option long_opt[] =
   {
-    {"diameter-conf", required_argument, NULL, 'c'},
-    {"http",          required_argument, NULL, 'H'},
-    {"dest-realm",    required_argument, NULL, 'D'},
-    {"dest-host",     required_argument, NULL, 'd'},
-    {"server-name",   required_argument, NULL, 's'},
-    {"analytics",     required_argument, NULL, 'a'},
-    {"log-file",      required_argument, NULL, 'F'},
-    {"log-level",     required_argument, NULL, 'L'},
-    {"help",          no_argument,       NULL, 'h'},
-    {NULL,            0,                 NULL, 0},
+    {"diameter-conf",     required_argument, NULL, 'c'},
+    {"http",              required_argument, NULL, 'H'},
+    {"dest-realm",        required_argument, NULL, 'D'},
+    {"dest-host",         required_argument, NULL, 'd'},
+    {"server-name",       required_argument, NULL, 's'},
+    {"impu-cache-ttl",    required_argument, NULL, 'i'},
+    {"ims-sub-cache-ttl", required_argument, NULL, 'I'},
+    {"analytics",         required_argument, NULL, 'a'},
+    {"log-file",          required_argument, NULL, 'F'},
+    {"log-level",         required_argument, NULL, 'L'},
+    {"help",              no_argument,       NULL, 'h'},
+    {NULL,                0,                 NULL, 0},
   };
 
   int opt;
@@ -117,6 +125,14 @@ int init_options(int argc, char**argv, struct options& options)
 
     case 's':
       options.server_name = std::string(optarg);
+      break;
+
+    case 'i':
+      options.impu_cache_ttl = atoi(optarg);
+      break;
+
+    case 'I':
+      options.ims_sub_cache_ttl = atoi(optarg);
       break;
 
     case 'a':
@@ -162,6 +178,8 @@ int main(int argc, char**argv)
   options.dest_realm = "dest-realm.unknown";
   options.dest_host = "dest-host.unknown";
   options.server_name = "sip:server-name.unknown";
+  options.impu_cache_ttl = 0;
+  options.ims_sub_cache_ttl = 0;
   options.log_directory = "";
   options.log_level = 0;
 
@@ -219,8 +237,12 @@ int main(int argc, char**argv)
                                       options.server_name,
                                       dict);
   HssCacheHandler::configure_cache(cache);
-  ImpiHandler::Config impi_handler_config(false, 0);
-  ImpuIMSSubscriptionHandler::Config impu_handler_config(3600);
+  // We should only query the cache for AV information if there is no HSS.  If there is an HSS, we
+  // should always hit it.  If there is not, the AV information must have been provisioned in the
+  // "cache" (which becomes persistent).
+  bool query_cache_av = options.dest_host.empty() || (options.dest_host == "0.0.0.0");
+  ImpiHandler::Config impi_handler_config(query_cache_av, options.impu_cache_ttl);
+  ImpuIMSSubscriptionHandler::Config impu_handler_config(options.ims_sub_cache_ttl);
   HttpStack::HandlerFactory<PingHandler> ping_handler_factory;
   HttpStack::ConfiguredHandlerFactory<ImpiDigestHandler, ImpiHandler::Config> impi_digest_handler_factory(&impi_handler_config);
   HttpStack::ConfiguredHandlerFactory<ImpiAvHandler, ImpiHandler::Config> impi_av_handler_factory(&impi_handler_config);
