@@ -59,7 +59,7 @@ public:
     Request(evhtp_request_t* req) : _req(req) {}
     inline std::string path() {return url_unescape(std::string(_req->uri->path->path));}
     inline std::string full_path() {return url_unescape(std::string(_req->uri->path->full));}
-    inline std::string file() {return url_unescape(std::string(_req->uri->path->file));}
+    inline std::string file() {return url_unescape(std::string((_req->uri->path->file != NULL) ? _req->uri->path->file : ""));}
     inline std::string param(const std::string& name)
     {
       const char* param = evhtp_kv_find(_req->uri->query, name.c_str());
@@ -109,6 +109,31 @@ public:
     Request _req;
   };
 
+  class BaseHandlerFactory
+  {
+  public:
+    BaseHandlerFactory() {}
+    virtual Handler* create(Request& req) = 0;
+  };
+
+  template <class H>
+  class HandlerFactory : public BaseHandlerFactory
+  {
+  public:
+    HandlerFactory() : BaseHandlerFactory() {}
+    Handler* create(Request& req) { return new H(req); }
+  };
+
+  template <class H, class C>
+  class ConfiguredHandlerFactory : public BaseHandlerFactory
+  {
+  public:
+    ConfiguredHandlerFactory(const C* cfg) : BaseHandlerFactory(), _cfg(cfg) {}
+    Handler* create(Request& req) { return new H(req, _cfg); }
+  private:
+    const C* _cfg;
+  };
+
   static inline HttpStack* get_instance() {return INSTANCE;};
   void initialize();
   void configure(const std::string& bind_address, unsigned short port, int num_threads);
@@ -116,11 +141,7 @@ public:
   void stop();
   void wait_stopped();
 
-  template <class T>
-  static Handler* handler_factory(Request& req) { return new T(req); }
-
-  typedef Handler* (*handler_factory_t)(Request&);
-  void register_handler(char* path, handler_factory_t factory);
+  void register_handler(char* path, BaseHandlerFactory* factory);
 
 private:
   static HttpStack* INSTANCE;

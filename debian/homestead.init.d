@@ -86,6 +86,8 @@ get_settings()
 
         # Set up defaults for user settings then pull in any overrides.
         log_level=2
+        impu_cache_ttl=0
+        ims_sub_cache_ttl=$((24 * 60 * 60))
         [ -r /etc/clearwater/user_settings ] && . /etc/clearwater/user_settings
 
         # Work out which features are enabled.
@@ -122,6 +124,8 @@ do_start()
                      --dest-realm $home_domain
                      --dest-host $hss_hostname
                      --server-name sip:$sprout_hostname:5054
+                     --impu-cache-ttl $impu_cache_ttl 
+                     --ims-sub-cache-ttl $ims_sub_cache_ttl
                      -a $log_directory
                      -F $log_directory
                      -L $log_level"

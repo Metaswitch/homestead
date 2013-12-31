@@ -38,6 +38,7 @@
 #include <signal.h>
 #include <semaphore.h>
 
+#include "log.h"
 #include "diameterstack.h"
 #include "httpstack.h"
 #include "handlers.h"
@@ -52,6 +53,10 @@ struct options
   std::string dest_realm;
   std::string dest_host;
   std::string server_name;
+  int impu_cache_ttl;
+  int ims_sub_cache_ttl;
+  std::string log_directory;
+  int log_level;
 };
 
 void usage(void)
@@ -64,6 +69,10 @@ void usage(void)
        " -D, --dest-realm <name>    Set Destination-Realm on Cx messages\n"
        " -d, --dest-host <name>     Set Destination-Host on Cx messages\n"
        " -s, --server-name <name>   Set Server-Name on Cx messages\n"
+       " -i, --impu-cache-ttl <secs>\n"
+       "                            IMPU cache time-to-live in seconds (default: 0)\n"
+       " -I, --ims-sub-cache-ttl <secs>\n"
+       "                            IMS subscription cache time-to-live in seconds (default: 0)\n"
        " -a, --analytics <directory>\n"
        "                            Generate analytics logs in specified directory\n"
        " -F, --log-file <directory>\n"
@@ -77,16 +86,18 @@ int init_options(int argc, char**argv, struct options& options)
 {
   struct option long_opt[] =
   {
-    {"diameter-conf", required_argument, NULL, 'c'},
-    {"http",          required_argument, NULL, 'H'},
-    {"dest-realm",    required_argument, NULL, 'D'},
-    {"dest-host",     required_argument, NULL, 'd'},
-    {"server-name",   required_argument, NULL, 's'},
-    {"analytics",     required_argument, NULL, 'a'},
-    {"log-file",      required_argument, NULL, 'F'},
-    {"log-level",     required_argument, NULL, 'L'},
-    {"help",          no_argument,       NULL, 'h'},
-    {NULL,            0,                 NULL, 0},
+    {"diameter-conf",     required_argument, NULL, 'c'},
+    {"http",              required_argument, NULL, 'H'},
+    {"dest-realm",        required_argument, NULL, 'D'},
+    {"dest-host",         required_argument, NULL, 'd'},
+    {"server-name",       required_argument, NULL, 's'},
+    {"impu-cache-ttl",    required_argument, NULL, 'i'},
+    {"ims-sub-cache-ttl", required_argument, NULL, 'I'},
+    {"analytics",         required_argument, NULL, 'a'},
+    {"log-file",          required_argument, NULL, 'F'},
+    {"log-level",         required_argument, NULL, 'L'},
+    {"help",              no_argument,       NULL, 'h'},
+    {NULL,                0,                 NULL, 0},
   };
 
   int opt;
@@ -116,10 +127,24 @@ int init_options(int argc, char**argv, struct options& options)
       options.server_name = std::string(optarg);
       break;
 
+    case 'i':
+      options.impu_cache_ttl = atoi(optarg);
+      break;
+
+    case 'I':
+      options.ims_sub_cache_ttl = atoi(optarg);
+      break;
+
     case 'a':
-    case 'F':
-    case 'L':
       // TODO: Implement.
+      break;
+
+    case 'F':
+      options.log_directory = std::string(optarg);
+      break;
+
+    case 'L':
+      options.log_level = atoi(optarg);
       break;
 
     case 'h':
@@ -153,55 +178,46 @@ int main(int argc, char**argv)
   options.dest_realm = "dest-realm.unknown";
   options.dest_host = "dest-host.unknown";
   options.server_name = "sip:server-name.unknown";
+  options.impu_cache_ttl = 0;
+  options.ims_sub_cache_ttl = 0;
+  options.log_directory = "";
+  options.log_level = 0;
 
   if (init_options(argc, argv, options) != 0)
   {
     return 1;
   }
 
+  Log::setLoggingLevel(options.log_level);
+  if (options.log_directory != "")
+  {
+    // Work out the program name from argv[0], stripping anything before the final slash.
+    char* prog_name = argv[0];
+    char* slash_ptr = rindex(argv[0], '/');
+    if (slash_ptr != NULL)
+    {
+      prog_name = slash_ptr + 1;
+    }
+    Log::setLogger(new Logger(options.log_directory, prog_name));
+  }
+  LOG_STATUS("Log level set to %d", options.log_level);
+
   sem_init(&term_sem, 0, 0);
   signal(SIGTERM, terminate_handler);
 
   Diameter::Stack* diameter_stack = Diameter::Stack::get_instance();
+  Cx::Dictionary* dict = NULL;
   try
   {
     diameter_stack->initialize();
     diameter_stack->configure(options.diameter_conf);
-    Cx::Dictionary dict;
-    diameter_stack->advertize_application(dict.CX);
+    dict = new Cx::Dictionary();
+    diameter_stack->advertize_application(dict->CX);
     diameter_stack->start();
   }
   catch (Diameter::Stack::Exception& e)
   {
     fprintf(stderr, "Caught Diameter::Stack::Exception - %s - %d\n", e._func, e._rc);
-  }
-
-  HttpStack* http_stack = HttpStack::get_instance();
-  HssCacheHandler::configure_diameter(diameter_stack,
-                                      options.dest_realm,
-                                      options.dest_host,
-                                      options.server_name);
-  try
-  {
-    http_stack->initialize();
-    http_stack->configure(options.http_address, options.http_port, 10);
-    http_stack->register_handler("^/ping$",
-                                 HttpStack::handler_factory<PingHandler>);
-    http_stack->register_handler("^/impi/[^/]*/digest$",
-                                 HttpStack::handler_factory<ImpiDigestHandler>);
-    http_stack->register_handler("^/impi/[^/]*/av",
-                                 HttpStack::handler_factory<ImpiAvHandler>);
-    http_stack->register_handler("^/impi/[^/]*/registration-status$",
-                                 HttpStack::handler_factory<ImpiRegistrationStatusHandler>);
-    http_stack->register_handler("^/impu/[^/]*/location$",
-                                 HttpStack::handler_factory<ImpuLocationInfoHandler>);
-    http_stack->register_handler("^/impu/",
-                                 HttpStack::handler_factory<ImpuIMSSubscriptionHandler>);
-    http_stack->start();
-  }
-  catch (HttpStack::Exception& e)
-  {
-    fprintf(stderr, "Caught HttpStack::Exception - %s - %d\n", e._func, e._rc);
   }
 
   Cache* cache = Cache::get_instance();
@@ -214,10 +230,47 @@ int main(int argc, char**argv)
     fprintf(stderr, "Error starting cache: %d\n", rc);
   }
 
-  sem_wait(&term_sem);
+  HttpStack* http_stack = HttpStack::get_instance();
+  HssCacheHandler::configure_diameter(diameter_stack,
+                                      options.dest_realm,
+                                      options.dest_host,
+                                      options.server_name,
+                                      dict);
+  HssCacheHandler::configure_cache(cache);
+  // We should only query the cache for AV information if there is no HSS.  If there is an HSS, we
+  // should always hit it.  If there is not, the AV information must have been provisioned in the
+  // "cache" (which becomes persistent).
+  bool query_cache_av = options.dest_host.empty() || (options.dest_host == "0.0.0.0");
+  ImpiHandler::Config impi_handler_config(query_cache_av, options.impu_cache_ttl);
+  ImpuIMSSubscriptionHandler::Config impu_handler_config(options.ims_sub_cache_ttl);
+  HttpStack::HandlerFactory<PingHandler> ping_handler_factory;
+  HttpStack::ConfiguredHandlerFactory<ImpiDigestHandler, ImpiHandler::Config> impi_digest_handler_factory(&impi_handler_config);
+  HttpStack::ConfiguredHandlerFactory<ImpiAvHandler, ImpiHandler::Config> impi_av_handler_factory(&impi_handler_config);
+  HttpStack::ConfiguredHandlerFactory<ImpuIMSSubscriptionHandler, ImpuIMSSubscriptionHandler::Config> impu_ims_sub_handler_factory(&impu_handler_config);
+  try
+  {
+    http_stack->initialize();
+    http_stack->configure(options.http_address, options.http_port, 10);
+    http_stack->register_handler("^/ping$",
+                                 &ping_handler_factory);
+    http_stack->register_handler("^/impi/[^/]*/digest$",
+                                 &impi_digest_handler_factory);
+    http_stack->register_handler("^/impi/[^/]*/av",
+                                 &impi_av_handler_factory);
+    http_stack->register_handler("^/impi/[^/]*/registration-status$",
+                                 HttpStack::handler_factory<ImpiRegistrationStatusHandler>);
+    http_stack->register_handler("^/impu/[^/]*/location$",
+                                 HttpStack::handler_factory<ImpuLocationInfoHandler>);
+    http_stack->register_handler("^/impu/",
+                                 &impu_ims_sub_handler_factory);
+    http_stack->start();
+  }
+  catch (HttpStack::Exception& e)
+  {
+    fprintf(stderr, "Caught HttpStack::Exception - %s - %d\n", e._func, e._rc);
+  }
 
-  cache->stop();
-  cache->wait_stopped();
+  sem_wait(&term_sem);
 
   try
   {
@@ -229,6 +282,9 @@ int main(int argc, char**argv)
     fprintf(stderr, "Caught HttpStack::Exception - %s - %d\n", e._func, e._rc);
   }
 
+  cache->stop();
+  cache->wait_stopped();
+
   try
   {
     diameter_stack->stop();
@@ -238,6 +294,7 @@ int main(int argc, char**argv)
   {
     fprintf(stderr, "Caught Diameter::Stack::Exception - %s - %d\n", e._func, e._rc);
   }
+  delete dict;
 
   signal(SIGTERM, SIG_DFL);
   sem_destroy(&term_sem);

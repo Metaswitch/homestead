@@ -35,7 +35,7 @@
  */
 
 #include <eventq.h>
-#include <logger.h>
+#include <log.h>
 
 #ifndef THREADPOOL_H__
 #define THREADPOOL_H__
