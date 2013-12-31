@@ -90,7 +90,7 @@ public:
                            const std::string& impi,
                            const std::string& impu,
                            const std::string& visited_network_identifier,
-                           int user_authorization_type);
+                           const int user_authorization_type);
   inline UserAuthorizationRequest(Diameter::Message& msg) : Diameter::Message(msg) {};
 };
 
@@ -113,9 +113,9 @@ public:
   LocationInfoRequest(const Dictionary* dict,
                       const std::string& dest_host,
                       const std::string& dest_realm,
-                      int originating_request,
+                      const std::string originating_request,
                       const std::string& impu,
-                      int user_authorization_type);
+                      const int user_authorization_type);
   inline LocationInfoRequest(Diameter::Message& msg) : Diameter::Message(msg) {};
 };
 

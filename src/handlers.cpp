@@ -35,10 +35,10 @@
  */
 
 #include "handlers.h"
+#include "servercapabilities.h"
 
 #include "rapidjson/writer.h"
 #include "rapidjson/stringbuffer.h"
-
 
 void PingHandler::run()
 {
@@ -46,7 +46,6 @@ void PingHandler::run()
   _req.send_reply(200);
   delete this;
 }
-
 
 Diameter::Stack* HssCacheHandler::_diameter_stack = NULL;
 std::string HssCacheHandler::_dest_realm;
@@ -265,7 +264,173 @@ void ImpiAvHandler::on_mar_response(Diameter::Message& rsp)
 }
 
 //
-// IMPU handling
+// IMPI Registration Status handling
+//
+
+void ImpiRegistrationStatusHandler::run()
+{
+  const std::string prefix = "/impi/";
+  std::string path = _req.full_path();
+  int authorization_type_int = 0;
+
+  _impi = path.substr(prefix.length());
+  _impu = _req.param("impu");
+  _visited_network = _req.param("visited-network");
+  _authorization_type = _req.param("auth-type");
+  if (_authorization_type == "REG")
+  {
+    authorization_type_int = 0;
+  }
+  else if (_authorization_type == "DEREG")
+  {
+    authorization_type_int = 1;
+  }
+  else if (_authorization_type == "CAPAB")
+  {
+    authorization_type_int = 2;
+  }
+
+  Cx::UserAuthorizationRequest* uar =
+    new Cx::UserAuthorizationRequest(&_dict,
+                                     _dest_host,
+                                     _dest_realm,
+                                     _impi,
+                                     _impu,
+                                     _visited_network,
+                                     authorization_type_int);
+  DiameterTransaction* tsx = new DiameterTransaction(&_dict, this);
+  tsx->set_response_clbk(&ImpiRegistrationStatusHandler::on_uar_response);
+  uar->send(tsx, 200);
+}
+
+void ImpiRegistrationStatusHandler::on_uar_response(Diameter::Message& rsp)
+{
+  Cx::UserAuthorizationAnswer uaa(rsp);
+  int result_code = uaa.result_code();
+  int experimental_result_code = uaa.experimental_result_code();
+  if ((result_code == DIAMETER_SUCCESS) ||
+      (experimental_result_code == (DIAMETER_FIRST_REGISTRATION ||
+                                    DIAMETER_SUBSEQUENT_REGISTRATION)))
+  {
+    rapidjson::StringBuffer sb;
+    rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
+    writer.StartObject();
+    writer.String(JSON_RC.c_str());
+    writer.Int(result_code ? result_code : experimental_result_code);
+    std::string server_name = uaa.server_name();
+    if (server_name.length())
+    {
+      writer.String(JSON_SCSCF.c_str());
+      writer.String(server_name.c_str());
+    }
+    else
+    {
+      ServerCapabilities server_capabilities = uaa.server_capabilities();
+      writer.String(JSON_MAN_CAP.c_str());
+      writer.String((server_capabilities.convert_capabilities_to_string(server_capabilities.mandatory_capabilities)).c_str());
+      writer.String(JSON_OPT_CAP.c_str());
+      writer.String((server_capabilities.convert_capabilities_to_string(server_capabilities.optional_capabilities)).c_str());
+    }
+    writer.EndObject();
+  }
+  else if (experimental_result_code == (DIAMETER_ERROR_USER_UNKNOWN ||
+                                        DIAMETER_ERROR_IDENTITIES_DONT_MATCH))
+  {
+    _req.send_reply(404);
+  }
+  else if ((result_code == DIAMETER_AUTHORIZATION_REJECTED) ||
+           (experimental_result_code == DIAMETER_ERROR_ROAMING_NOT_ALLOWED))
+  {
+    _req.send_reply(403);
+  }
+  else if (result_code == DIAMETER_TOO_BUSY)
+  {
+    _req.send_reply(503);
+  }
+  else
+  {
+    _req.send_reply(500);
+  }
+  delete this;
+}
+
+//
+// IMPU Location Information handling
+//
+
+void ImpuLocationInfoHandler::run()
+{
+  const std::string prefix = "/impu/";
+  std::string path = _req.full_path();
+  int authorization_type_int = 0;
+
+  _impu = path.substr(prefix.length());
+  _originating = _req.param("originating");
+  _authorization_type = _req.param("auth-type");
+  if (_authorization_type == "CAPAB")
+  {
+    authorization_type_int = 2;
+  }
+
+  Cx::LocationInfoRequest* lir =
+    new Cx::LocationInfoRequest(&_dict,
+                                _dest_host,
+                                _dest_realm,
+                                _originating,
+                                _impu,
+                                authorization_type_int);
+  DiameterTransaction* tsx = new DiameterTransaction(&_dict, this);
+  tsx->set_response_clbk(&ImpuLocationInfoHandler::on_lir_response);
+  lir->send(tsx, 200);
+}
+
+void ImpuLocationInfoHandler::on_lir_response(Diameter::Message& rsp)
+{
+  Cx::LocationInfoAnswer lia(rsp);
+  int result_code = lia.result_code();
+  int experimental_result_code = lia.experimental_result_code();
+  if ((result_code == DIAMETER_SUCCESS) ||
+      (experimental_result_code == DIAMETER_UNREGISTERED_SERVICE))
+  {
+    rapidjson::StringBuffer sb;
+    rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
+    writer.StartObject();
+    writer.String(JSON_RC.c_str());
+    writer.Int(result_code ? result_code : experimental_result_code);
+    std::string server_name = lia.server_name();
+    if ((result_code == DIAMETER_SUCCESS) && (server_name.length()))
+    {
+      writer.String(JSON_SCSCF.c_str());
+      writer.String(server_name.c_str());
+    }
+    else
+    {
+      ServerCapabilities server_capabilities = lia.server_capabilities();
+      writer.String(JSON_MAN_CAP.c_str());
+      writer.String((server_capabilities.convert_capabilities_to_string(server_capabilities.mandatory_capabilities)).c_str());
+      writer.String(JSON_OPT_CAP.c_str());
+      writer.String((server_capabilities.convert_capabilities_to_string(server_capabilities.optional_capabilities)).c_str());
+    }
+    writer.EndObject();
+  }
+  else if (experimental_result_code == (DIAMETER_ERROR_USER_UNKNOWN ||
+                                        DIAMETER_ERROR_IDENTITY_NOT_REGISTERED))
+  {
+    _req.send_reply(404);
+  }
+  else if (result_code == DIAMETER_TOO_BUSY)
+  {
+    _req.send_reply(503);
+  }
+  else
+  {
+    _req.send_reply(500);
+  }
+  delete this;
+}
+
+//
+// IMPU IMS Subscription handling
 //
 
 void ImpuIMSSubscriptionHandler::run()
@@ -307,4 +472,6 @@ void ImpuIMSSubscriptionHandler::on_sar_response(Diameter::Message& rsp)
       _req.send_reply(500);
       break;
   }
+
+  delete this;
 }

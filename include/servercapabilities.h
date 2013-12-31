@@ -38,11 +38,26 @@
 #define SERVERCAPABILITIES_H__
 
 #include <vector>
+#include <sstream>
+#include <iterator>
 
 struct ServerCapabilities
 {
   std::vector<int> mandatory_capabilities;
   std::vector<int> optional_capabilities;
+
+  std::string convert_capabilities_to_string(std::vector<int> capabilities)
+  {
+    std::ostringstream result;    
+    result << '[';
+    if (!capabilities.empty())
+    {
+      std::copy(capabilities.begin(), capabilities.end() - 1, std::ostream_iterator<int>(result, ","));
+      result << capabilities.back();
+    }
+    result << ']';
+    return result.str();
+  }
 };
 
 #endif

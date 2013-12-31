@@ -86,7 +86,7 @@ UserAuthorizationRequest::UserAuthorizationRequest(const Dictionary* dict,
                                                    const std::string& impi,
                                                    const std::string& impu,
                                                    const std::string& visited_network_identifier,
-                                                   int user_authorization_type) :
+                                                   const int user_authorization_type) :
                                                    Diameter::Message(dict, dict->USER_AUTHORIZATION_REQUEST)
 {
   add_new_session_id();
@@ -146,9 +146,9 @@ ServerCapabilities UserAuthorizationAnswer::server_capabilities() const
 LocationInfoRequest::LocationInfoRequest(const Dictionary* dict,
                                          const std::string& dest_host,
                                          const std::string& dest_realm,
-                                         int originating_request,
+                                         const std::string originating_request,
                                          const std::string& impu,
-                                         int user_authorization_type) :
+                                         const int user_authorization_type) :
                                          Diameter::Message(dict, dict->LOCATION_INFO_REQUEST)
 {
   add_new_session_id();
@@ -157,7 +157,7 @@ LocationInfoRequest::LocationInfoRequest(const Dictionary* dict,
   add_origin();
   add(Diameter::AVP(dict->DESTINATION_HOST).val_str(dest_host));
   add(Diameter::AVP(dict->DESTINATION_REALM).val_str(dest_realm));
-  if (originating_request)
+  if (originating_request == "true")
   {
     add(Diameter::AVP(dict->ORIGINATING_REQUEST).val_i32(0));
   }
