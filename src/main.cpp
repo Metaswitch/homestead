@@ -54,6 +54,8 @@ struct options
   std::string dest_realm;
   std::string dest_host;
   std::string server_name;
+  int impu_cache_ttl;
+  int ims_sub_cache_ttl;
   bool access_log_enabled;
   std::string access_log_directory;
   bool log_to_file;
@@ -71,6 +73,10 @@ void usage(void)
        " -D, --dest-realm <name>    Set Destination-Realm on Cx messages\n"
        " -d, --dest-host <name>     Set Destination-Host on Cx messages\n"
        " -s, --server-name <name>   Set Server-Name on Cx messages\n"
+       " -i, --impu-cache-ttl <secs>\n"
+       "                            IMPU cache time-to-live in seconds (default: 0)\n"
+       " -I, --ims-sub-cache-ttl <secs>\n"
+       "                            IMS subscription cache time-to-live in seconds (default: 0)\n"
        " -a, --access-log <directory>\n"
        "                            Generate access logs in specified directory\n"
        " -F, --log-file <directory>\n"
@@ -84,21 +90,23 @@ int init_options(int argc, char**argv, struct options& options)
 {
   struct option long_opt[] =
   {
-    {"diameter-conf", required_argument, NULL, 'c'},
-    {"http",          required_argument, NULL, 'H'},
-    {"dest-realm",    required_argument, NULL, 'D'},
-    {"dest-host",     required_argument, NULL, 'd'},
-    {"server-name",   required_argument, NULL, 's'},
-    {"access-log",    required_argument, NULL, 'a'},
-    {"log-file",      required_argument, NULL, 'F'},
-    {"log-level",     required_argument, NULL, 'L'},
-    {"help",          no_argument,       NULL, 'h'},
-    {NULL,            0,                 NULL, 0},
+    {"diameter-conf",     required_argument, NULL, 'c'},
+    {"http",              required_argument, NULL, 'H'},
+    {"dest-realm",        required_argument, NULL, 'D'},
+    {"dest-host",         required_argument, NULL, 'd'},
+    {"server-name",       required_argument, NULL, 's'},
+    {"impu-cache-ttl",    required_argument, NULL, 'i'},
+    {"ims-sub-cache-ttl", required_argument, NULL, 'I'},
+    {"access-log",        required_argument, NULL, 'a'},
+    {"log-file",          required_argument, NULL, 'F'},
+    {"log-level",         required_argument, NULL, 'L'},
+    {"help",              no_argument,       NULL, 'h'},
+    {NULL,                0,                 NULL, 0},
   };
 
   int opt;
   int long_opt_ind;
-  while ((opt = getopt_long(argc, argv, "c:H:D:d:s:a:F:L:h", long_opt, &long_opt_ind)) != -1)
+  while ((opt = getopt_long(argc, argv, "c:H:D:d:s:i:I:a:F:L:h", long_opt, &long_opt_ind)) != -1)
   {
     switch (opt)
     {
@@ -121,6 +129,14 @@ int init_options(int argc, char**argv, struct options& options)
 
     case 's':
       options.server_name = std::string(optarg);
+      break;
+
+    case 'i':
+      options.impu_cache_ttl = atoi(optarg);
+      break;
+
+    case 'I':
+      options.ims_sub_cache_ttl = atoi(optarg);
       break;
 
     case 'a':
@@ -169,6 +185,8 @@ int main(int argc, char**argv)
   options.dest_host = "dest-host.unknown";
   options.server_name = "sip:server-name.unknown";
   options.access_log_enabled = false;
+  options.impu_cache_ttl = 0;
+  options.ims_sub_cache_ttl = 0;
   options.log_to_file = false;
   options.log_level = 0;
 
@@ -233,18 +251,28 @@ int main(int argc, char**argv)
                                       options.server_name,
                                       dict);
   HssCacheHandler::configure_cache(cache);
+  // We should only query the cache for AV information if there is no HSS.  If there is an HSS, we
+  // should always hit it.  If there is not, the AV information must have been provisioned in the
+  // "cache" (which becomes persistent).
+  bool query_cache_av = options.dest_host.empty() || (options.dest_host == "0.0.0.0");
+  ImpiHandler::Config impi_handler_config(query_cache_av, options.impu_cache_ttl);
+  ImpuIMSSubscriptionHandler::Config impu_handler_config(options.ims_sub_cache_ttl);
+  HttpStack::HandlerFactory<PingHandler> ping_handler_factory;
+  HttpStack::ConfiguredHandlerFactory<ImpiDigestHandler, ImpiHandler::Config> impi_digest_handler_factory(&impi_handler_config);
+  HttpStack::ConfiguredHandlerFactory<ImpiAvHandler, ImpiHandler::Config> impi_av_handler_factory(&impi_handler_config);
+  HttpStack::ConfiguredHandlerFactory<ImpuIMSSubscriptionHandler, ImpuIMSSubscriptionHandler::Config> impu_ims_sub_handler_factory(&impu_handler_config);
   try
   {
     http_stack->initialize();
     http_stack->configure(options.http_address, options.http_port, 10, access_logger);
     http_stack->register_handler("^/ping$",
-                                 HttpStack::handler_factory<PingHandler>);
+                                 &ping_handler_factory);
     http_stack->register_handler("^/impi/[^/]*/digest$",
-                                 HttpStack::handler_factory<ImpiDigestHandler>);
+                                 &impi_digest_handler_factory);
     http_stack->register_handler("^/impi/[^/]*/av",
-                                 HttpStack::handler_factory<ImpiAvHandler>);
+                                 &impi_av_handler_factory);
     http_stack->register_handler("^/impu/",
-                                 HttpStack::handler_factory<ImpuIMSSubscriptionHandler>);
+                                 &impu_ims_sub_handler_factory);
     http_stack->start();
   }
   catch (HttpStack::Exception& e)

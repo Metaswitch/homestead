@@ -112,6 +112,31 @@ public:
     Request _req;
   };
 
+  class BaseHandlerFactory
+  {
+  public:
+    BaseHandlerFactory() {}
+    virtual Handler* create(Request& req) = 0;
+  };
+
+  template <class H>
+  class HandlerFactory : public BaseHandlerFactory
+  {
+  public:
+    HandlerFactory() : BaseHandlerFactory() {}
+    Handler* create(Request& req) { return new H(req); }
+  };
+
+  template <class H, class C>
+  class ConfiguredHandlerFactory : public BaseHandlerFactory
+  {
+  public:
+    ConfiguredHandlerFactory(const C* cfg) : BaseHandlerFactory(), _cfg(cfg) {}
+    Handler* create(Request& req) { return new H(req, _cfg); }
+  private:
+    const C* _cfg;
+  };
+
   static inline HttpStack* get_instance() {return INSTANCE;};
   void initialize();
   void configure(const std::string& bind_address,
@@ -130,11 +155,7 @@ public:
     }
   };
 
-  template <class T>
-  static Handler* handler_factory(Request& req) { return new T(req); }
-
-  typedef Handler* (*handler_factory_t)(Request&);
-  void register_handler(char* path, handler_factory_t factory);
+  void register_handler(char* path, BaseHandlerFactory* factory);
 
 private:
   static HttpStack* INSTANCE;
