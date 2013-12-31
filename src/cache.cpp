@@ -575,25 +575,12 @@ issue_get_for_key(std::string& key,
   ColumnParent cparent;
   cparent.column_family = _column_family;
 
-  // Build a key range specifying a single key.
-  KeyRange range;
-  range.start_key = key;
-  range.end_key = "";
-  range.__isset.start_key = true;
-  range.__isset.end_key = true;
+  _client->get_slice(columns, key, cparent, predicate, consistency_level);
 
-  std::vector<KeySlice> results;
-  _client->get_range_slices(results, cparent, predicate, range, consistency_level);
-
-  if (results.size() == 0)
+  if (columns.size() == 0)
   {
     Cache::RowNotFoundException row_not_found_ex(_column_family, key);
     throw row_not_found_ex;
-  }
-  else
-  {
-    // We only asked for one key, so there is only one row in our results.
-    columns = results[0].columns;
   }
 }
 
