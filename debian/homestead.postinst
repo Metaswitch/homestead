@@ -86,9 +86,10 @@ case "$1" in
         setup_logging
         [ ! -x /usr/share/clearwater/bin/clearwater-logging-update ] || /usr/share/clearwater/bin/clearwater-logging-update
         add_section /etc/security/limits.conf homestead /etc/security/limits.conf.homestead
-        /usr/share/clearwater/infrastructure/scripts/$NAME
-        cp /usr/share/clearwater/$NAME/$NAME.monit /etc/monit/conf.d/
-        service monit restart
+        for SCRIPT in $(ls -1 /usr/share/clearwater/infrastructure/scripts/$NAME* 2>/dev/null)
+        do
+            $SCRIPT
+        done
 
         # Restart homestead.  Always do this by terminating homestead so monit will
         # restart it more-or-less immediately.  (monit restart seems to have

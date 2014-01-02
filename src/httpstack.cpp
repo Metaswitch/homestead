@@ -41,12 +41,26 @@ HttpStack HttpStack::DEFAULT_INSTANCE;
 
 HttpStack::HttpStack() {}
 
+void HttpStack::Request::send_reply(int rc)
+{
+  // Log and set up the return code.
+  _stack->log(std::string(_req->uri->path->full), rc);
+  evhtp_send_reply(_req, rc);
+
+  // Resume the request to actually send it.  This matches the function to pause the request in
+  // HttpStack::handler_callback_fn.
+  evhtp_request_resume(_req);
+}
+
 void HttpStack::initialize()
 {
   // Initialize if we haven't already done so.  We don't do this in the
   // constructor because we can't throw exceptions on failure.
   if (!_evbase)
   {
+    // Tell libevent to use pthreads.  If you don't, it seems to disable locking, with hilarious
+    // results.
+    evthread_use_pthreads();
     _evbase = event_base_new();
   }
   if (!_evhtp)
@@ -111,6 +125,11 @@ void HttpStack::wait_stopped()
 
 void HttpStack::handler_callback_fn(evhtp_request_t* req, void* handler_factory)
 {
+  // Pause the request processing (which stops it from being cancelled), as we may process this
+  // request asynchronously.  The HttpStack::Request::send_reply method resumes.
+  evhtp_request_pause(req);
+
+  // Create a Request and a Handler and kick off processing.
   Request request(INSTANCE, req);
   Handler* handler = ((HttpStack::BaseHandlerFactory*)handler_factory)->create(request);
   handler->run();
@@ -126,4 +145,3 @@ void HttpStack::event_base_thread_fn()
 {
   event_base_loop(_evbase, 0);
 }
-

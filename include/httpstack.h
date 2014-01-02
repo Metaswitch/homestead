@@ -68,7 +68,7 @@ public:
       return url_unescape(std::string(param != NULL ? param : ""));
     }
     void add_content(const std::string& content) {evbuffer_add(_req->buffer_out, content.c_str(), content.length());}
-    void send_reply(int rc) {_stack->log(std::string(_req->uri->path->full), rc); evhtp_send_reply(_req, rc);}
+    void send_reply(int rc);
 
   private:
     HttpStack* _stack;

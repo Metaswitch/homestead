@@ -81,6 +81,7 @@ LDFLAGS += -lthrift \
            -lfdcore \
            -lfdproto \
            -levhtp \
+           -levent_pthreads \
            -levent \
            -lpthread
 

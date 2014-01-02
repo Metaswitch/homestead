@@ -51,6 +51,7 @@ struct options
   std::string diameter_conf;
   std::string http_address;
   unsigned short http_port;
+  int http_threads;
   std::string dest_realm;
   std::string dest_host;
   std::string server_name;
@@ -68,8 +69,9 @@ void usage(void)
   puts("Options:\n"
        "\n"
        " -c, --diameter-conf <file> File name for Diameter configuration\n"
-       " -h, --http <address>[:<port>]\n"
+       " -H, --http <address>[:<port>]\n"
        "                            Set HTTP bind address and port (default: 0.0.0.0:8888)\n"
+       " -t, --http-threads N       Number of HTTP threads (default: 1)\n"
        " -D, --dest-realm <name>    Set Destination-Realm on Cx messages\n"
        " -d, --dest-host <name>     Set Destination-Host on Cx messages\n"
        " -s, --server-name <name>   Set Server-Name on Cx messages\n"
@@ -92,6 +94,7 @@ int init_options(int argc, char**argv, struct options& options)
   {
     {"diameter-conf",     required_argument, NULL, 'c'},
     {"http",              required_argument, NULL, 'H'},
+    {"http-threads",      required_argument, NULL, 't'},
     {"dest-realm",        required_argument, NULL, 'D'},
     {"dest-host",         required_argument, NULL, 'd'},
     {"server-name",       required_argument, NULL, 's'},
@@ -106,7 +109,7 @@ int init_options(int argc, char**argv, struct options& options)
 
   int opt;
   int long_opt_ind;
-  while ((opt = getopt_long(argc, argv, "c:H:D:d:s:i:I:a:F:L:h", long_opt, &long_opt_ind)) != -1)
+  while ((opt = getopt_long(argc, argv, "c:H:t:D:d:s:i:I:a:F:L:h", long_opt, &long_opt_ind)) != -1)
   {
     switch (opt)
     {
@@ -117,6 +120,10 @@ int init_options(int argc, char**argv, struct options& options)
     case 'H':
       options.http_address = std::string(optarg);
       // TODO: Parse optional HTTP port.
+      break;
+
+    case 't':
+      options.http_threads = atoi(optarg);
       break;
 
     case 'D':
@@ -168,19 +175,40 @@ int init_options(int argc, char**argv, struct options& options)
 
 static sem_t term_sem;
 
-// Signal handler that triggers sprout termination.
+// Signal handler that triggers homestead termination.
 void terminate_handler(int sig)
 {
   sem_post(&term_sem);
 }
 
+// Signal handler that simply dumps the stack and then crashes out.
+void exception_handler(int sig)
+{
+  // Reset the signal handlers so that another exception will cause a crash.
+  signal(SIGABRT, SIG_DFL);
+  signal(SIGSEGV, SIG_DFL);
+
+  // Log the signal, along with a backtrace.
+  LOG_BACKTRACE("Signal %d caught", sig);
+
+  // Dump a core.
+  abort();
+}
+
 int main(int argc, char**argv)
 {
-  struct options options;
+  // Set up our exception signal handler for asserts and segfaults.
+  signal(SIGABRT, exception_handler);
+  signal(SIGSEGV, exception_handler);
 
+  sem_init(&term_sem, 0, 0);
+  signal(SIGTERM, terminate_handler);
+
+  struct options options;
   options.diameter_conf = "homestead.conf";
   options.http_address = "0.0.0.0";
   options.http_port = 8888;
+  options.http_threads = 1;
   options.dest_realm = "dest-realm.unknown";
   options.dest_host = "dest-host.unknown";
   options.server_name = "sip:server-name.unknown";
@@ -215,9 +243,6 @@ int main(int argc, char**argv)
   }
 
   LOG_STATUS("Log level set to %d", options.log_level);
-
-  sem_init(&term_sem, 0, 0);
-  signal(SIGTERM, terminate_handler);
 
   Diameter::Stack* diameter_stack = Diameter::Stack::get_instance();
   Cx::Dictionary* dict = NULL;
@@ -264,7 +289,7 @@ int main(int argc, char**argv)
   try
   {
     http_stack->initialize();
-    http_stack->configure(options.http_address, options.http_port, 10, access_logger);
+    http_stack->configure(options.http_address, options.http_port, options.http_threads, access_logger);
     http_stack->register_handler("^/ping$",
                                  &ping_handler_factory);
     http_stack->register_handler("^/impi/[^/]*/digest$",

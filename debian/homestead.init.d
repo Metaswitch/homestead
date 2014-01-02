@@ -85,6 +85,7 @@ get_settings()
         . /etc/clearwater/config
 
         # Set up defaults for user settings then pull in any overrides.
+        num_http_threads=$(($(grep processor /proc/cpuinfo | wc -l) * 50))
         log_level=2
         impu_cache_ttl=0
         ims_sub_cache_ttl=$((24 * 60 * 60))
@@ -121,6 +122,8 @@ do_start()
         echo 0 > /proc/sys/kernel/yama/ptrace_scope
         get_settings
         DAEMON_ARGS="--diameter-conf /var/lib/homestead/homestead.conf
+                     --http $local_ip
+                     --http-threads $num_http_threads
                      --dest-realm $home_domain
                      --dest-host $hss_hostname
                      --server-name sip:$sprout_hostname:5054
