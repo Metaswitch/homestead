@@ -146,7 +146,7 @@ ServerCapabilities UserAuthorizationAnswer::server_capabilities() const
 LocationInfoRequest::LocationInfoRequest(const Dictionary* dict,
                                          const std::string& dest_host,
                                          const std::string& dest_realm,
-                                         const std::string originating_request,
+                                         const std::string& originating_request,
                                          const std::string& impu,
                                          const int user_authorization_type) :
                                          Diameter::Message(dict, dict->LOCATION_INFO_REQUEST)
@@ -164,7 +164,7 @@ LocationInfoRequest::LocationInfoRequest(const Dictionary* dict,
   add(Diameter::AVP(dict->PUBLIC_IDENTITY).val_str(impu));
   if (user_authorization_type)
   {
-    add(Diameter::AVP(dict->USER_AUTHORIZATION_TYPE).val_i32(3));
+    add(Diameter::AVP(dict->USER_AUTHORIZATION_TYPE).val_i32(2));
   }
 }
 

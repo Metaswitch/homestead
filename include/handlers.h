@@ -62,8 +62,6 @@ const int DIAMETER_ERROR_ROAMING_NOT_ALLOWED = 5004;
 // JSON string constants
 const std::string JSON_RC = "result-code";
 const std::string JSON_SCSCF = "scscf";
-const std::string JSON_MAN_CAP = "mandatory-capabilities";
-const std::string JSON_OPT_CAP = "optional-capabilities";
 
 class PingHandler : public HttpStack::Handler
 {

@@ -379,12 +379,16 @@ void ImpiAvHandler::send_reply(const AKAAuthVector& av)
 void ImpiRegistrationStatusHandler::run()
 {
   const std::string prefix = "/impi/";
-  std::string path = _req.full_path();
+  std::string path = _req.path();
   int authorization_type_int = 0;
 
-  _impi = path.substr(prefix.length());
+  _impi = path.substr(prefix.length(), path.find_first_of("/", prefix.length()) - prefix.length());
   _impu = _req.param("impu");
   _visited_network = _req.param("visited-network");
+  if (_visited_network.empty())
+  {
+    _visited_network = "notsurewhatthisshouldbe.com";
+  }
   _authorization_type = _req.param("auth-type");
   if (_authorization_type == "REG")
   {
@@ -400,14 +404,14 @@ void ImpiRegistrationStatusHandler::run()
   }
 
   Cx::UserAuthorizationRequest* uar =
-    new Cx::UserAuthorizationRequest(&_dict,
+    new Cx::UserAuthorizationRequest(_dict,
                                      _dest_host,
                                      _dest_realm,
                                      _impi,
                                      _impu,
                                      _visited_network,
                                      authorization_type_int);
-  DiameterTransaction* tsx = new DiameterTransaction(&_dict, this);
+  DiameterTransaction* tsx = new DiameterTransaction(_dict, this);
   tsx->set_response_clbk(&ImpiRegistrationStatusHandler::on_uar_response);
   uar->send(tsx, 200);
 }
@@ -418,8 +422,8 @@ void ImpiRegistrationStatusHandler::on_uar_response(Diameter::Message& rsp)
   int result_code = uaa.result_code();
   int experimental_result_code = uaa.experimental_result_code();
   if ((result_code == DIAMETER_SUCCESS) ||
-      (experimental_result_code == (DIAMETER_FIRST_REGISTRATION ||
-                                    DIAMETER_SUBSEQUENT_REGISTRATION)))
+      (experimental_result_code == DIAMETER_FIRST_REGISTRATION) ||
+      (experimental_result_code == DIAMETER_SUBSEQUENT_REGISTRATION))
   {
     rapidjson::StringBuffer sb;
     rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
@@ -435,15 +439,14 @@ void ImpiRegistrationStatusHandler::on_uar_response(Diameter::Message& rsp)
     else
     {
       ServerCapabilities server_capabilities = uaa.server_capabilities();
-      writer.String(JSON_MAN_CAP.c_str());
-      writer.String((server_capabilities.convert_capabilities_to_string(server_capabilities.mandatory_capabilities)).c_str());
-      writer.String(JSON_OPT_CAP.c_str());
-      writer.String((server_capabilities.convert_capabilities_to_string(server_capabilities.optional_capabilities)).c_str());
+      server_capabilities.write_capabilities(&writer);
     }
     writer.EndObject();
+    _req.add_content(sb.GetString());
+    _req.send_reply(200);
   }
-  else if (experimental_result_code == (DIAMETER_ERROR_USER_UNKNOWN ||
-                                        DIAMETER_ERROR_IDENTITIES_DONT_MATCH))
+  else if ((experimental_result_code == DIAMETER_ERROR_USER_UNKNOWN) ||
+           (experimental_result_code == DIAMETER_ERROR_IDENTITIES_DONT_MATCH))
   {
     _req.send_reply(404);
   }
@@ -470,10 +473,10 @@ void ImpiRegistrationStatusHandler::on_uar_response(Diameter::Message& rsp)
 void ImpuLocationInfoHandler::run()
 {
   const std::string prefix = "/impu/";
-  std::string path = _req.full_path();
+  std::string path = _req.path();
   int authorization_type_int = 0;
 
-  _impu = path.substr(prefix.length());
+  _impu = path.substr(prefix.length(), path.find_first_of("/", prefix.length()) - prefix.length());
   _originating = _req.param("originating");
   _authorization_type = _req.param("auth-type");
   if (_authorization_type == "CAPAB")
@@ -482,13 +485,13 @@ void ImpuLocationInfoHandler::run()
   }
 
   Cx::LocationInfoRequest* lir =
-    new Cx::LocationInfoRequest(&_dict,
+    new Cx::LocationInfoRequest(_dict,
                                 _dest_host,
                                 _dest_realm,
                                 _originating,
                                 _impu,
                                 authorization_type_int);
-  DiameterTransaction* tsx = new DiameterTransaction(&_dict, this);
+  DiameterTransaction* tsx = new DiameterTransaction(_dict, this);
   tsx->set_response_clbk(&ImpuLocationInfoHandler::on_lir_response);
   lir->send(tsx, 200);
 }
@@ -515,15 +518,14 @@ void ImpuLocationInfoHandler::on_lir_response(Diameter::Message& rsp)
     else
     {
       ServerCapabilities server_capabilities = lia.server_capabilities();
-      writer.String(JSON_MAN_CAP.c_str());
-      writer.String((server_capabilities.convert_capabilities_to_string(server_capabilities.mandatory_capabilities)).c_str());
-      writer.String(JSON_OPT_CAP.c_str());
-      writer.String((server_capabilities.convert_capabilities_to_string(server_capabilities.optional_capabilities)).c_str());
+      server_capabilities.write_capabilities(&writer);
     }
     writer.EndObject();
+    _req.add_content(sb.GetString());
+    _req.send_reply(200);
   }
-  else if (experimental_result_code == (DIAMETER_ERROR_USER_UNKNOWN ||
-                                        DIAMETER_ERROR_IDENTITY_NOT_REGISTERED))
+  else if ((experimental_result_code == DIAMETER_ERROR_USER_UNKNOWN) ||
+           (experimental_result_code == DIAMETER_ERROR_IDENTITY_NOT_REGISTERED))
   {
     _req.send_reply(404);
   }

@@ -113,7 +113,7 @@ public:
   LocationInfoRequest(const Dictionary* dict,
                       const std::string& dest_host,
                       const std::string& dest_realm,
-                      const std::string originating_request,
+                      const std::string& originating_request,
                       const std::string& impu,
                       const int user_authorization_type);
   inline LocationInfoRequest(Diameter::Message& msg) : Diameter::Message(msg) {};

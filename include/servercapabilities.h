@@ -41,22 +41,45 @@
 #include <sstream>
 #include <iterator>
 
+#include "rapidjson/writer.h"
+#include "rapidjson/stringbuffer.h"
+
+// JSON constants
+const std::string JSON_MAN_CAP = "mandatory-capabilities";
+const std::string JSON_OPT_CAP = "optional-capabilities";
+
 struct ServerCapabilities
 {
   std::vector<int> mandatory_capabilities;
   std::vector<int> optional_capabilities;
 
-  std::string convert_capabilities_to_string(std::vector<int> capabilities)
+  void write_capabilities(rapidjson::Writer<rapidjson::StringBuffer>* writer)
   {
-    std::ostringstream result;    
-    result << '[';
-    if (!capabilities.empty())
+    (*writer).String(JSON_MAN_CAP.c_str());
+    (*writer).StartArray();
+    if (!mandatory_capabilities.empty())
     {
-      std::copy(capabilities.begin(), capabilities.end() - 1, std::ostream_iterator<int>(result, ","));
-      result << capabilities.back();
+      for (std::vector<int>::const_iterator it = mandatory_capabilities.begin();
+           it != mandatory_capabilities.end();
+           ++it)
+      {
+        (*writer).Int(*it);
+      }
     }
-    result << ']';
-    return result.str();
+    (*writer).EndArray();
+    (*writer).String(JSON_OPT_CAP.c_str());
+    (*writer).StartArray();
+    if (!optional_capabilities.empty())
+    {
+      for (std::vector<int>::const_iterator it = optional_capabilities.begin();
+           it != optional_capabilities.end();
+           ++it)
+      {
+        (*writer).Int(*it);
+      }
+    }
+    (*writer).EndArray();
+    return;
   }
 };
 
