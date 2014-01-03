@@ -387,7 +387,7 @@ void ImpiRegistrationStatusHandler::run()
   _visited_network = _req.param("visited-network");
   if (_visited_network.empty())
   {
-    _visited_network = "notsurewhatthisshouldbe.com";
+    _visited_network = _dest_realm;
   }
   _authorization_type = _req.param("auth-type");
   if (_authorization_type == "REG")
