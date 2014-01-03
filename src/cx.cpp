@@ -36,6 +36,8 @@
 
 #include "cx.h"
 
+#include "log.h"
+
 #include <string>
 #include <sstream>
 #include <boost/archive/iterators/base64_from_binary.hpp>
@@ -86,9 +88,10 @@ UserAuthorizationRequest::UserAuthorizationRequest(const Dictionary* dict,
                                                    const std::string& impi,
                                                    const std::string& impu,
                                                    const std::string& visited_network_identifier,
-                                                   const int user_authorization_type) :
+                                                   const std::string& authorization_type) :
                                                    Diameter::Message(dict, dict->USER_AUTHORIZATION_REQUEST)
 {
+  LOG_DEBUG("Sending User-Authorization request for %s/%s", impi.c_str(), impu.c_str());
   add_new_session_id();
   add_vendor_spec_app_id();  
   add(Diameter::AVP(dict->AUTH_SESSION_STATE).val_i32(1));
@@ -98,7 +101,21 @@ UserAuthorizationRequest::UserAuthorizationRequest(const Dictionary* dict,
   add(Diameter::AVP(dict->USER_NAME).val_str(impi));
   add(Diameter::AVP(dict->PUBLIC_IDENTITY).val_str(impu));
   add(Diameter::AVP(dict->VISITED_NETWORK_IDENTIFIER).val_str(visited_network_identifier));
-  add(Diameter::AVP(dict->USER_AUTHORIZATION_TYPE).val_i32(user_authorization_type));
+
+  // USER_AUTHORIZATION_TYPE AVP is an enumeration. These values are as per 3GPP TS 29.229.
+  // Default is 0 (REGISTATION).
+  if (authorization_type == "DEREG")
+  {
+    add(Diameter::AVP(dict->USER_AUTHORIZATION_TYPE).val_i32(1));
+  }
+  else if (authorization_type == "CAPAB")
+  {
+    add(Diameter::AVP(dict->USER_AUTHORIZATION_TYPE).val_i32(2));
+  }
+  else
+  {
+    add(Diameter::AVP(dict->USER_AUTHORIZATION_TYPE).val_i32(0));
+  }
 }
 
 UserAuthorizationAnswer::UserAuthorizationAnswer(const Dictionary* dict) :
@@ -124,6 +141,9 @@ std::string UserAuthorizationAnswer::server_name() const
 ServerCapabilities UserAuthorizationAnswer::server_capabilities() const
 {
   ServerCapabilities server_capabilities;
+
+  // Server capabilities are grouped into mandatory capabilities and optional capabilities
+  // underneath the SERVER_CAPABILITIES AVP.
   Diameter::AVP::iterator avps = begin(((Cx::Dictionary*)dict())->SERVER_CAPABILITIES);
   if (avps != end())
   {
@@ -148,21 +168,28 @@ LocationInfoRequest::LocationInfoRequest(const Dictionary* dict,
                                          const std::string& dest_realm,
                                          const std::string& originating_request,
                                          const std::string& impu,
-                                         const int user_authorization_type) :
+                                         const std::string& authorization_type) :
                                          Diameter::Message(dict, dict->LOCATION_INFO_REQUEST)
 {
+  LOG_DEBUG("Sending User-Authorization request for %s", impu.c_str());
   add_new_session_id();
   add_vendor_spec_app_id();
   add(Diameter::AVP(dict->AUTH_SESSION_STATE).val_i32(1));
   add_origin();
   add(Diameter::AVP(dict->DESTINATION_HOST).val_str(dest_host));
   add(Diameter::AVP(dict->DESTINATION_REALM).val_str(dest_realm));
+
+  // Only add the ORIGINATING_REQUEST AVP if we are originating. This AVP is an
+  // enumeration. 0 corresponds to ORIGINATING.
   if (originating_request == "true")
   {
     add(Diameter::AVP(dict->ORIGINATING_REQUEST).val_i32(0));
   }
   add(Diameter::AVP(dict->PUBLIC_IDENTITY).val_str(impu));
-  if (user_authorization_type)
+
+  // Only add the USER_AUTHORIZATION_TYPE AVP if we require capability information.
+  // This AVP is an enumeration. 2 corresponds to REGISTRATION_AND_CAPABILITIES.
+  if (authorization_type == "CAPAB")
   {
     add(Diameter::AVP(dict->USER_AUTHORIZATION_TYPE).val_i32(2));
   }
@@ -191,6 +218,9 @@ std::string LocationInfoAnswer::server_name() const
 ServerCapabilities LocationInfoAnswer::server_capabilities() const
 {
   ServerCapabilities server_capabilities;
+
+  // Server capabilities are grouped into mandatory capabilities and optional capabilities
+  // underneath the SERVER_CAPABILITIES AVP.
   Diameter::AVP::iterator avps = begin(((Cx::Dictionary*)dict())->SERVER_CAPABILITIES);
   if (avps != end())
   {
@@ -409,6 +439,7 @@ ServerAssignmentRequest::ServerAssignmentRequest(const Dictionary* dict,
                                                  const std::string& server_name) :
                                                  Diameter::Message(dict, dict->SERVER_ASSIGNMENT_REQUEST)
 {
+  LOG_DEBUG("Sending User-Authorization request for %s/%s", impi.c_str(), impu.c_str());
   add_new_session_id();
   add_vendor_spec_app_id();
   add(Diameter::AVP(dict->AUTH_SESSION_STATE).val_i32(1));
@@ -421,6 +452,10 @@ ServerAssignmentRequest::ServerAssignmentRequest(const Dictionary* dict,
   }
   add(Diameter::AVP(dict->PUBLIC_IDENTITY).val_str(impu));
   add(Diameter::AVP(dict->SERVER_NAME).val_str(server_name));
+
+  // The SERVER_ASSIGNMENT_TYPE AVP is an enumeration. 1 corresponds to REGISTRATION.
+  // 3 corresponds to UNREGISTERED_USER. Add the correct value depending on whether
+  // or not we have a private identity.
   if (!impi.empty())
   {
     add(Diameter::AVP(dict->SERVER_ASSIGNMENT_TYPE).val_i32(1));

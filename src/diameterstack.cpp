@@ -244,6 +244,8 @@ Message::~Message()
   }
 }
 
+// Given an AVP type, search a Diameter message for an AVP of this type
+// and return the string value of this AVP if one exists.
 std::string Message::get_str_from_avp(const Dictionary::AVP& type) const
 {
   std::string str;
@@ -255,6 +257,8 @@ std::string Message::get_str_from_avp(const Dictionary::AVP& type) const
   return str; 
 }
 
+// Given an AVP type, search a Diameter message for an AVP of this type
+// and return the integer value of this AVP if one exists.
 int Message::get_i32_from_avp(const Dictionary::AVP& type) const
 {
   int i32 = 0;
@@ -266,11 +270,16 @@ int Message::get_i32_from_avp(const Dictionary::AVP& type) const
   return i32;
 }
 
+// Get the result code from the RESULT_CODE AVP of a Diameter message if
+// it is present.
 int Message::get_result_code() const
 {
   return get_i32_from_avp(dict()->RESULT_CODE);
 }
 
+// Get the experimental result code from the EXPERIMENTAL_RESULT_CODE AVP
+// of a Diameter message if it is present. This AVP is inside the
+// EXPERIMENTAL_RESULT AVP.
 int Message::get_experimental_result_code() const
 {
   int experimental_result_code = 0;

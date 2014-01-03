@@ -44,7 +44,7 @@
 #include "rapidjson/writer.h"
 #include "rapidjson/stringbuffer.h"
 
-// JSON constants
+// JSON string constants
 const std::string JSON_MAN_CAP = "mandatory-capabilities";
 const std::string JSON_OPT_CAP = "optional-capabilities";
 
@@ -53,8 +53,12 @@ struct ServerCapabilities
   std::vector<int> mandatory_capabilities;
   std::vector<int> optional_capabilities;
 
+  // Write the server capabilities contained in this structure into a JSON object.
+  // The 2 sets of capabilities are added in 2 arrays. If either set of capabilities
+  // is empty, write an empty array.
   void write_capabilities(rapidjson::Writer<rapidjson::StringBuffer>* writer)
   {
+    // Mandatory capabilities.
     (*writer).String(JSON_MAN_CAP.c_str());
     (*writer).StartArray();
     if (!mandatory_capabilities.empty())
@@ -67,6 +71,8 @@ struct ServerCapabilities
       }
     }
     (*writer).EndArray();
+
+    // Optional capabilities.
     (*writer).String(JSON_OPT_CAP.c_str());
     (*writer).StartArray();
     if (!optional_capabilities.empty())

@@ -37,6 +37,8 @@
 #include "handlers.h"
 #include "servercapabilities.h"
 
+#include "log.h"
+
 #include "rapidjson/writer.h"
 #include "rapidjson/stringbuffer.h"
 #include "rapidxml/rapidxml.hpp"
@@ -380,8 +382,6 @@ void ImpiRegistrationStatusHandler::run()
 {
   const std::string prefix = "/impi/";
   std::string path = _req.path();
-  int authorization_type_int = 0;
-
   _impi = path.substr(prefix.length(), path.find_first_of("/", prefix.length()) - prefix.length());
   _impu = _req.param("impu");
   _visited_network = _req.param("visited-network");
@@ -390,18 +390,6 @@ void ImpiRegistrationStatusHandler::run()
     _visited_network = _dest_realm;
   }
   _authorization_type = _req.param("auth-type");
-  if (_authorization_type == "REG")
-  {
-    authorization_type_int = 0;
-  }
-  else if (_authorization_type == "DEREG")
-  {
-    authorization_type_int = 1;
-  }
-  else if (_authorization_type == "CAPAB")
-  {
-    authorization_type_int = 2;
-  }
 
   Cx::UserAuthorizationRequest* uar =
     new Cx::UserAuthorizationRequest(_dict,
@@ -410,7 +398,7 @@ void ImpiRegistrationStatusHandler::run()
                                      _impi,
                                      _impu,
                                      _visited_network,
-                                     authorization_type_int);
+                                     _authorization_type);
   DiameterTransaction* tsx = new DiameterTransaction(_dict, this);
   tsx->set_response_clbk(&ImpiRegistrationStatusHandler::on_uar_response);
   uar->send(tsx, 200);
@@ -431,6 +419,8 @@ void ImpiRegistrationStatusHandler::on_uar_response(Diameter::Message& rsp)
     writer.String(JSON_RC.c_str());
     writer.Int(result_code ? result_code : experimental_result_code);
     std::string server_name = uaa.server_name();
+    // If the HSS returned a server_name, return that. If not, return the
+    // server capabilities, even if none are returned by the HSS.
     if (server_name.length())
     {
       writer.String(JSON_SCSCF.c_str());
@@ -474,15 +464,10 @@ void ImpuLocationInfoHandler::run()
 {
   const std::string prefix = "/impu/";
   std::string path = _req.path();
-  int authorization_type_int = 0;
 
   _impu = path.substr(prefix.length(), path.find_first_of("/", prefix.length()) - prefix.length());
   _originating = _req.param("originating");
   _authorization_type = _req.param("auth-type");
-  if (_authorization_type == "CAPAB")
-  {
-    authorization_type_int = 2;
-  }
 
   Cx::LocationInfoRequest* lir =
     new Cx::LocationInfoRequest(_dict,
@@ -490,7 +475,7 @@ void ImpuLocationInfoHandler::run()
                                 _dest_realm,
                                 _originating,
                                 _impu,
-                                authorization_type_int);
+                                _authorization_type);
   DiameterTransaction* tsx = new DiameterTransaction(_dict, this);
   tsx->set_response_clbk(&ImpuLocationInfoHandler::on_lir_response);
   lir->send(tsx, 200);
@@ -510,6 +495,8 @@ void ImpuLocationInfoHandler::on_lir_response(Diameter::Message& rsp)
     writer.String(JSON_RC.c_str());
     writer.Int(result_code ? result_code : experimental_result_code);
     std::string server_name = lia.server_name();
+    // If the HSS returned a server_name, return that. If not, return the
+    // server capabilities, even if none are returned by the HSS.
     if ((result_code == DIAMETER_SUCCESS) && (server_name.length()))
     {
       writer.String(JSON_SCSCF.c_str());
