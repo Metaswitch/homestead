@@ -42,6 +42,8 @@
 
 #include <evhtp.h>
 
+#include "accesslogger.h"
+
 class HttpStack
 {
 public:
@@ -56,18 +58,20 @@ public:
   class Request
   {
   public:
-    Request(evhtp_request_t* req) : _req(req) {}
+    Request(HttpStack* stack, evhtp_request_t* req) : _stack(stack), _req(req) {}
     inline std::string path() {return url_unescape(std::string(_req->uri->path->path));}
     inline std::string full_path() {return url_unescape(std::string(_req->uri->path->full));}
-    inline std::string file() {return url_unescape(std::string(_req->uri->path->file));}
+    inline std::string file() {return url_unescape(std::string((_req->uri->path->file != NULL) ? _req->uri->path->file : ""));}
     inline std::string param(const std::string& name)
     {
       const char* param = evhtp_kv_find(_req->uri->query, name.c_str());
       return url_unescape(std::string(param != NULL ? param : ""));
     }
     void add_content(const std::string& content) {evbuffer_add(_req->buffer_out, content.c_str(), content.length());}
-    void send_reply(int rc) {evhtp_send_reply(_req, rc);}
+    void send_reply(int rc);
+
   private:
+    HttpStack* _stack;
     evhtp_request_t* _req;
     std::string url_unescape(const std::string& s)
     {
@@ -99,30 +103,67 @@ public:
   class Handler
   {
   public:
-    inline Handler(const std::string& path) : _path(path) {}
+    inline Handler(Request& req) : _req(req) {}
     virtual ~Handler() {}
-    inline const std::string path() const {return _path;}
-    virtual void handle(Request& req) = 0;
 
+    virtual void run() = 0;
+
+  protected:
+    Request _req;
+  };
+
+  class BaseHandlerFactory
+  {
+  public:
+    BaseHandlerFactory() {}
+    virtual Handler* create(Request& req) = 0;
+  };
+
+  template <class H>
+  class HandlerFactory : public BaseHandlerFactory
+  {
+  public:
+    HandlerFactory() : BaseHandlerFactory() {}
+    Handler* create(Request& req) { return new H(req); }
+  };
+
+  template <class H, class C>
+  class ConfiguredHandlerFactory : public BaseHandlerFactory
+  {
+  public:
+    ConfiguredHandlerFactory(const C* cfg) : BaseHandlerFactory(), _cfg(cfg) {}
+    Handler* create(Request& req) { return new H(req, _cfg); }
   private:
-    std::string _path;
+    const C* _cfg;
   };
 
   static inline HttpStack* get_instance() {return INSTANCE;};
   void initialize();
-  void configure(const std::string& bind_address, unsigned short port, int num_threads);
-  void register_handler(Handler* handler);
+  void configure(const std::string& bind_address,
+                 unsigned short port,
+                 int num_threads,
+                 AccessLogger* access_logger = NULL);
   void start();
   void stop();
   void wait_stopped();
+
+  void log(const std::string uri, int rc)
+  {
+    if (_access_logger)
+    {
+      _access_logger->log(uri, rc);
+    }
+  };
+
+  void register_handler(char* path, BaseHandlerFactory* factory);
 
 private:
   static HttpStack* INSTANCE;
   static HttpStack DEFAULT_INSTANCE;
 
   HttpStack();
-  static void handler_callback_fn(evhtp_request_t* req, void* handler_ptr);
-  static void* event_base_thread_fn(void* http_stack_ptr); 
+  static void handler_callback_fn(evhtp_request_t* req, void* handler_factory);
+  static void* event_base_thread_fn(void* http_stack_ptr);
   void event_base_thread_fn();
 
   // Don't implement the following, to avoid copies of this instance.
@@ -132,6 +173,7 @@ private:
   std::string _bind_address;
   unsigned short _bind_port;
   int _num_threads;
+  AccessLogger* _access_logger;
   evbase_t* _evbase;
   evhtp_t* _evhtp;
   pthread_t _event_base_thread;

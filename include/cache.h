@@ -33,6 +33,35 @@
  * under which the OpenSSL Project distributes the OpenSSL toolkit software,
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
+#ifndef CACHE_H__
+#define CACHE_H__
+
+// TODO sort this out properly.
+//
+// Well this is fun.  Free diameter uses cmake to define some compile time
+// options.  Thrift also defines these options.  So an app that uses both won't
+// compile because of the multiple definition.
+//
+// To work around this undefine any troublesome macros here. This means that any
+// code that includes DiameterStack and Cache headers must include the Cache
+// last.
+#ifdef HAVE_CLOCK_GETTIME
+#undef HAVE_CLOCK_GETTIME
+#endif
+
+#ifdef HAVE_MALLOC_H
+#undef HAVE_MALLOC_H
+#endif
+
+#ifdef ntohll
+#undef ntohll
+#endif
+
+#ifdef htonll
+#undef htonll
+#endif
+
+
 #include "thrift/Thrift.h"
 #include "thrift/transport/TSocket.h"
 #include "thrift/transport/TTransport.h"
@@ -44,10 +73,7 @@
 #include "authvector.h"
 #include "threadpool.h"
 
-#ifndef CACHE_H__
-#define CACHE_H__
-
-#define CASS org::apache::cassandra
+namespace cass = org::apache::cassandra;
 
 /// @class Cache
 ///
@@ -69,6 +95,7 @@ class Cache
 {
 public:
   class Request;
+  class Transaction;
 
   virtual ~Cache();
 
@@ -127,22 +154,22 @@ public:
 
   /// Send a request to cassandra.
   ///
-  /// The cache takes ownership of the request and will destroy it once it has
-  /// resolved.
+  /// The cache takes ownership of the transaction and will destroy it once it
+  /// has resolved.
   ///
-  /// @param request object describing the request.
-  void send(Request *request);
+  /// @param trx transaction containing the request.
+  void send(Transaction* trx);
 
   /// @class CacheClient
   ///
   /// Simple subclass of a normal cassandra client but that automatically opens
   /// and closes it's transport.
-  class CacheClient : public CASS::CassandraClient
+  class CacheClient : public cass::CassandraClient
   {
   public:
     CacheClient(boost::shared_ptr<apache::thrift::protocol::TProtocol> prot,
                 boost::shared_ptr<apache::thrift::transport::TFramedTransport> transport) :
-      CASS::CassandraClient(prot),
+      cass::CassandraClient(prot),
       _transport(transport)
     {
       transport->open();
@@ -162,7 +189,7 @@ private:
   ///
   /// The thread pool used by the cache.  This is a simple subclass of
   /// ThreadPool that also stores a pointer back to the cache.
-  class CacheThreadPool : public ThreadPool<Request *>
+  class CacheThreadPool : public ThreadPool<Transaction *>
   {
   public:
     CacheThreadPool(Cache *cache,
@@ -173,7 +200,7 @@ private:
   private:
     Cache *_cache;
 
-    void process_work(Request*&);
+    void process_work(Transaction*&);
   };
 
   // Thread pool is a friend so that it can call get_client().
@@ -239,7 +266,6 @@ public:
     std::string _key;
   };
 
-
   //
   // Request objects.
   //
@@ -251,10 +277,32 @@ public:
   // method is called (depending on the result of the request).
   //
   // To issue a request to the cache a user should:
-  // -  Select the appropriate request class.
-  // -  Create a subclass that implements on_success and on_failure.
-  // -  Create a new instance of that class.
-  // -  Call Cache::send, passing in the request object.
+  // -  Create a subclass of Transaction that implments on_success and
+  //    on_failure.
+  // -  Select the appropriate request class and create a new instance.
+  // -  Create a new instance of the transaction subclass passing it the request
+  //    object.
+  // -  Call Cache::send, passing in the transaction object.
+
+  /// @class Transaction base class for transactions involving the cache.
+  class Transaction
+  {
+  public:
+    /// Constructor.
+    ///
+    /// @param req underlying request object.  The transaction takes ownership
+    /// of this and is responsible for freeing it.
+    Transaction(Request* req);
+    virtual ~Transaction();
+
+    void run(CacheClient* client);
+
+    virtual void on_success() = 0;
+    virtual void on_failure(ResultCode error, std::string& text) = 0;
+
+  protected:
+    Request* _req;
+  };
 
   /// @class Request base class for all cache requests.
   class Request
@@ -271,14 +319,10 @@ public:
     /// ready to be run.
     ///
     /// @param client the client to use to interact with the database.
-    virtual void run(Cache::CacheClient* client);
-
-    /// Failure callback common to all requests.  Must be implemented by
-    /// subclasses.
-    ///
-    /// @param error the reason for the error.
-    /// @param text extra text detailing the failure.
-    virtual void on_failure(ResultCode error, std::string& text) = 0;
+    /// @param trx the parent transaction (which is notified when the request is
+    ///   complete).
+    virtual void run(CacheClient* client,
+                     Transaction *trx);
 
   protected:
     /// Method that contains the business logic of the request.
@@ -290,6 +334,7 @@ public:
 
     std::string _column_family;
     CacheClient *_client;
+    Transaction *_trx;
   };
 
   /// @class ModificationRequest a request to modify the cache (e.g. write
@@ -363,7 +408,7 @@ public:
     /// @param key row key
     /// @param columns (out) columns in the row
     void ha_get_row(std::string& key,
-                    std::vector<CASS::ColumnOrSuperColumn>& columns);
+                    std::vector<cass::ColumnOrSuperColumn>& columns);
 
     /// HA get specific columns in a row.
     ///
@@ -376,7 +421,7 @@ public:
     /// @param columns (out) the retrieved columns
     void ha_get_columns(std::string& key,
                         std::vector<std::string>& names,
-                        std::vector<CASS::ColumnOrSuperColumn>& columns);
+                        std::vector<cass::ColumnOrSuperColumn>& columns);
 
     /// HA get all columns in a row that have a particular prefix to their name.
     /// This is useful when working with dynamic columns.
@@ -387,27 +432,27 @@ public:
     ///   their prefix removed.
     void ha_get_columns_with_prefix(std::string& key,
                                     std::string& prefix,
-                                    std::vector<CASS::ColumnOrSuperColumn>& columns);
+                                    std::vector<cass::ColumnOrSuperColumn>& columns);
 
     /// Get an entire row (non-HA).
     /// @param consistency_level cassandra consistency level.
     void get_row(std::string& key,
-                 std::vector<CASS::ColumnOrSuperColumn>& columns,
-                 CASS::ConsistencyLevel::type consistency_level);
+                 std::vector<cass::ColumnOrSuperColumn>& columns,
+                 cass::ConsistencyLevel::type consistency_level);
 
     /// Get specific columns in a row (non-HA).
     /// @param consistency_level cassandra consistency level.
     void get_columns(std::string& key,
                      std::vector<std::string>& names,
-                     std::vector<CASS::ColumnOrSuperColumn>& columns,
-                     CASS::ConsistencyLevel::type consistency_level);
+                     std::vector<cass::ColumnOrSuperColumn>& columns,
+                     cass::ConsistencyLevel::type consistency_level);
 
     /// Get columns whose names begin with the specified prefix. (non-HA).
     /// @param consistency_level cassandra consistency level.
     void get_columns_with_prefix(std::string& key,
                                  std::string& prefix,
-                                 std::vector<CASS::ColumnOrSuperColumn>& columns,
-                                 CASS::ConsistencyLevel::type consistency_level);
+                                 std::vector<cass::ColumnOrSuperColumn>& columns,
+                                 cass::ConsistencyLevel::type consistency_level);
 
     /// Utility method to issue a get request for a particular key.
     ///
@@ -416,9 +461,9 @@ public:
     /// @param columns (out) the retrieved columns.
     /// @param consistency_level cassandra consistency level.
     void issue_get_for_key(std::string& key,
-                           CASS::SlicePredicate& predicate,
-                           std::vector<CASS::ColumnOrSuperColumn>& columns,
-                           CASS::ConsistencyLevel::type consistency_level);
+                           cass::SlicePredicate& predicate,
+                           std::vector<cass::ColumnOrSuperColumn>& columns,
+                           cass::ConsistencyLevel::type consistency_level);
   };
 
   /// @class DeleteRowsRequest a request to delete one or more rows from the
@@ -467,9 +512,6 @@ public:
     std::string _xml;
 
     void perform();
-
-    /// Success callback.
-    virtual void on_success() = 0;
   };
 
   class PutAssociatedPublicID : public PutRequest
@@ -490,9 +532,6 @@ public:
     std::string _assoc_public_id;
 
     void perform();
-
-    /// Success callback.
-    virtual void on_success() = 0;
   };
 
   class PutAuthVector : public PutRequest
@@ -516,9 +555,6 @@ public:
     DigestAuthVector _auth_vector;
 
     void perform();
-
-    /// Success callback.
-    virtual void on_success() = 0;
   };
 
   class GetIMSSubscription : public GetRequest
@@ -530,15 +566,19 @@ public:
     GetIMSSubscription(std::string& public_id);
     virtual ~GetIMSSubscription();
 
-  protected:
-    std::string _public_id;
-
-    void perform();
-
-    /// Success callback.
+    /// Access the result of the request.
     ///
     /// @param xml the IMS subscription XML document.
-    virtual void on_success(std::string& xml) = 0;
+    virtual void get_result(std::string& xml);
+
+  protected:
+    // Request parameters.
+    std::string _public_id;
+
+    // Result.
+    std::string _xml;
+
+    void perform();
   };
 
   class GetAssociatedPublicIDs : public GetRequest
@@ -550,15 +590,19 @@ public:
     GetAssociatedPublicIDs(std::string& private_id);
     virtual ~GetAssociatedPublicIDs();
 
-  protected:
-    std::string _private_id;
-
-    void perform();
-
-    /// Success callback.
+    /// Access the result of the request.
     ///
     /// @param public_ids A vector of public IDs associated with the private ID.
-    virtual void on_success(std::vector<std::string>& public_ids) = 0;
+    virtual void get_result(std::vector<std::string>& public_ids);
+
+  protected:
+    // Request parameters.
+    std::string _private_id;
+
+    // Result.
+    std::vector<std::string> _public_ids;
+
+    void perform();
   };
 
   class GetAuthVector : public GetRequest
@@ -579,16 +623,20 @@ public:
                   std::string& public_id);
     virtual ~GetAuthVector();
 
+    /// Access the result of the request.
+    ///
+    /// @param auth_vector the digest auth vector for the private ID.
+    virtual void get_result(DigestAuthVector& auth_vector);
+
   protected:
+    // Request parameters.
     std::string _private_id;
     std::string _public_id;
 
-    void perform();
+    // Result.
+    DigestAuthVector _auth_vector;
 
-    /// Success callback.
-    ///
-    /// @param auth_vector the digest auth vector for the private ID.
-    virtual void on_success(DigestAuthVector& auth_vector) = 0;
+    void perform();
   };
 
   class DeletePublicIDs : public DeleteRowsRequest
@@ -610,9 +658,6 @@ public:
     std::vector<std::string> _public_ids;
 
     void perform();
-
-    /// Success callback.
-    virtual void on_success() = 0;
   };
 
   class DeletePrivateIDs : public DeleteRowsRequest
@@ -634,11 +679,7 @@ public:
     std::vector<std::string> _private_ids;
 
     void perform();
-
-    /// Success callback.
-    virtual void on_success() = 0;
   };
 };
 
-#undef CASS
 #endif
