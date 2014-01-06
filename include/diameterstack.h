@@ -140,6 +140,8 @@ private:
   Stack(Stack const&);
   void operator=(Stack const&);
 
+  static void logger(int fd_log_level, const char* fmt, va_list args);
+
   bool _initialized;
 };
 
