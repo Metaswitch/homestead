@@ -1,5 +1,5 @@
 /**
- * @file diameterstack_test.cpp UT for Sprout diameterstack module.
+ * @file mockdiameterstack.h Mock HTTP stack.
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2013  Metaswitch Networks Ltd
@@ -34,30 +34,21 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#include "gtest/gtest.h"
+#ifndef MOCKDIAMETERSTACK_H__
+#define MOCKDIAMETERSTACK_H__
 
-#include "test_utils.hpp"
-
+#include "gmock/gmock.h"
 #include "diameterstack.h"
 
-TEST(DiameterStackTest, SimpleMainline)
+class MockDiameterStack : public Diameter::Stack
 {
-  Diameter::Stack* stack = Diameter::Stack::get_instance();
-  stack->initialize();
-  stack->configure(UT_DIR + "/diameterstack.conf");
-  stack->start();
-  stack->stop();
-  stack->wait_stopped();
-}
+public:
+  MOCK_METHOD0(initialize, void());
+  MOCK_METHOD1(configure, void(const std::string&));
+  MOCK_METHOD1(advertize_application, void(const Diameter::Dictionary::Application&));
+  MOCK_METHOD0(start, void());
+  MOCK_METHOD0(stop, void());
+  MOCK_METHOD0(wait_stopped, void());
+};
 
-TEST(DiameterStackTest, AdvertizeApplication)
-{
-  Diameter::Stack* stack = Diameter::Stack::get_instance();
-  stack->initialize();
-  stack->configure(UT_DIR + "/diameterstack.conf");
-  Diameter::Dictionary::Application app("Cx");
-  stack->advertize_application(app);
-  stack->start();
-  stack->stop();
-  stack->wait_stopped();
-}
+#endif
