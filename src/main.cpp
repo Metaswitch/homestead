@@ -261,12 +261,14 @@ int main(int argc, char**argv)
 
   Cache* cache = Cache::get_instance();
   cache->initialize();
+  // TODO: Make number of threads configurable.
   cache->configure("localhost", 9160, 10);
   Cache::ResultCode rc = cache->start();
 
   if (rc != Cache::ResultCode::OK)
   {
     fprintf(stderr, "Error starting cache: %d\n", rc);
+    // TODO: Crash if this fails (and fix up most common cause - schema not configured in Cassandra).
   }
 
   HttpStack* http_stack = HttpStack::get_instance();
