@@ -287,10 +287,18 @@ public:
     fd_msg_avp_add(_msg, MSG_BRW_LAST_CHILD, avp.avp());
     return *this;
   }
-  std::string get_str_from_avp(const Dictionary::AVP& type) const;
-  int get_i32_from_avp(const Dictionary::AVP& type) const;
-  int get_result_code() const;
-  int get_experimental_result_code() const;
+  bool get_str_from_avp(const Dictionary::AVP& type, std::string* str) const;
+  bool get_i32_from_avp(const Dictionary::AVP& type, int* i32) const;
+  inline bool result_code(int* i32)
+  {
+    return get_i32_from_avp(dict()->RESULT_CODE, i32);
+  }
+  int experimental_result_code() const;
+  int vendor_id() const;
+  inline bool impi(std::string* str) const
+  {
+    return get_str_from_avp(dict()->USER_NAME, str);
+  }
   inline AVP::iterator begin() const;
   inline AVP::iterator begin(const Dictionary::AVP& type) const;
   inline AVP::iterator end() const;

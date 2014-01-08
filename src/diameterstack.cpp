@@ -280,43 +280,42 @@ Message::~Message()
   }
 }
 
-// Given an AVP type, search a Diameter message for an AVP of this type
-// and return the string value of this AVP if one exists.
-std::string Message::get_str_from_avp(const Dictionary::AVP& type) const
+// Given an AVP type, search a Diameter message for an AVP of this type. If one exists,
+// return true and set str to the string value of this AVP. Otherwise return false.
+bool Message::get_str_from_avp(const Dictionary::AVP& type, std::string* str) const
 {
-  std::string str;
   AVP::iterator avps = begin(type);
   if (avps != end())
   {
-    str = avps->val_str();
+    (*str) = avps->val_str();
+    return true;
   }
-  return str; 
+  else
+  {
+    return false;
+  }
 }
 
-// Given an AVP type, search a Diameter message for an AVP of this type
-// and return the integer value of this AVP if one exists.
-int Message::get_i32_from_avp(const Dictionary::AVP& type) const
+// Given an AVP type, search a Diameter message for an AVP of this type. If one exists,
+// return true and set i32 to the integer value of this AVP. Otherwise return false.
+bool Message::get_i32_from_avp(const Dictionary::AVP& type, int* i32) const
 {
-  int i32 = 0;
   AVP::iterator avps = begin(type);
   if (avps != end())
   {
-    i32 = avps->val_i32();
+    (*i32) = avps->val_i32();
+    return true;
   }
-  return i32;
-}
-
-// Get the result code from the RESULT_CODE AVP of a Diameter message if
-// it is present.
-int Message::get_result_code() const
-{
-  return get_i32_from_avp(dict()->RESULT_CODE);
+  else
+  {
+    return false;
+  }
 }
 
 // Get the experimental result code from the EXPERIMENTAL_RESULT_CODE AVP
 // of a Diameter message if it is present. This AVP is inside the
 // EXPERIMENTAL_RESULT AVP.
-int Message::get_experimental_result_code() const
+int Message::experimental_result_code() const
 {
   int experimental_result_code = 0;
   AVP::iterator avps = begin(dict()->EXPERIMENTAL_RESULT);
@@ -329,6 +328,23 @@ int Message::get_experimental_result_code() const
     }
   }
   return experimental_result_code;
+}
+
+// Get the vendor ID from the VENDOR_ID AVP of a Diameter message if it
+// is present. This AVP is inside the VENDOR_SPECIFIC_APPLICATION_ID AVP.
+int Message::vendor_id() const
+{
+  int vendor_id = 0;
+  AVP::iterator avps = begin(dict()->VENDOR_SPECIFIC_APPLICATION_ID);
+  if (avps != end())
+  {
+    avps = avps->begin(dict()->VENDOR_ID);
+    if (avps != end())
+    {
+      vendor_id = avps->val_i32();
+    }
+  }
+  return vendor_id;
 }
 
 void Message::send()

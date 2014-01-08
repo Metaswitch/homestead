@@ -56,10 +56,20 @@ public:
   static const std::string SIP_AUTH_SCHEME_DIGEST;
   static const std::string SIP_AUTH_SCHEME_AKA;
   static const std::string SIP_AUTHORIZATION;
+  static const std::string VISITED_NETWORK_IDENTIFIER;
+  static const std::string AUTHORIZATION_TYPE_REG;
+  static const std::string AUTHORIZATION_TYPE_DEREG;
+  static const std::string AUTHORIZATION_TYPE_CAPAB;
+  static const std::string ORIGINATING_TRUE;
+  static const std::string ORIGINATING_FALSE;
+  static const std::string EMPTY_STRING;
 
   static Diameter::Stack* _real_stack;
   static MockDiameterStack* _mock_stack;
   static Cx::Dictionary* _cx_dict;
+
+  std::string test_str;
+  int test_i32;
 
   static void SetUpTestCase()
   {
@@ -116,6 +126,24 @@ public:
 
     return Diameter::Message(_cx_dict, parsed_msg);
   }
+
+  void check_common_fields(const Diameter::Message& msg)
+  {
+    EXPECT_EQ(true, msg.get_i32_from_avp(_cx_dict->SESSION_ID, &test_i32));
+    EXPECT_NE(0, test_i32);
+    EXPECT_EQ(10415, msg.vendor_id());
+    EXPECT_EQ(true, msg.get_i32_from_avp(_cx_dict->AUTH_SESSION_STATE, &test_i32));
+    EXPECT_EQ(1, test_i32);
+    EXPECT_EQ(true, msg.get_str_from_avp(_cx_dict->ORIGIN_HOST, &test_str));
+    EXPECT_EQ("origin-host", test_str);
+    EXPECT_EQ(true, msg.get_str_from_avp(_cx_dict->ORIGIN_REALM, &test_str));
+    EXPECT_EQ("origin-realm", test_str);
+    EXPECT_EQ(true, msg.get_str_from_avp(_cx_dict->DESTINATION_REALM, &test_str));
+    EXPECT_EQ(DEST_REALM, test_str);
+    EXPECT_EQ(true, msg.get_str_from_avp(_cx_dict->DESTINATION_HOST, &test_str));
+    EXPECT_EQ(DEST_HOST, test_str);
+    return;
+  }
 };
 
 const std::string CxTest::DEST_REALM = "dest-realm";
@@ -126,6 +154,13 @@ const std::string CxTest::SERVER_NAME = "sip:example.com";
 const std::string CxTest::SIP_AUTH_SCHEME_DIGEST = "SIP Digest";
 const std::string CxTest::SIP_AUTH_SCHEME_AKA = "Digest-AKAv1-MD5";
 const std::string CxTest::SIP_AUTHORIZATION = "authorization";
+const std::string CxTest::VISITED_NETWORK_IDENTIFIER = "visited-network";
+const std::string CxTest::AUTHORIZATION_TYPE_REG = "REG";
+const std::string CxTest::AUTHORIZATION_TYPE_DEREG = "DEREG";
+const std::string CxTest::AUTHORIZATION_TYPE_CAPAB = "CAPAB";
+const std::string CxTest::ORIGINATING_TRUE = "true";
+const std::string CxTest::ORIGINATING_FALSE = "false";
+const std::string CxTest::EMPTY_STRING = "";
 
 Diameter::Stack* CxTest::_real_stack = NULL;
 MockDiameterStack* CxTest::_mock_stack = NULL;
@@ -141,10 +176,18 @@ TEST_F(CxTest, MARTest)
                                 SERVER_NAME,
                                 SIP_AUTH_SCHEME_DIGEST);
   Diameter::Message msg = launder_message(mar);
-  Cx::MultimediaAuthRequest mar2 = Cx::MultimediaAuthRequest(msg);
-  EXPECT_EQ(IMPI, mar2.impi());
-  EXPECT_EQ(IMPU, mar2.impu());
-  // TODO: Check rest of parameters.
+  mar = Cx::MultimediaAuthRequest(msg);
+  check_common_fields(mar);
+  EXPECT_EQ(true, mar.impi(&test_str));
+  EXPECT_EQ(IMPI, test_str);
+  EXPECT_EQ(true, mar.impu(&test_str));
+  EXPECT_EQ(IMPU, test_str);
+  EXPECT_EQ(SIP_AUTH_SCHEME_DIGEST, mar.sip_auth_scheme());
+  EXPECT_EQ(EMPTY_STRING, mar.sip_authorization());
+  EXPECT_EQ(true, mar.sip_number_auth_items(&test_i32));
+  EXPECT_EQ(1, test_i32);
+  EXPECT_EQ(true, mar.server_name(&test_str));
+  EXPECT_EQ(SERVER_NAME, test_str);
 }
 
 TEST_F(CxTest, MARAuthorizationTest)
@@ -159,22 +202,201 @@ TEST_F(CxTest, MARAuthorizationTest)
                                 SIP_AUTHORIZATION);
   Diameter::Message msg = launder_message(mar);
   mar = Cx::MultimediaAuthRequest(msg);
-  EXPECT_EQ(IMPI, mar.impi());
-  EXPECT_EQ(IMPU, mar.impu());
-  // TODO: Check rest of parameters.
+  check_common_fields(mar);
+  EXPECT_EQ(true, mar.impi(&test_str));
+  EXPECT_EQ(IMPI, test_str);
+  EXPECT_EQ(true, mar.impu(&test_str));
+  EXPECT_EQ(IMPU, test_str);
+  EXPECT_EQ(SIP_AUTH_SCHEME_AKA, mar.sip_auth_scheme());
+  EXPECT_EQ(SIP_AUTHORIZATION, mar.sip_authorization());
+  EXPECT_EQ(true, mar.sip_number_auth_items(&test_i32));
+  EXPECT_EQ(1, test_i32);
+  EXPECT_EQ(true, mar.server_name(&test_str));
+  EXPECT_EQ(SERVER_NAME, test_str);
 }
 
 TEST_F(CxTest, SARTest)
 {
   Cx::ServerAssignmentRequest sar(_cx_dict,
-                                  DEST_REALM,
                                   DEST_HOST,
+                                  DEST_REALM,
                                   IMPI,
                                   IMPU,
                                   SERVER_NAME);
   Diameter::Message msg = launder_message(sar);
   sar = Cx::ServerAssignmentRequest(msg);
-  // TODO: Check parameters.
+  check_common_fields(sar);
+  EXPECT_EQ(true, sar.impi(&test_str));
+  EXPECT_EQ(IMPI, test_str);
+  EXPECT_EQ(true, sar.impu(&test_str));
+  EXPECT_EQ(IMPU, test_str);
+  EXPECT_EQ(true, sar.server_name(&test_str));
+  EXPECT_EQ(SERVER_NAME, test_str);
+  EXPECT_EQ(true, sar.server_assignment_type(&test_i32));
+  EXPECT_EQ(1, test_i32);
+  EXPECT_EQ(true, sar.user_data_already_available(&test_i32));
+  EXPECT_EQ(0, test_i32);
 }
 
-// TODO: Check other message types.
+TEST_F(CxTest, SARNoImpiTest)
+{
+  Cx::ServerAssignmentRequest sar(_cx_dict,
+                                  DEST_HOST,
+                                  DEST_REALM,
+                                  EMPTY_STRING,
+                                  IMPU,
+                                  SERVER_NAME);
+  Diameter::Message msg = launder_message(sar);
+  sar = Cx::ServerAssignmentRequest(msg);
+  check_common_fields(sar);
+  EXPECT_NE(true, sar.impi(&test_str));
+  EXPECT_EQ(true, sar.impu(&test_str));
+  EXPECT_EQ(IMPU, test_str);
+  EXPECT_EQ(true, sar.server_name(&test_str));
+  EXPECT_EQ(SERVER_NAME, test_str);
+  EXPECT_EQ(true, sar.server_assignment_type(&test_i32));
+  EXPECT_EQ(3, test_i32);
+  EXPECT_EQ(true, sar.user_data_already_available(&test_i32));
+  EXPECT_EQ(0, test_i32);
+}
+
+TEST_F(CxTest, UARTest)
+{
+  Cx::UserAuthorizationRequest uar(_cx_dict,
+                                   DEST_HOST,
+                                   DEST_REALM,
+                                   IMPI,
+                                   IMPU,
+                                   VISITED_NETWORK_IDENTIFIER,
+                                   AUTHORIZATION_TYPE_REG);
+  Diameter::Message msg = launder_message(uar);
+  uar = Cx::UserAuthorizationRequest(msg);
+  check_common_fields(uar);
+  EXPECT_EQ(true, uar.impi(&test_str));
+  EXPECT_EQ(IMPI, test_str);
+  EXPECT_EQ(true, uar.impu(&test_str));
+  EXPECT_EQ(IMPU, test_str);
+  EXPECT_EQ(true, uar.visited_network(&test_str));
+  EXPECT_EQ(VISITED_NETWORK_IDENTIFIER, test_str);
+  EXPECT_EQ(true, uar.auth_type(&test_i32));
+  EXPECT_EQ(0, test_i32);
+}
+
+TEST_F(CxTest, UARAuthTypeDeregTest)
+{
+  Cx::UserAuthorizationRequest uar(_cx_dict,
+                                   DEST_HOST,
+                                   DEST_REALM,
+                                   IMPI,
+                                   IMPU,
+                                   VISITED_NETWORK_IDENTIFIER,
+                                   AUTHORIZATION_TYPE_DEREG);
+  Diameter::Message msg = launder_message(uar);
+  uar = Cx::UserAuthorizationRequest(msg);
+  check_common_fields(uar);
+  EXPECT_EQ(true, uar.impi(&test_str));
+  EXPECT_EQ(IMPI, test_str);
+  EXPECT_EQ(true, uar.impu(&test_str));
+  EXPECT_EQ(IMPU, test_str);
+  EXPECT_EQ(true, uar.visited_network(&test_str));
+  EXPECT_EQ(VISITED_NETWORK_IDENTIFIER, test_str);
+  EXPECT_EQ(true, uar.auth_type(&test_i32));
+  EXPECT_EQ(1, test_i32);
+}
+
+TEST_F(CxTest, UARAuthTypeCapabTest)
+{
+  Cx::UserAuthorizationRequest uar(_cx_dict,
+                                   DEST_HOST,
+                                   DEST_REALM,
+                                   IMPI,
+                                   IMPU,
+                                   VISITED_NETWORK_IDENTIFIER,
+                                   AUTHORIZATION_TYPE_CAPAB);
+  Diameter::Message msg = launder_message(uar);
+  uar = Cx::UserAuthorizationRequest(msg);
+  check_common_fields(uar);
+  EXPECT_EQ(true, uar.impi(&test_str));
+  EXPECT_EQ(IMPI, test_str);
+  EXPECT_EQ(true, uar.impu(&test_str));
+  EXPECT_EQ(IMPU, test_str);
+  EXPECT_EQ(true, uar.visited_network(&test_str));
+  EXPECT_EQ(VISITED_NETWORK_IDENTIFIER, test_str);
+  EXPECT_EQ(true, uar.auth_type(&test_i32));
+  EXPECT_EQ(2, test_i32);
+}
+
+TEST_F(CxTest, UARNoAuthTypeTest)
+{
+  Cx::UserAuthorizationRequest uar(_cx_dict,
+                                   DEST_HOST,
+                                   DEST_REALM,
+                                   IMPI,
+                                   IMPU,
+                                   VISITED_NETWORK_IDENTIFIER,
+                                   EMPTY_STRING);
+  Diameter::Message msg = launder_message(uar);
+  uar = Cx::UserAuthorizationRequest(msg);
+  check_common_fields(uar);
+  EXPECT_EQ(true, uar.impi(&test_str));
+  EXPECT_EQ(IMPI, test_str);
+  EXPECT_EQ(true, uar.impu(&test_str));
+  EXPECT_EQ(IMPU, test_str);
+  EXPECT_EQ(true, uar.visited_network(&test_str));
+  EXPECT_EQ(VISITED_NETWORK_IDENTIFIER, test_str);
+  EXPECT_EQ(true, uar.auth_type(&test_i32));
+  EXPECT_EQ(0, test_i32);
+}
+
+TEST_F(CxTest, LIRTest)
+{
+  Cx::LocationInfoRequest lir(_cx_dict,
+                              DEST_HOST,
+                              DEST_REALM,
+                              ORIGINATING_TRUE,
+                              IMPU,
+                              AUTHORIZATION_TYPE_CAPAB);
+  Diameter::Message msg = launder_message(lir);
+  lir = Cx::LocationInfoRequest(msg);
+  check_common_fields(lir);
+  EXPECT_EQ(true, lir.originating(&test_i32));
+  EXPECT_EQ(0, test_i32);
+  EXPECT_EQ(true, lir.impu(&test_str));
+  EXPECT_EQ(IMPU, test_str);
+  EXPECT_EQ(true, lir.auth_type(&test_i32));
+  EXPECT_EQ(2, test_i32);
+}
+
+TEST_F(CxTest, LIRWrongOptionalParamsTest)
+{
+  Cx::LocationInfoRequest lir(_cx_dict,
+                              DEST_HOST,
+                              DEST_REALM,
+                              ORIGINATING_FALSE,
+                              IMPU,
+                              AUTHORIZATION_TYPE_REG);
+  Diameter::Message msg = launder_message(lir);
+  lir = Cx::LocationInfoRequest(msg);
+  check_common_fields(lir);
+  EXPECT_NE(true, lir.originating(&test_i32));
+  EXPECT_EQ(true, lir.impu(&test_str));
+  EXPECT_EQ(IMPU, test_str);
+  EXPECT_NE(true, lir.auth_type(&test_i32));
+}
+
+TEST_F(CxTest, LIRNoOptionalParamsTest)
+{
+  Cx::LocationInfoRequest lir(_cx_dict,
+                              DEST_HOST,
+                              DEST_REALM,
+                              EMPTY_STRING,
+                              IMPU,
+                              EMPTY_STRING);
+  Diameter::Message msg = launder_message(lir);
+  lir = Cx::LocationInfoRequest(msg);
+  check_common_fields(lir);
+  EXPECT_NE(true, lir.originating(&test_i32));
+  EXPECT_EQ(true, lir.impu(&test_str));
+  EXPECT_EQ(IMPU, test_str);
+  EXPECT_NE(true, lir.auth_type(&test_i32));
+}
