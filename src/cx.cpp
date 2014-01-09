@@ -269,10 +269,21 @@ MultimediaAuthRequest::MultimediaAuthRequest(const Dictionary* dict,
   add(Diameter::AVP(dict->SERVER_NAME).val_str(server_name));
 }
 
-std::string MultimediaAuthRequest::impu() const
+std::string MultimediaAuthRequest::impi() const
 {
 
   return get_str_from_avp(dict()->USER_NAME);
+}
+
+std::string MultimediaAuthRequest::impu() const
+{
+  std::string impu;
+  Diameter::AVP::iterator avps = begin(((Cx::Dictionary*)dict())->PUBLIC_IDENTITY);
+  if (avps != end())
+  {
+    impu = avps->val_str();
+  }
+  return impu;
 }
 
 MultimediaAuthAnswer::MultimediaAuthAnswer(const Dictionary* dict,
