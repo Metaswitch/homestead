@@ -35,7 +35,7 @@ indicate that submodules should be cloned too.
 This accesses the repository over SSH on Github, and will not work unless you have a Github account and registered SSH key. If you do not have both of these, you will need to configure Git to read over HTTPS instead:
 
     git config --global url."https://github.com/".insteadOf git@github.com:
-    git clone --recursive git@github.com:Metaswitch/sprout.git
+    git clone --recursive git@github.com:Metaswitch/homestead.git
 	
 ## Building Binaries
 
