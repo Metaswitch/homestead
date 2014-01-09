@@ -138,14 +138,15 @@ public:
   };
 
   static inline HttpStack* get_instance() {return INSTANCE;};
-  void initialize();
-  void configure(const std::string& bind_address,
-                 unsigned short port,
-                 int num_threads,
-                 AccessLogger* access_logger = NULL);
-  void start();
-  void stop();
-  void wait_stopped();
+  virtual void initialize();
+  virtual void configure(const std::string& bind_address,
+                         unsigned short port,
+                         int num_threads,
+                         AccessLogger* access_logger = NULL);
+  virtual void register_handler(char* path, BaseHandlerFactory* factory);
+  virtual void start();
+  virtual void stop();
+  virtual void wait_stopped();
 
   void log(const std::string uri, int rc)
   {
@@ -155,13 +156,12 @@ public:
     }
   };
 
-  void register_handler(char* path, BaseHandlerFactory* factory);
-
 private:
   static HttpStack* INSTANCE;
   static HttpStack DEFAULT_INSTANCE;
 
   HttpStack();
+  virtual ~HttpStack() {}
   static void handler_callback_fn(evhtp_request_t* req, void* handler_factory);
   static void* event_base_thread_fn(void* http_stack_ptr);
   void event_base_thread_fn();

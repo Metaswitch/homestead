@@ -59,12 +59,12 @@ void Stack::initialize()
     int rc = fd_core_initialize();
     if (rc != 0)
     {
-      throw Exception("fd_core_initialize", rc);
+      throw Exception("fd_core_initialize", rc); // LCOV_EXCL_LINE
     }
     rc = fd_log_handler_register(Stack::logger);
     if (rc != 0)
     {
-      throw Exception("fd_log_handler_register", rc);
+      throw Exception("fd_log_handler_register", rc); // LCOV_EXCL_LINE
     }
     _initialized = true;
   }
@@ -76,7 +76,7 @@ void Stack::configure(std::string filename)
   int rc = fd_core_parseconf(filename.c_str());
   if (rc != 0)
   {
-    throw Exception("fd_core_parseconf", rc);
+    throw Exception("fd_core_parseconf", rc); // LCOV_EXCL_LINE
   }
 }
 
@@ -86,7 +86,7 @@ void Stack::advertize_application(const Dictionary::Application& app)
   int rc = fd_disp_app_support(app.dict(), NULL, 1, 0);
   if (rc != 0)
   {
-    throw Exception("fd_disp_app_support", rc);
+    throw Exception("fd_disp_app_support", rc); // LCOV_EXCL_LINE
   }
 }
 
@@ -96,7 +96,7 @@ void Stack::start()
   int rc = fd_core_start();
   if (rc != 0)
   {
-    throw Exception("fd_core_start", rc);
+    throw Exception("fd_core_start", rc); // LCOV_EXCL_LINE
   }
 }
 
@@ -107,7 +107,7 @@ void Stack::stop()
     int rc = fd_core_shutdown();
     if (rc != 0)
     {
-      throw Exception("fd_core_shutdown", rc);
+      throw Exception("fd_core_shutdown", rc); // LCOV_EXCL_LINE
     }
   }
 }
@@ -119,8 +119,10 @@ void Stack::wait_stopped()
     int rc = fd_core_wait_shutdown_complete();
     if (rc != 0)
     {
-      throw Exception("fd_core_wait_shutdown_complete", rc);
+      throw Exception("fd_core_wait_shutdown_complete", rc); // LCOV_EXCL_LINE
     }
+    fd_log_handler_unregister();
+    _initialized = false;
   }
 }
 
@@ -160,7 +162,7 @@ struct dict_object* Dictionary::Vendor::find(const std::string vendor)
   fd_dict_search(fd_g_config->cnf_dict, DICT_VENDOR, VENDOR_BY_NAME, vendor.c_str(), &dict, ENOENT);
   if (dict == NULL)
   {
-    throw Diameter::Stack::Exception(vendor.c_str(), 0);
+    throw Diameter::Stack::Exception(vendor.c_str(), 0); // LCOV_EXCL_LINE
   }
   return dict;
 }
@@ -171,7 +173,7 @@ struct dict_object* Dictionary::Application::find(const std::string application)
   fd_dict_search(fd_g_config->cnf_dict, DICT_APPLICATION, APPLICATION_BY_NAME, application.c_str(), &dict, ENOENT);
   if (dict == NULL)
   {
-    throw Diameter::Stack::Exception(application.c_str(), 0);
+    throw Diameter::Stack::Exception(application.c_str(), 0); // LCOV_EXCL_LINE
   }
   return dict;
 }
@@ -182,7 +184,7 @@ struct dict_object* Dictionary::Message::find(const std::string message)
   fd_dict_search(fd_g_config->cnf_dict, DICT_COMMAND, CMD_BY_NAME, message.c_str(), &dict, ENOENT);
   if (dict == NULL)
   {
-    throw Diameter::Stack::Exception(message.c_str(), 0);
+    throw Diameter::Stack::Exception(message.c_str(), 0); // LCOV_EXCL_LINE
   }
   return dict;
 }
@@ -193,7 +195,7 @@ struct dict_object* Dictionary::AVP::find(const std::string avp)
   fd_dict_search(fd_g_config->cnf_dict, DICT_AVP, AVP_BY_NAME, avp.c_str(), &dict, ENOENT);
   if (dict == NULL)
   {
-    throw Diameter::Stack::Exception(avp.c_str(), 0);
+    throw Diameter::Stack::Exception(avp.c_str(), 0); // LCOV_EXCL_LINE
   }
   return dict;
 }
@@ -217,7 +219,7 @@ struct dict_object* Dictionary::AVP::find(const std::string vendor, const std::s
   fd_dict_search(fd_g_config->cnf_dict, DICT_AVP, AVP_BY_NAME_AND_VENDOR, &avp_req, &dict, ENOENT);
   if (dict == NULL)
   {
-    throw Diameter::Stack::Exception(avp.c_str(), 0);
+    throw Diameter::Stack::Exception(avp.c_str(), 0); // LCOV_EXCL_LINE
   }
   return dict;
 }
@@ -269,7 +271,6 @@ void Transaction::on_timeout(void* data, DiamId_t to, size_t to_len, struct msg*
   // Null out the message so that freeDiameter doesn't try to send it on.
   *req = NULL;
 }
-
 
 Message::~Message()
 {
