@@ -44,6 +44,25 @@
 #include "cache.h"
 #include "httpstack.h"
 
+// Result-Code AVP constants
+const int DIAMETER_SUCCESS = 2001;
+const int DIAMETER_COMMAND_UNSUPPORTED = 3001;
+const int DIAMETER_TOO_BUSY = 3004;
+const int DIAMETER_AUTHORIZATION_REJECTED = 5003;
+const int DIAMETER_UNABLE_TO_COMPLY = 5012;
+// Experimental-Result-Code AVP constants
+const int DIAMETER_FIRST_REGISTRATION = 2001;
+const int DIAMETER_SUBSEQUENT_REGISTRATION = 2002;
+const int DIAMETER_UNREGISTERED_SERVICE = 2003;
+const int DIAMETER_ERROR_USER_UNKNOWN = 5001;
+const int DIAMETER_ERROR_IDENTITIES_DONT_MATCH = 5002;
+const int DIAMETER_ERROR_IDENTITY_NOT_REGISTERED = 5003;
+const int DIAMETER_ERROR_ROAMING_NOT_ALLOWED = 5004;
+
+// JSON string constants
+const std::string JSON_RC = "result-code";
+const std::string JSON_SCSCF = "scscf";
+
 class PingHandler : public HttpStack::Handler
 {
 public:
@@ -230,6 +249,42 @@ public:
   void send_reply(const AKAAuthVector& av);
 };
 
+class ImpiRegistrationStatusHandler : public HssCacheHandler
+{
+public:
+  ImpiRegistrationStatusHandler(HttpStack::Request& req) :
+    HssCacheHandler(req), _impi(), _impu(), _visited_network(), _authorization_type()
+  {}
+
+  void run();
+  void on_uar_response(Diameter::Message& rsp);
+
+  typedef HssCacheHandler::DiameterTransaction<ImpiRegistrationStatusHandler> DiameterTransaction;
+
+private:
+  std::string _impi;
+  std::string _impu;
+  std::string _visited_network;
+  std::string _authorization_type;
+};
+
+class ImpuLocationInfoHandler : public HssCacheHandler
+{
+public:
+  ImpuLocationInfoHandler(HttpStack::Request& req) :
+    HssCacheHandler(req), _impu(), _originating(), _authorization_type()
+  {}
+
+  void run();
+  void on_lir_response(Diameter::Message& rsp);
+
+  typedef HssCacheHandler::DiameterTransaction<ImpuLocationInfoHandler> DiameterTransaction;
+
+private:
+  std::string _impu;
+  std::string _originating;
+  std::string _authorization_type;
+};
 
 class ImpuIMSSubscriptionHandler : public HssCacheHandler
 {

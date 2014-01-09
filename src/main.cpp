@@ -261,12 +261,14 @@ int main(int argc, char**argv)
 
   Cache* cache = Cache::get_instance();
   cache->initialize();
+  // TODO: Make number of threads configurable.
   cache->configure("localhost", 9160, 10);
   Cache::ResultCode rc = cache->start();
 
   if (rc != Cache::ResultCode::OK)
   {
     fprintf(stderr, "Error starting cache: %d\n", rc);
+    // TODO: Crash if this fails (and fix up most common cause - schema not configured in Cassandra).
   }
 
   HttpStack* http_stack = HttpStack::get_instance();
@@ -285,6 +287,8 @@ int main(int argc, char**argv)
   HttpStack::HandlerFactory<PingHandler> ping_handler_factory;
   HttpStack::ConfiguredHandlerFactory<ImpiDigestHandler, ImpiHandler::Config> impi_digest_handler_factory(&impi_handler_config);
   HttpStack::ConfiguredHandlerFactory<ImpiAvHandler, ImpiHandler::Config> impi_av_handler_factory(&impi_handler_config);
+  HttpStack::HandlerFactory<ImpiRegistrationStatusHandler> impi_reg_status_handler_factory;
+  HttpStack::HandlerFactory<ImpuLocationInfoHandler> impu_loc_info_handler_factory;
   HttpStack::ConfiguredHandlerFactory<ImpuIMSSubscriptionHandler, ImpuIMSSubscriptionHandler::Config> impu_ims_sub_handler_factory(&impu_handler_config);
   try
   {
@@ -296,6 +300,10 @@ int main(int argc, char**argv)
                                  &impi_digest_handler_factory);
     http_stack->register_handler("^/impi/[^/]*/av",
                                  &impi_av_handler_factory);
+    http_stack->register_handler("^/impi/[^/]*/registration-status$",
+                                 &impi_reg_status_handler_factory);
+    http_stack->register_handler("^/impu/[^/]*/location$",
+                                 &impu_loc_info_handler_factory);
     http_stack->register_handler("^/impu/",
                                  &impu_ims_sub_handler_factory);
     http_stack->start();

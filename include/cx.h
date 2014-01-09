@@ -39,6 +39,7 @@
 
 #include "diameterstack.h"
 #include "authvector.h"
+#include "servercapabilities.h"
 
 namespace Cx
 {
@@ -89,18 +90,20 @@ public:
                            const std::string& impi,
                            const std::string& impu,
                            const std::string& visited_network_identifier,
-                           int user_authorization_type);
+                           const std::string& authorization_type);
   inline UserAuthorizationRequest(Diameter::Message& msg) : Diameter::Message(msg) {};
 };
 
 class UserAuthorizationAnswer : public Diameter::Message
 {
 public:
-  UserAuthorizationAnswer(const Dictionary* dict,
-                          int result_code);
+  UserAuthorizationAnswer(const Dictionary* dict);
   inline UserAuthorizationAnswer(Diameter::Message& msg) : Diameter::Message(msg) {};
 
   int result_code() const;
+  int experimental_result_code() const;
+  std::string server_name() const;
+  ServerCapabilities server_capabilities() const;
 };
 
 
@@ -110,20 +113,22 @@ public:
   LocationInfoRequest(const Dictionary* dict,
                       const std::string& dest_host,
                       const std::string& dest_realm,
-                      int originating_request,
+                      const std::string& originating_request,
                       const std::string& impu,
-                      int user_authorization_type);
+                      const std::string& authorization_type);
   inline LocationInfoRequest(Diameter::Message& msg) : Diameter::Message(msg) {};
 };
 
 class LocationInfoAnswer : public Diameter::Message
 {
 public:
-  LocationInfoAnswer(const Dictionary* dict,
-                     int result_code);
+  LocationInfoAnswer(const Dictionary* dict);
   inline LocationInfoAnswer(Diameter::Message& msg) : Diameter::Message(msg) {};
 
   int result_code() const;
+  int experimental_result_code() const;
+  std::string server_name() const;
+  ServerCapabilities server_capabilities() const;
 };
 
 class MultimediaAuthRequest : public Diameter::Message
@@ -182,6 +187,7 @@ public:
   inline ServerAssignmentAnswer(Diameter::Message& msg) : Diameter::Message(msg) {};
 
   int result_code() const;
+  int experimental_result_code() const;
   std::string user_data() const;
 };
 };

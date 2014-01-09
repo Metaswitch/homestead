@@ -280,6 +280,57 @@ Message::~Message()
   }
 }
 
+// Given an AVP type, search a Diameter message for an AVP of this type
+// and return the string value of this AVP if one exists.
+std::string Message::get_str_from_avp(const Dictionary::AVP& type) const
+{
+  std::string str;
+  AVP::iterator avps = begin(type);
+  if (avps != end())
+  {
+    str = avps->val_str();
+  }
+  return str; 
+}
+
+// Given an AVP type, search a Diameter message for an AVP of this type
+// and return the integer value of this AVP if one exists.
+int Message::get_i32_from_avp(const Dictionary::AVP& type) const
+{
+  int i32 = 0;
+  AVP::iterator avps = begin(type);
+  if (avps != end())
+  {
+    i32 = avps->val_i32();
+  }
+  return i32;
+}
+
+// Get the result code from the RESULT_CODE AVP of a Diameter message if
+// it is present.
+int Message::get_result_code() const
+{
+  return get_i32_from_avp(dict()->RESULT_CODE);
+}
+
+// Get the experimental result code from the EXPERIMENTAL_RESULT_CODE AVP
+// of a Diameter message if it is present. This AVP is inside the
+// EXPERIMENTAL_RESULT AVP.
+int Message::get_experimental_result_code() const
+{
+  int experimental_result_code = 0;
+  AVP::iterator avps = begin(dict()->EXPERIMENTAL_RESULT);
+  if (avps != end())
+  {
+    avps = avps->begin(dict()->EXPERIMENTAL_RESULT_CODE);
+    if (avps != end())
+    {
+      experimental_result_code = avps->val_i32();
+    }
+  }
+  return experimental_result_code;
+}
+
 void Message::send()
 {
   fd_msg_send(&_msg, NULL, NULL);
