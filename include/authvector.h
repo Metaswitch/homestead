@@ -49,6 +49,13 @@ struct DigestAuthVector : AuthVector
   std::string ha1;
   std::string realm;
   std::string qop;
+
+  // TODO
+  //
+  // This field is no longer used and should be removed (both from the
+  // homestead-ng code, and upgrade scripts / chef). Homestead only stores
+  // digest AVs when being used in provisioning mode, in which case they are
+  // always returned.
   bool preferred;
 };
 
