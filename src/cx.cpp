@@ -123,21 +123,6 @@ UserAuthorizationAnswer::UserAuthorizationAnswer(const Dictionary* dict) :
 {
 }
 
-int UserAuthorizationAnswer::result_code() const
-{
-  return get_result_code();
-}
-
-int UserAuthorizationAnswer::experimental_result_code() const
-{
-  return get_experimental_result_code();
-}
-
-std::string UserAuthorizationAnswer::server_name() const
-{
-  return get_str_from_avp(((Cx::Dictionary*)dict())->SERVER_NAME);
-}
-
 ServerCapabilities UserAuthorizationAnswer::server_capabilities() const
 {
   ServerCapabilities server_capabilities;
@@ -200,21 +185,6 @@ LocationInfoAnswer::LocationInfoAnswer(const Dictionary* dict) :
 {
 }
 
-int LocationInfoAnswer::result_code() const
-{
-  return get_result_code();
-}
-
-int LocationInfoAnswer::experimental_result_code() const
-{
-  return get_experimental_result_code();
-}
-
-std::string LocationInfoAnswer::server_name() const
-{
-  return get_str_from_avp(((Cx::Dictionary*)dict())->SERVER_NAME);
-}
-
 ServerCapabilities LocationInfoAnswer::server_capabilities() const
 {
   ServerCapabilities server_capabilities;
@@ -269,10 +239,34 @@ MultimediaAuthRequest::MultimediaAuthRequest(const Dictionary* dict,
   add(Diameter::AVP(dict->SERVER_NAME).val_str(server_name));
 }
 
-std::string MultimediaAuthRequest::impu() const
+std::string MultimediaAuthRequest::sip_auth_scheme() const
 {
+  std::string sip_auth_scheme;
+  Diameter::AVP::iterator avps = begin(((Cx::Dictionary*)dict())->SIP_AUTH_DATA_ITEM);
+  if (avps != end())
+  {
+    avps = avps->begin(((Cx::Dictionary*)dict())->SIP_AUTH_SCHEME);
+    if (avps != end())
+    {
+      sip_auth_scheme = avps->val_str();
+    }
+  }
+  return sip_auth_scheme;
+}
 
-  return get_str_from_avp(dict()->USER_NAME);
+std::string MultimediaAuthRequest::sip_authorization() const
+{
+  std::string sip_authorization;
+  Diameter::AVP::iterator avps = begin(((Cx::Dictionary*)dict())->SIP_AUTH_DATA_ITEM);
+  if (avps != end())
+  {
+    avps = avps->begin(((Cx::Dictionary*)dict())->SIP_AUTHORIZATION);
+    if (avps != end())
+    {
+      sip_authorization = avps->val_str();
+    }
+  }
+  return sip_authorization;
 }
 
 MultimediaAuthAnswer::MultimediaAuthAnswer(const Dictionary* dict,
@@ -280,16 +274,6 @@ MultimediaAuthAnswer::MultimediaAuthAnswer(const Dictionary* dict,
                                            Diameter::Message(dict, dict->MULTIMEDIA_AUTH_ANSWER)
 {
   add(Diameter::AVP(dict->RESULT_CODE).val_i32(result_code));
-}
-
-int MultimediaAuthAnswer::result_code() const
-{
-  return get_result_code();
-}
-
-int MultimediaAuthAnswer::experimental_result_code() const
-{
-  return get_experimental_result_code();
 }
 
 std::string MultimediaAuthAnswer::sip_auth_scheme() const
@@ -470,19 +454,4 @@ ServerAssignmentRequest::ServerAssignmentRequest(const Dictionary* dict,
 ServerAssignmentAnswer::ServerAssignmentAnswer(const Dictionary* dict) :
                                                Diameter::Message(dict, dict->SERVER_ASSIGNMENT_ANSWER)
 {
-}
-
-int ServerAssignmentAnswer::result_code() const
-{
-  return get_result_code();
-}
-
-int ServerAssignmentAnswer::experimental_result_code() const 
-{
-  return get_experimental_result_code();
-}
-
-std::string ServerAssignmentAnswer::user_data() const
-{
-  return get_str_from_avp(((Cx::Dictionary*)dict())->USER_DATA);
 }

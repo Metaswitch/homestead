@@ -281,14 +281,16 @@ int main(int argc, char**argv)
   // We should only query the cache for AV information if there is no HSS.  If there is an HSS, we
   // should always hit it.  If there is not, the AV information must have been provisioned in the
   // "cache" (which becomes persistent).
-  bool query_cache_av = options.dest_host.empty() || (options.dest_host == "0.0.0.0");
-  ImpiHandler::Config impi_handler_config(query_cache_av, options.impu_cache_ttl);
+  bool hss_configured = !(options.dest_host.empty() || (options.dest_host == "0.0.0.0"));
+  ImpiHandler::Config impi_handler_config(hss_configured, options.impu_cache_ttl);
+  ImpiRegistrationStatusHandler::Config registration_status_handler_config(hss_configured);
+  ImpuLocationInfoHandler::Config location_info_handler_config(hss_configured);
   ImpuIMSSubscriptionHandler::Config impu_handler_config(options.ims_sub_cache_ttl);
   HttpStack::HandlerFactory<PingHandler> ping_handler_factory;
   HttpStack::ConfiguredHandlerFactory<ImpiDigestHandler, ImpiHandler::Config> impi_digest_handler_factory(&impi_handler_config);
   HttpStack::ConfiguredHandlerFactory<ImpiAvHandler, ImpiHandler::Config> impi_av_handler_factory(&impi_handler_config);
-  HttpStack::HandlerFactory<ImpiRegistrationStatusHandler> impi_reg_status_handler_factory;
-  HttpStack::HandlerFactory<ImpuLocationInfoHandler> impu_loc_info_handler_factory;
+  HttpStack::ConfiguredHandlerFactory<ImpiRegistrationStatusHandler, ImpiRegistrationStatusHandler::Config> impi_reg_status_handler_factory(&registration_status_handler_config);
+  HttpStack::ConfiguredHandlerFactory<ImpuLocationInfoHandler, ImpuLocationInfoHandler::Config> impu_loc_info_handler_factory(&location_info_handler_config);
   HttpStack::ConfiguredHandlerFactory<ImpuIMSSubscriptionHandler, ImpuIMSSubscriptionHandler::Config> impu_ims_sub_handler_factory(&impu_handler_config);
   try
   {

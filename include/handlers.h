@@ -190,7 +190,7 @@ class ImpiHandler : public HssCacheHandler
 public:
   struct Config
   {
-    Config(bool _query_cache_av = false, int _impu_cache_ttl = 0) : query_cache_av(_query_cache_av), impu_cache_ttl(_impu_cache_ttl) {}
+    Config(bool _hss_configured = true, int _impu_cache_ttl = 0) : query_cache_av(!_hss_configured), impu_cache_ttl(_impu_cache_ttl) {}
     bool query_cache_av;
     int impu_cache_ttl;
   };
@@ -252,8 +252,14 @@ public:
 class ImpiRegistrationStatusHandler : public HssCacheHandler
 {
 public:
-  ImpiRegistrationStatusHandler(HttpStack::Request& req) :
-    HssCacheHandler(req), _impi(), _impu(), _visited_network(), _authorization_type()
+  struct Config
+  {
+    Config(bool _hss_configured = true) : hss_configured(_hss_configured) {}
+    bool hss_configured;
+  };
+
+  ImpiRegistrationStatusHandler(HttpStack::Request& req, const Config* cfg) :
+    HssCacheHandler(req), _cfg(cfg), _impi(), _impu(), _visited_network(), _authorization_type()
   {}
 
   void run();
@@ -262,6 +268,7 @@ public:
   typedef HssCacheHandler::DiameterTransaction<ImpiRegistrationStatusHandler> DiameterTransaction;
 
 private:
+  const Config* _cfg;
   std::string _impi;
   std::string _impu;
   std::string _visited_network;
@@ -271,8 +278,14 @@ private:
 class ImpuLocationInfoHandler : public HssCacheHandler
 {
 public:
-  ImpuLocationInfoHandler(HttpStack::Request& req) :
-    HssCacheHandler(req), _impu(), _originating(), _authorization_type()
+  struct Config
+  {
+    Config(bool _hss_configured = true) : hss_configured(_hss_configured) {}
+    bool hss_configured;
+  };
+
+  ImpuLocationInfoHandler(HttpStack::Request& req, const Config* cfg) :
+    HssCacheHandler(req), _cfg(cfg), _impu(), _originating(), _authorization_type()
   {}
 
   void run();
@@ -281,6 +294,7 @@ public:
   typedef HssCacheHandler::DiameterTransaction<ImpuLocationInfoHandler> DiameterTransaction;
 
 private:
+  const Config* _cfg;
   std::string _impu;
   std::string _originating;
   std::string _authorization_type;
