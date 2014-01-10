@@ -696,3 +696,14 @@ std::vector<std::string> ImpuIMSSubscriptionHandler::get_public_ids(const std::s
   
   return public_ids;
 }
+
+void RegistrationTerminationHandler::run(Diameter::Message& msg)
+{
+  Cx::RegistrationTerminationRequest rtr(msg);
+}
+
+void PushProfileHandler::run(Diameter::Message& msg)
+{
+  Cx::PushProfileRequest ppr(msg);
+}
+

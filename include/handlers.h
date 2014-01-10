@@ -329,4 +329,17 @@ private:
   static std::vector<std::string> get_public_ids(const std::string& user_data);
 };
 
+class RegistrationTerminationHandler : public HssCacheHandler
+{
+public:
+  void run (Diameter::Message& msg);
+private:
+};
+
+class PushProfileHandler : public HssCacheHandler
+{
+public:
+  void run (Diameter::Message& msg);
+private:
+};
 #endif

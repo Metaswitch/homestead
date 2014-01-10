@@ -57,6 +57,10 @@ Dictionary::Dictionary() :
   MULTIMEDIA_AUTH_ANSWER("3GPP/Multimedia-Auth-Answer"),
   SERVER_ASSIGNMENT_REQUEST("3GPP/Server-Assignment-Request"),
   SERVER_ASSIGNMENT_ANSWER("3GPP/Server-Assignment-Answer"),
+  REGISTRATION_TERMINATION_REQUEST("3GPP/Registration-Termination-Request"),
+  REGISTRATION_TERMINATION_ANSWER("3GPP/Registration-Termination-Answer"),
+  PUSH_PROFILE_REQUEST("3GPP/Push-Profile-Request"),
+  PUSH_PROFILE_ANSWER("3GPP/Push-Profile-Answer"),
   PUBLIC_IDENTITY("3GPP", "Public-Identity"),
   SIP_AUTH_DATA_ITEM("3GPP", "SIP-Auth-Data-Item"),
   SIP_AUTH_SCHEME("3GPP", "SIP-Authentication-Scheme"),
@@ -78,7 +82,11 @@ Dictionary::Dictionary() :
   CX_DIGEST_QOP("3GPP", "Digest-QoP"),
   SIP_AUTHENTICATE("3GPP", "SIP-Authenticate"),
   CONFIDENTIALITY_KEY("3GPP", "Confidentiality-Key"),
-  INTEGRITY_KEY("3GPP", "Integrity-Key")
+  INTEGRITY_KEY("3GPP", "Integrity-Key"),
+  ASSOCIATED_IDENTITIES("3GPP", "Associated-Identities"),
+  DEREGISTRATION_REASON("3GPP", "Deregistration-Reason"),
+  IDENTITY_WITH_EMERGENCY_REGISTRATION("3GPP", "Identity-with-Emergency-Registration"),
+  CHARGING_INFORMATION("3GPP", "Charging-Information")
 {
 }
 
@@ -453,5 +461,25 @@ ServerAssignmentRequest::ServerAssignmentRequest(const Dictionary* dict,
 
 ServerAssignmentAnswer::ServerAssignmentAnswer(const Dictionary* dict) :
                                                Diameter::Message(dict, dict->SERVER_ASSIGNMENT_ANSWER)
+{
+}
+
+RegistrationTerminationRequest::RegistrationTerminationRequest(const Dictionary* dict) :
+                                                               Diameter::Message(dict, dict->REGISTRATION_TERMINATION_REQUEST)
+{
+}
+
+RegistrationTerminationAnswer::RegistrationTerminationAnswer(const Dictionary* dict) :
+                                                             Diameter::Message(dict, dict->REGISTRATION_TERMINATION_ANSWER)
+{
+}
+
+PushProfileRequest::PushProfileRequest(const Dictionary* dict) :
+                                       Diameter::Message(dict, dict->PUSH_PROFILE_REQUEST)
+{
+}
+
+PushProfileAnswer::PushProfileAnswer(const Dictionary* dict) :
+                                     Diameter::Message(dict, dict->PUSH_PROFILE_ANSWER)
 {
 }

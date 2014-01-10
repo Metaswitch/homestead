@@ -57,6 +57,10 @@ public:
   const Diameter::Dictionary::Message MULTIMEDIA_AUTH_ANSWER;
   const Diameter::Dictionary::Message SERVER_ASSIGNMENT_REQUEST;
   const Diameter::Dictionary::Message SERVER_ASSIGNMENT_ANSWER;
+  const Diameter::Dictionary::Message REGISTRATION_TERMINATION_REQUEST;
+  const Diameter::Dictionary::Message REGISTRATION_TERMINATION_ANSWER;
+  const Diameter::Dictionary::Message PUSH_PROFILE_REQUEST;
+  const Diameter::Dictionary::Message PUSH_PROFILE_ANSWER;
   const Diameter::Dictionary::AVP PUBLIC_IDENTITY;
   const Diameter::Dictionary::AVP SIP_AUTH_DATA_ITEM;
   const Diameter::Dictionary::AVP SIP_AUTH_SCHEME;
@@ -79,6 +83,10 @@ public:
   const Diameter::Dictionary::AVP SIP_AUTHENTICATE;
   const Diameter::Dictionary::AVP CONFIDENTIALITY_KEY;
   const Diameter::Dictionary::AVP INTEGRITY_KEY;
+  const Diameter::Dictionary::AVP ASSOCIATED_IDENTITIES;
+  const Diameter::Dictionary::AVP DEREGISTRATION_REASON;
+  const Diameter::Dictionary::AVP IDENTITY_WITH_EMERGENCY_REGISTRATION;
+  const Diameter::Dictionary::AVP CHARGING_INFORMATION;
 };
 
 class UserAuthorizationRequest : public Diameter::Message
@@ -241,8 +249,36 @@ public:
 
   inline bool user_data(std::string* str) const
   {
-      return get_str_from_avp(((Cx::Dictionary*)dict())->USER_DATA, str);
+    return get_str_from_avp(((Cx::Dictionary*)dict())->USER_DATA, str);
   }
+};
+
+class RegistrationTerminationRequest : public Diameter::Message
+{
+public:
+  RegistrationTerminationRequest(const Dictionary* dict);
+  inline RegistrationTerminationRequest(Diameter::Message& msg) : Diameter::Message(msg) {};
+};
+
+class RegistrationTerminationAnswer : public Diameter::Message
+{
+public:
+  RegistrationTerminationAnswer(const Dictionary* dict);
+  inline RegistrationTerminationAnswer(Diameter::Message& msg) : Diameter::Message(msg) {};
+};
+
+class PushProfileRequest : public Diameter::Message
+{
+public:
+  PushProfileRequest(const Dictionary* dict);
+  inline PushProfileRequest(Diameter::Message& msg) : Diameter::Message(msg) {};
+};
+
+class PushProfileAnswer : public Diameter::Message
+{
+public:
+  PushProfileAnswer(const Dictionary* dict);
+  inline PushProfileAnswer(Diameter::Message& msg) : Diameter::Message(msg) {};
 };
 };
 
