@@ -155,11 +155,9 @@ public:
   {
     sem_init(&_sem, 0, 0);
 
-    EXPECT_CALL(_cache, get_client()).Times(1).WillOnce(Return(&_client));
-    EXPECT_CALL(_cache, release_client()).Times(1);
+    EXPECT_CALL(_cache, get_client()).WillRepeatedly(Return(&_client));
+    EXPECT_CALL(_cache, release_client()).WillRepeatedly(Return());
     _cache.start();
-
-    Mock::VerifyAndClear(&_cache);
   }
 
   virtual ~CacheRequestTest() {}
@@ -179,6 +177,13 @@ public:
     ts.tv_sec += 1;
     rc = sem_timedwait(&_sem, &ts);
     ASSERT_EQ(0, rc);
+  }
+
+  void do_successful_trx(TestTransaction* trx)
+  {
+    EXPECT_CALL(*trx, on_success());
+    _cache.send(trx);
+    wait();
   }
 
   sem_t _sem;
@@ -362,42 +367,30 @@ MutationMap(const std::string& table,
 
 TEST_F(CacheRequestTest, PutIMSSubscriptionMainline)
 {
-  Cache::PutIMSSubscription *req =
-    new Cache::PutIMSSubscription("kermit", "<xml>", 1000, 300);
-  TestTransaction *trx = make_trx(req);
-
-  EXPECT_CALL(_cache, get_client()).Times(1).WillOnce(Return(&_client));
+  TestTransaction *trx = make_trx(
+    new Cache::PutIMSSubscription("kermit", "<xml>", 1000, 300));
 
   std::map<std::string, std::string> columns;
   columns["ims_subscription_xml"] = "<xml>";
 
   EXPECT_CALL(_client,
-              batch_mutate(MutationMap("impu", "kermit", columns, 1000, 300),
-                           org::apache::cassandra::ConsistencyLevel::ONE));
+              batch_mutate(MutationMap("impu", "kermit", columns, 1000, 300), _));
 
-  EXPECT_CALL(*trx, on_success()).Times(1);
-  _cache.send(trx);
-
-  wait();
+  do_successful_trx(trx);
 }
 
 
 TEST_F(CacheRequestTest, NoTTLOnPut)
 {
-  Cache::PutIMSSubscription *req =
-    new Cache::PutIMSSubscription("kermit", "<xml>", 1000);
-  TestTransaction *trx = make_trx(req);
-
-  EXPECT_CALL(_cache, get_client()).Times(1).WillOnce(Return(&_client));
+  TestTransaction *trx = make_trx(
+    new Cache::PutIMSSubscription("kermit", "<xml>", 1000));
 
   std::map<std::string, std::string> columns;
   columns["ims_subscription_xml"] = "<xml>";
 
   EXPECT_CALL(_client, batch_mutate(MutationMap("impu", "kermit", columns, 1000), _));
 
-  EXPECT_CALL(*trx, on_success()).Times(1);
-  _cache.send(trx);
-  wait();
+  do_successful_trx(trx);
 }
 
 
@@ -407,30 +400,22 @@ TEST_F(CacheRequestTest, PutIMSSubMultipleIDs)
   ids.push_back("kermit");
   ids.push_back("miss piggy");
 
-  Cache::PutIMSSubscription *req =
-    new Cache::PutIMSSubscription(ids, "<xml>", 1000);
-  TestTransaction *trx = make_trx(req);
-
-  EXPECT_CALL(_cache, get_client()).Times(1).WillOnce(Return(&_client));
+  TestTransaction *trx = make_trx(
+    new Cache::PutIMSSubscription(ids, "<xml>", 1000));
 
   std::map<std::string, std::string> columns;
   columns["ims_subscription_xml"] = "<xml>";
 
   EXPECT_CALL(_client, batch_mutate(MutationMap("impu", ids, columns, 1000), _));
 
-  EXPECT_CALL(*trx, on_success()).Times(1);
-  _cache.send(trx);
-  wait();
+  do_successful_trx(trx);
 }
 
 
 TEST_F(CacheRequestTest, PutTransportEx)
 {
-  Cache::PutIMSSubscription *req =
-    new Cache::PutIMSSubscription("kermit", "<xml>", 1000);
-  TestTransaction *trx = make_trx(req);
-
-  EXPECT_CALL(_cache, get_client()).Times(1).WillOnce(Return(&_client));
+  TestTransaction *trx = make_trx(
+    new Cache::PutIMSSubscription("kermit", "<xml>", 1000));
 
   apache::thrift::transport::TTransportException te;
   EXPECT_CALL(_client, batch_mutate(_, _)).WillOnce(Throw(te));
@@ -442,11 +427,8 @@ TEST_F(CacheRequestTest, PutTransportEx)
 
 TEST_F(CacheRequestTest, PutInvalidRequestException)
 {
-  Cache::PutIMSSubscription *req =
-    new Cache::PutIMSSubscription("kermit", "<xml>", 1000);
-  TestTransaction *trx = make_trx(req);
-
-  EXPECT_CALL(_cache, get_client()).Times(1).WillOnce(Return(&_client));
+  TestTransaction *trx = make_trx(
+    new Cache::PutIMSSubscription("kermit", "<xml>", 1000));
 
   org::apache::cassandra::InvalidRequestException ire;
   EXPECT_CALL(_client, batch_mutate(_, _)).WillOnce(Throw(ire));
@@ -459,11 +441,8 @@ TEST_F(CacheRequestTest, PutInvalidRequestException)
 
 TEST_F(CacheRequestTest, PutNotFoundException)
 {
-  Cache::PutIMSSubscription *req =
-    new Cache::PutIMSSubscription("kermit", "<xml>", 1000);
-  TestTransaction *trx = make_trx(req);
-
-  EXPECT_CALL(_cache, get_client()).Times(1).WillOnce(Return(&_client));
+  TestTransaction *trx = make_trx(
+    new Cache::PutIMSSubscription("kermit", "<xml>", 1000));
 
   org::apache::cassandra::NotFoundException nfe;
   EXPECT_CALL(_client, batch_mutate(_, _)).WillOnce(Throw(nfe));
@@ -476,11 +455,8 @@ TEST_F(CacheRequestTest, PutNotFoundException)
 
 TEST_F(CacheRequestTest, PutRowNotFoundException)
 {
-  Cache::PutIMSSubscription *req =
-    new Cache::PutIMSSubscription("kermit", "<xml>", 1000);
-  TestTransaction *trx = make_trx(req);
-
-  EXPECT_CALL(_cache, get_client()).Times(1).WillOnce(Return(&_client));
+  TestTransaction *trx = make_trx(
+    new Cache::PutIMSSubscription("kermit", "<xml>", 1000));
 
   Cache::RowNotFoundException rnfe("muppets", "kermit");
   EXPECT_CALL(_client, batch_mutate(_, _)).WillOnce(Throw(rnfe));
@@ -493,11 +469,8 @@ TEST_F(CacheRequestTest, PutRowNotFoundException)
 
 TEST_F(CacheRequestTest, PutUnknownException)
 {
-  Cache::PutIMSSubscription *req =
-    new Cache::PutIMSSubscription("kermit", "<xml>", 1000);
-  TestTransaction *trx = make_trx(req);
-
-  EXPECT_CALL(_cache, get_client()).Times(1).WillOnce(Return(&_client));
+  TestTransaction *trx = make_trx(
+    new Cache::PutIMSSubscription("kermit", "<xml>", 1000));
 
   std::string ex("Made up exception");
   EXPECT_CALL(_client, batch_mutate(_, _)).WillOnce(Throw(ex));
@@ -507,6 +480,15 @@ TEST_F(CacheRequestTest, PutUnknownException)
   wait();
 }
 
+TEST_F(CacheRequestTest, PutsHaveConsistencyLevelOne)
+{
+  TestTransaction *trx = make_trx(
+    new Cache::PutIMSSubscription("kermit", "<xml>", 1000, 300));
+
+  EXPECT_CALL(_client, batch_mutate(_, cass::ConsistencyLevel::ONE));
+
+  do_successful_trx(trx);
+}
 
 TEST_F(CacheRequestTest, PutAuthVectorMainline)
 {
@@ -516,10 +498,8 @@ TEST_F(CacheRequestTest, PutAuthVectorMainline)
   av.qop = "auth";
   av.preferred = true;
 
-  Cache::PutAuthVector *req = new Cache::PutAuthVector("gonzo", av, 1000);
-  TestTransaction *trx = make_trx(req);
-
-  EXPECT_CALL(_cache, get_client()).Times(1).WillOnce(Return(&_client));
+  TestTransaction *trx = make_trx(
+    new Cache::PutAuthVector("gonzo", av, 1000));
 
   std::map<std::string, std::string> columns;
   columns["digest_ha1"] = av.ha1;
@@ -530,19 +510,14 @@ TEST_F(CacheRequestTest, PutAuthVectorMainline)
   EXPECT_CALL(_client,
               batch_mutate(MutationMap("impi", "gonzo", columns, 1000), _));
 
-  EXPECT_CALL(*trx, on_success());
-  _cache.send(trx);
-  wait();
+  do_successful_trx(trx);
 }
 
 
 TEST_F(CacheRequestTest, PutAsoocPublicIdMainline)
 {
-  Cache::PutAssociatedPublicID *req =
-    new Cache::PutAssociatedPublicID("gonzo", "kermit", 1000);
-  TestTransaction *trx = make_trx(req);
-
-  EXPECT_CALL(_cache, get_client()).Times(1).WillOnce(Return(&_client));
+  TestTransaction *trx = make_trx(
+    new Cache::PutAssociatedPublicID("gonzo", "kermit", 1000));
 
   std::map<std::string, std::string> columns;
   columns["public_id_kermit"] = "";
@@ -550,9 +525,7 @@ TEST_F(CacheRequestTest, PutAsoocPublicIdMainline)
   EXPECT_CALL(_client,
               batch_mutate(MutationMap("impi", "gonzo", columns, 1000), _));
 
-  EXPECT_CALL(*trx, on_success());
-  _cache.send(trx);
-  wait();
+  do_successful_trx(trx);
 }
 
 MATCHER_P(ColumnPathForTable, table, std::string("Refers to table: ")+table)
@@ -563,18 +536,13 @@ MATCHER_P(ColumnPathForTable, table, std::string("Refers to table: ")+table)
 
 TEST_F(CacheRequestTest, DeletePublicId)
 {
-  Cache::DeletePublicIDs *req =
-    new Cache::DeletePublicIDs("kermit", 1000);
-  TestTransaction *trx = make_trx(req);
-
-  EXPECT_CALL(_cache, get_client()).Times(1).WillOnce(Return(&_client));
+  TestTransaction *trx = make_trx(
+    new Cache::DeletePublicIDs("kermit", 1000));
 
   EXPECT_CALL(_client,
               remove("kermit", ColumnPathForTable("impu"), 1000, cass::ConsistencyLevel::ONE));
 
-  EXPECT_CALL(*trx, on_success());
-  _cache.send(trx);
-  wait();
+  do_successful_trx(trx);
 }
 
 TEST_F(CacheRequestTest, DeleteMultiPublicIds)
@@ -584,35 +552,25 @@ TEST_F(CacheRequestTest, DeleteMultiPublicIds)
   ids.push_back("gonzo");
   ids.push_back("miss piggy");
 
-  Cache::DeletePublicIDs *req =
-    new Cache::DeletePublicIDs(ids, 1000);
-  TestTransaction *trx = make_trx(req);
-
-  EXPECT_CALL(_cache, get_client()).Times(1).WillOnce(Return(&_client));
+  TestTransaction *trx = make_trx(
+    new Cache::DeletePublicIDs(ids, 1000));
 
   EXPECT_CALL(_client, remove("kermit", ColumnPathForTable("impu"), _, _));
   EXPECT_CALL(_client, remove("gonzo", ColumnPathForTable("impu"), _, _));
   EXPECT_CALL(_client, remove("miss piggy", ColumnPathForTable("impu"), _, _));
 
-  EXPECT_CALL(*trx, on_success());
-  _cache.send(trx);
-  wait();
+  do_successful_trx(trx);
 }
 
 TEST_F(CacheRequestTest, DeletePrivateId)
 {
-  Cache::DeletePrivateIDs *req =
-    new Cache::DeletePrivateIDs("kermit", 1000);
-  TestTransaction *trx = make_trx(req);
-
-  EXPECT_CALL(_cache, get_client()).Times(1).WillOnce(Return(&_client));
+  TestTransaction *trx = make_trx(
+    new Cache::DeletePrivateIDs("kermit", 1000));
 
   EXPECT_CALL(_client,
               remove("kermit", ColumnPathForTable("impi"), 1000, cass::ConsistencyLevel::ONE));
 
-  EXPECT_CALL(*trx, on_success());
-  _cache.send(trx);
-  wait();
+  do_successful_trx(trx);
 }
 
 TEST_F(CacheRequestTest, DeleteMultiPrivateIds)
@@ -622,17 +580,22 @@ TEST_F(CacheRequestTest, DeleteMultiPrivateIds)
   ids.push_back("gonzo");
   ids.push_back("miss piggy");
 
-  Cache::DeletePrivateIDs *req =
-    new Cache::DeletePrivateIDs(ids, 1000);
-  TestTransaction *trx = make_trx(req);
-
-  EXPECT_CALL(_cache, get_client()).Times(1).WillOnce(Return(&_client));
+  TestTransaction *trx = make_trx(
+    new Cache::DeletePrivateIDs(ids, 1000));
 
   EXPECT_CALL(_client, remove("kermit", ColumnPathForTable("impi"), _, _));
   EXPECT_CALL(_client, remove("gonzo", ColumnPathForTable("impi"), _, _));
   EXPECT_CALL(_client, remove("miss piggy", ColumnPathForTable("impi"), _, _));
 
-  EXPECT_CALL(*trx, on_success());
-  _cache.send(trx);
-  wait();
+  do_successful_trx(trx);
+}
+
+TEST_F(CacheRequestTest, DeletesHaveConsistencyLevelOne)
+{
+  TestTransaction *trx = make_trx(
+    new Cache::DeletePublicIDs("kermit", 1000));
+
+  EXPECT_CALL(_client, remove(_, _, _, cass::ConsistencyLevel::ONE));
+
+  do_successful_trx(trx);
 }
