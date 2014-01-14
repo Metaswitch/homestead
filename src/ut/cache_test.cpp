@@ -42,9 +42,12 @@
 #include <cache.h>
 
 using namespace std;
+using namespace org::apache::cassandra;
+
 using ::testing::Return;
 using ::testing::Throw;
 using ::testing::_;
+using ::testing::Mock;
 
 class MockClient : public Cache::CacheClientInterface
 {
@@ -141,4 +144,55 @@ TEST_F(CacheInitializationTest, UnknownException)
 
   Cache::ResultCode rc = _cache.start();
   EXPECT_EQ(Cache::ResultCode::UNKNOWN_ERROR, rc);
+}
+
+class CacheRequestTest : public CacheInitializationTest
+{
+public:
+  CacheRequestTest() : CacheInitializationTest()
+  {
+    sem_init(&_sem, 0, 0);
+
+    EXPECT_CALL(_cache, get_client()).Times(1).WillOnce(Return(&_client));
+    EXPECT_CALL(_cache, release_client()).Times(1);
+    _cache.start();
+
+    Mock::VerifyAndClear(&_cache);
+  }
+
+  virtual ~CacheRequestTest() {}
+
+  TestTransaction* make_trx(Cache::Request* req)
+  {
+    return new TestTransaction(req, &_sem);
+  }
+
+  void wait()
+  {
+    struct timespec ts;
+    int rc;
+
+    rc = clock_gettime(CLOCK_REALTIME, &ts);
+    ASSERT_EQ(0, rc);
+    ts.tv_sec += 1;
+    rc = sem_timedwait(&_sem, &ts);
+    ASSERT_EQ(0, rc);
+  }
+
+  sem_t _sem;
+};
+
+TEST_F(CacheRequestTest, PutIMSSubscriptionMainline)
+{
+  Cache::PutIMSSubscription *req =
+    new Cache::PutIMSSubscription("kermit", "<xml>", 1000, 300);
+  TestTransaction *trx = make_trx(req);
+
+  EXPECT_CALL(_cache, get_client()).Times(1).WillOnce(Return(&_client));
+  EXPECT_CALL(_client, batch_mutate(_, ConsistencyLevel::ONE));
+
+  EXPECT_CALL(*trx, on_success()).Times(1);
+  _cache.send(trx);
+
+  wait();
 }
