@@ -172,7 +172,7 @@ TEST_F(CacheInitializationTest, TransportException)
 
 TEST_F(CacheInitializationTest, NotFoundException)
 {
-  org::apache::cassandra::NotFoundException nfe;
+  cass::NotFoundException nfe;
   EXPECT_CALL(_cache, get_client()).Times(1).WillOnce(Throw(nfe));
   EXPECT_CALL(_cache, release_client()).Times(0);
 
@@ -238,7 +238,7 @@ public:
   sem_t _sem;
 };
 
-typedef std::map<std::string, std::map<std::string, std::vector<org::apache::cassandra::Mutation>>> mutmap_t;
+typedef std::map<std::string, std::map<std::string, std::vector<cass::Mutation>>> mutmap_t;
 
 class MutationMapMatcher : public MatcherInterface<const mutmap_t&> {
 public:
@@ -285,7 +285,7 @@ public:
       }
 
       const std::string& table = row_mutation->second.begin()->first;
-      const std::vector<org::apache::cassandra::Mutation>& mut_vector =
+      const std::vector<cass::Mutation>& mut_vector =
         row_mutation->second.begin()->second;
 
       if (table != _table)
@@ -301,7 +301,7 @@ public:
         return false;
       }
 
-      for(std::vector<org::apache::cassandra::Mutation>::const_iterator mutation = mut_vector.begin();
+      for(std::vector<cass::Mutation>::const_iterator mutation = mut_vector.begin();
           mutation != mut_vector.end();
           ++mutation)
       {
@@ -316,7 +316,7 @@ public:
           return false;
         }
 
-        const org::apache::cassandra::Column& column = mutation->column_or_supercolumn.column;
+        const cass::Column& column = mutation->column_or_supercolumn.column;
         const std::string curr_mutation_str = _table + ":" + *row + ":" + column.name;
 
         if (_columns.find(column.name) == _columns.end())
@@ -479,7 +479,7 @@ TEST_F(CacheRequestTest, PutInvalidRequestException)
   TestTransaction *trx = make_trx(
     new Cache::PutIMSSubscription("kermit", "<xml>", 1000));
 
-  org::apache::cassandra::InvalidRequestException ire;
+  cass::InvalidRequestException ire;
   EXPECT_CALL(_client, batch_mutate(_, _)).WillOnce(Throw(ire));
 
   EXPECT_CALL(*trx, on_failure(Cache::ResultCode::INVALID_REQUEST, _));
@@ -493,7 +493,7 @@ TEST_F(CacheRequestTest, PutNotFoundException)
   TestTransaction *trx = make_trx(
     new Cache::PutIMSSubscription("kermit", "<xml>", 1000));
 
-  org::apache::cassandra::NotFoundException nfe;
+  cass::NotFoundException nfe;
   EXPECT_CALL(_client, batch_mutate(_, _)).WillOnce(Throw(nfe));
 
   EXPECT_CALL(*trx, on_failure(Cache::ResultCode::NOT_FOUND, _));
@@ -682,7 +682,6 @@ TEST_F(CacheRequestTest, GetIMSSubscriptionMainline)
 {
   std::vector<std::string> requested_columns;
   requested_columns.push_back("ims_subscription_xml");
-
 
   cass::Column col;
   col.__set_name("ims_subscription_xml");
