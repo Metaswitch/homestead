@@ -20,7 +20,7 @@ On Ubuntu 12.04,
 
 2.  install the required packages
 
-        sudo apt-get install mercurial cmake make gcc g++ bison flex libsctp-dev libgnutls-dev libgcrypt-dev libidn11-dev ssl-cert debhelper fakeroot libpq-dev libmysqlclient-dev libxml2-dev swig python-dev libevent-dev libtool autoconf libboost-dev libboost-test-dev libboost-program-options-dev automake pkg-config libssl-dev libzmq-dev libcurl4-openssl-dev debhelper devscripts
+        sudo apt-get install git cmake make gcc g++ bison flex libsctp-dev libgnutls-dev libgcrypt-dev libidn11-dev ssl-cert debhelper fakeroot libpq-dev libmysqlclient-dev libxml2-dev swig python-dev libevent-dev libtool autoconf libboost-dev libboost-test-dev libboost-program-options-dev automake pkg-config libssl-dev libzmq-dev libcurl4-openssl-dev debhelper devscripts
 
 ## Getting the Code
 
