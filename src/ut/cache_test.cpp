@@ -43,6 +43,7 @@
 
 using ::testing::PrintToString;
 using ::testing::Return;
+using ::testing::SetArgReferee;
 using ::testing::Throw;
 using ::testing::_;
 using ::testing::Mock;
@@ -50,6 +51,7 @@ using ::testing::MakeMatcher;
 using ::testing::Matcher;
 using ::testing::MatcherInterface;
 using ::testing::MatchResultListener;
+using ::testing::InvokeWithoutArgs;
 
 class MockClient : public Cache::CacheClientInterface
 {
@@ -59,6 +61,25 @@ public:
   MOCK_METHOD5(get_slice, void(std::vector<cass::ColumnOrSuperColumn> & _return, const std::string& key, const cass::ColumnParent& column_parent, const cass::SlicePredicate& predicate, const cass::ConsistencyLevel::type consistency_level));
   MOCK_METHOD4(remove, void(const std::string& key, const cass::ColumnPath& column_path, const int64_t timestamp, const cass::ConsistencyLevel::type consistency_level));
 };
+
+class ResultRecorderInterface
+{
+public:
+  virtual void save(Cache::Request* req) = 0;
+};
+
+template<class R, class T>
+class ResultRecorder : public ResultRecorderInterface
+{
+public:
+  void save(Cache::Request* req)
+  {
+    dynamic_cast<R*>(req)->get_result(result);
+  }
+
+  T result;
+};
+
 
 class TestCache : public Cache
 {
@@ -74,7 +95,7 @@ public:
     Cache::Transaction(req), _sem(sem)
   {}
 
-  ~TestTransaction()
+  virtual ~TestTransaction()
   {
     sem_post(_sem);
   }
@@ -85,6 +106,28 @@ public:
 private:
   sem_t* _sem;
 };
+
+class RecordingTransaction : public TestTransaction
+{
+public:
+  RecordingTransaction(Cache::Request* req,
+                       sem_t* sem,
+                       ResultRecorderInterface* recorder) :
+    TestTransaction(req, sem),
+    _recorder(recorder)
+  {}
+
+  virtual ~RecordingTransaction() {}
+
+  void record_result()
+  {
+    _recorder->save(_req);
+  }
+
+private:
+  ResultRecorderInterface* _recorder;
+};
+
 
 class CacheInitializationTest : public ::testing::Test
 {
@@ -165,6 +208,12 @@ public:
   TestTransaction* make_trx(Cache::Request* req)
   {
     return new TestTransaction(req, &_sem);
+  }
+
+  RecordingTransaction* make_rec_trx(Cache::Request* req,
+                                     ResultRecorderInterface *recorder)
+  {
+    return new RecordingTransaction(req, &_sem, recorder);
   }
 
   void wait()
@@ -490,6 +539,7 @@ TEST_F(CacheRequestTest, PutsHaveConsistencyLevelOne)
   do_successful_trx(trx);
 }
 
+
 TEST_F(CacheRequestTest, PutAuthVectorMainline)
 {
   DigestAuthVector av;
@@ -598,4 +648,67 @@ TEST_F(CacheRequestTest, DeletesHaveConsistencyLevelOne)
   EXPECT_CALL(_client, remove(_, _, _, cass::ConsistencyLevel::ONE));
 
   do_successful_trx(trx);
+}
+
+const std::vector<cass::ColumnOrSuperColumn> empty_slice(0);
+
+MATCHER_P(SpecificColumns,
+          columns,
+          std::string("requests columns: ")+PrintToString(columns))
+{
+  if (!arg.__isset.column_names || arg.__isset.slice_range)
+  {
+    *result_listener << "does not request specific columns"; return false;
+  }
+
+  std::vector<std::string> expected_columns = columns;
+  std::vector<std::string> actual_columns = arg.column_names;
+
+  std::sort(expected_columns.begin(), expected_columns.end());
+  std::sort(actual_columns.begin(), actual_columns.end());
+
+  if (expected_columns != actual_columns)
+  {
+    *result_listener << "requests columns " << PrintToString(actual_columns);
+    return false;
+  }
+
+  return true;
+}
+
+
+
+TEST_F(CacheRequestTest, GetIMSSubscriptionMainline)
+{
+  std::vector<std::string> requested_columns;
+  requested_columns.push_back("ims_subscription_xml");
+
+
+  cass::Column col;
+  col.__set_name("ims_subscription_xml");
+  col.__set_value("<howdy>");
+
+  cass::ColumnOrSuperColumn csc;
+  csc.__set_column(col);
+
+  std::vector<cass::ColumnOrSuperColumn> slice(1, csc);
+
+  ResultRecorder<Cache::GetIMSSubscription, std::string> rec;
+  RecordingTransaction* trx = make_rec_trx(new Cache::GetIMSSubscription("kermit"),
+                                           &rec);
+
+  EXPECT_CALL(_client, get_slice(_,
+                                 "kermit",
+                                 ColumnPathForTable("impu"),
+                                 SpecificColumns(requested_columns),
+                                 _))
+
+    .WillOnce(SetArgReferee<0>(slice));
+
+  EXPECT_CALL(*trx, on_success())
+    .WillOnce(InvokeWithoutArgs(trx, &RecordingTransaction::record_result));
+  _cache.send(trx);
+  wait();
+
+  EXPECT_EQ("<howdy>", rec.result);
 }
