@@ -623,10 +623,10 @@ PutIMSSubscription(const std::string& public_id,
 
 
 Cache::PutIMSSubscription::
-PutIMSSubscription(std::vector<std::string>& public_ids,
-                   std::string& xml,
-                   int64_t timestamp,
-                   int32_t ttl) :
+PutIMSSubscription(const std::vector<std::string>& public_ids,
+                   const std::string& xml,
+                   const int64_t timestamp,
+                   const int32_t ttl) :
   PutRequest(IMPU, timestamp, ttl),
   _public_ids(public_ids),
   _xml(xml)

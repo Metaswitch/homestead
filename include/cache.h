@@ -531,10 +531,10 @@ public:
     ///
     /// @param public_ids a vector of public IDs to set the XML for.
     /// @param xml the subscription XML.
-    PutIMSSubscription(std::vector<std::string>& public_ids,
-                       std::string& xml,
-                       int64_t timestamp,
-                       int32_t ttl = 0);
+    PutIMSSubscription(const std::vector<std::string>& public_ids,
+                       const std::string& xml,
+                       const int64_t timestamp,
+                       const int32_t ttl = 0);
     virtual ~PutIMSSubscription();
 
   protected:

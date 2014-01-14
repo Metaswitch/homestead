@@ -41,13 +41,15 @@
 
 #include <cache.h>
 
-using namespace std;
-using namespace org::apache::cassandra;
-
+using ::testing::PrintToString;
 using ::testing::Return;
 using ::testing::Throw;
 using ::testing::_;
 using ::testing::Mock;
+using ::testing::MakeMatcher;
+using ::testing::Matcher;
+using ::testing::MatcherInterface;
+using ::testing::MatchResultListener;
 
 class MockClient : public Cache::CacheClientInterface
 {
@@ -182,6 +184,182 @@ public:
   sem_t _sem;
 };
 
+typedef std::map<std::string, std::map<std::string, std::vector<org::apache::cassandra::Mutation>>> mutmap_t;
+
+class MutationMapMatcher : public MatcherInterface<const mutmap_t&> {
+public:
+  MutationMapMatcher(const std::string& table,
+                     const std::vector<std::string>& rows,
+                     const std::map<std::string, std::string>& columns,
+                     int64_t timestamp,
+                     int32_t ttl = 0) :
+    _table(table),
+    _rows(rows),
+    _columns(columns),
+    _timestamp(timestamp),
+    _ttl(ttl)
+  {}
+
+  virtual bool MatchAndExplain(const mutmap_t& argument,
+                               MatchResultListener* listener) const
+  {
+    // The mutation map passed to batch mutate is of the form:
+    // { row: { table : [ Mutation ] } }.
+
+    // First check we have the right number of rows.
+    if (argument.size() != _rows.size())
+    {
+      *listener << "Expected " << _rows.size() << " rows, got " << argument.size();
+      return false;
+    }
+
+    for(std::vector<std::string>::const_iterator row = _rows.begin();
+        row != _rows.end();
+        ++row)
+    {
+      mutmap_t::const_iterator row_mutation = argument.find(*row);
+      if (row_mutation == argument.end())
+      {
+        *listener << "Row " << *row << " expected but not present";
+        return false;
+      }
+
+      if (row_mutation->second.size() != 1)
+      {
+        *listener << "Multiple tables are being mutated (only one is expected)";
+        return false;
+      }
+
+      const std::string& table = row_mutation->second.begin()->first;
+      const std::vector<org::apache::cassandra::Mutation>& mut_vector =
+        row_mutation->second.begin()->second;
+
+      if (table != _table)
+      {
+        *listener << "Mutation modifies table " << table << " (expected " << _table << ")";
+        return false;
+      }
+
+      if (mut_vector.size() != _columns.size())
+      {
+        *listener << "Expected " << _columns.size() << " columns, got "
+                  << mut_vector.size() << " for " << _table << ":" << *row;
+        return false;
+      }
+
+      for(std::vector<org::apache::cassandra::Mutation>::const_iterator mutation = mut_vector.begin();
+          mutation != mut_vector.end();
+          ++mutation)
+      {
+        if (!mutation->__isset.column_or_supercolumn ||
+            mutation->__isset.deletion ||
+            !mutation->column_or_supercolumn.__isset.column ||
+            mutation->column_or_supercolumn.__isset.super_column ||
+            mutation->column_or_supercolumn.__isset.counter_column ||
+            mutation->column_or_supercolumn.__isset.counter_super_column)
+        {
+          *listener << " got a mutation that is not a single column change";
+          return false;
+        }
+
+        const org::apache::cassandra::Column& column = mutation->column_or_supercolumn.column;
+        const std::string curr_mutation_str = _table + ":" + *row + ":" + column.name;
+
+        if (_columns.find(column.name) == _columns.end())
+        {
+          *listener << "Unexpected mutation for column " << curr_mutation_str;
+          return false;
+        }
+
+        const std::string& expected_val = _columns.find(column.name)->second;
+
+        if (!column.__isset.value)
+        {
+          *listener << curr_mutation_str << " value is not set";
+          return false;
+        }
+
+        if (column.value != expected_val)
+        {
+          *listener << "Column " << curr_mutation_str
+                    << " has wrong value (got " << column.value
+                    << " , expected " << expected_val << ")";
+          return false;
+        }
+
+        if (!column.__isset.timestamp)
+        {
+          *listener << curr_mutation_str << " timestamp is not set";
+          return false;
+        }
+
+        if (_ttl != 0)
+        {
+          if (!column.__isset.ttl)
+          {
+            *listener << curr_mutation_str << " ttl is not set";
+            return false;
+          }
+
+          if (column.ttl != _ttl)
+          {
+            *listener << curr_mutation_str << " has wrong ttl (expected "
+              << _ttl << " got " << column.ttl << ")";
+            return false;
+          }
+        }
+        else
+        {
+          if (column.__isset.ttl)
+          {
+            *listener << curr_mutation_str << " ttl is set when it shouldn't be";
+            return false;
+          }
+        }
+      }
+    }
+
+    return true;
+  }
+
+  virtual void DescribeTo(::std::ostream* os) const
+  {
+    *os << "to write columns " << PrintToString(_columns) <<
+           " to rows " << PrintToString(_rows) <<
+           " in table " << _table;
+  }
+
+private:
+  std::string _table;
+  std::vector<std::string> _rows;
+  std::map<std::string, std::string> _columns;
+  int64_t _timestamp;
+  int32_t _ttl;
+};
+
+inline Matcher<const mutmap_t&>
+MutationMap(const std::string& table,
+            const std::string& row,
+            const std::map<std::string, std::string>& columns,
+            int64_t timestamp,
+            int32_t ttl = 0)
+{
+  std::vector<std::string> rows(1, row);
+  return MakeMatcher(new MutationMapMatcher(table, rows, columns, timestamp, ttl));
+}
+
+inline Matcher<const mutmap_t&>
+MutationMap(const std::string& table,
+            const std::vector<std::string>& rows,
+            const std::map<std::string, std::string>& columns,
+            int64_t timestamp,
+            int32_t ttl = 0)
+{
+  return MakeMatcher(new MutationMapMatcher(table, rows, columns, timestamp, ttl));
+}
+
+
+
 TEST_F(CacheRequestTest, PutIMSSubscriptionMainline)
 {
   Cache::PutIMSSubscription *req =
@@ -189,10 +367,143 @@ TEST_F(CacheRequestTest, PutIMSSubscriptionMainline)
   TestTransaction *trx = make_trx(req);
 
   EXPECT_CALL(_cache, get_client()).Times(1).WillOnce(Return(&_client));
-  EXPECT_CALL(_client, batch_mutate(_, ConsistencyLevel::ONE));
+
+  std::map<std::string, std::string> columns;
+  columns["ims_subscription_xml"] = "<xml>";
+
+  EXPECT_CALL(_client,
+              batch_mutate(MutationMap("impu", "kermit", columns, 1000, 300),
+                           org::apache::cassandra::ConsistencyLevel::ONE));
 
   EXPECT_CALL(*trx, on_success()).Times(1);
   _cache.send(trx);
 
   wait();
 }
+
+
+TEST_F(CacheRequestTest, NoTTLOnPut)
+{
+  Cache::PutIMSSubscription *req =
+    new Cache::PutIMSSubscription("kermit", "<xml>", 1000);
+  TestTransaction *trx = make_trx(req);
+
+  EXPECT_CALL(_cache, get_client()).Times(1).WillOnce(Return(&_client));
+
+  std::map<std::string, std::string> columns;
+  columns["ims_subscription_xml"] = "<xml>";
+
+  EXPECT_CALL(_client, batch_mutate(MutationMap("impu", "kermit", columns, 1000), _));
+
+  EXPECT_CALL(*trx, on_success()).Times(1);
+  _cache.send(trx);
+  wait();
+}
+
+
+TEST_F(CacheRequestTest, PutIMSSubMultipleIDs)
+{
+  std::vector<std::string> ids;
+  ids.push_back("kermit");
+  ids.push_back("miss piggy");
+
+  Cache::PutIMSSubscription *req =
+    new Cache::PutIMSSubscription(ids, "<xml>", 1000);
+  TestTransaction *trx = make_trx(req);
+
+  EXPECT_CALL(_cache, get_client()).Times(1).WillOnce(Return(&_client));
+
+  std::map<std::string, std::string> columns;
+  columns["ims_subscription_xml"] = "<xml>";
+
+  EXPECT_CALL(_client, batch_mutate(MutationMap("impu", ids, columns, 1000), _));
+
+  EXPECT_CALL(*trx, on_success()).Times(1);
+  _cache.send(trx);
+  wait();
+}
+
+
+TEST_F(CacheRequestTest, PutTransportEx)
+{
+  Cache::PutIMSSubscription *req =
+    new Cache::PutIMSSubscription("kermit", "<xml>", 1000);
+  TestTransaction *trx = make_trx(req);
+
+  EXPECT_CALL(_cache, get_client()).Times(1).WillOnce(Return(&_client));
+
+  apache::thrift::transport::TTransportException te;
+  EXPECT_CALL(_client, batch_mutate(_, _)).WillOnce(Throw(te));
+
+  EXPECT_CALL(*trx, on_failure(Cache::ResultCode::CONNECTION_ERROR, _));
+  _cache.send(trx);
+  wait();
+}
+
+TEST_F(CacheRequestTest, PutInvalidRequestException)
+{
+  Cache::PutIMSSubscription *req =
+    new Cache::PutIMSSubscription("kermit", "<xml>", 1000);
+  TestTransaction *trx = make_trx(req);
+
+  EXPECT_CALL(_cache, get_client()).Times(1).WillOnce(Return(&_client));
+
+  org::apache::cassandra::InvalidRequestException ire;
+  EXPECT_CALL(_client, batch_mutate(_, _)).WillOnce(Throw(ire));
+
+  EXPECT_CALL(*trx, on_failure(Cache::ResultCode::INVALID_REQUEST, _));
+  _cache.send(trx);
+  wait();
+}
+
+
+TEST_F(CacheRequestTest, PutNotFoundException)
+{
+  Cache::PutIMSSubscription *req =
+    new Cache::PutIMSSubscription("kermit", "<xml>", 1000);
+  TestTransaction *trx = make_trx(req);
+
+  EXPECT_CALL(_cache, get_client()).Times(1).WillOnce(Return(&_client));
+
+  org::apache::cassandra::NotFoundException nfe;
+  EXPECT_CALL(_client, batch_mutate(_, _)).WillOnce(Throw(nfe));
+
+  EXPECT_CALL(*trx, on_failure(Cache::ResultCode::NOT_FOUND, _));
+  _cache.send(trx);
+  wait();
+}
+
+
+TEST_F(CacheRequestTest, PutRowNotFoundException)
+{
+  Cache::PutIMSSubscription *req =
+    new Cache::PutIMSSubscription("kermit", "<xml>", 1000);
+  TestTransaction *trx = make_trx(req);
+
+  EXPECT_CALL(_cache, get_client()).Times(1).WillOnce(Return(&_client));
+
+  Cache::RowNotFoundException rnfe("muppets", "kermit");
+  EXPECT_CALL(_client, batch_mutate(_, _)).WillOnce(Throw(rnfe));
+
+  EXPECT_CALL(*trx, on_failure(Cache::ResultCode::NOT_FOUND, _));
+  _cache.send(trx);
+  wait();
+}
+
+
+TEST_F(CacheRequestTest, PutUnknownException)
+{
+  Cache::PutIMSSubscription *req =
+    new Cache::PutIMSSubscription("kermit", "<xml>", 1000);
+  TestTransaction *trx = make_trx(req);
+
+  EXPECT_CALL(_cache, get_client()).Times(1).WillOnce(Return(&_client));
+
+  std::string ex("Made up exception");
+  EXPECT_CALL(_client, batch_mutate(_, _)).WillOnce(Throw(ex));
+
+  EXPECT_CALL(*trx, on_failure(Cache::ResultCode::UNKNOWN_ERROR, _));
+  _cache.send(trx);
+  wait();
+}
+
