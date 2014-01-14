@@ -652,10 +652,10 @@ void Cache::PutIMSSubscription::perform()
 //
 
 Cache::PutAssociatedPublicID::
-PutAssociatedPublicID(std::string& private_id,
-                      std::string& assoc_public_id,
-                      int64_t timestamp,
-                      int32_t ttl) :
+PutAssociatedPublicID(const std::string& private_id,
+                      const std::string& assoc_public_id,
+                      const int64_t timestamp,
+                      const int32_t ttl) :
   PutRequest(IMPI, timestamp, ttl),
   _private_id(private_id),
   _assoc_public_id(assoc_public_id)
@@ -683,10 +683,10 @@ void Cache::PutAssociatedPublicID::perform()
 //
 
 Cache::PutAuthVector::
-PutAuthVector(std::string& private_id,
-              DigestAuthVector& auth_vector,
-              int64_t timestamp,
-              int32_t ttl) :
+PutAuthVector(const std::string& private_id,
+              const DigestAuthVector& auth_vector,
+              const int64_t timestamp,
+              const int32_t ttl) :
   PutRequest(IMPI, timestamp),
   _private_ids(1, private_id),
   _auth_vector(auth_vector)

@@ -507,3 +507,50 @@ TEST_F(CacheRequestTest, PutUnknownException)
   wait();
 }
 
+
+TEST_F(CacheRequestTest, PutAuthVectorMainline)
+{
+  DigestAuthVector av;
+  av.ha1 = "somehash";
+  av.realm = "themuppetshow.com";
+  av.qop = "auth";
+  av.preferred = true;
+
+  Cache::PutAuthVector *req = new Cache::PutAuthVector("gonzo", av, 1000);
+  TestTransaction *trx = make_trx(req);
+
+  EXPECT_CALL(_cache, get_client()).Times(1).WillOnce(Return(&_client));
+
+  std::map<std::string, std::string> columns;
+  columns["digest_ha1"] = av.ha1;
+  columns["digest_realm"] = av.realm;
+  columns["digest_qop"] = av.qop;
+  columns["known_preferred"] = "\x01"; // That's how thrift represents bools.
+
+  EXPECT_CALL(_client,
+              batch_mutate(MutationMap("impi", "gonzo", columns, 1000), _));
+
+  EXPECT_CALL(*trx, on_success());
+  _cache.send(trx);
+  wait();
+}
+
+
+TEST_F(CacheRequestTest, PutAsoocPublicIdMainline)
+{
+  Cache::PutAssociatedPublicID *req =
+    new Cache::PutAssociatedPublicID("gonzo", "kermit", 1000);
+  TestTransaction *trx = make_trx(req);
+
+  EXPECT_CALL(_cache, get_client()).Times(1).WillOnce(Return(&_client));
+
+  std::map<std::string, std::string> columns;
+  columns["public_id_kermit"] = "";
+
+  EXPECT_CALL(_client,
+              batch_mutate(MutationMap("impi", "gonzo", columns, 1000), _));
+
+  EXPECT_CALL(*trx, on_success());
+  _cache.send(trx);
+  wait();
+}

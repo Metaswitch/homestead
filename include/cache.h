@@ -551,10 +551,10 @@ public:
     ///
     /// @param private_id the private ID in question.
     /// @param assoc_public_id the public ID to associate with it.
-    PutAssociatedPublicID(std::string& private_id,
-                          std::string& assoc_public_id,
-                          int64_t timestamp,
-                          int32_t ttl = 0);
+    PutAssociatedPublicID(const std::string& private_id,
+                          const std::string& assoc_public_id,
+                          const int64_t timestamp,
+                          const int32_t ttl = 0);
     virtual ~PutAssociatedPublicID();
 
   protected:
@@ -574,10 +574,10 @@ public:
     ///
     /// @param private_id the private ID in question.
     /// @param auth_vector the auth vector to store.
-    PutAuthVector(std::string& private_id,
-                  DigestAuthVector& auth_vector,
-                  int64_t timestamp,
-                  int32_t ttl = 0);
+    PutAuthVector(const std::string& private_id,
+                  const DigestAuthVector& auth_vector,
+                  const int64_t timestamp,
+                  const int32_t ttl = 0);
     virtual ~PutAuthVector();
 
   protected:
