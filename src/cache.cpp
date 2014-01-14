@@ -184,11 +184,11 @@ Cache::~Cache()
 }
 
 
-Cache::CacheClient* Cache::get_client()
+Cache::CacheClientInterface* Cache::get_client()
 {
   // See if we've already got a client for this thread.  If not allocate a new
   // one and write it back into thread-local storage.
-  Cache::CacheClient* client = (Cache::CacheClient*)pthread_getspecific(_thread_local);
+  Cache::CacheClientInterface* client = (Cache::CacheClientInterface*)pthread_getspecific(_thread_local);
 
   if (client == NULL)
   {
@@ -211,7 +211,7 @@ void Cache::release_client()
 {
   // If this thread already has a client delete it and remove it from
   // thread-local storage.
-  Cache::CacheClient* client = (Cache::CacheClient*)pthread_getspecific(_thread_local);
+  Cache::CacheClientInterface* client = (Cache::CacheClientInterface*)pthread_getspecific(_thread_local);
 
   if (client != NULL)
   {
@@ -223,7 +223,7 @@ void Cache::release_client()
 
 void Cache::delete_client(void *client)
 {
-  delete (Cache::CacheClient *)client; client = NULL;
+  delete (Cache::CacheClientInterface *)client; client = NULL;
 }
 
 
@@ -279,7 +279,7 @@ Cache::Transaction::~Transaction()
   delete _req; _req = NULL;
 }
 
-void Cache::Transaction::run(Cache::CacheClient* client)
+void Cache::Transaction::run(Cache::CacheClientInterface* client)
 {
   _req->run(client, this);
 }
@@ -294,7 +294,7 @@ Cache::Request::~Request()
 {}
 
 
-void Cache::Request::run(Cache::CacheClient *client, Cache::Transaction* trx)
+void Cache::Request::run(Cache::CacheClientInterface *client, Cache::Transaction* trx)
 {
   ResultCode rc = ResultCode::OK;
   std::string error_text = "";
@@ -612,10 +612,10 @@ delete_row(std::string& key,
 //
 
 Cache::PutIMSSubscription::
-PutIMSSubscription(std::string& public_id,
-                   std::string& xml,
-                   int64_t timestamp,
-                   int32_t ttl) :
+PutIMSSubscription(const std::string& public_id,
+                   const std::string& xml,
+                   const int64_t timestamp,
+                   const int32_t ttl) :
   PutRequest(IMPU, timestamp, ttl),
   _public_ids(1, public_id),
   _xml(xml)

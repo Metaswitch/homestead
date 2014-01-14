@@ -164,7 +164,17 @@ public:
   ///
   /// Simple subclass of a normal cassandra client but that automatically opens
   /// and closes it's transport.
-  class CacheClient : public cass::CassandraClient
+
+  class CacheClientInterface
+  {
+  public:
+    virtual void set_keyspace(const std::string& keyspace) = 0;
+    virtual void batch_mutate(const std::map<std::string, std::map<std::string, std::vector<cass::Mutation> > > & mutation_map, const cass::ConsistencyLevel::type consistency_level) = 0;
+    virtual void get_slice(std::vector<cass::ColumnOrSuperColumn> & _return, const std::string& key, const cass::ColumnParent& column_parent, const cass::SlicePredicate& predicate, const cass::ConsistencyLevel::type consistency_level) = 0;
+    virtual void remove(const std::string& key, const cass::ColumnPath& column_path, const int64_t timestamp, const cass::ConsistencyLevel::type consistency_level) = 0;
+  };
+
+  class CacheClient : public cass::CassandraClient, public CacheClientInterface
   {
   public:
     CacheClient(boost::shared_ptr<apache::thrift::protocol::TProtocol> prot,
@@ -178,6 +188,26 @@ public:
     virtual ~CacheClient()
     {
       _transport->close();
+    }
+
+    void set_keyspace(const std::string& keyspace)
+    {
+      cass::CassandraClient::set_keyspace(keyspace);
+    }
+
+    void batch_mutate(const std::map<std::string, std::map<std::string, std::vector<cass::Mutation> > > & mutation_map, const cass::ConsistencyLevel::type consistency_level)
+    {
+      cass::CassandraClient::batch_mutate(mutation_map, consistency_level);
+    }
+
+    void get_slice(std::vector<cass::ColumnOrSuperColumn> & _return, const std::string& key, const cass::ColumnParent& column_parent, const cass::SlicePredicate& predicate, const cass::ConsistencyLevel::type consistency_level)
+    {
+      cass::CassandraClient::get_slice(_return, key, column_parent, predicate, consistency_level);
+    }
+
+    void remove(const std::string& key, const cass::ColumnPath& column_path, const int64_t timestamp, const cass::ConsistencyLevel::type consistency_level)
+    {
+      cass::CassandraClient::remove(key, column_path, timestamp, consistency_level);
     }
 
   private:
@@ -235,8 +265,8 @@ private:
   //   it. It allows a thread to pro-actively delete it's client.
   pthread_key_t _thread_local;
 
-  CacheClient* get_client();
-  void release_client();
+  virtual CacheClientInterface* get_client();
+  virtual void release_client();
   static void delete_client(void *client);
 
   // The constructors and assignment operation are private to prevent multiple
@@ -251,7 +281,7 @@ public:
   class RowNotFoundException
   {
   public:
-    RowNotFoundException(std::string& column_family, std::string& key) :
+    RowNotFoundException(const std::string& column_family, const std::string& key) :
       _column_family(column_family),
       _key(key)
     {};
@@ -295,7 +325,7 @@ public:
     Transaction(Request* req);
     virtual ~Transaction();
 
-    void run(CacheClient* client);
+    void run(CacheClientInterface* client);
 
     virtual void on_success() = 0;
     virtual void on_failure(ResultCode error, std::string& text) = 0;
@@ -321,7 +351,7 @@ public:
     /// @param client the client to use to interact with the database.
     /// @param trx the parent transaction (which is notified when the request is
     ///   complete).
-    virtual void run(CacheClient* client,
+    virtual void run(CacheClientInterface* client,
                      Transaction *trx);
 
   protected:
@@ -333,7 +363,7 @@ public:
     virtual void perform() {};
 
     std::string _column_family;
-    CacheClient *_client;
+    CacheClientInterface *_client;
     Transaction *_trx;
   };
 
@@ -491,10 +521,10 @@ public:
     ///
     /// @param public_id the public ID.
     /// @param xml the subscription XML.
-    PutIMSSubscription(std::string& public_id,
-                       std::string& xml,
-                       int64_t timestamp,
-                       int32_t ttl = 0);
+    PutIMSSubscription(const std::string& public_id,
+                       const std::string& xml,
+                       const int64_t timestamp,
+                       const int32_t ttl = 0);
 
     /// Constructor that sets the same  IMS subscription XML for multiple public
     /// IDs.
