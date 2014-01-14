@@ -554,3 +554,85 @@ TEST_F(CacheRequestTest, PutAsoocPublicIdMainline)
   _cache.send(trx);
   wait();
 }
+
+MATCHER_P(ColumnPathForTable, table, std::string("Refers to table: ")+table)
+{
+  *result_listener << "Refers to table: " << arg.column_family;
+  return (arg.column_family == table);
+}
+
+TEST_F(CacheRequestTest, DeletePublicId)
+{
+  Cache::DeletePublicIDs *req =
+    new Cache::DeletePublicIDs("kermit", 1000);
+  TestTransaction *trx = make_trx(req);
+
+  EXPECT_CALL(_cache, get_client()).Times(1).WillOnce(Return(&_client));
+
+  EXPECT_CALL(_client,
+              remove("kermit", ColumnPathForTable("impu"), 1000, cass::ConsistencyLevel::ONE));
+
+  EXPECT_CALL(*trx, on_success());
+  _cache.send(trx);
+  wait();
+}
+
+TEST_F(CacheRequestTest, DeleteMultiPublicIds)
+{
+  std::vector<std::string> ids;
+  ids.push_back("kermit");
+  ids.push_back("gonzo");
+  ids.push_back("miss piggy");
+
+  Cache::DeletePublicIDs *req =
+    new Cache::DeletePublicIDs(ids, 1000);
+  TestTransaction *trx = make_trx(req);
+
+  EXPECT_CALL(_cache, get_client()).Times(1).WillOnce(Return(&_client));
+
+  EXPECT_CALL(_client, remove("kermit", ColumnPathForTable("impu"), _, _));
+  EXPECT_CALL(_client, remove("gonzo", ColumnPathForTable("impu"), _, _));
+  EXPECT_CALL(_client, remove("miss piggy", ColumnPathForTable("impu"), _, _));
+
+  EXPECT_CALL(*trx, on_success());
+  _cache.send(trx);
+  wait();
+}
+
+TEST_F(CacheRequestTest, DeletePrivateId)
+{
+  Cache::DeletePrivateIDs *req =
+    new Cache::DeletePrivateIDs("kermit", 1000);
+  TestTransaction *trx = make_trx(req);
+
+  EXPECT_CALL(_cache, get_client()).Times(1).WillOnce(Return(&_client));
+
+  EXPECT_CALL(_client,
+              remove("kermit", ColumnPathForTable("impi"), 1000, cass::ConsistencyLevel::ONE));
+
+  EXPECT_CALL(*trx, on_success());
+  _cache.send(trx);
+  wait();
+}
+
+TEST_F(CacheRequestTest, DeleteMultiPrivateIds)
+{
+  std::vector<std::string> ids;
+  ids.push_back("kermit");
+  ids.push_back("gonzo");
+  ids.push_back("miss piggy");
+
+  Cache::DeletePrivateIDs *req =
+    new Cache::DeletePrivateIDs(ids, 1000);
+  TestTransaction *trx = make_trx(req);
+
+  EXPECT_CALL(_cache, get_client()).Times(1).WillOnce(Return(&_client));
+
+  EXPECT_CALL(_client, remove("kermit", ColumnPathForTable("impi"), _, _));
+  EXPECT_CALL(_client, remove("gonzo", ColumnPathForTable("impi"), _, _));
+  EXPECT_CALL(_client, remove("miss piggy", ColumnPathForTable("impi"), _, _));
+
+  EXPECT_CALL(*trx, on_success());
+  _cache.send(trx);
+  wait();
+}
