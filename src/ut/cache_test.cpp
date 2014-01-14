@@ -676,21 +676,34 @@ MATCHER_P(SpecificColumns,
   return true;
 }
 
+void make_slice(std::vector<cass::ColumnOrSuperColumn>& slice,
+                std::map<std::string, std::string>& columns)
+{
+  for(std::map<std::string, std::string>::const_iterator it = columns.begin();
+      it != columns.end();
+      ++it)
+  {
+    cass::Column c;
+    c.__set_name(it->first);
+    c.__set_value(it->second);
 
+    cass::ColumnOrSuperColumn csc;
+    csc.__set_column(c);
+
+    slice.push_back(csc);
+  }
+}
 
 TEST_F(CacheRequestTest, GetIMSSubscriptionMainline)
 {
   std::vector<std::string> requested_columns;
   requested_columns.push_back("ims_subscription_xml");
 
-  cass::Column col;
-  col.__set_name("ims_subscription_xml");
-  col.__set_value("<howdy>");
+  std::map<std::string, std::string> columns;
+  columns["ims_subscription_xml"] = "<howdy>";
 
-  cass::ColumnOrSuperColumn csc;
-  csc.__set_column(col);
-
-  std::vector<cass::ColumnOrSuperColumn> slice(1, csc);
+  std::vector<cass::ColumnOrSuperColumn> slice;
+  make_slice(slice, columns);
 
   ResultRecorder<Cache::GetIMSSubscription, std::string> rec;
   RecordingTransaction* trx = make_rec_trx(new Cache::GetIMSSubscription("kermit"),
@@ -701,7 +714,6 @@ TEST_F(CacheRequestTest, GetIMSSubscriptionMainline)
                                  ColumnPathForTable("impu"),
                                  SpecificColumns(requested_columns),
                                  _))
-
     .WillOnce(SetArgReferee<0>(slice));
 
   EXPECT_CALL(*trx, on_success())
