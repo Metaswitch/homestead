@@ -340,7 +340,7 @@ public:
   public:
     /// Constructor.
     /// @param column_family the column family the request operates on.
-    Request(std::string& column_family);
+    Request(const std::string& column_family);
     virtual ~Request();
 
     /// Execute a request.
@@ -377,7 +377,7 @@ public:
     /// @param timestamp the timestamp of the request.  Should be filled in with
     ///   the result from generate_timestamp().  To ensure consistency, related
     ///   cache updates should all be made with the same timestamp.
-    ModificationRequest(std::string& column_family, int64_t timestamp);
+    ModificationRequest(const std::string& column_family, int64_t timestamp);
     virtual ~ModificationRequest();
 
   protected:
@@ -391,7 +391,9 @@ public:
     /// Constructor
     /// @param ttl the time-to-live of the written data (after which it expires
     ///   and is deleted). 0 => no expiry.
-    PutRequest(std::string& column_family, int64_t timestamp, int32_t ttl = 0);
+    PutRequest(const std::string& column_family,
+               int64_t timestamp,
+               int32_t ttl = 0);
     virtual ~PutRequest();
 
   protected:
@@ -403,8 +405,8 @@ public:
     ///
     /// @param keys the row keys
     /// @param columns the columns to write. Specified as a map {name => value}
-    void put_columns(std::vector<std::string>& keys,
-                     std::map<std::string, std::string>& columns,
+    void put_columns(const std::vector<std::string>& keys,
+                     const std::map<std::string, std::string>& columns,
                      int64_t timestamp,
                      int32_t ttl);
   };
@@ -414,7 +416,7 @@ public:
   {
   public:
     /// Constructor.
-    GetRequest(std::string& column_family);
+    GetRequest(const std::string& column_family);
     virtual ~GetRequest();
 
   protected:
@@ -437,7 +439,7 @@ public:
     ///
     /// @param key row key
     /// @param columns (out) columns in the row
-    void ha_get_row(std::string& key,
+    void ha_get_row(const std::string& key,
                     std::vector<cass::ColumnOrSuperColumn>& columns);
 
     /// HA get specific columns in a row.
@@ -449,8 +451,8 @@ public:
     /// @param key row key
     /// @param names the names of the columns to retrieve
     /// @param columns (out) the retrieved columns
-    void ha_get_columns(std::string& key,
-                        std::vector<std::string>& names,
+    void ha_get_columns(const std::string& key,
+                        const std::vector<std::string>& names,
                         std::vector<cass::ColumnOrSuperColumn>& columns);
 
     /// HA get all columns in a row that have a particular prefix to their name.
@@ -460,27 +462,27 @@ public:
     /// @param prefix the prefix
     /// @param columns (out) the retrieved columns. NOTE: the column names have
     ///   their prefix removed.
-    void ha_get_columns_with_prefix(std::string& key,
-                                    std::string& prefix,
+    void ha_get_columns_with_prefix(const std::string& key,
+                                    const std::string& prefix,
                                     std::vector<cass::ColumnOrSuperColumn>& columns);
 
     /// Get an entire row (non-HA).
     /// @param consistency_level cassandra consistency level.
-    void get_row(std::string& key,
+    void get_row(const std::string& key,
                  std::vector<cass::ColumnOrSuperColumn>& columns,
                  cass::ConsistencyLevel::type consistency_level);
 
     /// Get specific columns in a row (non-HA).
     /// @param consistency_level cassandra consistency level.
-    void get_columns(std::string& key,
-                     std::vector<std::string>& names,
+    void get_columns(const std::string& key,
+                     const std::vector<std::string>& names,
                      std::vector<cass::ColumnOrSuperColumn>& columns,
                      cass::ConsistencyLevel::type consistency_level);
 
     /// Get columns whose names begin with the specified prefix. (non-HA).
     /// @param consistency_level cassandra consistency level.
-    void get_columns_with_prefix(std::string& key,
-                                 std::string& prefix,
+    void get_columns_with_prefix(const std::string& key,
+                                 const std::string& prefix,
                                  std::vector<cass::ColumnOrSuperColumn>& columns,
                                  cass::ConsistencyLevel::type consistency_level);
 
@@ -490,8 +492,8 @@ public:
     /// @param predicate slice predicate specifying what columns to get.
     /// @param columns (out) the retrieved columns.
     /// @param consistency_level cassandra consistency level.
-    void issue_get_for_key(std::string& key,
-                           cass::SlicePredicate& predicate,
+    void issue_get_for_key(const std::string& key,
+                           const cass::SlicePredicate& predicate,
                            std::vector<cass::ColumnOrSuperColumn>& columns,
                            cass::ConsistencyLevel::type consistency_level);
   };
@@ -501,7 +503,7 @@ public:
   class DeleteRowsRequest : public ModificationRequest
   {
   public:
-    DeleteRowsRequest(std::string& column_family,
+    DeleteRowsRequest(const std::string& column_family,
                       int64_t timestamp);
     virtual ~DeleteRowsRequest();
 
@@ -509,7 +511,7 @@ public:
     /// Delete a row from the cache.
     ///
     /// @param key key of the row to delete
-    void delete_row(std::string& key,
+    void delete_row(const std::string& key,
                     int64_t timestamp);
   };
 
@@ -593,7 +595,7 @@ public:
     /// Get the IMS subscription XML for a public identity.
     ///
     /// @param public_id the public identity.
-    GetIMSSubscription(std::string& public_id);
+    GetIMSSubscription(const std::string& public_id);
     virtual ~GetIMSSubscription();
 
     /// Access the result of the request.
@@ -617,7 +619,7 @@ public:
     /// Get the public Ids that are associated with a private ID.
     ///
     /// @param private_id the private ID.
-    GetAssociatedPublicIDs(std::string& private_id);
+    GetAssociatedPublicIDs(const std::string& private_id);
     virtual ~GetAssociatedPublicIDs();
 
     /// Access the result of the request.
@@ -641,7 +643,7 @@ public:
     /// Get the auth vector of a private ID.
     ///
     /// @param private_id the private ID.
-    GetAuthVector(std::string& private_id);
+    GetAuthVector(const std::string& private_id);
 
     /// Get the auth vector of a private ID that has an associated public ID.
     ///
@@ -649,8 +651,8 @@ public:
     /// the on_failure will be called with a NOT_FOUND result.
     ///
     /// @param private_id the private ID.
-    GetAuthVector(std::string& private_id,
-                  std::string& public_id);
+    GetAuthVector(const std::string& private_id,
+                  const std::string& public_id);
     virtual ~GetAuthVector();
 
     /// Access the result of the request.
@@ -675,12 +677,12 @@ public:
     /// Delete an single public ID from the cache.
     ///
     /// @param public_id the public ID to delete.
-    DeletePublicIDs(std::string& public_id, int64_t timestamp);
+    DeletePublicIDs(const std::string& public_id, int64_t timestamp);
 
     /// Delete several public IDs from the cache.
     ///
     /// @param public_ids the public IDs to delete.
-    DeletePublicIDs(std::vector<std::string>& public_ids,
+    DeletePublicIDs(const std::vector<std::string>& public_ids,
                     int64_t timestamp);
     virtual ~DeletePublicIDs();
 
@@ -696,12 +698,12 @@ public:
     /// Delete an single private ID from the cache.
     ///
     /// @param private_id the private ID to delete.
-    DeletePrivateIDs(std::string& public_id, int64_t timestamp);
+    DeletePrivateIDs(const std::string& public_id, int64_t timestamp);
 
     /// Delete an single private ID from the cache.
     ///
     /// @param private_id the private ID to delete.
-    DeletePrivateIDs(std::vector<std::string>& public_ids,
+    DeletePrivateIDs(const std::vector<std::string>& public_ids,
                      int64_t timestamp);
     virtual ~DeletePrivateIDs();
 
