@@ -25,7 +25,8 @@ TARGET_SOURCES_BUILD := main.cpp
 TARGET_SOURCES_TEST := test_main.cpp \
                        cx_test.cpp \
                        diameterstack_test.cpp \
-                       cache_test.cpp
+                       cache_test.cpp \
+                       httpstack_test.cpp
 
 TARGET_EXTRA_OBJS_TEST := gmock-all.o \
                           gtest-all.o
@@ -86,11 +87,11 @@ LDFLAGS += -lthrift \
            -levent \
            -lpthread
 
-# Test build fakes out cURL
-LDFLAGS_BUILD += -lcurl
-
 # Test build uses just-built libraries, which may not be installed
 LDFLAGS_TEST += -Wl,-rpath=$(ROOT)/usr/lib
+
+# Test build also uses libcurl (to verify HttpStack operation)
+LDFLAGS_TEST += -lcurl
 
 # Now the GMock / GTest boilerplate.
 GTEST_HEADERS := $(GTEST_DIR)/include/gtest/*.h \
