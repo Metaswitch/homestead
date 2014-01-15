@@ -131,7 +131,7 @@ Cache::ResultCode Cache::start()
 
     if (!_thread_pool->start())
     {
-      rc = ResultCode::RESOURCE_ERROR;
+      rc = ResultCode::RESOURCE_ERROR; // LCOV_EXCL_LINE
     }
   }
 
@@ -184,6 +184,7 @@ Cache::~Cache()
 }
 
 
+// LCOV_EXCL_START - UTs do not cover relationship of clients to threads.
 Cache::CacheClientInterface* Cache::get_client()
 {
   // See if we've already got a client for this thread.  If not allocate a new
@@ -225,6 +226,7 @@ void Cache::delete_client(void *client)
 {
   delete (Cache::CacheClientInterface *)client; client = NULL;
 }
+// LCOV_EXCL_STOP
 
 
 void Cache::send(Cache::Transaction* trx)
@@ -257,10 +259,13 @@ void Cache::CacheThreadPool::process_work(Transaction* &trx)
   {
     trx->run(_cache->get_client());
   }
+  // LCOV_EXCL_START Transaction catches all exceptions so the thread pool
+  // fallback code is never triggered.
   catch(...)
   {
     LOG_ERROR("Unhandled exception when processing cache request");
   }
+  // LCOV_EXCL_STOP
 
   // We own the request so we have to free it.
   delete trx; trx = NULL;
@@ -477,12 +482,14 @@ Cache::GetRequest::~GetRequest()
         }
 
 
+#if 0
 void Cache::GetRequest::
 ha_get_row(const std::string& key,
            std::vector<ColumnOrSuperColumn>& columns)
 {
   HA(get_row, key, columns);
 }
+#endif
 
 
 void Cache::GetRequest::
@@ -503,6 +510,7 @@ ha_get_columns_with_prefix(const std::string& key,
 }
 
 
+#if 0
 void Cache::GetRequest::
 get_row(const std::string& key,
         std::vector<ColumnOrSuperColumn>& columns,
@@ -520,6 +528,7 @@ get_row(const std::string& key,
 
   issue_get_for_key(key, sp, columns, consistency_level);
 }
+#endif
 
 
 void Cache::GetRequest::
@@ -735,16 +744,9 @@ void Cache::GetIMSSubscription::perform()
 
   ha_get_columns(_public_id, requested_columns, results);
 
-  if (results.size() == 0)
-  {
-    std::string error_text("IMS subscription XML not found");
-    _trx->on_failure(ResultCode::NOT_FOUND, error_text);
-  }
-  else
-  {
-    _xml = results[0].column.value;
-    _trx->on_success();
-  }
+  // We must have a result, ha_get_columns raises RowNotFoundException if not.
+  _xml = results[0].column.value;
+  _trx->on_success();
 }
 
 void Cache::GetIMSSubscription::get_result(std::string& xml)
