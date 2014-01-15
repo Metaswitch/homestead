@@ -618,6 +618,9 @@ public:
   public:
     /// Get the public Ids that are associated with a private ID.
     ///
+    /// Note that if there are no public IDs, this request fires on_failure with
+    /// a result of NOT_FOUND.
+    ///
     /// @param private_id the private ID.
     GetAssociatedPublicIDs(const std::string& private_id);
     virtual ~GetAssociatedPublicIDs();

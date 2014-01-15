@@ -33,11 +33,12 @@
  * under which the OpenSSL Project distributes the OpenSSL toolkit software,
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
+#include <semaphore.h>
+#include <time.h>
 
 #include "gtest/gtest.h"
 #include "gmock/gmock.h"
 #include "test_utils.hpp"
-#include <semaphore.h>
 
 #include <cache.h>
 
@@ -56,6 +57,11 @@ using ::testing::AllOf;
 using ::testing::Gt;
 using ::testing::Lt;
 
+//
+// TEST HARNESS CODE.
+//
+
+// Mock cassandra client that emulates the interface tot he C++ thrift bindings.
 class MockClient : public Cache::CacheClientInterface
 {
 public:
@@ -65,25 +71,12 @@ public:
   MOCK_METHOD4(remove, void(const std::string& key, const cass::ColumnPath& column_path, const int64_t timestamp, const cass::ConsistencyLevel::type consistency_level));
 };
 
-class ResultRecorderInterface
-{
-public:
-  virtual void save(Cache::Request* req) = 0;
-};
 
-template<class R, class T>
-class ResultRecorder : public ResultRecorderInterface
-{
-public:
-  void save(Cache::Request* req)
-  {
-    dynamic_cast<R*>(req)->get_result(result);
-  }
-
-  T result;
-};
-
-
+// The class under test.
+//
+// We don't test the Cache class directly as we need to override the get_client
+// and release_client methods to use MockClient.  However all other methods are
+// the real ones from Cache.
 class TestCache : public Cache
 {
 public:
@@ -91,6 +84,13 @@ public:
   MOCK_METHOD0(release_client, void());
 };
 
+
+// Transaction object used by the testbed. This mocks the on_success and
+// on_failure methods to allow testcases to control it's behaviour.
+//
+// The transaction is destroyed by the Cache on one of it's worker threads.
+// When destroyed, this object posts to a semaphore which signals the main
+// thread to continue executing the testcase.
 class TestTransaction : public Cache::Transaction
 {
 public:
@@ -110,6 +110,33 @@ private:
   sem_t* _sem;
 };
 
+
+// A class (and interface) that records the result of a cache request.
+//
+// In the template:
+// -  R is the request class.
+// -  T is the type of data returned by get_request().
+class ResultRecorderInterface
+{
+public:
+  virtual void save(Cache::Request* req) = 0;
+};
+
+template<class R, class T>
+class ResultRecorder : public ResultRecorderInterface
+{
+public:
+  void save(Cache::Request* req)
+  {
+    dynamic_cast<R*>(req)->get_result(result);
+  }
+
+  T result;
+};
+
+
+// A specialized transaction that can be configured to record the result of a
+// request on a recorder object.
 class RecordingTransaction : public TestTransaction
 {
 public:
@@ -132,6 +159,10 @@ private:
 };
 
 
+// Fixture for tests that cover cache initialization processing.
+//
+// In reality only the start() method is interesting, so the fixture handles
+// calling initialize() and configure()
 class CacheInitializationTest : public ::testing::Test
 {
 public:
@@ -151,6 +182,387 @@ public:
   MockClient _client;
 };
 
+
+// Fixture for tests that make requests to the cache (but are not interested in
+// testing initialization).
+class CacheRequestTest : public CacheInitializationTest
+{
+public:
+  CacheRequestTest() : CacheInitializationTest()
+  {
+    sem_init(&_sem, 0, 0);
+
+    // By default the cache just serves up the mock client each time.
+    EXPECT_CALL(_cache, get_client()).WillRepeatedly(Return(&_client));
+    EXPECT_CALL(_cache, release_client()).WillRepeatedly(Return());
+
+    _cache.start();
+  }
+
+  virtual ~CacheRequestTest() {}
+
+  // Helper methods to make a TestTransaction or RecordingTransation. This
+  // passes the semaphore into the transaction constructor - this is posted to
+  // when the transaction completes.
+  TestTransaction* make_trx(Cache::Request* req)
+  {
+    return new TestTransaction(req, &_sem);
+  }
+
+  RecordingTransaction* make_rec_trx(Cache::Request* req,
+                                     ResultRecorderInterface *recorder)
+  {
+    return new RecordingTransaction(req, &_sem, recorder);
+  }
+
+  // Wait for a single request to finish.  This method asserts if the request
+  // takes too long (> 1s) which implies the request has been dropped by the
+  // cache.
+  void wait()
+  {
+    struct timespec ts;
+    int rc;
+
+    rc = clock_gettime(CLOCK_REALTIME, &ts);
+    ASSERT_EQ(0, rc);
+    ts.tv_sec += 1;
+    rc = sem_timedwait(&_sem, &ts);
+    ASSERT_EQ(0, rc);
+  }
+
+  // Helper method to send a transaction and wait for it to succeed.
+  void do_successful_trx(TestTransaction* trx)
+  {
+    EXPECT_CALL(*trx, on_success());
+    _cache.send(trx);
+    wait();
+  }
+
+  // Semaphore that the main thread waits on while a transaction is outstanding.
+  sem_t _sem;
+};
+
+
+//
+// TYPE DEFINITIONS AND CONSTANTS
+//
+
+// A mutation map as used in batch_mutate(). This is of the form:
+// { row: { table : [ Mutation ] } }.
+typedef std::map<std::string, std::map<std::string, std::vector<cass::Mutation>>> mutmap_t;
+
+// A slice as returned by get_slice().
+typedef std::vector<cass::ColumnOrSuperColumn> slice_t;
+
+const slice_t empty_slice(0);
+
+// utlity functions to make a slice from a map of column names => values.
+void make_slice(slice_t& slice,
+                std::map<std::string, std::string>& columns)
+{
+  for(std::map<std::string, std::string>::const_iterator it = columns.begin();
+      it != columns.end();
+      ++it)
+  {
+    cass::Column c;
+    c.__set_name(it->first);
+    c.__set_value(it->second);
+
+    cass::ColumnOrSuperColumn csc;
+    csc.__set_column(c);
+
+    slice.push_back(csc);
+  }
+}
+
+
+//
+// MATCHERS
+//
+
+// A class that matches against a supplied mutation map.
+class MutationMapMatcher : public MatcherInterface<const mutmap_t&> {
+public:
+  MutationMapMatcher(const std::string& table,
+                     const std::vector<std::string>& rows,
+                     const std::map<std::string, std::string>& columns,
+                     int64_t timestamp,
+                     int32_t ttl = 0) :
+    _table(table),
+    _rows(rows),
+    _columns(columns),
+    _timestamp(timestamp),
+    _ttl(ttl)
+  {}
+
+  virtual bool MatchAndExplain(const mutmap_t& mutmap,
+                               MatchResultListener* listener) const
+  {
+    // First check we have the right number of rows.
+    if (mutmap.size() != _rows.size())
+    {
+      *listener << "map has " << mutmap.size()
+                << " rows, expected " << _rows.size();
+      return false;
+    }
+
+    // Loop through the rows we expect and check that are all present in the
+    // mutmap.
+    for(std::vector<std::string>::const_iterator row = _rows.begin();
+        row != _rows.end();
+        ++row)
+    {
+      mutmap_t::const_iterator row_mut = mutmap.find(*row);
+
+      if (row_mut == mutmap.end())
+      {
+        *listener << *row << " row expected but not present";
+        return false;
+      }
+
+      if (row_mut->second.size() != 1)
+      {
+        *listener << "multiple tables specified for row " << *row;
+        return false;
+      }
+
+      // Get the table name being operated on (there can only be one as checked
+      // above), and the mutations being applied to it for this row.
+      const std::string& table = row_mut->second.begin()->first;
+      const std::vector<cass::Mutation>& row_table_mut =
+                                                row_mut->second.begin()->second;
+      std::string row_table_name = *row + ":" + table;
+
+      // Check we're modifying the right table.
+      if (table != _table)
+      {
+        *listener << "wrong table for " << *row
+                  << "(expected " << _table
+                  << ", got " << table << ")";
+        return false;
+      }
+
+      // Check we've modifying the right number of columns for this row/table.
+      if (row_table_mut.size() != _columns.size())
+      {
+        *listener << "wrong number of columns for " << row_table_name
+                  << "(expected " << _columns.size()
+                  << ", got " << row_table_mut.size() << ")";
+        return false;
+      }
+
+      for(std::vector<cass::Mutation>::const_iterator mutation = row_table_mut.begin();
+          mutation != row_table_mut.end();
+          ++mutation)
+      {
+        // We only allow mutations for a single column (not supercolumns,
+        // counters, etc).
+        if (!mutation->__isset.column_or_supercolumn ||
+            mutation->__isset.deletion ||
+            !mutation->column_or_supercolumn.__isset.column ||
+            mutation->column_or_supercolumn.__isset.super_column ||
+            mutation->column_or_supercolumn.__isset.counter_column ||
+            mutation->column_or_supercolumn.__isset.counter_super_column)
+        {
+          *listener << row_table_name << " has a mutation that isn't a single column change";
+          return false;
+        }
+
+        // By now we know we're dealing with a column mutation, so extract the
+        // column itself and build a descriptive name.
+        const cass::Column& column = mutation->column_or_supercolumn.column;
+        const std::string row_table_column_name =
+                                             row_table_name + ":" + column.name;
+
+        // Check that we were expecting to receive this column and if we were,
+        // extract the expected value.
+        if (_columns.find(column.name) == _columns.end())
+        {
+          *listener << "unexpected mutation " << row_table_column_name;
+          return false;
+        }
+
+        const std::string& expected_value = _columns.find(column.name)->second;
+
+        // Check it specifies the correct value.
+        if (!column.__isset.value)
+        {
+          *listener << row_table_column_name << " does not have a value";
+          return false;
+        }
+
+        if (column.value != expected_value)
+        {
+          *listener << row_table_column_name
+                    << " has wrong value (expected " << expected_value
+                    << " , got " << column.value << ")";
+          return false;
+        }
+
+        // The timestamp must be set and correct.
+        if (!column.__isset.timestamp)
+        {
+          *listener << row_table_column_name << " timestamp is not set";
+          return false;
+        }
+
+        if (column.timestamp != _timestamp)
+        {
+          *listener << row_table_column_name
+                    << " has wrong timestamp (expected " << _timestamp
+                    << ", got " << column.timestamp << ")";
+        }
+
+        if (_ttl != 0)
+        {
+          // A TTL is expected. Check the field is present and correct.
+          if (!column.__isset.ttl)
+          {
+            *listener << row_table_column_name << " ttl is not set";
+            return false;
+          }
+
+          if (column.ttl != _ttl)
+          {
+            *listener << row_table_column_name
+                      << " has wrong ttl (expected " << _ttl <<
+                      ", got " << column.ttl << ")";
+            return false;
+          }
+        }
+        else
+        {
+          // A TLL is not expected, so check the field is not set.
+          if (column.__isset.ttl)
+          {
+            *listener << row_table_column_name
+                      << " ttl is incorrectly set (value is " << column.ttl << ")";
+            return false;
+          }
+        }
+      }
+    }
+
+    // Phew! All checks passed.
+    return true;
+  }
+
+  // User fiendly description of what we expect the mutmap to do.
+  virtual void DescribeTo(::std::ostream* os) const
+  {
+    *os << "to write columns " << PrintToString(_columns) <<
+           " to rows " << PrintToString(_rows) <<
+           " in table " << _table;
+  }
+
+private:
+  std::string _table;
+  std::vector<std::string> _rows;
+  std::map<std::string, std::string> _columns;
+  int64_t _timestamp;
+  int32_t _ttl;
+};
+
+
+// Utility functions for creating MutationMapMatcher objects.
+inline Matcher<const mutmap_t&>
+MutationMap(const std::string& table,
+            const std::string& row,
+            const std::map<std::string, std::string>& columns,
+            int64_t timestamp,
+            int32_t ttl = 0)
+{
+  std::vector<std::string> rows(1, row);
+  return MakeMatcher(new MutationMapMatcher(table, rows, columns, timestamp, ttl));
+}
+
+inline Matcher<const mutmap_t&>
+MutationMap(const std::string& table,
+            const std::vector<std::string>& rows,
+            const std::map<std::string, std::string>& columns,
+            int64_t timestamp,
+            int32_t ttl = 0)
+{
+  return MakeMatcher(new MutationMapMatcher(table, rows, columns, timestamp, ttl));
+}
+
+
+// Matcher that check whether the argument is a ColumnPath that refers to a
+// single table.
+MATCHER_P(ColumnPathForTable, table, std::string("refers to table ")+table)
+{
+  *result_listener << "refers to table " << arg.column_family;
+  return (arg.column_family == table);
+}
+
+
+// Matcher that checks whether a SlicePredicate specifies a sequence of specific
+// columns.
+MATCHER_P(SpecificColumns,
+          columns,
+          std::string("specifies columns ")+PrintToString(columns))
+{
+  if (!arg.__isset.column_names || arg.__isset.slice_range)
+  {
+    *result_listener << "does not specify individual columns";
+    return false;
+  }
+
+  // Compare the expected and received columns (sorting them before the
+  // comparison to ensure a consistent order).
+  std::vector<std::string> expected_columns = columns;
+  std::vector<std::string> actual_columns = arg.column_names;
+
+  std::sort(expected_columns.begin(), expected_columns.end());
+  std::sort(actual_columns.begin(), actual_columns.end());
+
+  if (expected_columns != actual_columns)
+  {
+    *result_listener << "specifies columns " << PrintToString(actual_columns);
+    return false;
+  }
+
+  return true;
+}
+
+// Matcher that checks whether a SlicePredicate specifies all columns with a
+// particular prefix.
+MATCHER_P(ColumnsWithPrefix,
+          prefix,
+          std::string("requests columns with prefix: ")+prefix)
+{
+  if (arg.__isset.column_names || !arg.__isset.slice_range)
+  {
+    *result_listener << "does not request a slice range"; return false;
+  }
+
+  if (arg.slice_range.start != prefix)
+  {
+    *result_listener << "has incorrect start (" << arg.slice_range.start << ")";
+    return false;
+  }
+
+  // Calculate what the end of the range should be (the last byte should be
+  // one more than the start - we don't handle wrapping since homestead-ng
+  // doesn't supply names with non-ASCII characters).
+  std::string end_str = prefix;
+  char last_char = *end_str.rbegin();
+  last_char++;
+  end_str = end_str.substr(0, end_str.length()-1) + std::string(1, last_char);
+
+  if (arg.slice_range.finish != end_str)
+  {
+    *result_listener << "has incorrect finish (" << arg.slice_range.finish << ")";
+    return false;
+  }
+
+  return true;
+}
+
+
+//
+// TESTS
+//
 
 TEST_F(CacheInitializationTest, Mainline)
 {
@@ -193,228 +605,6 @@ TEST_F(CacheInitializationTest, UnknownException)
   Cache::ResultCode rc = _cache.start();
   EXPECT_EQ(Cache::ResultCode::UNKNOWN_ERROR, rc);
 }
-
-class CacheRequestTest : public CacheInitializationTest
-{
-public:
-  CacheRequestTest() : CacheInitializationTest()
-  {
-    sem_init(&_sem, 0, 0);
-
-    EXPECT_CALL(_cache, get_client()).WillRepeatedly(Return(&_client));
-    EXPECT_CALL(_cache, release_client()).WillRepeatedly(Return());
-    _cache.start();
-  }
-
-  virtual ~CacheRequestTest() {}
-
-  TestTransaction* make_trx(Cache::Request* req)
-  {
-    return new TestTransaction(req, &_sem);
-  }
-
-  RecordingTransaction* make_rec_trx(Cache::Request* req,
-                                     ResultRecorderInterface *recorder)
-  {
-    return new RecordingTransaction(req, &_sem, recorder);
-  }
-
-  void wait()
-  {
-    struct timespec ts;
-    int rc;
-
-    rc = clock_gettime(CLOCK_REALTIME, &ts);
-    ASSERT_EQ(0, rc);
-    ts.tv_sec += 1;
-    rc = sem_timedwait(&_sem, &ts);
-    ASSERT_EQ(0, rc);
-  }
-
-  void do_successful_trx(TestTransaction* trx)
-  {
-    EXPECT_CALL(*trx, on_success());
-    _cache.send(trx);
-    wait();
-  }
-
-  sem_t _sem;
-};
-
-typedef std::map<std::string, std::map<std::string, std::vector<cass::Mutation>>> mutmap_t;
-
-class MutationMapMatcher : public MatcherInterface<const mutmap_t&> {
-public:
-  MutationMapMatcher(const std::string& table,
-                     const std::vector<std::string>& rows,
-                     const std::map<std::string, std::string>& columns,
-                     int64_t timestamp,
-                     int32_t ttl = 0) :
-    _table(table),
-    _rows(rows),
-    _columns(columns),
-    _timestamp(timestamp),
-    _ttl(ttl)
-  {}
-
-  virtual bool MatchAndExplain(const mutmap_t& argument,
-                               MatchResultListener* listener) const
-  {
-    // The mutation map passed to batch mutate is of the form:
-    // { row: { table : [ Mutation ] } }.
-
-    // First check we have the right number of rows.
-    if (argument.size() != _rows.size())
-    {
-      *listener << "Expected " << _rows.size() << " rows, got " << argument.size();
-      return false;
-    }
-
-    for(std::vector<std::string>::const_iterator row = _rows.begin();
-        row != _rows.end();
-        ++row)
-    {
-      mutmap_t::const_iterator row_mutation = argument.find(*row);
-      if (row_mutation == argument.end())
-      {
-        *listener << "Row " << *row << " expected but not present";
-        return false;
-      }
-
-      if (row_mutation->second.size() != 1)
-      {
-        *listener << "Multiple tables are being mutated (only one is expected)";
-        return false;
-      }
-
-      const std::string& table = row_mutation->second.begin()->first;
-      const std::vector<cass::Mutation>& mut_vector =
-        row_mutation->second.begin()->second;
-
-      if (table != _table)
-      {
-        *listener << "Mutation modifies table " << table << " (expected " << _table << ")";
-        return false;
-      }
-
-      if (mut_vector.size() != _columns.size())
-      {
-        *listener << "Expected " << _columns.size() << " columns, got "
-                  << mut_vector.size() << " for " << _table << ":" << *row;
-        return false;
-      }
-
-      for(std::vector<cass::Mutation>::const_iterator mutation = mut_vector.begin();
-          mutation != mut_vector.end();
-          ++mutation)
-      {
-        if (!mutation->__isset.column_or_supercolumn ||
-            mutation->__isset.deletion ||
-            !mutation->column_or_supercolumn.__isset.column ||
-            mutation->column_or_supercolumn.__isset.super_column ||
-            mutation->column_or_supercolumn.__isset.counter_column ||
-            mutation->column_or_supercolumn.__isset.counter_super_column)
-        {
-          *listener << " got a mutation that is not a single column change";
-          return false;
-        }
-
-        const cass::Column& column = mutation->column_or_supercolumn.column;
-        const std::string curr_mutation_str = _table + ":" + *row + ":" + column.name;
-
-        if (_columns.find(column.name) == _columns.end())
-        {
-          *listener << "Unexpected mutation for column " << curr_mutation_str;
-          return false;
-        }
-
-        const std::string& expected_val = _columns.find(column.name)->second;
-
-        if (!column.__isset.value)
-        {
-          *listener << curr_mutation_str << " value is not set";
-          return false;
-        }
-
-        if (column.value != expected_val)
-        {
-          *listener << "Column " << curr_mutation_str
-                    << " has wrong value (got " << column.value
-                    << " , expected " << expected_val << ")";
-          return false;
-        }
-
-        if (!column.__isset.timestamp)
-        {
-          *listener << curr_mutation_str << " timestamp is not set";
-          return false;
-        }
-
-        if (_ttl != 0)
-        {
-          if (!column.__isset.ttl)
-          {
-            *listener << curr_mutation_str << " ttl is not set";
-            return false;
-          }
-
-          if (column.ttl != _ttl)
-          {
-            *listener << curr_mutation_str << " has wrong ttl (expected "
-              << _ttl << " got " << column.ttl << ")";
-            return false;
-          }
-        }
-        else
-        {
-          if (column.__isset.ttl)
-          {
-            *listener << curr_mutation_str << " ttl is set when it shouldn't be";
-            return false;
-          }
-        }
-      }
-    }
-
-    return true;
-  }
-
-  virtual void DescribeTo(::std::ostream* os) const
-  {
-    *os << "to write columns " << PrintToString(_columns) <<
-           " to rows " << PrintToString(_rows) <<
-           " in table " << _table;
-  }
-
-private:
-  std::string _table;
-  std::vector<std::string> _rows;
-  std::map<std::string, std::string> _columns;
-  int64_t _timestamp;
-  int32_t _ttl;
-};
-
-inline Matcher<const mutmap_t&>
-MutationMap(const std::string& table,
-            const std::string& row,
-            const std::map<std::string, std::string>& columns,
-            int64_t timestamp,
-            int32_t ttl = 0)
-{
-  std::vector<std::string> rows(1, row);
-  return MakeMatcher(new MutationMapMatcher(table, rows, columns, timestamp, ttl));
-}
-
-inline Matcher<const mutmap_t&>
-MutationMap(const std::string& table,
-            const std::vector<std::string>& rows,
-            const std::map<std::string, std::string>& columns,
-            int64_t timestamp,
-            int32_t ttl = 0)
-{
-  return MakeMatcher(new MutationMapMatcher(table, rows, columns, timestamp, ttl));
-}
-
 
 
 TEST_F(CacheRequestTest, PutIMSSubscriptionMainline)
@@ -477,6 +667,7 @@ TEST_F(CacheRequestTest, PutTransportEx)
   wait();
 }
 
+
 TEST_F(CacheRequestTest, PutInvalidRequestException)
 {
   TestTransaction *trx = make_trx(
@@ -532,6 +723,7 @@ TEST_F(CacheRequestTest, PutUnknownException)
   wait();
 }
 
+
 TEST_F(CacheRequestTest, PutsHaveConsistencyLevelOne)
 {
   TestTransaction *trx = make_trx(
@@ -581,11 +773,6 @@ TEST_F(CacheRequestTest, PutAsoocPublicIdMainline)
   do_successful_trx(trx);
 }
 
-MATCHER_P(ColumnPathForTable, table, std::string("Refers to table: ")+table)
-{
-  *result_listener << "Refers to table: " << arg.column_family;
-  return (arg.column_family == table);
-}
 
 TEST_F(CacheRequestTest, DeletePublicId)
 {
@@ -597,6 +784,7 @@ TEST_F(CacheRequestTest, DeletePublicId)
 
   do_successful_trx(trx);
 }
+
 
 TEST_F(CacheRequestTest, DeleteMultiPublicIds)
 {
@@ -615,16 +803,21 @@ TEST_F(CacheRequestTest, DeleteMultiPublicIds)
   do_successful_trx(trx);
 }
 
+
 TEST_F(CacheRequestTest, DeletePrivateId)
 {
   TestTransaction *trx = make_trx(
     new Cache::DeletePrivateIDs("kermit", 1000));
 
   EXPECT_CALL(_client,
-              remove("kermit", ColumnPathForTable("impi"), 1000, cass::ConsistencyLevel::ONE));
+              remove("kermit",
+                     ColumnPathForTable("impi"),
+                     1000,
+                     cass::ConsistencyLevel::ONE));
 
   do_successful_trx(trx);
 }
+
 
 TEST_F(CacheRequestTest, DeleteMultiPrivateIds)
 {
@@ -643,6 +836,7 @@ TEST_F(CacheRequestTest, DeleteMultiPrivateIds)
   do_successful_trx(trx);
 }
 
+
 TEST_F(CacheRequestTest, DeletesHaveConsistencyLevelOne)
 {
   TestTransaction *trx = make_trx(
@@ -653,49 +847,7 @@ TEST_F(CacheRequestTest, DeletesHaveConsistencyLevelOne)
   do_successful_trx(trx);
 }
 
-const std::vector<cass::ColumnOrSuperColumn> empty_slice(0);
 
-MATCHER_P(SpecificColumns,
-          columns,
-          std::string("requests columns: ")+PrintToString(columns))
-{
-  if (!arg.__isset.column_names || arg.__isset.slice_range)
-  {
-    *result_listener << "does not request specific columns"; return false;
-  }
-
-  std::vector<std::string> expected_columns = columns;
-  std::vector<std::string> actual_columns = arg.column_names;
-
-  std::sort(expected_columns.begin(), expected_columns.end());
-  std::sort(actual_columns.begin(), actual_columns.end());
-
-  if (expected_columns != actual_columns)
-  {
-    *result_listener << "requests columns " << PrintToString(actual_columns);
-    return false;
-  }
-
-  return true;
-}
-
-void make_slice(std::vector<cass::ColumnOrSuperColumn>& slice,
-                std::map<std::string, std::string>& columns)
-{
-  for(std::map<std::string, std::string>::const_iterator it = columns.begin();
-      it != columns.end();
-      ++it)
-  {
-    cass::Column c;
-    c.__set_name(it->first);
-    c.__set_value(it->second);
-
-    cass::ColumnOrSuperColumn csc;
-    csc.__set_column(c);
-
-    slice.push_back(csc);
-  }
-}
 
 TEST_F(CacheRequestTest, GetIMSSubscriptionMainline)
 {
@@ -727,6 +879,7 @@ TEST_F(CacheRequestTest, GetIMSSubscriptionMainline)
   EXPECT_EQ("<howdy>", rec.result);
 }
 
+
 TEST_F(CacheRequestTest, GetIMSSubscriptionNotFound)
 {
   TestTransaction* trx = make_trx(new Cache::GetIMSSubscription("kermit"));
@@ -738,6 +891,7 @@ TEST_F(CacheRequestTest, GetIMSSubscriptionNotFound)
   _cache.send(trx);
   wait();
 }
+
 
 TEST_F(CacheRequestTest, GetAuthVectorAllColsReturned)
 {
@@ -828,6 +982,7 @@ TEST_F(CacheRequestTest, GetAuthVectorHa1NotReturned)
   wait();
 }
 
+
 TEST_F(CacheRequestTest, GetAuthVectorNoColsReturned)
 {
   ResultRecorder<Cache::GetAuthVector, DigestAuthVector> rec;
@@ -841,6 +996,7 @@ TEST_F(CacheRequestTest, GetAuthVectorNoColsReturned)
   _cache.send(trx);
   wait();
 }
+
 
 TEST_F(CacheRequestTest, GetAuthVectorPublicIdRequested)
 {
@@ -883,6 +1039,7 @@ TEST_F(CacheRequestTest, GetAuthVectorPublicIdRequested)
   EXPECT_TRUE(rec.result.preferred);
 }
 
+
 TEST_F(CacheRequestTest, GetAuthVectorPublicIdRequestedNotReturned)
 {
   std::map<std::string, std::string> columns;
@@ -907,37 +1064,6 @@ TEST_F(CacheRequestTest, GetAuthVectorPublicIdRequestedNotReturned)
 }
 
 
-
-MATCHER_P(ColumnsWithPrefix,
-          prefix,
-          std::string("requests columns with prefix: ")+prefix)
-{
-  if (arg.__isset.column_names || !arg.__isset.slice_range)
-  {
-    *result_listener << "does not request a slice range"; return false;
-  }
-
-  if (arg.slice_range.start != prefix)
-  {
-    *result_listener << "has incorrect start (" << arg.slice_range.start << ")";
-    return false;
-  }
-
-  std::string end_str = prefix;
-  char last_char = *end_str.rbegin();
-  last_char++;
-
-  end_str = end_str.substr(0, end_str.length()-1) + std::string(1, last_char);
-
-  if (arg.slice_range.finish != end_str)
-  {
-    *result_listener << "has incorrect start (" << arg.slice_range.finish << ")";
-    return false;
-  }
-
-  return true;
-}
-
 TEST_F(CacheRequestTest, GetAssocPublicIDsMainline)
 {
   std::map<std::string, std::string> columns;
@@ -951,7 +1077,12 @@ TEST_F(CacheRequestTest, GetAssocPublicIDsMainline)
   RecordingTransaction* trx = make_rec_trx(
     new Cache::GetAssociatedPublicIDs("kermit"), &rec);
 
-  EXPECT_CALL(_client, get_slice(_, "kermit", ColumnPathForTable("impi"), ColumnsWithPrefix("public_id_"), _))
+  EXPECT_CALL(_client,
+              get_slice(_,
+                        "kermit",
+                        ColumnPathForTable("impi"),
+                        ColumnsWithPrefix("public_id_"),
+                        _))
     .WillOnce(SetArgReferee<0>(slice));
 
   EXPECT_CALL(*trx, on_success())
@@ -968,20 +1099,22 @@ TEST_F(CacheRequestTest, GetAssocPublicIDsMainline)
   EXPECT_EQ(expected_ids, rec.result);
 }
 
+
 TEST_F(CacheRequestTest, GetAssocPublicIDsNoResults)
 {
   ResultRecorder<Cache::GetAssociatedPublicIDs, std::vector<std::string>> rec;
   RecordingTransaction* trx = make_rec_trx(
-                                           new Cache::GetAssociatedPublicIDs("kermit"), &rec);
+    new Cache::GetAssociatedPublicIDs("kermit"), &rec);
 
   EXPECT_CALL(_client, get_slice(_, "kermit", _, _, _))
     .WillOnce(SetArgReferee<0>(empty_slice));
 
-  // TODO comment this.
+  // GetAssociatedPublicIDs fires on_failure if there are no associated IDs.
   EXPECT_CALL(*trx, on_failure(Cache::ResultCode::NOT_FOUND, _));
   _cache.send(trx);
   wait();
 }
+
 
 TEST_F(CacheRequestTest, HaGetMainline)
 {
@@ -1019,6 +1152,7 @@ TEST_F(CacheRequestTest, HaGetMainline)
   EXPECT_EQ("<howdy>", rec.result);
 }
 
+
 TEST_F(CacheRequestTest, HaGet2ndReadNotFoundException)
 {
   std::vector<std::string> requested_columns;
@@ -1045,6 +1179,7 @@ TEST_F(CacheRequestTest, HaGet2ndReadNotFoundException)
   _cache.send(trx);
   wait();
 }
+
 
 TEST_F(CacheRequestTest, HaGet2ndReadUnavailableException)
 {
@@ -1075,15 +1210,20 @@ TEST_F(CacheRequestTest, HaGet2ndReadUnavailableException)
   wait();
 }
 
+
 TEST(CacheGenerateTimestamp, CreatesMicroTimestamp)
 {
   struct timespec ts;
   int rc;
 
+  // Get the current time and check that generate_timestamp gives the same value
+  // in microseconds (to with 100ms grace).
   rc = clock_gettime(CLOCK_REALTIME, &ts);
   ASSERT_EQ(0, rc);
 
+  int64_t grace = 100000;
   int64_t us_curr = ts.tv_sec * 1000000 + ts.tv_nsec / 1000;
 
-  EXPECT_THAT(Cache::generate_timestamp(), AllOf(Gt(us_curr-100000), Lt(us_curr+100000)));
+  EXPECT_THAT(Cache::generate_timestamp(),
+              AllOf(Gt(us_curr - grace), Lt(us_curr + grace)));
 }
