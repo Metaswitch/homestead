@@ -52,6 +52,9 @@ using ::testing::Matcher;
 using ::testing::MatcherInterface;
 using ::testing::MatchResultListener;
 using ::testing::InvokeWithoutArgs;
+using ::testing::AllOf;
+using ::testing::Gt;
+using ::testing::Lt;
 
 class MockClient : public Cache::CacheClientInterface
 {
@@ -722,4 +725,365 @@ TEST_F(CacheRequestTest, GetIMSSubscriptionMainline)
   wait();
 
   EXPECT_EQ("<howdy>", rec.result);
+}
+
+TEST_F(CacheRequestTest, GetIMSSubscriptionNotFound)
+{
+  TestTransaction* trx = make_trx(new Cache::GetIMSSubscription("kermit"));
+
+  EXPECT_CALL(_client, get_slice(_, "kermit", _, _, _))
+    .WillOnce(SetArgReferee<0>(empty_slice));
+
+  EXPECT_CALL(*trx, on_failure(Cache::ResultCode::NOT_FOUND, _));
+  _cache.send(trx);
+  wait();
+}
+
+TEST_F(CacheRequestTest, GetAuthVectorAllColsReturned)
+{
+  std::vector<std::string> requested_columns;
+  requested_columns.push_back("digest_ha1");
+  requested_columns.push_back("digest_realm");
+  requested_columns.push_back("digest_qop");
+  requested_columns.push_back("known_preferred");
+
+  std::map<std::string, std::string> columns;
+  columns["digest_ha1"] = "somehash";
+  columns["digest_realm"] = "themuppetshow.com";
+  columns["digest_qop"] = "auth";
+  columns["known_preferred"] = "\x01"; // That's how thrift represents bools.
+
+  std::vector<cass::ColumnOrSuperColumn> slice;
+  make_slice(slice, columns);
+
+  ResultRecorder<Cache::GetAuthVector, DigestAuthVector> rec;
+  RecordingTransaction* trx = make_rec_trx(new Cache::GetAuthVector("kermit"),
+                                           &rec);
+
+  EXPECT_CALL(_client, get_slice(_,
+                                 "kermit",
+                                 ColumnPathForTable("impi"),
+                                 SpecificColumns(requested_columns),
+                                 _))
+    .WillOnce(SetArgReferee<0>(slice));
+
+  EXPECT_CALL(*trx, on_success())
+    .WillOnce(InvokeWithoutArgs(trx, &RecordingTransaction::record_result));
+  _cache.send(trx);
+  wait();
+
+  EXPECT_EQ("somehash", rec.result.ha1);
+  EXPECT_EQ("themuppetshow.com", rec.result.realm);
+  EXPECT_EQ("auth", rec.result.qop);
+  EXPECT_TRUE(rec.result.preferred);
+}
+
+
+TEST_F(CacheRequestTest, GetAuthVectorNonDefaultableColsReturned)
+{
+  std::map<std::string, std::string> columns;
+  columns["digest_ha1"] = "somehash";
+
+  std::vector<cass::ColumnOrSuperColumn> slice;
+  make_slice(slice, columns);
+
+  ResultRecorder<Cache::GetAuthVector, DigestAuthVector> rec;
+  RecordingTransaction* trx = make_rec_trx(new Cache::GetAuthVector("kermit"),
+                                           &rec);
+
+  EXPECT_CALL(_client, get_slice(_, _, _, _, _))
+    .WillOnce(SetArgReferee<0>(slice));
+
+  EXPECT_CALL(*trx, on_success())
+    .WillOnce(InvokeWithoutArgs(trx, &RecordingTransaction::record_result));
+  _cache.send(trx);
+  wait();
+
+  EXPECT_EQ("somehash", rec.result.ha1);
+  EXPECT_EQ("", rec.result.realm);
+  EXPECT_EQ("", rec.result.qop);
+  EXPECT_FALSE(rec.result.preferred);
+}
+
+
+TEST_F(CacheRequestTest, GetAuthVectorHa1NotReturned)
+{
+  std::map<std::string, std::string> columns;
+  columns["digest_realm"] = "themuppetshow.com";
+  columns["digest_qop"] = "auth";
+  columns["known_preferred"] = "\x01"; // That's how thrift represents bools.
+
+  std::vector<cass::ColumnOrSuperColumn> slice;
+  make_slice(slice, columns);
+
+  ResultRecorder<Cache::GetAuthVector, DigestAuthVector> rec;
+  RecordingTransaction* trx = make_rec_trx(new Cache::GetAuthVector("kermit"),
+                                           &rec);
+
+  EXPECT_CALL(_client, get_slice(_, _, _, _, _))
+    .WillOnce(SetArgReferee<0>(slice));
+
+  EXPECT_CALL(*trx, on_failure(Cache::ResultCode::NOT_FOUND, _));
+  _cache.send(trx);
+  wait();
+}
+
+TEST_F(CacheRequestTest, GetAuthVectorNoColsReturned)
+{
+  ResultRecorder<Cache::GetAuthVector, DigestAuthVector> rec;
+  RecordingTransaction* trx = make_rec_trx(new Cache::GetAuthVector("kermit"),
+                                           &rec);
+
+  EXPECT_CALL(_client, get_slice(_, _, _, _, _))
+    .WillOnce(SetArgReferee<0>(empty_slice));
+
+  EXPECT_CALL(*trx, on_failure(Cache::ResultCode::NOT_FOUND, _));
+  _cache.send(trx);
+  wait();
+}
+
+TEST_F(CacheRequestTest, GetAuthVectorPublicIdRequested)
+{
+  std::vector<std::string> requested_columns;
+  requested_columns.push_back("digest_ha1");
+  requested_columns.push_back("digest_realm");
+  requested_columns.push_back("digest_qop");
+  requested_columns.push_back("known_preferred");
+  requested_columns.push_back("public_id_gonzo");
+
+  std::map<std::string, std::string> columns;
+  columns["digest_ha1"] = "somehash";
+  columns["digest_realm"] = "themuppetshow.com";
+  columns["digest_qop"] = "auth";
+  columns["known_preferred"] = "\x01"; // That's how thrift represents bools.
+  columns["public_id_gonzo"] = "";
+
+  std::vector<cass::ColumnOrSuperColumn> slice;
+  make_slice(slice, columns);
+
+  ResultRecorder<Cache::GetAuthVector, DigestAuthVector> rec;
+  RecordingTransaction* trx = make_rec_trx(
+    new Cache::GetAuthVector("kermit", "gonzo"), &rec);
+
+  EXPECT_CALL(_client, get_slice(_,
+                                 "kermit",
+                                 _,
+                                 SpecificColumns(requested_columns),
+                                 _))
+    .WillOnce(SetArgReferee<0>(slice));
+
+  EXPECT_CALL(*trx, on_success())
+    .WillOnce(InvokeWithoutArgs(trx, &RecordingTransaction::record_result));
+  _cache.send(trx);
+  wait();
+
+  EXPECT_EQ("somehash", rec.result.ha1);
+  EXPECT_EQ("themuppetshow.com", rec.result.realm);
+  EXPECT_EQ("auth", rec.result.qop);
+  EXPECT_TRUE(rec.result.preferred);
+}
+
+TEST_F(CacheRequestTest, GetAuthVectorPublicIdRequestedNotReturned)
+{
+  std::map<std::string, std::string> columns;
+  columns["digest_ha1"] = "somehash";
+  columns["digest_realm"] = "themuppetshow.com";
+  columns["digest_qop"] = "auth";
+  columns["known_preferred"] = "\x01"; // That's how thrift represents bools.
+
+  std::vector<cass::ColumnOrSuperColumn> slice;
+  make_slice(slice, columns);
+
+  ResultRecorder<Cache::GetAuthVector, DigestAuthVector> rec;
+  RecordingTransaction* trx = make_rec_trx(
+    new Cache::GetAuthVector("kermit", "gonzo"), &rec);
+
+  EXPECT_CALL(_client, get_slice(_, _, _, _, _))
+    .WillOnce(SetArgReferee<0>(slice));
+
+  EXPECT_CALL(*trx, on_failure(Cache::ResultCode::NOT_FOUND, _));
+  _cache.send(trx);
+  wait();
+}
+
+
+
+MATCHER_P(ColumnsWithPrefix,
+          prefix,
+          std::string("requests columns with prefix: ")+prefix)
+{
+  if (arg.__isset.column_names || !arg.__isset.slice_range)
+  {
+    *result_listener << "does not request a slice range"; return false;
+  }
+
+  if (arg.slice_range.start != prefix)
+  {
+    *result_listener << "has incorrect start (" << arg.slice_range.start << ")";
+    return false;
+  }
+
+  std::string end_str = prefix;
+  char last_char = *end_str.rbegin();
+  last_char++;
+
+  end_str = end_str.substr(0, end_str.length()-1) + std::string(1, last_char);
+
+  if (arg.slice_range.finish != end_str)
+  {
+    *result_listener << "has incorrect start (" << arg.slice_range.finish << ")";
+    return false;
+  }
+
+  return true;
+}
+
+TEST_F(CacheRequestTest, GetAssocPublicIDsMainline)
+{
+  std::map<std::string, std::string> columns;
+  columns["public_id_gonzo"] = "";
+  columns["public_id_miss piggy"] = "";
+
+  std::vector<cass::ColumnOrSuperColumn> slice;
+  make_slice(slice, columns);
+
+  ResultRecorder<Cache::GetAssociatedPublicIDs, std::vector<std::string>> rec;
+  RecordingTransaction* trx = make_rec_trx(
+    new Cache::GetAssociatedPublicIDs("kermit"), &rec);
+
+  EXPECT_CALL(_client, get_slice(_, "kermit", ColumnPathForTable("impi"), ColumnsWithPrefix("public_id_"), _))
+    .WillOnce(SetArgReferee<0>(slice));
+
+  EXPECT_CALL(*trx, on_success())
+    .WillOnce(InvokeWithoutArgs(trx, &RecordingTransaction::record_result));
+  _cache.send(trx);
+  wait();
+
+  std::vector<std::string> expected_ids;
+  expected_ids.push_back("gonzo");
+  expected_ids.push_back("miss piggy");
+  std::sort(expected_ids.begin(), expected_ids.end());
+  std::sort(rec.result.begin(), rec.result.end());
+
+  EXPECT_EQ(expected_ids, rec.result);
+}
+
+TEST_F(CacheRequestTest, GetAssocPublicIDsNoResults)
+{
+  ResultRecorder<Cache::GetAssociatedPublicIDs, std::vector<std::string>> rec;
+  RecordingTransaction* trx = make_rec_trx(
+                                           new Cache::GetAssociatedPublicIDs("kermit"), &rec);
+
+  EXPECT_CALL(_client, get_slice(_, "kermit", _, _, _))
+    .WillOnce(SetArgReferee<0>(empty_slice));
+
+  // TODO comment this.
+  EXPECT_CALL(*trx, on_failure(Cache::ResultCode::NOT_FOUND, _));
+  _cache.send(trx);
+  wait();
+}
+
+TEST_F(CacheRequestTest, HaGetMainline)
+{
+  std::vector<std::string> requested_columns;
+  requested_columns.push_back("ims_subscription_xml");
+
+  std::map<std::string, std::string> columns;
+  columns["ims_subscription_xml"] = "<howdy>";
+
+  std::vector<cass::ColumnOrSuperColumn> slice;
+  make_slice(slice, columns);
+
+  ResultRecorder<Cache::GetIMSSubscription, std::string> rec;
+  RecordingTransaction* trx = make_rec_trx(new Cache::GetIMSSubscription("kermit"),
+                                           &rec);
+  cass::NotFoundException nfe;
+  EXPECT_CALL(_client, get_slice(_,
+                                 "kermit",
+                                 ColumnPathForTable("impu"),
+                                 SpecificColumns(requested_columns),
+                                 cass::ConsistencyLevel::ONE))
+    .WillOnce(Throw(nfe));
+  EXPECT_CALL(_client, get_slice(_,
+                                 "kermit",
+                                 ColumnPathForTable("impu"),
+                                 SpecificColumns(requested_columns),
+                                 cass::ConsistencyLevel::QUORUM))
+    .WillOnce(SetArgReferee<0>(slice));
+
+  EXPECT_CALL(*trx, on_success())
+    .WillOnce(InvokeWithoutArgs(trx, &RecordingTransaction::record_result));
+  _cache.send(trx);
+  wait();
+
+  EXPECT_EQ("<howdy>", rec.result);
+}
+
+TEST_F(CacheRequestTest, HaGet2ndReadNotFoundException)
+{
+  std::vector<std::string> requested_columns;
+  requested_columns.push_back("ims_subscription_xml");
+
+  std::map<std::string, std::string> columns;
+  columns["ims_subscription_xml"] = "<howdy>";
+
+  std::vector<cass::ColumnOrSuperColumn> slice;
+  make_slice(slice, columns);
+
+  ResultRecorder<Cache::GetIMSSubscription, std::string> rec;
+  RecordingTransaction* trx = make_rec_trx(new Cache::GetIMSSubscription("kermit"),
+                                           &rec);
+  cass::NotFoundException nfe;
+  EXPECT_CALL(_client, get_slice(_, _, _, _,
+                                 cass::ConsistencyLevel::ONE))
+    .WillOnce(Throw(nfe));
+  EXPECT_CALL(_client, get_slice(_, _, _, _,
+                                 cass::ConsistencyLevel::QUORUM))
+    .WillOnce(Throw(nfe));
+
+  EXPECT_CALL(*trx, on_failure(Cache::ResultCode::NOT_FOUND, _));
+  _cache.send(trx);
+  wait();
+}
+
+TEST_F(CacheRequestTest, HaGet2ndReadUnavailableException)
+{
+  std::vector<std::string> requested_columns;
+  requested_columns.push_back("ims_subscription_xml");
+
+  std::map<std::string, std::string> columns;
+  columns["ims_subscription_xml"] = "<howdy>";
+
+  std::vector<cass::ColumnOrSuperColumn> slice;
+  make_slice(slice, columns);
+
+  ResultRecorder<Cache::GetIMSSubscription, std::string> rec;
+  RecordingTransaction* trx = make_rec_trx(new Cache::GetIMSSubscription("kermit"),
+                                           &rec);
+  cass::NotFoundException nfe;
+  EXPECT_CALL(_client, get_slice(_, _, _, _,
+                                 cass::ConsistencyLevel::ONE))
+    .WillOnce(Throw(nfe));
+
+  cass::UnavailableException ue;
+  EXPECT_CALL(_client, get_slice(_, _, _, _,
+                                 cass::ConsistencyLevel::QUORUM))
+    .WillOnce(Throw(ue));
+
+  EXPECT_CALL(*trx, on_failure(Cache::ResultCode::NOT_FOUND, _));
+  _cache.send(trx);
+  wait();
+}
+
+TEST(CacheGenerateTimestamp, CreatesMicroTimestamp)
+{
+  struct timespec ts;
+  int rc;
+
+  rc = clock_gettime(CLOCK_REALTIME, &ts);
+  ASSERT_EQ(0, rc);
+
+  int64_t us_curr = ts.tv_sec * 1000000 + ts.tv_nsec / 1000;
+
+  EXPECT_THAT(Cache::generate_timestamp(), AllOf(Gt(us_curr-100000), Lt(us_curr+100000)));
 }
