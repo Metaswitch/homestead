@@ -24,7 +24,8 @@ TARGET_SOURCES_BUILD := main.cpp
 
 TARGET_SOURCES_TEST := test_main.cpp \
                        cx_test.cpp \
-                       diameterstack_test.cpp
+                       diameterstack_test.cpp \
+                       cache_test.cpp
 
 TARGET_EXTRA_OBJS_TEST := gmock-all.o \
                           gtest-all.o

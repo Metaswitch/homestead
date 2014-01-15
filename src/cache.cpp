@@ -131,7 +131,7 @@ Cache::ResultCode Cache::start()
 
     if (!_thread_pool->start())
     {
-      rc = ResultCode::RESOURCE_ERROR;
+      rc = ResultCode::RESOURCE_ERROR; // LCOV_EXCL_LINE
     }
   }
 
@@ -184,11 +184,12 @@ Cache::~Cache()
 }
 
 
-Cache::CacheClient* Cache::get_client()
+// LCOV_EXCL_START - UTs do not cover relationship of clients to threads.
+Cache::CacheClientInterface* Cache::get_client()
 {
   // See if we've already got a client for this thread.  If not allocate a new
   // one and write it back into thread-local storage.
-  Cache::CacheClient* client = (Cache::CacheClient*)pthread_getspecific(_thread_local);
+  Cache::CacheClientInterface* client = (Cache::CacheClientInterface*)pthread_getspecific(_thread_local);
 
   if (client == NULL)
   {
@@ -211,7 +212,7 @@ void Cache::release_client()
 {
   // If this thread already has a client delete it and remove it from
   // thread-local storage.
-  Cache::CacheClient* client = (Cache::CacheClient*)pthread_getspecific(_thread_local);
+  Cache::CacheClientInterface* client = (Cache::CacheClientInterface*)pthread_getspecific(_thread_local);
 
   if (client != NULL)
   {
@@ -223,8 +224,9 @@ void Cache::release_client()
 
 void Cache::delete_client(void *client)
 {
-  delete (Cache::CacheClient *)client; client = NULL;
+  delete (Cache::CacheClientInterface *)client; client = NULL;
 }
+// LCOV_EXCL_STOP
 
 
 void Cache::send(Cache::Transaction* trx)
@@ -257,10 +259,13 @@ void Cache::CacheThreadPool::process_work(Transaction* &trx)
   {
     trx->run(_cache->get_client());
   }
+  // LCOV_EXCL_START Transaction catches all exceptions so the thread pool
+  // fallback code is never triggered.
   catch(...)
   {
     LOG_ERROR("Unhandled exception when processing cache request");
   }
+  // LCOV_EXCL_STOP
 
   // We own the request so we have to free it.
   delete trx; trx = NULL;
@@ -279,13 +284,13 @@ Cache::Transaction::~Transaction()
   delete _req; _req = NULL;
 }
 
-void Cache::Transaction::run(Cache::CacheClient* client)
+void Cache::Transaction::run(Cache::CacheClientInterface* client)
 {
   _req->run(client, this);
 }
 
 
-Cache::Request::Request(std::string& column_family) :
+Cache::Request::Request(const std::string& column_family) :
   _column_family(column_family)
 {}
 
@@ -294,7 +299,7 @@ Cache::Request::~Request()
 {}
 
 
-void Cache::Request::run(Cache::CacheClient *client, Cache::Transaction* trx)
+void Cache::Request::run(Cache::CacheClientInterface *client, Cache::Transaction* trx)
 {
   ResultCode rc = ResultCode::OK;
   std::string error_text = "";
@@ -352,7 +357,7 @@ void Cache::Request::run(Cache::CacheClient *client, Cache::Transaction* trx)
 // ModificationRequest methods.
 //
 
-Cache::ModificationRequest::ModificationRequest(std::string& column_family,
+Cache::ModificationRequest::ModificationRequest(const std::string& column_family,
                                                 int64_t timestamp) :
   Cache::Request(column_family),
   _timestamp(timestamp)
@@ -366,7 +371,7 @@ Cache::ModificationRequest::~ModificationRequest()
 // PutRequest methods
 //
 
-Cache::PutRequest::PutRequest(std::string& column_family,
+Cache::PutRequest::PutRequest(const std::string& column_family,
                               int64_t timestamp,
                               int32_t ttl) :
   Cache::ModificationRequest(column_family, timestamp),
@@ -379,8 +384,8 @@ Cache::PutRequest::~PutRequest()
 
 
 void Cache::PutRequest::
-put_columns(std::vector<std::string>& keys,
-            std::map<std::string, std::string>& columns,
+put_columns(const std::vector<std::string>& keys,
+            const std::map<std::string, std::string>& columns,
             int64_t timestamp,
             int32_t ttl)
 {
@@ -391,7 +396,7 @@ put_columns(std::vector<std::string>& keys,
   std::map<std::string, std::map<std::string, std::vector<Mutation>>> mutmap;
 
   // Populate the mutations vector.
-  for (std::map<std::string, std::string>::iterator it = columns.begin();
+  for (std::map<std::string, std::string>::const_iterator it = columns.begin();
        it != columns.end();
        ++it)
   {
@@ -432,7 +437,7 @@ put_columns(std::vector<std::string>& keys,
 // GetRequest methods.
 //
 
-Cache::GetRequest::GetRequest(std::string& column_family) :
+Cache::GetRequest::GetRequest(const std::string& column_family) :
   Request(column_family)
 {}
 
@@ -477,17 +482,19 @@ Cache::GetRequest::~GetRequest()
         }
 
 
+#if 0
 void Cache::GetRequest::
-ha_get_row(std::string& key,
+ha_get_row(const std::string& key,
            std::vector<ColumnOrSuperColumn>& columns)
 {
   HA(get_row, key, columns);
 }
+#endif
 
 
 void Cache::GetRequest::
-ha_get_columns(std::string& key,
-               std::vector<std::string>& names,
+ha_get_columns(const std::string& key,
+               const std::vector<std::string>& names,
                std::vector<ColumnOrSuperColumn>& columns)
 {
   HA(get_columns, key, names, columns);
@@ -495,16 +502,17 @@ ha_get_columns(std::string& key,
 
 
 void Cache::GetRequest::
-ha_get_columns_with_prefix(std::string& key,
-                           std::string& prefix,
+ha_get_columns_with_prefix(const std::string& key,
+                           const std::string& prefix,
                            std::vector<ColumnOrSuperColumn>& columns)
 {
   HA(get_columns_with_prefix, key, prefix, columns);
 }
 
 
+#if 0
 void Cache::GetRequest::
-get_row(std::string& key,
+get_row(const std::string& key,
         std::vector<ColumnOrSuperColumn>& columns,
         ConsistencyLevel::type consistency_level)
 {
@@ -520,11 +528,12 @@ get_row(std::string& key,
 
   issue_get_for_key(key, sp, columns, consistency_level);
 }
+#endif
 
 
 void Cache::GetRequest::
-get_columns(std::string& key,
-            std::vector<std::string>& names,
+get_columns(const std::string& key,
+            const std::vector<std::string>& names,
             std::vector<ColumnOrSuperColumn>& columns,
             ConsistencyLevel::type consistency_level)
 {
@@ -538,8 +547,8 @@ get_columns(std::string& key,
 
 
 void Cache::GetRequest::
-get_columns_with_prefix(std::string& key,
-                        std::string& prefix,
+get_columns_with_prefix(const std::string& key,
+                        const std::string& prefix,
                         std::vector<ColumnOrSuperColumn>& columns,
                         ConsistencyLevel::type consistency_level)
 {
@@ -567,8 +576,8 @@ get_columns_with_prefix(std::string& key,
 
 
 void Cache::GetRequest::
-issue_get_for_key(std::string& key,
-                  SlicePredicate& predicate,
+issue_get_for_key(const std::string& key,
+                  const SlicePredicate& predicate,
                   std::vector<ColumnOrSuperColumn>& columns,
                   ConsistencyLevel::type consistency_level)
 {
@@ -588,7 +597,7 @@ issue_get_for_key(std::string& key,
 // DeleteRowsRequest methods
 //
 
-Cache::DeleteRowsRequest::DeleteRowsRequest(std::string& column_family,
+Cache::DeleteRowsRequest::DeleteRowsRequest(const std::string& column_family,
                                             int64_t timestamp) :
   ModificationRequest(column_family, timestamp)
 {}
@@ -599,7 +608,7 @@ Cache::DeleteRowsRequest::~DeleteRowsRequest()
 
 
 void Cache::DeleteRowsRequest::
-delete_row(std::string& key,
+delete_row(const std::string& key,
            int64_t timestamp)
 {
   ColumnPath cp;
@@ -612,10 +621,10 @@ delete_row(std::string& key,
 //
 
 Cache::PutIMSSubscription::
-PutIMSSubscription(std::string& public_id,
-                   std::string& xml,
-                   int64_t timestamp,
-                   int32_t ttl) :
+PutIMSSubscription(const std::string& public_id,
+                   const std::string& xml,
+                   const int64_t timestamp,
+                   const int32_t ttl) :
   PutRequest(IMPU, timestamp, ttl),
   _public_ids(1, public_id),
   _xml(xml)
@@ -623,10 +632,10 @@ PutIMSSubscription(std::string& public_id,
 
 
 Cache::PutIMSSubscription::
-PutIMSSubscription(std::vector<std::string>& public_ids,
-                   std::string& xml,
-                   int64_t timestamp,
-                   int32_t ttl) :
+PutIMSSubscription(const std::vector<std::string>& public_ids,
+                   const std::string& xml,
+                   const int64_t timestamp,
+                   const int32_t ttl) :
   PutRequest(IMPU, timestamp, ttl),
   _public_ids(public_ids),
   _xml(xml)
@@ -652,10 +661,10 @@ void Cache::PutIMSSubscription::perform()
 //
 
 Cache::PutAssociatedPublicID::
-PutAssociatedPublicID(std::string& private_id,
-                      std::string& assoc_public_id,
-                      int64_t timestamp,
-                      int32_t ttl) :
+PutAssociatedPublicID(const std::string& private_id,
+                      const std::string& assoc_public_id,
+                      const int64_t timestamp,
+                      const int32_t ttl) :
   PutRequest(IMPI, timestamp, ttl),
   _private_id(private_id),
   _assoc_public_id(assoc_public_id)
@@ -683,10 +692,10 @@ void Cache::PutAssociatedPublicID::perform()
 //
 
 Cache::PutAuthVector::
-PutAuthVector(std::string& private_id,
-              DigestAuthVector& auth_vector,
-              int64_t timestamp,
-              int32_t ttl) :
+PutAuthVector(const std::string& private_id,
+              const DigestAuthVector& auth_vector,
+              const int64_t timestamp,
+              const int32_t ttl) :
   PutRequest(IMPI, timestamp),
   _private_ids(1, private_id),
   _auth_vector(auth_vector)
@@ -716,7 +725,7 @@ void Cache::PutAuthVector::perform()
 //
 
 Cache::GetIMSSubscription::
-GetIMSSubscription(std::string& public_id) :
+GetIMSSubscription(const std::string& public_id) :
   GetRequest(IMPU),
   _public_id(public_id),
   _xml()
@@ -735,16 +744,9 @@ void Cache::GetIMSSubscription::perform()
 
   ha_get_columns(_public_id, requested_columns, results);
 
-  if (results.size() == 0)
-  {
-    std::string error_text("IMS subscription XML not found");
-    _trx->on_failure(ResultCode::NOT_FOUND, error_text);
-  }
-  else
-  {
-    _xml = results[0].column.value;
-    _trx->on_success();
-  }
+  // We must have a result, ha_get_columns raises RowNotFoundException if not.
+  _xml = results[0].column.value;
+  _trx->on_success();
 }
 
 void Cache::GetIMSSubscription::get_result(std::string& xml)
@@ -757,7 +759,7 @@ void Cache::GetIMSSubscription::get_result(std::string& xml)
 //
 
 Cache::GetAssociatedPublicIDs::
-GetAssociatedPublicIDs(std::string& private_id) :
+GetAssociatedPublicIDs(const std::string& private_id) :
   GetRequest(IMPI),
   _private_id(private_id),
   _public_ids()
@@ -800,7 +802,7 @@ void Cache::GetAssociatedPublicIDs::get_result(std::vector<std::string>& ids)
 //
 
 Cache::GetAuthVector::
-GetAuthVector(std::string& private_id) :
+GetAuthVector(const std::string& private_id) :
   GetRequest(IMPI),
   _private_id(private_id),
   _public_id(""),
@@ -809,8 +811,8 @@ GetAuthVector(std::string& private_id) :
 
 
 Cache::GetAuthVector::
-GetAuthVector(std::string& private_id,
-              std::string& public_id) :
+GetAuthVector(const std::string& private_id,
+              const std::string& public_id) :
   GetRequest(IMPI),
   _private_id(private_id),
   _public_id(public_id),
@@ -910,14 +912,14 @@ void Cache::GetAuthVector::get_result(DigestAuthVector& av)
 //
 
 Cache::DeletePublicIDs::
-DeletePublicIDs(std::string& public_id, int64_t timestamp) :
+DeletePublicIDs(const std::string& public_id, int64_t timestamp) :
   DeleteRowsRequest(IMPU, timestamp),
   _public_ids(1, public_id)
 {}
 
 
 Cache::DeletePublicIDs::
-DeletePublicIDs(std::vector<std::string>& public_ids, int64_t timestamp) :
+DeletePublicIDs(const std::vector<std::string>& public_ids, int64_t timestamp) :
   DeleteRowsRequest(IMPU, timestamp),
   _public_ids(public_ids)
 {}
@@ -929,7 +931,7 @@ Cache::DeletePublicIDs::
 
 void Cache::DeletePublicIDs::perform()
 {
-  for (std::vector<std::string>::iterator it = _public_ids.begin();
+  for (std::vector<std::string>::const_iterator it = _public_ids.begin();
        it != _public_ids.end();
        ++it)
   {
@@ -944,14 +946,14 @@ void Cache::DeletePublicIDs::perform()
 //
 
 Cache::DeletePrivateIDs::
-DeletePrivateIDs(std::string& private_id, int64_t timestamp) :
+DeletePrivateIDs(const std::string& private_id, int64_t timestamp) :
   DeleteRowsRequest(IMPI, timestamp),
   _private_ids(1, private_id)
 {}
 
 
 Cache::DeletePrivateIDs::
-DeletePrivateIDs(std::vector<std::string>& private_ids, int64_t timestamp) :
+DeletePrivateIDs(const std::vector<std::string>& private_ids, int64_t timestamp) :
   DeleteRowsRequest(IMPI, timestamp),
   _private_ids(private_ids)
 {}
@@ -964,7 +966,7 @@ Cache::DeletePrivateIDs::
 
 void Cache::DeletePrivateIDs::perform()
 {
-  for (std::vector<std::string>::iterator it = _private_ids.begin();
+  for (std::vector<std::string>::const_iterator it = _private_ids.begin();
        it != _private_ids.end();
        ++it)
   {
