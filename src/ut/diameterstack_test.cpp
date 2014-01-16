@@ -1,5 +1,5 @@
 /**
- * @file diameterstack_test.cpp UT for Sprout diameterstack module.
+ * @file diameterstack_test.cpp UT for Homestead diameterstack module.
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2013  Metaswitch Networks Ltd

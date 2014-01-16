@@ -1,5 +1,5 @@
 /**
- * @file cx_test.cpp UT for Sprout Cx module.
+ * @file cx_test.cpp UT for Homestead Cx module.
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2013  Metaswitch Networks Ltd
