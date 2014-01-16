@@ -39,7 +39,7 @@ COVERAGE_MASTER_LIST = ut/coverage-not-yet
 VG_XML = $(TEST_OUT_DIR)/vg_$(TARGET_TEST).memcheck
 VG_OUT = $(TEST_OUT_DIR)/vg_$(TARGET_TEST).txt
 
-VG_SUPPRESS = $(TARGET_TEST).supp
+VG_SUPPRESS = ut/$(TARGET_TEST).supp
 
 EXTRA_CLEANS += $(TEST_XML) \
                 $(COVERAGE_XML) \
@@ -109,6 +109,7 @@ COVERAGEFLAGS = $(OBJ_DIR_TEST) --object-directory=$(shell pwd) \
                 --sort-percentage --exclude-lines
 
 VGFLAGS = --suppressions=$(VG_SUPPRESS) \
+          --gen-suppressions=all \
           --leak-check=full \
           --track-origins=yes \
           --malloc-fill=cc \

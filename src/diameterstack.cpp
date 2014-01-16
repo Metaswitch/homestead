@@ -280,6 +280,17 @@ Message::~Message()
   }
 }
 
+void Message::operator=(Message const& msg)
+{
+  if (_free_on_delete)
+  {
+    fd_msg_free(_msg);
+  }
+  _dict = msg._dict;
+  _msg = msg._msg;
+  _free_on_delete = msg._free_on_delete;
+}
+
 // Given an AVP type, search a Diameter message for an AVP of this type. If one exists,
 // return true and set str to the string value of this AVP. Otherwise return false.
 bool Message::get_str_from_avp(const Dictionary::AVP& type, std::string* str) const
