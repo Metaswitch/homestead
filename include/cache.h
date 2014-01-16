@@ -269,8 +269,9 @@ private:
   virtual void release_client();
   static void delete_client(void *client);
 
-  // The constructors and assignment operation are private to prevent multiple
+  // The constructors and assignment operation are protected to prevent multiple
   // instances of the class from being created.
+protected:
   Cache();
   Cache(Cache const &);
   void operator=(Cache const &);

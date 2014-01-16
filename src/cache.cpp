@@ -101,7 +101,7 @@ void Cache::configure(std::string cass_hostname,
 
 Cache::ResultCode Cache::start()
 {
-  ResultCode rc = ResultCode::OK;
+  ResultCode rc = OK;
 
   // Check that we can connect to cassandra by getting a client. This logs in
   // and switches to the cache keyspace, so is a good test of whether cassandra
@@ -113,25 +113,25 @@ Cache::ResultCode Cache::start()
   }
   catch(TTransportException te)
   {
-    rc = ResultCode::CONNECTION_ERROR;
+    rc = CONNECTION_ERROR;
   }
   catch(NotFoundException nfe)
   {
-    rc = ResultCode::NOT_FOUND;
+    rc = NOT_FOUND;
   }
   catch(...)
   {
-    rc = ResultCode::UNKNOWN_ERROR;
+    rc = UNKNOWN_ERROR;
   }
 
   // Start the thread pool.
-  if (rc == ResultCode::OK)
+  if (rc == OK)
   {
     _thread_pool = new CacheThreadPool(this, _num_threads, _max_queue);
 
     if (!_thread_pool->start())
     {
-      rc = ResultCode::RESOURCE_ERROR; // LCOV_EXCL_LINE
+      rc = RESOURCE_ERROR; // LCOV_EXCL_LINE
     }
   }
 
@@ -301,7 +301,7 @@ Cache::Request::~Request()
 
 void Cache::Request::run(Cache::CacheClientInterface *client, Cache::Transaction* trx)
 {
-  ResultCode rc = ResultCode::OK;
+  ResultCode rc = OK;
   std::string error_text = "";
 
   // Store the client and transaction pointers so they are available to
@@ -317,35 +317,35 @@ void Cache::Request::run(Cache::CacheClientInterface *client, Cache::Transaction
   }
   catch(TTransportException& te)
   {
-    rc = ResultCode::CONNECTION_ERROR;
+    rc = CONNECTION_ERROR;
     error_text = (boost::format("Exception: %s [%d]\n")
                   % te.what() % te.getType()).str();
   }
   catch(InvalidRequestException& ire)
   {
-    rc = ResultCode::INVALID_REQUEST;
+    rc = INVALID_REQUEST;
     error_text = (boost::format("Exception: %s [%s]\n")
                   % ire.what() % ire.why.c_str()).str();
   }
   catch(NotFoundException& nfe)
   {
-    rc = ResultCode::NOT_FOUND;
+    rc = NOT_FOUND;
     error_text = (boost::format("Exception: %s\n")
                   % nfe.what()).str();
   }
   catch(Cache::RowNotFoundException& row_nfe)
   {
-    rc = ResultCode::NOT_FOUND;
+    rc = NOT_FOUND;
     error_text = (boost::format("Row %s not present in column_family %s\n")
                   % row_nfe.get_key() % row_nfe.get_column_family()).str();
   }
   catch(...)
   {
-    rc = ResultCode::UNKNOWN_ERROR;
+    rc = UNKNOWN_ERROR;
     error_text = "Unknown error";
   }
 
-  if (rc != ResultCode::OK)
+  if (rc != OK)
   {
     // We caught an exception so call the error callback to notify the cache
     // user.
@@ -888,13 +888,13 @@ void Cache::GetAuthVector::perform()
     std::string error_text = (boost::format(
         "Private ID '%s' exists but does not have associated public ID '%s'")
         % _private_id % _public_id).str();
-    _trx->on_failure(ResultCode::NOT_FOUND, error_text);
+    _trx->on_failure(NOT_FOUND, error_text);
   }
   else if (_auth_vector.ha1 == "")
   {
     // The HA1 column was not found.  This cannot be defaulted so is an error.
     std::string error_text = "HA1 column not found";
-    _trx->on_failure(ResultCode::NOT_FOUND, error_text);
+    _trx->on_failure(NOT_FOUND, error_text);
   }
   else
   {
