@@ -121,6 +121,10 @@ void HttpStack::stop()
 void HttpStack::wait_stopped()
 {
   pthread_join(_event_base_thread, NULL);
+  evhtp_free(_evhtp);
+  _evhtp = NULL;
+  event_base_free(_evbase);
+  _evbase = NULL;
 }
 
 void HttpStack::handler_callback_fn(evhtp_request_t* req, void* handler_factory)
