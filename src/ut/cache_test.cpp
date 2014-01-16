@@ -570,7 +570,7 @@ TEST_F(CacheInitializationTest, Mainline)
   EXPECT_CALL(_cache, release_client()).Times(1);
 
   Cache::ResultCode rc = _cache.start();
-  EXPECT_EQ(Cache::ResultCode::OK, rc);
+  EXPECT_EQ(Cache::OK, rc);
 }
 
 
@@ -581,7 +581,7 @@ TEST_F(CacheInitializationTest, TransportException)
   EXPECT_CALL(_cache, release_client()).Times(0);
 
   Cache::ResultCode rc = _cache.start();
-  EXPECT_EQ(Cache::ResultCode::CONNECTION_ERROR, rc);
+  EXPECT_EQ(Cache::CONNECTION_ERROR, rc);
 }
 
 
@@ -592,7 +592,7 @@ TEST_F(CacheInitializationTest, NotFoundException)
   EXPECT_CALL(_cache, release_client()).Times(0);
 
   Cache::ResultCode rc = _cache.start();
-  EXPECT_EQ(Cache::ResultCode::NOT_FOUND, rc);
+  EXPECT_EQ(Cache::NOT_FOUND, rc);
 }
 
 
@@ -603,7 +603,7 @@ TEST_F(CacheInitializationTest, UnknownException)
   EXPECT_CALL(_cache, release_client()).Times(0);
 
   Cache::ResultCode rc = _cache.start();
-  EXPECT_EQ(Cache::ResultCode::UNKNOWN_ERROR, rc);
+  EXPECT_EQ(Cache::UNKNOWN_ERROR, rc);
 }
 
 
@@ -662,7 +662,7 @@ TEST_F(CacheRequestTest, PutTransportEx)
   apache::thrift::transport::TTransportException te;
   EXPECT_CALL(_client, batch_mutate(_, _)).WillOnce(Throw(te));
 
-  EXPECT_CALL(*trx, on_failure(Cache::ResultCode::CONNECTION_ERROR, _));
+  EXPECT_CALL(*trx, on_failure(Cache::CONNECTION_ERROR, _));
   _cache.send(trx);
   wait();
 }
@@ -676,7 +676,7 @@ TEST_F(CacheRequestTest, PutInvalidRequestException)
   cass::InvalidRequestException ire;
   EXPECT_CALL(_client, batch_mutate(_, _)).WillOnce(Throw(ire));
 
-  EXPECT_CALL(*trx, on_failure(Cache::ResultCode::INVALID_REQUEST, _));
+  EXPECT_CALL(*trx, on_failure(Cache::INVALID_REQUEST, _));
   _cache.send(trx);
   wait();
 }
@@ -690,7 +690,7 @@ TEST_F(CacheRequestTest, PutNotFoundException)
   cass::NotFoundException nfe;
   EXPECT_CALL(_client, batch_mutate(_, _)).WillOnce(Throw(nfe));
 
-  EXPECT_CALL(*trx, on_failure(Cache::ResultCode::NOT_FOUND, _));
+  EXPECT_CALL(*trx, on_failure(Cache::NOT_FOUND, _));
   _cache.send(trx);
   wait();
 }
@@ -704,7 +704,7 @@ TEST_F(CacheRequestTest, PutRowNotFoundException)
   Cache::RowNotFoundException rnfe("muppets", "kermit");
   EXPECT_CALL(_client, batch_mutate(_, _)).WillOnce(Throw(rnfe));
 
-  EXPECT_CALL(*trx, on_failure(Cache::ResultCode::NOT_FOUND, _));
+  EXPECT_CALL(*trx, on_failure(Cache::NOT_FOUND, _));
   _cache.send(trx);
   wait();
 }
@@ -718,7 +718,7 @@ TEST_F(CacheRequestTest, PutUnknownException)
   std::string ex("Made up exception");
   EXPECT_CALL(_client, batch_mutate(_, _)).WillOnce(Throw(ex));
 
-  EXPECT_CALL(*trx, on_failure(Cache::ResultCode::UNKNOWN_ERROR, _));
+  EXPECT_CALL(*trx, on_failure(Cache::UNKNOWN_ERROR, _));
   _cache.send(trx);
   wait();
 }
@@ -887,7 +887,7 @@ TEST_F(CacheRequestTest, GetIMSSubscriptionNotFound)
   EXPECT_CALL(_client, get_slice(_, "kermit", _, _, _))
     .WillOnce(SetArgReferee<0>(empty_slice));
 
-  EXPECT_CALL(*trx, on_failure(Cache::ResultCode::NOT_FOUND, _));
+  EXPECT_CALL(*trx, on_failure(Cache::NOT_FOUND, _));
   _cache.send(trx);
   wait();
 }
@@ -977,7 +977,7 @@ TEST_F(CacheRequestTest, GetAuthVectorHa1NotReturned)
   EXPECT_CALL(_client, get_slice(_, _, _, _, _))
     .WillOnce(SetArgReferee<0>(slice));
 
-  EXPECT_CALL(*trx, on_failure(Cache::ResultCode::NOT_FOUND, _));
+  EXPECT_CALL(*trx, on_failure(Cache::NOT_FOUND, _));
   _cache.send(trx);
   wait();
 }
@@ -992,7 +992,7 @@ TEST_F(CacheRequestTest, GetAuthVectorNoColsReturned)
   EXPECT_CALL(_client, get_slice(_, _, _, _, _))
     .WillOnce(SetArgReferee<0>(empty_slice));
 
-  EXPECT_CALL(*trx, on_failure(Cache::ResultCode::NOT_FOUND, _));
+  EXPECT_CALL(*trx, on_failure(Cache::NOT_FOUND, _));
   _cache.send(trx);
   wait();
 }
@@ -1058,7 +1058,7 @@ TEST_F(CacheRequestTest, GetAuthVectorPublicIdRequestedNotReturned)
   EXPECT_CALL(_client, get_slice(_, _, _, _, _))
     .WillOnce(SetArgReferee<0>(slice));
 
-  EXPECT_CALL(*trx, on_failure(Cache::ResultCode::NOT_FOUND, _));
+  EXPECT_CALL(*trx, on_failure(Cache::NOT_FOUND, _));
   _cache.send(trx);
   wait();
 }
@@ -1110,7 +1110,7 @@ TEST_F(CacheRequestTest, GetAssocPublicIDsNoResults)
     .WillOnce(SetArgReferee<0>(empty_slice));
 
   // GetAssociatedPublicIDs fires on_failure if there are no associated IDs.
-  EXPECT_CALL(*trx, on_failure(Cache::ResultCode::NOT_FOUND, _));
+  EXPECT_CALL(*trx, on_failure(Cache::NOT_FOUND, _));
   _cache.send(trx);
   wait();
 }
@@ -1175,7 +1175,7 @@ TEST_F(CacheRequestTest, HaGet2ndReadNotFoundException)
                                  cass::ConsistencyLevel::QUORUM))
     .WillOnce(Throw(nfe));
 
-  EXPECT_CALL(*trx, on_failure(Cache::ResultCode::NOT_FOUND, _));
+  EXPECT_CALL(*trx, on_failure(Cache::NOT_FOUND, _));
   _cache.send(trx);
   wait();
 }
@@ -1205,7 +1205,7 @@ TEST_F(CacheRequestTest, HaGet2ndReadUnavailableException)
                                  cass::ConsistencyLevel::QUORUM))
     .WillOnce(Throw(ue));
 
-  EXPECT_CALL(*trx, on_failure(Cache::ResultCode::NOT_FOUND, _));
+  EXPECT_CALL(*trx, on_failure(Cache::NOT_FOUND, _));
   _cache.send(trx);
   wait();
 }

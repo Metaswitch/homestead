@@ -127,7 +127,7 @@ void ImpiHandler::on_get_av_success(Cache::Request* request)
 
 void ImpiHandler::on_get_av_failure(Cache::Request* request, Cache::ResultCode error, std::string& text)
 {
-  if (error == Cache::ResultCode::NOT_FOUND)
+  if (error == Cache::NOT_FOUND)
   {
     get_av();
   }
@@ -188,7 +188,7 @@ void ImpiHandler::on_get_impu_success(Cache::Request* request)
 
 void ImpiHandler::on_get_impu_failure(Cache::Request* request, Cache::ResultCode error, std::string& text)
 {
-  if (error == Cache::ResultCode::NOT_FOUND)
+  if (error == Cache::NOT_FOUND)
   {
     _req.send_reply(404);
   }
@@ -596,7 +596,7 @@ void ImpuIMSSubscriptionHandler::on_get_ims_subscription_success(Cache::Request*
 
 void ImpuIMSSubscriptionHandler::on_get_ims_subscription_failure(Cache::Request* request, Cache::ResultCode error, std::string& text)
 {
-  if (error == Cache::ResultCode::NOT_FOUND)
+  if (error == Cache::NOT_FOUND)
   {
     Cx::ServerAssignmentRequest* sar =
       new Cx::ServerAssignmentRequest(_dict,
