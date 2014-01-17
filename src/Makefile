@@ -26,6 +26,7 @@ TARGET_SOURCES_TEST := test_main.cpp \
                        cx_test.cpp \
                        diameterstack_test.cpp \
                        cache_test.cpp \
+                       handlers_test.cpp \
                        httpstack_test.cpp
 
 TARGET_EXTRA_OBJS_TEST := gmock-all.o \
