@@ -85,7 +85,7 @@ void HttpStack::register_handler(char* path, HttpStack::BaseHandlerFactory* fact
   evhtp_callback_t* cb = evhtp_set_regex_cb(_evhtp, path, handler_callback_fn, (void*)factory);
   if (cb == NULL)
   {
-    throw Exception("evhtp_set_cb", 0);
+    throw Exception("evhtp_set_cb", 0); // LCOV_EXCL_LINE
   }
 }
 
@@ -96,19 +96,19 @@ void HttpStack::start()
   int rc = evhtp_use_threads(_evhtp, NULL, _num_threads, this);
   if (rc != 0)
   {
-    throw Exception("evhtp_use_threads", rc);
+    throw Exception("evhtp_use_threads", rc); // LCOV_EXCL_LINE
   }
 
   rc = evhtp_bind_socket(_evhtp, _bind_address.c_str(), _bind_port, 1024);
   if (rc != 0)
   {
-    throw Exception("evhtp_bind_socket", rc);
+    throw Exception("evhtp_bind_socket", rc); // LCOV_EXCL_LINE
   }
 
   rc = pthread_create(&_event_base_thread, NULL, event_base_thread_fn, this);
   if (rc != 0)
   {
-    throw Exception("pthread_create", rc);
+    throw Exception("pthread_create", rc); // LCOV_EXCL_LINE
   }
 }
 
@@ -121,6 +121,10 @@ void HttpStack::stop()
 void HttpStack::wait_stopped()
 {
   pthread_join(_event_base_thread, NULL);
+  evhtp_free(_evhtp);
+  _evhtp = NULL;
+  event_base_free(_evbase);
+  _evbase = NULL;
 }
 
 void HttpStack::handler_callback_fn(evhtp_request_t* req, void* handler_factory)

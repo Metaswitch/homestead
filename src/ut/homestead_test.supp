@@ -1,0 +1,31 @@
+{
+   libevhtp passes a structure with an uninitialized magic number to sendto() (but doesn't then check it, so it's OK)
+   Memcheck:Param
+   socketcall.sendto(msg)
+   fun:send
+   fun:evthr_defer
+   fun:_evhtp_accept_cb
+   obj:/usr/lib/libevent-2.0.so.5.1.4
+   fun:event_base_loop
+   ...
+}
+
+{
+   libevhtp passes a structure with an uninitialized magic number to write() (but doesn't then check it, so it's OK)
+   Memcheck:Param
+   write(buf)
+   obj:/lib/x86_64-linux-gnu/libpthread-2.15.so
+   fun:evthr_stop
+   fun:evthr_pool_stop
+   fun:evhtp_free
+   ...
+}
+
+{
+   evthread_set_condition_callbacks reads from uninitialized memory
+   Memcheck:Cond
+   fun:bcmp
+   fun:evthread_set_condition_callbacks
+   fun:evthread_use_pthreads
+   ...
+}

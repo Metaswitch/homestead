@@ -24,7 +24,9 @@ TARGET_SOURCES_BUILD := main.cpp
 
 TARGET_SOURCES_TEST := test_main.cpp \
                        cx_test.cpp \
-                       diameterstack_test.cpp
+                       diameterstack_test.cpp \
+                       cache_test.cpp \
+                       httpstack_test.cpp
 
 TARGET_EXTRA_OBJS_TEST := gmock-all.o \
                           gtest-all.o
@@ -37,7 +39,7 @@ COVERAGE_MASTER_LIST = ut/coverage-not-yet
 VG_XML = $(TEST_OUT_DIR)/vg_$(TARGET_TEST).memcheck
 VG_OUT = $(TEST_OUT_DIR)/vg_$(TARGET_TEST).txt
 
-VG_SUPPRESS = $(TARGET_TEST).supp
+VG_SUPPRESS = ut/$(TARGET_TEST).supp
 
 EXTRA_CLEANS += $(TEST_XML) \
                 $(COVERAGE_XML) \
@@ -85,11 +87,11 @@ LDFLAGS += -lthrift \
            -levent \
            -lpthread
 
-# Test build fakes out cURL
-LDFLAGS_BUILD += -lcurl
-
 # Test build uses just-built libraries, which may not be installed
 LDFLAGS_TEST += -Wl,-rpath=$(ROOT)/usr/lib
+
+# Test build also uses libcurl (to verify HttpStack operation)
+LDFLAGS_TEST += -lcurl
 
 # Now the GMock / GTest boilerplate.
 GTEST_HEADERS := $(GTEST_DIR)/include/gtest/*.h \
@@ -107,6 +109,7 @@ COVERAGEFLAGS = $(OBJ_DIR_TEST) --object-directory=$(shell pwd) \
                 --sort-percentage --exclude-lines
 
 VGFLAGS = --suppressions=$(VG_SUPPRESS) \
+          --gen-suppressions=all \
           --leak-check=full \
           --track-origins=yes \
           --malloc-fill=cc \

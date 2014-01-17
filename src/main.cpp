@@ -271,7 +271,7 @@ int main(int argc, char**argv)
   cache->configure("localhost", 9160, 10);
   Cache::ResultCode rc = cache->start();
 
-  if (rc != Cache::ResultCode::OK)
+  if (rc != Cache::OK)
   {
     fprintf(stderr, "Error starting cache: %d\n", rc);
     // TODO: Crash if this fails (and fix up most common cause - schema not configured in Cassandra).
