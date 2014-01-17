@@ -110,41 +110,6 @@ public:
   const AVP EXPERIMENTAL_RESULT_CODE;
 };
 
-class Stack
-{
-public:
-  class Exception
-  {
-  public:
-    inline Exception(const char* func, int rc) : _func(func), _rc(rc) {};
-    const char* _func;
-    const int _rc;
-  };
-
-  static inline Stack* get_instance() {return INSTANCE;};
-  virtual void initialize();
-  virtual void configure(std::string filename);
-  virtual void advertize_application(const Dictionary::Application& app);
-  virtual void start();
-  virtual void stop();
-  virtual void wait_stopped();
-
-private:
-  static Stack* INSTANCE;
-  static Stack DEFAULT_INSTANCE;
-
-  Stack();
-  virtual ~Stack();
-
-  // Don't implement the following, to avoid copies of this instance.
-  Stack(Stack const&);
-  void operator=(Stack const&);
-
-  static void logger(int fd_log_level, const char* fmt, va_list args);
-
-  bool _initialized;
-};
-
 class Transaction
 {
 public:
@@ -299,6 +264,10 @@ public:
   {
     return get_str_from_avp(dict()->USER_NAME, str);
   }
+  inline bool auth_session_state(int* i32) const
+  {
+    return get_i32_from_avp(dict()->AUTH_SESSION_STATE, i32);
+  }
   inline AVP::iterator begin() const;
   inline AVP::iterator begin(const Dictionary::AVP& type) const;
   inline AVP::iterator end() const;
@@ -398,6 +367,81 @@ private:
 
   struct dict_avp_data _filter_avp_data;
   AVP _avp;
+};
+
+class Stack
+{
+  public:
+    class Exception
+    {
+      public:
+        inline Exception(const char* func, int rc) : _func(func), _rc(rc) {};
+        const char* _func;
+        const int _rc;
+    };
+
+    class Handler
+    {
+      public:
+        inline Handler(Diameter::Message& msg) : _msg(msg) {}
+        virtual ~Handler() {}
+
+        virtual void run() = 0;
+
+      protected:
+        Diameter::Message _msg;
+    };
+
+    class BaseHandlerFactory
+    {
+      public:
+        BaseHandlerFactory(Dictionary *dict) : _dict(dict) {}
+        virtual Handler* create(Diameter::Message& msg) = 0;
+        Dictionary* _dict;
+    };
+
+    template <class H>
+      class HandlerFactory : public BaseHandlerFactory
+    {
+      public:
+        HandlerFactory(Dictionary* dict) : BaseHandlerFactory(dict) {};
+        Handler* create(Diameter::Message& msg) { return new H(msg); }
+    };
+
+    template <class H, class C>
+      class ConfiguredHandlerFactory : public BaseHandlerFactory
+    {
+      public:
+        ConfiguredHandlerFactory(Dictionary* dict, const C* cfg) : BaseHandlerFactory(dict), _cfg(cfg) {}
+        Handler* create(Diameter::Message& msg) { return new H(msg, _cfg); }
+      private:
+        const C* _cfg;
+    };
+
+  static inline Stack* get_instance() {return INSTANCE;};
+  virtual void initialize();
+  virtual void configure(std::string filename);
+  virtual void advertize_application(const Dictionary::Application& app);
+  virtual void register_handler(const Dictionary::Application& app, const Dictionary::Message& msg, BaseHandlerFactory* factory);
+  virtual void start();
+  virtual void stop();
+  virtual void wait_stopped();
+
+private:
+  static Stack* INSTANCE;
+  static Stack DEFAULT_INSTANCE;
+
+  Stack();
+  virtual ~Stack();
+  static int handler_callback_fn(struct msg** req, struct avp* avp, struct session* sess, void* handler_factory, enum disp_action* act);
+
+  // Don't implement the following, to avoid copies of this instance.
+  Stack(Stack const&);
+  void operator=(Stack const&);
+
+  static void logger(int fd_log_level, const char* fmt, va_list args);
+
+  bool _initialized;
 };
 
 AVP::iterator AVP::begin() const {return AVP::iterator(*this);}

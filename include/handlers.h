@@ -130,51 +130,8 @@ public:
     }
   };
 
-  template <class H>
-  class CacheTransaction : public Cache::Transaction
-  {
-  public:
-    CacheTransaction(Cache::Request* request, H* handler) :
-      Cache::Transaction(request),
-      _handler(handler),
-      _success_clbk(NULL),
-      _failure_clbk(NULL)
-    {};
-
-    typedef void(H::*success_clbk_t)(Cache::Request*);
-    typedef void(H::*failure_clbk_t)(Cache::Request*, Cache::ResultCode, std::string&);
-
-    void set_success_clbk(success_clbk_t fun)
-    {
-      _success_clbk = fun;
-    }
-
-    void set_failure_clbk(failure_clbk_t fun)
-    {
-      _failure_clbk = fun;
-    }
-
-  protected:
-    H* _handler;
-    success_clbk_t _success_clbk;
-    failure_clbk_t _failure_clbk;
-
-    void on_success()
-    {
-      if ((_handler != NULL) && (_success_clbk != NULL))
-      {
-        boost::bind(_success_clbk, _handler, _req)();
-      }
-    }
-
-    void on_failure(Cache::ResultCode error, std::string& text)
-    {
-      if ((_handler != NULL) && (_failure_clbk != NULL))
-      {
-        boost::bind(_failure_clbk, _handler, _req, error, text)();
-      }
-    }
-  };
+  friend class RegistrationTerminationHandler;
+  friend class PushProfileHandler;
 
 protected:
   static Diameter::Stack* _diameter_stack;
@@ -183,6 +140,52 @@ protected:
   static std::string _server_name;
   static Cx::Dictionary* _dict;
   static Cache* _cache;
+};
+
+template <class H>
+class CacheTransaction : public Cache::Transaction
+{
+public:
+  CacheTransaction(Cache::Request* request, H* handler) :
+    Cache::Transaction(request),
+    _handler(handler),
+    _success_clbk(NULL),
+    _failure_clbk(NULL)
+  {};
+
+  typedef void(H::*success_clbk_t)(Cache::Request*);
+  typedef void(H::*failure_clbk_t)(Cache::Request*, Cache::ResultCode, std::string&);
+
+  void set_success_clbk(success_clbk_t fun)
+  {
+    _success_clbk = fun;
+  }
+
+  void set_failure_clbk(failure_clbk_t fun)
+  {
+    _failure_clbk = fun;
+  }
+
+protected:
+  H* _handler;
+  success_clbk_t _success_clbk;
+  failure_clbk_t _failure_clbk;
+
+  void on_success()
+  {
+    if ((_handler != NULL) && (_success_clbk != NULL))
+    {
+      boost::bind(_success_clbk, _handler, _req)();
+    }
+  }
+
+  void on_failure(Cache::ResultCode error, std::string& text)
+  {
+    if ((_handler != NULL) && (_failure_clbk != NULL))
+    {
+      boost::bind(_failure_clbk, _handler, _req, error, text)();
+    }
+  }
 };
 
 class ImpiHandler : public HssCacheHandler
@@ -212,8 +215,6 @@ public:
   void on_mar_response(Diameter::Message& rsp);
   virtual void send_reply(const DigestAuthVector& av) = 0;
   virtual void send_reply(const AKAAuthVector& av) = 0;
-
-  typedef HssCacheHandler::CacheTransaction<ImpiHandler> CacheTransaction;
   typedef HssCacheHandler::DiameterTransaction<ImpiHandler> DiameterTransaction;
 
 protected:
@@ -317,8 +318,6 @@ public:
   void on_get_ims_subscription_success(Cache::Request* request);
   void on_get_ims_subscription_failure(Cache::Request* request, Cache::ResultCode error, std::string& text);
   void on_sar_response(Diameter::Message& rsp);
-
-  typedef HssCacheHandler::CacheTransaction<ImpuIMSSubscriptionHandler> CacheTransaction;
   typedef HssCacheHandler::DiameterTransaction<ImpuIMSSubscriptionHandler> DiameterTransaction;
 
 private:
@@ -329,17 +328,49 @@ private:
   static std::vector<std::string> get_public_ids(const std::string& user_data);
 };
 
-class RegistrationTerminationHandler : public HssCacheHandler
+class RegistrationTerminationHandler : public Diameter::Stack::Handler
 {
 public:
-  void run (Diameter::Message& msg);
+  struct Config
+  {
+    Config(int _ims_sub_cache_ttl = 3600) : ims_sub_cache_ttl(_ims_sub_cache_ttl) {}
+    int ims_sub_cache_ttl;
+  };
+
+  RegistrationTerminationHandler(Diameter::Message& msg, const Config* cfg) :
+    Diameter::Stack::Handler(msg), _cfg(cfg)
+  {}
+
+  void run();
+  void delete_identities(Cache::Request* request);
+  void on_cache_failure(Cache::Request* request, Cache::ResultCode error, std::string& text);
+
 private:
+  const Config* _cfg;
+  std::vector<std::string> _impis;
+  std::vector<std::string> _impus;
 };
 
-class PushProfileHandler : public HssCacheHandler
+class PushProfileHandler : public Diameter::Stack::Handler
 {
 public:
-  void run (Diameter::Message& msg);
+  struct Config
+  {
+    Config(int _impu_cache_ttl = 0, int _ims_sub_cache_ttl = 3600) : ims_sub_cache_ttl(_ims_sub_cache_ttl) {}
+    int impu_cache_ttl;
+    int ims_sub_cache_ttl;
+  };
+
+  PushProfileHandler(Diameter::Message& msg, const Config* cfg) :
+    Diameter::Stack::Handler(msg), _cfg(cfg)
+  {}
+
+  void run();
+
 private:
+  const Config* _cfg;
+
+  static std::vector<std::string> get_public_ids(const std::string& user_data);
 };
 #endif
+  void on_delete_identities_success(Cache::Request* request);

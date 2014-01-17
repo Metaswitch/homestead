@@ -258,13 +258,18 @@ class RegistrationTerminationRequest : public Diameter::Message
 public:
   RegistrationTerminationRequest(const Dictionary* dict);
   inline RegistrationTerminationRequest(Diameter::Message& msg) : Diameter::Message(msg) {};
+
+  std::vector<std::string> associated_identities() const;
+  std::vector<std::string> impus() const;
 };
 
 class RegistrationTerminationAnswer : public Diameter::Message
 {
 public:
-  RegistrationTerminationAnswer(const Dictionary* dict);
-  inline RegistrationTerminationAnswer(Diameter::Message& msg) : Diameter::Message(msg) {};
+  RegistrationTerminationAnswer(const Dictionary* dict,
+                                int result_code,
+                                int auth_session_state,
+                                std::vector<std::string> impis);
 };
 
 class PushProfileRequest : public Diameter::Message
@@ -272,13 +277,18 @@ class PushProfileRequest : public Diameter::Message
 public:
   PushProfileRequest(const Dictionary* dict);
   inline PushProfileRequest(Diameter::Message& msg) : Diameter::Message(msg) {};
+
+  DigestAuthVector digest_auth_vector() const;
+  inline bool user_data(std::string* str) const
+  {
+    return get_str_from_avp(((Cx::Dictionary*)dict())->USER_DATA, str);
+  }
 };
 
 class PushProfileAnswer : public Diameter::Message
 {
 public:
-  PushProfileAnswer(const Dictionary* dict);
-  inline PushProfileAnswer(Diameter::Message& msg) : Diameter::Message(msg) {};
+  PushProfileAnswer(const Dictionary* dict, int result_code, int auth_session_state);
 };
 };
 

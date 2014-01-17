@@ -759,7 +759,15 @@ void Cache::GetIMSSubscription::get_result(std::string& xml)
 Cache::GetAssociatedPublicIDs::
 GetAssociatedPublicIDs(std::string& private_id) :
   GetRequest(IMPI),
-  _private_id(private_id),
+  _private_ids(1, private_id),
+  _public_ids()
+{}
+
+
+Cache::GetAssociatedPublicIDs::
+GetAssociatedPublicIDs(std::vector<std::string>& private_ids) :
+  GetRequest(IMPI),
+  _private_ids(private_ids),
   _public_ids()
 {}
 
@@ -773,18 +781,24 @@ void Cache::GetAssociatedPublicIDs::perform()
 {
   std::vector<ColumnOrSuperColumn> columns;
 
-  ha_get_columns_with_prefix(_private_id,
-                             ASSOC_PUBLIC_ID_COLUMN_PREFIX,
-                             columns);
-
-  // Convert the query results from a vector of columns to a vector containing
-  // the column names. The public_id prefix has already been stripped, so this
-  // is just a list of public IDs and can be passed directly to on_success.
-  for(std::vector<ColumnOrSuperColumn>::const_iterator it = columns.begin();
-      it != columns.end();
-      ++it)
+  for (std::vector<std::string>::iterator it = _private_ids.begin();
+       it != _private_ids.end();
+       ++it)
   {
-    _public_ids.push_back(it->column.name);
+    ha_get_columns_with_prefix(*it,
+                               ASSOC_PUBLIC_ID_COLUMN_PREFIX,
+                               columns);
+
+    // Convert the query results from a vector of columns to a vector containing
+    // the column names. The public_id prefix has already been stripped, so this
+    // is just a list of public IDs and can be passed directly to on_success.
+    for(std::vector<ColumnOrSuperColumn>::const_iterator column_it = columns.begin();
+        column_it != columns.end();
+        ++column_it)
+    {
+      _public_ids.push_back(column_it->column.name);
+    }
+    columns.clear();
   }
 
   _trx->on_success();

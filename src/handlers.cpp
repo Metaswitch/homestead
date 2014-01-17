@@ -110,7 +110,7 @@ void ImpiHandler::run()
 void ImpiHandler::query_cache_av()
 {
   Cache::Request* get_av = new Cache::GetAuthVector(_impi, _impu);
-  CacheTransaction* tsx = new CacheTransaction(get_av, this);
+  CacheTransaction<ImpiHandler>* tsx = new CacheTransaction<ImpiHandler>(get_av, this);
   tsx->set_success_clbk(&ImpiHandler::on_get_av_success);
   tsx->set_failure_clbk(&ImpiHandler::on_get_av_failure);
   _cache->send(tsx);
@@ -163,7 +163,7 @@ void ImpiHandler::get_av()
 void ImpiHandler::query_cache_impu()
 {
   Cache::Request* get_public_ids = new Cache::GetAssociatedPublicIDs(_impi);
-  CacheTransaction* tsx = new CacheTransaction(get_public_ids, this);
+  CacheTransaction<ImpiHandler>* tsx = new CacheTransaction<ImpiHandler>(get_public_ids, this);
   tsx->set_success_clbk(&ImpiHandler::on_get_impu_success);
   tsx->set_failure_clbk(&ImpiHandler::on_get_impu_failure);
   _cache->send(tsx);
@@ -231,7 +231,7 @@ void ImpiHandler::on_mar_response(Diameter::Message& rsp)
           if (_cfg->impu_cache_ttl != 0)
           {
             Cache::Request* put_public_id = new Cache::PutAssociatedPublicID(_impi, _impu, Cache::generate_timestamp(), _cfg->impu_cache_ttl);
-            CacheTransaction* tsx = new CacheTransaction(put_public_id, NULL);
+            CacheTransaction<ImpiHandler>* tsx = new CacheTransaction<ImpiHandler>(put_public_id, NULL);
             _cache->send(tsx);
           }
         }
@@ -533,6 +533,7 @@ void ImpuLocationInfoHandler::on_lir_response(Diameter::Message& rsp)
     writer.String(JSON_RC.c_str());
     writer.Int(result_code ? result_code : experimental_result_code);
     std::string server_name;
+
     // If the HSS returned a server_name, return that. If not, return the
     // server capabilities, even if none are returned by the HSS.
     if ((result_code == DIAMETER_SUCCESS) && (lia.server_name(&server_name)))
@@ -578,7 +579,7 @@ void ImpuIMSSubscriptionHandler::run()
   _impi = _req.param("private_id");
 
   Cache::Request* get_ims_sub = new Cache::GetIMSSubscription(_impu);
-  CacheTransaction* tsx = new CacheTransaction(get_ims_sub, this);
+  CacheTransaction<ImpuIMSSubscriptionHandler>* tsx = new CacheTransaction<ImpuIMSSubscriptionHandler>(get_ims_sub, this);
   tsx->set_success_clbk(&ImpuIMSSubscriptionHandler::on_get_ims_subscription_success);
   tsx->set_failure_clbk(&ImpuIMSSubscriptionHandler::on_get_ims_subscription_failure);
   _cache->send(tsx);
@@ -636,7 +637,7 @@ void ImpuIMSSubscriptionHandler::on_sar_response(Diameter::Message& rsp)
           if (!public_ids.empty())
           {
             Cache::Request* put_ims_sub = new Cache::PutIMSSubscription(public_ids, user_data, Cache::generate_timestamp(), _cfg->ims_sub_cache_ttl);
-            CacheTransaction* tsx = new CacheTransaction(put_ims_sub, NULL);
+            CacheTransaction<ImpuIMSSubscriptionHandler>* tsx = new CacheTransaction<ImpuIMSSubscriptionHandler>(put_ims_sub, NULL);
             _cache->send(tsx);
           }
         }
@@ -697,13 +698,136 @@ std::vector<std::string> ImpuIMSSubscriptionHandler::get_public_ids(const std::s
   return public_ids;
 }
 
-void RegistrationTerminationHandler::run(Diameter::Message& msg)
+void RegistrationTerminationHandler::run()
 {
-  Cx::RegistrationTerminationRequest rtr(msg);
+  Cx::RegistrationTerminationRequest rtr(_msg);
+  std::string impi;
+  rtr.impi(&impi);
+  _impis.push_back(impi);
+  std::vector<std::string> associated_identities = rtr.associated_identities();
+  _impis.insert(_impis.end(), associated_identities.begin(), associated_identities.end());
+  _impus = rtr.impus();
+  if (_impus.empty())
+  {
+    Cache::Request* get_public_ids = new Cache::GetAssociatedPublicIDs(_impis);
+    CacheTransaction<RegistrationTerminationHandler>* tsx = new CacheTransaction<RegistrationTerminationHandler>(get_public_ids, this);
+    tsx->set_success_clbk(&RegistrationTerminationHandler::delete_identities);
+    tsx->set_failure_clbk(&RegistrationTerminationHandler::on_cache_failure);
+    HssCacheHandler::_cache->send(tsx);
+  }
+  else
+  {
+    RegistrationTerminationHandler::delete_identities(NULL);
+  }
 }
 
-void PushProfileHandler::run(Diameter::Message& msg)
+void RegistrationTerminationHandler::delete_identities(Cache::Request* request)
 {
-  Cx::PushProfileRequest ppr(msg);
+  if (_impus.empty())
+  {
+    Cache::GetAssociatedPublicIDs* get_public_ids = (Cache::GetAssociatedPublicIDs*)request;
+    get_public_ids->get_result(_impus);
+  }
+  Cache::Request* delete_public_ids = new Cache::DeletePublicIDs(_impus, Cache::generate_timestamp());
+  CacheTransaction<RegistrationTerminationHandler>* public_ids_tsx = new CacheTransaction<RegistrationTerminationHandler>(delete_public_ids, this);
+  HssCacheHandler::_cache->send(public_ids_tsx);
+  Cache::Request* delete_private_ids = new Cache::DeletePrivateIDs(_impis, Cache::generate_timestamp());
+  CacheTransaction<RegistrationTerminationHandler>* private_ids_tsx = new CacheTransaction<RegistrationTerminationHandler>(delete_private_ids, this);
+  HssCacheHandler::_cache->send(private_ids_tsx);
+
+  Cx::RegistrationTerminationRequest rtr(_msg);
+  int auth_session_state;
+  rtr.auth_session_state(&auth_session_state);
+  Cx::RegistrationTerminationAnswer rta(HssCacheHandler::_dict,
+                                        DIAMETER_SUCCESS,
+                                        auth_session_state,
+                                        _impis);
+  rta.send(NULL, 200);
 }
 
+void RegistrationTerminationHandler::on_cache_failure(Cache::Request* request, Cache::ResultCode error, std::string& text)
+{
+  Cx::RegistrationTerminationRequest rtr(_msg);
+  int auth_session_state;
+  rtr.auth_session_state(&auth_session_state);
+  Cx::RegistrationTerminationAnswer rta(HssCacheHandler::_dict,
+                                        DIAMETER_UNABLE_TO_COMPLY,
+                                        auth_session_state,
+                                        _impis);
+  rta.send(NULL, 200);
+}
+
+void PushProfileHandler::run()
+{
+  Cx::PushProfileRequest ppr(_msg);
+  std::string impi;
+  ppr.impi(&impi);
+  DigestAuthVector digest_auth_vector;
+  digest_auth_vector = ppr.digest_auth_vector();
+  if ((!impi.empty()) && (!digest_auth_vector.ha1.empty()))
+  {
+    Cache::Request* put_auth_vector = new Cache::PutAuthVector(impi, digest_auth_vector, Cache::generate_timestamp(), _cfg->impu_cache_ttl);
+    CacheTransaction<PushProfileHandler>* tsx = new CacheTransaction<PushProfileHandler>(put_auth_vector, NULL);
+    HssCacheHandler::_cache->send(tsx);
+  }
+  std::string user_data;
+  if (ppr.user_data(&user_data))
+  {
+    std::vector<std::string> impus = get_public_ids(user_data);
+    Cache::Request* put_ims_subscription = new Cache::PutIMSSubscription(impus, user_data, Cache::generate_timestamp(), _cfg->ims_sub_cache_ttl);
+    CacheTransaction<PushProfileHandler>* tsx = new CacheTransaction<PushProfileHandler>(put_ims_subscription, NULL);
+    HssCacheHandler::_cache->send(tsx);
+  }
+
+  int auth_session_state;
+  ppr.auth_session_state(&auth_session_state);
+  Cx::PushProfileAnswer ppa(HssCacheHandler::_dict,
+                            DIAMETER_SUCCESS,
+                            auth_session_state);
+  ppa.send(NULL, 200);
+}
+
+std::vector<std::string> PushProfileHandler::get_public_ids(const std::string& user_data)
+{
+  std::vector<std::string> public_ids;
+
+  // Parse the XML document, saving off the passed-in string first (as parsing
+  // is destructive).
+  rapidxml::xml_document<> doc;
+  char* user_data_str = doc.allocate_string(user_data.c_str());
+
+  try
+  {
+    doc.parse<rapidxml::parse_strip_xml_namespaces>(user_data_str);
+  }
+  catch (rapidxml::parse_error err)
+  {
+    LOG_ERROR("Parse error in IMS Subscription document: %s\n\n%s", err.what(), user_data.c_str());
+    doc.clear();
+  }
+
+  // Walk through all nodes in the hierarchy IMSSubscription->ServiceProfile->PublicIdentity
+  // ->Identity.
+  rapidxml::xml_node<>* is = doc.first_node("IMSSubscription");
+  if (is)
+  {
+    for (rapidxml::xml_node<>* sp = is->first_node("ServiceProfile");
+         sp;
+         sp = is->next_sibling("ServiceProfile"))
+    {
+      for (rapidxml::xml_node<>* pi = sp->first_node("PublicIdentity");
+           pi;
+           pi = sp->next_sibling("PublicIdentity"))
+      {
+        for (rapidxml::xml_node<>* id = pi->first_node("Identity");
+             id;
+             id = pi->next_sibling("Identity"))
+        {
+          public_ids.push_back((std::string)id->value());
+        }
+      }
+    }
+  }
+
+  return public_ids;
+}

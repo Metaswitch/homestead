@@ -469,9 +469,61 @@ RegistrationTerminationRequest::RegistrationTerminationRequest(const Dictionary*
 {
 }
 
-RegistrationTerminationAnswer::RegistrationTerminationAnswer(const Dictionary* dict) :
+std::vector<std::string> RegistrationTerminationRequest::associated_identities() const
+{
+  std::vector<std::string> associated_identities;
+
+  // Associated Identities are found in USER_NAME AVPS inside the ASSOCIATED_IDENTITIES AVP.
+  Diameter::AVP::iterator avps = begin(((Cx::Dictionary*)dict())->ASSOCIATED_IDENTITIES);
+  if (avps != end())
+  {
+    Diameter::AVP::iterator avps2 = avps->begin(dict()->USER_NAME);
+    while (avps2 != end())
+    {
+      associated_identities.push_back(avps2->val_str());
+      avps2++;
+    }
+  }
+  return associated_identities;
+}
+
+std::vector<std::string> RegistrationTerminationRequest::impus() const
+{
+  std::vector<std::string> impus;
+
+  // Find all the PUBLIC_IDENTITY AVPS.
+  Diameter::AVP::iterator avps = begin(((Cx::Dictionary*)dict())->PUBLIC_IDENTITY);
+  while (avps != end())
+  {
+    impus.push_back(avps->val_str());
+    avps++;
+  }
+  return impus;
+}
+
+RegistrationTerminationAnswer::RegistrationTerminationAnswer(const Dictionary* dict,
+                                                             int result_code,
+                                                             int auth_session_state,
+                                                             std::vector<std::string> impis) :
                                                              Diameter::Message(dict, dict->REGISTRATION_TERMINATION_ANSWER)
 {
+  LOG_DEBUG("Sending Registration-Termination Answer");
+  add_new_session_id();
+  add_vendor_spec_app_id();
+  add(Diameter::AVP(dict->RESULT_CODE).val_i32(result_code));
+  add(Diameter::AVP(dict->AUTH_SESSION_STATE).val_i32(auth_session_state));
+  add_origin();
+  Diameter::AVP associated_identities(dict->ASSOCIATED_IDENTITIES);
+  if (!impis.empty())
+  {
+    for (std::vector<std::string>::iterator it = impis.begin();
+         it != impis.end();
+         ++it)
+    {
+      associated_identities.add(Diameter::AVP(dict->USER_NAME).val_str(*it));
+    }
+    add(associated_identities);
+  }
 }
 
 PushProfileRequest::PushProfileRequest(const Dictionary* dict) :
@@ -479,7 +531,75 @@ PushProfileRequest::PushProfileRequest(const Dictionary* dict) :
 {
 }
 
-PushProfileAnswer::PushProfileAnswer(const Dictionary* dict) :
-                                     Diameter::Message(dict, dict->PUSH_PROFILE_ANSWER)
+DigestAuthVector PushProfileRequest::digest_auth_vector() const
 {
+  DigestAuthVector digest_auth_vector;
+  Diameter::AVP::iterator avps = begin(((Cx::Dictionary*)dict())->SIP_AUTH_DATA_ITEM);
+  if (avps != end())
+  {
+    avps = avps->begin(((Cx::Dictionary*)dict())->SIP_DIGEST_AUTHENTICATE);
+    if (avps != end())
+    {
+      // Look for the digest.
+      Diameter::AVP::iterator avps2 = avps->begin(((Cx::Dictionary*)dict())->CX_DIGEST_HA1);
+      if (avps2 != end())
+      {
+        digest_auth_vector.ha1 = avps2->val_str();
+      }
+      else
+      {
+        // Some HSSs (in particular OpenIMSCore), use non-3GPP Digest-HA1.  Check for this too.
+        avps2 = avps->begin(((Cx::Dictionary*)dict())->DIGEST_HA1);
+        if (avps2 != end())
+        {
+          digest_auth_vector.ha1 = avps2->val_str();
+        }
+      }
+      // Look for the realm.
+      avps2 = avps->begin(((Cx::Dictionary*)dict())->CX_DIGEST_REALM);
+      if (avps2 != end())
+      {
+        digest_auth_vector.realm = avps2->val_str();
+      }
+      else
+      {
+        // Some HSSs (in particular OpenIMSCore), use non-3GPP Digest-Realm.  Check for this too.
+        avps2 = avps->begin(((Cx::Dictionary*)dict())->DIGEST_REALM);
+        if (avps2 != end())
+        {
+          digest_auth_vector.realm = avps2->val_str();
+        }
+      }
+      // Look for the QoP.
+      avps2 = avps->begin(((Cx::Dictionary*)dict())->CX_DIGEST_QOP);
+      if (avps2 != end())
+      {
+        digest_auth_vector.qop = avps2->val_str();
+      }
+      else
+      {
+        // Some HSSs (in particular OpenIMSCore), use non-3GPP Digest-QoP.  Check for this too.
+        avps2 = avps->begin(((Cx::Dictionary*)dict())->DIGEST_QOP);
+        if (avps2 != end())
+        {
+          digest_auth_vector.qop = avps2->val_str();
+        }
+      }
+    }
+  }
+  return digest_auth_vector;
+}
+
+PushProfileAnswer::PushProfileAnswer(const Dictionary* dict,
+                                     int result_code,
+                                     int auth_session_state) :
+                                     Diameter::Message(dict, dict->PUSH_PROFILE_ANSWER)
+
+{
+  LOG_DEBUG("Sending Push-Profile Answer");
+  add_new_session_id();
+  add_vendor_spec_app_id();
+  add(Diameter::AVP(dict->RESULT_CODE).val_i32(result_code));
+  add(Diameter::AVP(dict->AUTH_SESSION_STATE).val_i32(auth_session_state));
+  add_origin();
 }

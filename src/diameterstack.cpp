@@ -39,6 +39,8 @@
 
 using namespace Diameter;
 
+static struct disp_hdl * callback_handler = NULL; /* Handler for requests callback */
+
 Stack* Stack::INSTANCE = &DEFAULT_INSTANCE;
 Stack Stack::DEFAULT_INSTANCE;
 
@@ -90,6 +92,27 @@ void Stack::advertize_application(const Dictionary::Application& app)
   }
 }
 
+void Stack::register_handler(const Dictionary::Application& app, const Dictionary::Message& msg, BaseHandlerFactory* factory)
+{
+  struct disp_when data;
+  memset(&data, 0, sizeof(data));
+  data.app = app.dict();
+  data.command = msg.dict();
+  int rc = fd_disp_register(handler_callback_fn, DISP_HOW_CC, &data, (void *)factory, &callback_handler);
+  if (rc != 0)
+  {
+    throw Exception("fd_disp_register", rc); //LCOV_EXCL_LINE
+  }
+}
+
+int Stack::handler_callback_fn(struct msg** req, struct avp* avp, struct session* sess, void* handler_factory, enum disp_action* act)
+{
+  Message msg(((Diameter::Stack::BaseHandlerFactory*)handler_factory)->_dict, *req);
+  Handler* handler = ((Diameter::Stack::BaseHandlerFactory*)handler_factory)->create(msg);
+  handler->run();
+  return 0;
+}
+
 void Stack::start()
 {
   initialize();
@@ -122,6 +145,10 @@ void Stack::wait_stopped()
       throw Exception("fd_core_wait_shutdown_complete", rc); // LCOV_EXCL_LINE
     }
     fd_log_handler_unregister();
+    if (callback_handler)
+    {
+      fd_disp_unregister(&callback_handler, NULL);
+    }
     _initialized = false;
   }
 }
@@ -242,7 +269,6 @@ Dictionary::Dictionary() :
   EXPERIMENTAL_RESULT_CODE("Experimental-Result-Code")
 {
 }
-
 
 Transaction::Transaction(Dictionary* dict) : _dict(dict)
 {

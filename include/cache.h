@@ -584,10 +584,15 @@ public:
   class GetAssociatedPublicIDs : public GetRequest
   {
   public:
-    /// Get the public Ids that are associated with a private ID.
+    /// Get the public Ids that are associated with a single private ID.
     ///
     /// @param private_id the private ID.
     GetAssociatedPublicIDs(std::string& private_id);
+
+    /// Get the public Ids that are associated with multiple private IDs.
+    ///
+    /// @param private_id a vector of private IDs.
+    GetAssociatedPublicIDs(std::vector<std::string>& private_ids);
     virtual ~GetAssociatedPublicIDs();
 
     /// Access the result of the request.
@@ -597,7 +602,7 @@ public:
 
   protected:
     // Request parameters.
-    std::string _private_id;
+    std::vector<std::string> _private_ids;
 
     // Result.
     std::vector<std::string> _public_ids;
