@@ -526,6 +526,24 @@ RegistrationTerminationAnswer::RegistrationTerminationAnswer(const Dictionary* d
   }
 }
 
+std::vector<std::string> RegistrationTerminationAnswer::associated_identities() const
+{
+  std::vector<std::string> associated_identities;
+
+  // Associated Identities are found in USER_NAME AVPS inside the ASSOCIATED_IDENTITIES AVP.
+  Diameter::AVP::iterator avps = begin(((Cx::Dictionary*)dict())->ASSOCIATED_IDENTITIES);
+  if (avps != end())
+  {
+    Diameter::AVP::iterator avps2 = avps->begin(dict()->USER_NAME);
+    while (avps2 != end())
+    {
+      associated_identities.push_back(avps2->val_str());
+      avps2++;
+    }
+  }
+  return associated_identities;
+}
+
 PushProfileRequest::PushProfileRequest(const Dictionary* dict) :
                                        Diameter::Message(dict, dict->PUSH_PROFILE_REQUEST)
 {

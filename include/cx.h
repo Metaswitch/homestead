@@ -270,6 +270,9 @@ public:
                                 int result_code,
                                 int auth_session_state,
                                 std::vector<std::string> impis);
+  inline RegistrationTerminationAnswer(Diameter::Message& msg) : Diameter::Message(msg) {};
+
+  std::vector<std::string> associated_identities() const;
 };
 
 class PushProfileRequest : public Diameter::Message
@@ -289,6 +292,7 @@ class PushProfileAnswer : public Diameter::Message
 {
 public:
   PushProfileAnswer(const Dictionary* dict, int result_code, int auth_session_state);
+  inline PushProfileAnswer(Diameter::Message& msg) : Diameter::Message(msg) {};
 };
 };
 

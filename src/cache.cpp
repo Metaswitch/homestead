@@ -782,6 +782,7 @@ Cache::GetAssociatedPublicIDs::
 void Cache::GetAssociatedPublicIDs::perform()
 {
   std::vector<ColumnOrSuperColumn> columns;
+  std::set<std::string> public_ids;
 
   for (std::vector<std::string>::iterator it = _private_ids.begin();
        it != _private_ids.end();
@@ -798,10 +799,11 @@ void Cache::GetAssociatedPublicIDs::perform()
         column_it != columns.end();
         ++column_it)
     {
-      _public_ids.push_back(column_it->column.name);
+      public_ids.insert(column_it->column.name);
     }
     columns.clear();
   }
+  std::copy(public_ids.begin(), public_ids.end(), std::back_inserter(_public_ids));
 
   _trx->on_success();
 }

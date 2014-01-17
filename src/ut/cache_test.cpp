@@ -1100,6 +1100,54 @@ TEST_F(CacheRequestTest, GetAssocPublicIDsMainline)
 }
 
 
+TEST_F(CacheRequestTest, GetAssocPublicIDsMultipleIDs)
+{
+  std::map<std::string, std::string> columns;
+  columns["public_id_gonzo"] = "";
+  columns["public_id_miss piggy"] = "";
+
+  std::vector<cass::ColumnOrSuperColumn> slice;
+  make_slice(slice, columns);
+
+  std::vector<std::string> private_ids;
+  private_ids.push_back("kermit");
+  private_ids.push_back("miss piggy");
+
+  ResultRecorder<Cache::GetAssociatedPublicIDs, std::vector<std::string>> rec;
+  RecordingTransaction* trx = make_rec_trx(
+      new Cache::GetAssociatedPublicIDs(private_ids), &rec);
+
+  EXPECT_CALL(_client,
+      get_slice(_,
+        "kermit",
+        ColumnPathForTable("impi"),
+        ColumnsWithPrefix("public_id_"),
+        _))
+    .WillOnce(SetArgReferee<0>(slice));
+
+  EXPECT_CALL(_client,
+      get_slice(_,
+        "miss piggy",
+        ColumnPathForTable("impi"),
+        ColumnsWithPrefix("public_id_"),
+        _))
+    .WillOnce(SetArgReferee<0>(slice));
+
+  EXPECT_CALL(*trx, on_success())
+    .WillOnce(InvokeWithoutArgs(trx, &RecordingTransaction::record_result));
+  _cache.send(trx);
+  wait();
+
+  std::vector<std::string> expected_ids;
+  expected_ids.push_back("gonzo");
+  expected_ids.push_back("miss piggy");
+  std::sort(expected_ids.begin(), expected_ids.end());
+  std::sort(rec.result.begin(), rec.result.end());
+
+  EXPECT_EQ(expected_ids, rec.result);
+}
+
+
 TEST_F(CacheRequestTest, GetAssocPublicIDsNoResults)
 {
   ResultRecorder<Cache::GetAssociatedPublicIDs, std::vector<std::string>> rec;
