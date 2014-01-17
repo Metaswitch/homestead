@@ -168,6 +168,7 @@ public:
   class CacheClientInterface
   {
   public:
+    virtual ~CacheClientInterface() {}
     virtual void set_keyspace(const std::string& keyspace) = 0;
     virtual void batch_mutate(const std::map<std::string, std::map<std::string, std::vector<cass::Mutation> > > & mutation_map, const cass::ConsistencyLevel::type consistency_level) = 0;
     virtual void get_slice(std::vector<cass::ColumnOrSuperColumn> & _return, const std::string& key, const cass::ColumnParent& column_parent, const cass::SlicePredicate& predicate, const cass::ConsistencyLevel::type consistency_level) = 0;
