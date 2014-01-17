@@ -675,7 +675,7 @@ public:
 
     /// Delete an single private ID from the cache.
     ///
-    /// @param private_id the private ID to delete.
+    /// @param private_ids the private ID to delete.
     DeletePrivateIDs(std::vector<std::string>& public_ids,
                      int64_t timestamp);
     virtual ~DeletePrivateIDs();
