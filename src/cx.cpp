@@ -501,11 +501,12 @@ std::vector<std::string> RegistrationTerminationRequest::impus() const
   return impus;
 }
 
-RegistrationTerminationAnswer::RegistrationTerminationAnswer(const Dictionary* dict,
+RegistrationTerminationAnswer::RegistrationTerminationAnswer(Diameter::Message& msg,
+                                                             const Dictionary* dict,
                                                              int result_code,
                                                              int auth_session_state,
                                                              std::vector<std::string> impis) :
-                                                             Diameter::Message(dict, dict->REGISTRATION_TERMINATION_ANSWER)
+                                                             Diameter::Message(msg)
 {
   LOG_DEBUG("Sending Registration-Termination Answer");
   add_new_session_id();
@@ -608,10 +609,11 @@ DigestAuthVector PushProfileRequest::digest_auth_vector() const
   return digest_auth_vector;
 }
 
-PushProfileAnswer::PushProfileAnswer(const Dictionary* dict,
+PushProfileAnswer::PushProfileAnswer(Diameter::Message& msg,
+                                     const Dictionary* dict,
                                      int result_code,
                                      int auth_session_state) :
-                                     Diameter::Message(dict, dict->PUSH_PROFILE_ANSWER)
+                                     Diameter::Message(msg)
 
 {
   LOG_DEBUG("Sending Push-Profile Answer");

@@ -738,7 +738,9 @@ void RegistrationTerminationHandler::delete_identities(Cache::Request* request)
   Cx::RegistrationTerminationRequest rtr(_msg);
   int auth_session_state;
   rtr.auth_session_state(&auth_session_state);
-  Cx::RegistrationTerminationAnswer rta(HssCacheHandler::_dict,
+  rtr.build_response();
+  Cx::RegistrationTerminationAnswer rta(rtr,
+                                        HssCacheHandler::_dict,
                                         DIAMETER_SUCCESS,
                                         auth_session_state,
                                         _impis);
@@ -750,7 +752,9 @@ void RegistrationTerminationHandler::on_cache_failure(Cache::Request* request, C
   Cx::RegistrationTerminationRequest rtr(_msg);
   int auth_session_state;
   rtr.auth_session_state(&auth_session_state);
-  Cx::RegistrationTerminationAnswer rta(HssCacheHandler::_dict,
+  rtr.build_response();
+  Cx::RegistrationTerminationAnswer rta(rtr,
+                                        HssCacheHandler::_dict,
                                         DIAMETER_UNABLE_TO_COMPLY,
                                         auth_session_state,
                                         _impis);
@@ -781,7 +785,9 @@ void PushProfileHandler::run()
 
   int auth_session_state;
   ppr.auth_session_state(&auth_session_state);
-  Cx::PushProfileAnswer ppa(HssCacheHandler::_dict,
+  _msg.build_response();
+  Cx::PushProfileAnswer ppa(ppr,
+                            HssCacheHandler::_dict,
                             DIAMETER_SUCCESS,
                             auth_session_state);
   ppa.send(NULL, 200);

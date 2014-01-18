@@ -230,6 +230,10 @@ public:
   virtual ~Message();
   inline const Dictionary* dict() const {return _dict;}
   inline struct msg* msg() const {return _msg;}
+  inline void build_response()
+  {
+    fd_msg_new_answer_from_req(fd_g_config->cnf_dict, &_msg, 0);
+  }
   inline Message& add_new_session_id()
   {
     fd_msg_new_session(_msg, NULL, 0);

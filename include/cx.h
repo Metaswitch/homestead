@@ -266,7 +266,8 @@ public:
 class RegistrationTerminationAnswer : public Diameter::Message
 {
 public:
-  RegistrationTerminationAnswer(const Dictionary* dict,
+  RegistrationTerminationAnswer(Diameter::Message& msg,
+                                const Dictionary* dict,
                                 int result_code,
                                 int auth_session_state,
                                 std::vector<std::string> impis);
@@ -291,7 +292,10 @@ public:
 class PushProfileAnswer : public Diameter::Message
 {
 public:
-  PushProfileAnswer(const Dictionary* dict, int result_code, int auth_session_state);
+  PushProfileAnswer(Diameter::Message& msg,
+                    const Dictionary* dict,
+                    int result_code,
+                    int auth_session_state);
   inline PushProfileAnswer(Diameter::Message& msg) : Diameter::Message(msg) {};
 };
 };
