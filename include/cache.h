@@ -335,12 +335,16 @@ public:
   /// @class Request base class for all cache requests.
   class Request
   {
+    // The cache needs to call the Request's protected methods.
+    friend class Cache;
+
   public:
     /// Constructor.
     /// @param column_family the column family the request operates on.
     Request(const std::string& column_family);
     virtual ~Request();
 
+  protected:
     /// Execute a request.
     ///
     /// This method is called automatically by the cache when the request is
@@ -354,7 +358,6 @@ public:
     virtual void set_trx(Transaction* trx) { _trx = trx; }
     virtual Transaction* get_trx() { return _trx; }
 
-  protected:
     /// Method that contains the business logic of the request.
     ///
     /// This is called by run from within an exception handler(). It is safe to
