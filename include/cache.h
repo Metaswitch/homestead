@@ -314,7 +314,10 @@ public:
   // To issue a request to the cache a user should:
   // -  Create a subclass of Transaction that implments on_success and
   //    on_failure.
-  // -  Select the appropriate request class and create a new instance.
+  // -  Select the appropriate request class and create a new instance by
+  //    calling create_<RequestType>.  Do not imnstantiate Request classes
+  //    directly as this makes the user code impossible to test with mock
+  //    requests or a mock cache.
   // -  Create a new instance of the transaction subclass passing it the request
   //    object.
   // -  Call Cache::send, passing in the transaction object.
