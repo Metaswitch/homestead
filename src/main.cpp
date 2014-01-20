@@ -285,7 +285,7 @@ int main(int argc, char**argv)
   ImpiHandler::Config impi_handler_config(hss_configured, options.impu_cache_ttl);
   ImpiRegistrationStatusHandler::Config registration_status_handler_config(hss_configured);
   ImpuLocationInfoHandler::Config location_info_handler_config(hss_configured);
-  ImpuIMSSubscriptionHandler::Config impu_handler_config(options.ims_sub_cache_ttl);
+  ImpuIMSSubscriptionHandler::Config impu_handler_config(hss_configured, options.ims_sub_cache_ttl);
   HttpStack::HandlerFactory<PingHandler> ping_handler_factory;
   HttpStack::ConfiguredHandlerFactory<ImpiDigestHandler, ImpiHandler::Config> impi_digest_handler_factory(&impi_handler_config);
   HttpStack::ConfiguredHandlerFactory<ImpiAvHandler, ImpiHandler::Config> impi_av_handler_factory(&impi_handler_config);
