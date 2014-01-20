@@ -43,13 +43,18 @@ HttpStack::HttpStack() {}
 
 void HttpStack::Request::send_reply(int rc)
 {
+  _stack->send_reply(*this, rc);
+}
+
+void HttpStack::send_reply(Request& req, int rc)
+{
   // Log and set up the return code.
-  _stack->log(std::string(_req->uri->path->full), rc);
-  evhtp_send_reply(_req, rc);
+  log(std::string(req.req()->uri->path->full), rc);
+  evhtp_send_reply(req.req(), rc);
 
   // Resume the request to actually send it.  This matches the function to pause the request in
   // HttpStack::handler_callback_fn.
-  evhtp_request_resume(_req);
+  evhtp_request_resume(req.req());
 }
 
 void HttpStack::initialize()
