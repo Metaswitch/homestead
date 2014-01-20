@@ -696,7 +696,7 @@ PutAuthVector(const std::string& private_id,
               const DigestAuthVector& auth_vector,
               const int64_t timestamp,
               const int32_t ttl) :
-  PutRequest(IMPI, timestamp),
+  PutRequest(IMPI, timestamp, ttl),
   _private_ids(1, private_id),
   _auth_vector(auth_vector)
 {}

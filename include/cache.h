@@ -162,9 +162,8 @@ public:
 
   /// @class CacheClient
   ///
-  /// Simple subclass of a normal cassandra client but that automatically opens
-  /// and closes it's transport.
-
+  /// Interface to the CassandraClient that the cache uses.  Defining this
+  /// interface makes it easier to mock out the client in unit test.
   class CacheClientInterface
   {
   public:
@@ -175,6 +174,10 @@ public:
     virtual void remove(const std::string& key, const cass::ColumnPath& column_path, const int64_t timestamp, const cass::ConsistencyLevel::type consistency_level) = 0;
   };
 
+  /// @class CacheClient
+  ///
+  /// Simple subclass of a normal cassandra client but that automatically opens
+  /// and closes it's transport.
   class CacheClient : public cass::CassandraClient, public CacheClientInterface
   {
   public:
@@ -548,6 +551,24 @@ public:
     void perform();
   };
 
+  virtual PutIMSSubscription*
+    create_PutIMSSubscription(const std::string& public_id,
+                              const std::string& xml,
+                              const int64_t timestamp,
+                              const int32_t ttl = 0)
+  {
+    return new PutIMSSubscription(public_id, xml, timestamp, ttl);
+  }
+
+  virtual PutIMSSubscription*
+    create_PutIMSSubscription(std::vector<std::string>& public_ids,
+                              const std::string& xml,
+                              const int64_t timestamp,
+                              const int32_t ttl = 0)
+  {
+    return new PutIMSSubscription(public_ids, xml, timestamp, ttl);
+  }
+
   class PutAssociatedPublicID : public PutRequest
   {
   public:
@@ -567,6 +588,15 @@ public:
 
     void perform();
   };
+
+  virtual PutAssociatedPublicID*
+    create_PutAssociatedPublicID(const std::string& private_id,
+                                 const std::string& assoc_public_id,
+                                 const int64_t timestamp,
+                                 const int32_t ttl = 0)
+  {
+    return new PutAssociatedPublicID(private_id, assoc_public_id, timestamp, ttl);
+  }
 
   class PutAuthVector : public PutRequest
   {
@@ -591,6 +621,15 @@ public:
     void perform();
   };
 
+  virtual PutAuthVector*
+    create_PutAuthVector(const std::string& private_id,
+                         const DigestAuthVector& auth_vector,
+                         const int64_t timestamp,
+                         const int32_t ttl = 0)
+  {
+    return new PutAuthVector(private_id, auth_vector, timestamp, ttl);
+  }
+
   class GetIMSSubscription : public GetRequest
   {
   public:
@@ -614,6 +653,12 @@ public:
 
     void perform();
   };
+
+  virtual GetIMSSubscription*
+    create_GetIMSSubscription(const std::string& public_id)
+  {
+    return new GetIMSSubscription(public_id);
+  }
 
   class GetAssociatedPublicIDs : public GetRequest
   {
@@ -641,6 +686,12 @@ public:
 
     void perform();
   };
+
+  virtual GetAssociatedPublicIDs*
+    create_GetAssociatedPublicIDs(const std::string& private_id)
+  {
+    return new GetAssociatedPublicIDs(private_id);
+  }
 
   class GetAuthVector : public GetRequest
   {
@@ -676,6 +727,19 @@ public:
     void perform();
   };
 
+  virtual GetAuthVector*
+    create_GetAuthVector(const std::string& private_id)
+  {
+    return new GetAuthVector(private_id);
+  }
+
+  virtual GetAuthVector*
+    create_GetAuthVector(const std::string& private_id,
+                         const std::string& public_id)
+  {
+    return new GetAuthVector(private_id, public_id);
+  }
+
   class DeletePublicIDs : public DeleteRowsRequest
   {
   public:
@@ -697,6 +761,20 @@ public:
     void perform();
   };
 
+  virtual DeletePublicIDs*
+    create_DeletePublicIDs(const std::string& public_id,
+                           int64_t timestamp)
+  {
+    return new DeletePublicIDs(public_id, timestamp);
+  }
+
+  virtual DeletePublicIDs*
+    create_DeletePublicIDs(const std::vector<std::string>& public_ids,
+                           int64_t timestamp)
+  {
+    return new DeletePublicIDs(public_ids, timestamp);
+  }
+
   class DeletePrivateIDs : public DeleteRowsRequest
   {
   public:
@@ -717,6 +795,20 @@ public:
 
     void perform();
   };
+
+  virtual DeletePrivateIDs*
+    create_DeletePrivateIDs(const std::string& private_id,
+                            int64_t timestamp)
+  {
+    return new DeletePrivateIDs(private_id, timestamp);
+  }
+
+  virtual DeletePrivateIDs*
+    create_DeletePrivateIDs(const std::vector<std::string>& private_ids,
+                            int64_t timestamp)
+  {
+    return new DeletePrivateIDs(private_ids, timestamp);
+  }
 };
 
 #endif
