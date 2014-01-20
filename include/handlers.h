@@ -305,7 +305,8 @@ class ImpuIMSSubscriptionHandler : public HssCacheHandler
 public:
   struct Config
   {
-    Config(int _ims_sub_cache_ttl = 3600) : ims_sub_cache_ttl(_ims_sub_cache_ttl) {}
+    Config(bool _hss_configured = true, int _ims_sub_cache_ttl = 3600) : hss_configured(_hss_configured), ims_sub_cache_ttl(_ims_sub_cache_ttl) {}
+    bool hss_configured;
     int ims_sub_cache_ttl;
   };
 

@@ -127,15 +127,8 @@ void ImpiHandler::on_get_av_success(Cache::Request* request)
 
 void ImpiHandler::on_get_av_failure(Cache::Request* request, Cache::ResultCode error, std::string& text)
 {
-  if (error == Cache::NOT_FOUND)
-  {
-    get_av();
-  }
-  else
-  {
-    _req.send_reply(502);
-    delete this;
-  }
+  _req.send_reply(502);
+  delete this;
 }
 
 void ImpiHandler::get_av()
@@ -596,7 +589,7 @@ void ImpuIMSSubscriptionHandler::on_get_ims_subscription_success(Cache::Request*
 
 void ImpuIMSSubscriptionHandler::on_get_ims_subscription_failure(Cache::Request* request, Cache::ResultCode error, std::string& text)
 {
-  if (error == Cache::NOT_FOUND)
+  if ((error == Cache::NOT_FOUND) && (_cfg->hss_configured))
   {
     Cx::ServerAssignmentRequest* sar =
       new Cx::ServerAssignmentRequest(_dict,
