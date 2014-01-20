@@ -109,7 +109,7 @@ void ImpiHandler::run()
 
 void ImpiHandler::query_cache_av()
 {
-  Cache::Request* get_av = new Cache::GetAuthVector(_impi, _impu);
+  Cache::Request* get_av = _cache->create_GetAuthVector(_impi, _impu);
   CacheTransaction* tsx = new CacheTransaction(get_av, this);
   tsx->set_success_clbk(&ImpiHandler::on_get_av_success);
   tsx->set_failure_clbk(&ImpiHandler::on_get_av_failure);
@@ -162,7 +162,7 @@ void ImpiHandler::get_av()
 
 void ImpiHandler::query_cache_impu()
 {
-  Cache::Request* get_public_ids = new Cache::GetAssociatedPublicIDs(_impi);
+  Cache::Request* get_public_ids = _cache->create_GetAssociatedPublicIDs(_impi);
   CacheTransaction* tsx = new CacheTransaction(get_public_ids, this);
   tsx->set_success_clbk(&ImpiHandler::on_get_impu_success);
   tsx->set_failure_clbk(&ImpiHandler::on_get_impu_failure);
@@ -230,7 +230,11 @@ void ImpiHandler::on_mar_response(Diameter::Message& rsp)
           send_reply(maa.digest_auth_vector());
           if (_cfg->impu_cache_ttl != 0)
           {
-            Cache::Request* put_public_id = new Cache::PutAssociatedPublicID(_impi, _impu, Cache::generate_timestamp(), _cfg->impu_cache_ttl);
+            Cache::Request* put_public_id =
+              _cache->create_PutAssociatedPublicID(_impi,
+                                                   _impu,
+                                                   Cache::generate_timestamp(),
+                                                   _cfg->impu_cache_ttl);
             CacheTransaction* tsx = new CacheTransaction(put_public_id, NULL);
             _cache->send(tsx);
           }
@@ -577,7 +581,7 @@ void ImpuIMSSubscriptionHandler::run()
   _impu = path.substr(prefix.length());
   _impi = _req.param("private_id");
 
-  Cache::Request* get_ims_sub = new Cache::GetIMSSubscription(_impu);
+  Cache::Request* get_ims_sub = _cache->create_GetIMSSubscription(_impu);
   CacheTransaction* tsx = new CacheTransaction(get_ims_sub, this);
   tsx->set_success_clbk(&ImpuIMSSubscriptionHandler::on_get_ims_subscription_success);
   tsx->set_failure_clbk(&ImpuIMSSubscriptionHandler::on_get_ims_subscription_failure);
@@ -635,7 +639,11 @@ void ImpuIMSSubscriptionHandler::on_sar_response(Diameter::Message& rsp)
           std::vector<std::string> public_ids = get_public_ids(user_data);
           if (!public_ids.empty())
           {
-            Cache::Request* put_ims_sub = new Cache::PutIMSSubscription(public_ids, user_data, Cache::generate_timestamp(), _cfg->ims_sub_cache_ttl);
+            Cache::Request* put_ims_sub =
+              _cache->create_PutIMSSubscription(public_ids,
+                                                user_data,
+                                                Cache::generate_timestamp(),
+                                                _cfg->ims_sub_cache_ttl);
             CacheTransaction* tsx = new CacheTransaction(put_ims_sub, NULL);
             _cache->send(tsx);
           }
@@ -693,6 +701,6 @@ std::vector<std::string> ImpuIMSSubscriptionHandler::get_public_ids(const std::s
       }
     }
   }
-  
+
   return public_ids;
 }
