@@ -113,7 +113,7 @@ public:
   static inline Cache* get_instance() { return INSTANCE; }
 
   /// Initialize the cache.
-  void initialize();
+  virtual void initialize();
 
   /// Configure cache settings.
   ///
@@ -124,10 +124,10 @@ public:
   /// @param max_queue the maximum number of requests that can be queued waiting
   ///   for a worker thread.  If more requests are added the call to send() will
   ///   block until some existing requests have been processed.  0 => no limit.
-  void configure(std::string cass_hostname,
-                 uint16_t cass_port,
-                 unsigned int num_threads,
-                 unsigned int max_queue = 0);
+  virtual void configure(std::string cass_hostname,
+                         uint16_t cass_port,
+                         unsigned int num_threads,
+                         unsigned int max_queue = 0);
 
   /// Start the cache.
   ///
@@ -135,16 +135,16 @@ public:
   /// the worker threads.
   ///
   /// @return the result of starting the cache.
-  ResultCode start();
+  virtual ResultCode start();
 
   /// Stop the cache.
   ///
   /// This discards any queued requests and terminates the worker threads once
   /// their current request has completed.
-  void stop();
+  virtual void stop();
 
   /// Wait until the cache has completely stopped.  This method my block.
-  void wait_stopped();
+  virtual void wait_stopped();
 
   /// Generate a timestamp suitable for supplying on cache modification
   /// requests.
@@ -158,13 +158,12 @@ public:
   /// has resolved.
   ///
   /// @param trx transaction containing the request.
-  void send(Transaction* trx);
+  virtual void send(Transaction* trx, Request* req);
 
   /// @class CacheClient
   ///
-  /// Simple subclass of a normal cassandra client but that automatically opens
-  /// and closes it's transport.
-
+  /// Interface to the CassandraClient that the cache uses.  Defining this
+  /// interface makes it easier to mock out the client in unit test.
   class CacheClientInterface
   {
   public:
@@ -175,6 +174,10 @@ public:
     virtual void remove(const std::string& key, const cass::ColumnPath& column_path, const int64_t timestamp, const cass::ConsistencyLevel::type consistency_level) = 0;
   };
 
+  /// @class CacheClient
+  ///
+  /// Simple subclass of a normal cassandra client but that automatically opens
+  /// and closes it's transport.
   class CacheClient : public cass::CassandraClient, public CacheClientInterface
   {
   public:
@@ -220,7 +223,7 @@ private:
   ///
   /// The thread pool used by the cache.  This is a simple subclass of
   /// ThreadPool that also stores a pointer back to the cache.
-  class CacheThreadPool : public ThreadPool<Transaction *>
+  class CacheThreadPool : public ThreadPool<Request *>
   {
   public:
     CacheThreadPool(Cache *cache,
@@ -231,7 +234,7 @@ private:
   private:
     Cache *_cache;
 
-    void process_work(Transaction*&);
+    void process_work(Request*&);
   };
 
   // Thread pool is a friend so that it can call get_client().
@@ -311,29 +314,22 @@ public:
   // To issue a request to the cache a user should:
   // -  Create a subclass of Transaction that implments on_success and
   //    on_failure.
-  // -  Select the appropriate request class and create a new instance.
-  // -  Create a new instance of the transaction subclass passing it the request
-  //    object.
-  // -  Call Cache::send, passing in the transaction object.
+  // -  Create a new instance of the transaction subclass.
+  // -  Select the appropriate request class and create a new instance by
+  //    calling create_<RequestType>.  Do not imnstantiate Request classes
+  //    directly as this makes the user code impossible to test with mock
+  //    requests or a mock cache.
+  // -  Call Cache::send, passing in the transaction and request.
 
   /// @class Transaction base class for transactions involving the cache.
   class Transaction
   {
   public:
-    /// Constructor.
-    ///
-    /// @param req underlying request object.  The transaction takes ownership
-    /// of this and is responsible for freeing it.
-    Transaction(Request* req);
-    virtual ~Transaction();
+    Transaction() {};
+    virtual ~Transaction() {};
 
-    void run(CacheClientInterface* client);
-
-    virtual void on_success() = 0;
-    virtual void on_failure(ResultCode error, std::string& text) = 0;
-
-  protected:
-    Request* _req;
+    virtual void on_success(Request* req) = 0;
+    virtual void on_failure(Request* req, ResultCode error, std::string& text) = 0;
   };
 
   /// @class Request base class for all cache requests.
@@ -353,8 +349,10 @@ public:
     /// @param client the client to use to interact with the database.
     /// @param trx the parent transaction (which is notified when the request is
     ///   complete).
-    virtual void run(CacheClientInterface* client,
-                     Transaction *trx);
+    virtual void run(CacheClientInterface* client);
+
+    virtual void set_trx(Transaction* trx) { _trx = trx; }
+    virtual Transaction* get_trx() { return _trx; }
 
   protected:
     /// Method that contains the business logic of the request.
@@ -548,6 +546,24 @@ public:
     void perform();
   };
 
+  virtual PutIMSSubscription*
+    create_PutIMSSubscription(const std::string& public_id,
+                              const std::string& xml,
+                              const int64_t timestamp,
+                              const int32_t ttl = 0)
+  {
+    return new PutIMSSubscription(public_id, xml, timestamp, ttl);
+  }
+
+  virtual PutIMSSubscription*
+    create_PutIMSSubscription(std::vector<std::string>& public_ids,
+                              const std::string& xml,
+                              const int64_t timestamp,
+                              const int32_t ttl = 0)
+  {
+    return new PutIMSSubscription(public_ids, xml, timestamp, ttl);
+  }
+
   class PutAssociatedPublicID : public PutRequest
   {
   public:
@@ -567,6 +583,15 @@ public:
 
     void perform();
   };
+
+  virtual PutAssociatedPublicID*
+    create_PutAssociatedPublicID(const std::string& private_id,
+                                 const std::string& assoc_public_id,
+                                 const int64_t timestamp,
+                                 const int32_t ttl = 0)
+  {
+    return new PutAssociatedPublicID(private_id, assoc_public_id, timestamp, ttl);
+  }
 
   class PutAuthVector : public PutRequest
   {
@@ -591,6 +616,15 @@ public:
     void perform();
   };
 
+  virtual PutAuthVector*
+    create_PutAuthVector(const std::string& private_id,
+                         const DigestAuthVector& auth_vector,
+                         const int64_t timestamp,
+                         const int32_t ttl = 0)
+  {
+    return new PutAuthVector(private_id, auth_vector, timestamp, ttl);
+  }
+
   class GetIMSSubscription : public GetRequest
   {
   public:
@@ -614,6 +648,12 @@ public:
 
     void perform();
   };
+
+  virtual GetIMSSubscription*
+    create_GetIMSSubscription(const std::string& public_id)
+  {
+    return new GetIMSSubscription(public_id);
+  }
 
   class GetAssociatedPublicIDs : public GetRequest
   {
@@ -641,6 +681,12 @@ public:
 
     void perform();
   };
+
+  virtual GetAssociatedPublicIDs*
+    create_GetAssociatedPublicIDs(const std::string& private_id)
+  {
+    return new GetAssociatedPublicIDs(private_id);
+  }
 
   class GetAuthVector : public GetRequest
   {
@@ -676,6 +722,19 @@ public:
     void perform();
   };
 
+  virtual GetAuthVector*
+    create_GetAuthVector(const std::string& private_id)
+  {
+    return new GetAuthVector(private_id);
+  }
+
+  virtual GetAuthVector*
+    create_GetAuthVector(const std::string& private_id,
+                         const std::string& public_id)
+  {
+    return new GetAuthVector(private_id, public_id);
+  }
+
   class DeletePublicIDs : public DeleteRowsRequest
   {
   public:
@@ -697,6 +756,20 @@ public:
     void perform();
   };
 
+  virtual DeletePublicIDs*
+    create_DeletePublicIDs(const std::string& public_id,
+                           int64_t timestamp)
+  {
+    return new DeletePublicIDs(public_id, timestamp);
+  }
+
+  virtual DeletePublicIDs*
+    create_DeletePublicIDs(const std::vector<std::string>& public_ids,
+                           int64_t timestamp)
+  {
+    return new DeletePublicIDs(public_ids, timestamp);
+  }
+
   class DeletePrivateIDs : public DeleteRowsRequest
   {
   public:
@@ -717,6 +790,20 @@ public:
 
     void perform();
   };
+
+  virtual DeletePrivateIDs*
+    create_DeletePrivateIDs(const std::string& private_id,
+                            int64_t timestamp)
+  {
+    return new DeletePrivateIDs(private_id, timestamp);
+  }
+
+  virtual DeletePrivateIDs*
+    create_DeletePrivateIDs(const std::vector<std::string>& private_ids,
+                            int64_t timestamp)
+  {
+    return new DeletePrivateIDs(private_ids, timestamp);
+  }
 };
 
 #endif
