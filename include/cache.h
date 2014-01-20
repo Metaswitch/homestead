@@ -113,7 +113,7 @@ public:
   static inline Cache* get_instance() { return INSTANCE; }
 
   /// Initialize the cache.
-  void initialize();
+  virtual void initialize();
 
   /// Configure cache settings.
   ///
@@ -124,10 +124,10 @@ public:
   /// @param max_queue the maximum number of requests that can be queued waiting
   ///   for a worker thread.  If more requests are added the call to send() will
   ///   block until some existing requests have been processed.  0 => no limit.
-  void configure(std::string cass_hostname,
-                 uint16_t cass_port,
-                 unsigned int num_threads,
-                 unsigned int max_queue = 0);
+  virtual void configure(std::string cass_hostname,
+                         uint16_t cass_port,
+                         unsigned int num_threads,
+                         unsigned int max_queue = 0);
 
   /// Start the cache.
   ///
@@ -135,16 +135,16 @@ public:
   /// the worker threads.
   ///
   /// @return the result of starting the cache.
-  ResultCode start();
+  virtual ResultCode start();
 
   /// Stop the cache.
   ///
   /// This discards any queued requests and terminates the worker threads once
   /// their current request has completed.
-  void stop();
+  virtual void stop();
 
   /// Wait until the cache has completely stopped.  This method my block.
-  void wait_stopped();
+  virtual void wait_stopped();
 
   /// Generate a timestamp suitable for supplying on cache modification
   /// requests.
@@ -158,7 +158,7 @@ public:
   /// has resolved.
   ///
   /// @param trx transaction containing the request.
-  void send(Transaction* trx);
+  virtual void send(Transaction* trx, Request* req);
 
   /// @class CacheClient
   ///
@@ -223,7 +223,7 @@ private:
   ///
   /// The thread pool used by the cache.  This is a simple subclass of
   /// ThreadPool that also stores a pointer back to the cache.
-  class CacheThreadPool : public ThreadPool<Transaction *>
+  class CacheThreadPool : public ThreadPool<Request *>
   {
   public:
     CacheThreadPool(Cache *cache,
@@ -234,7 +234,7 @@ private:
   private:
     Cache *_cache;
 
-    void process_work(Transaction*&);
+    void process_work(Request*&);
   };
 
   // Thread pool is a friend so that it can call get_client().
@@ -314,37 +314,29 @@ public:
   // To issue a request to the cache a user should:
   // -  Create a subclass of Transaction that implments on_success and
   //    on_failure.
+  // -  Create a new instance of the transaction subclass.
   // -  Select the appropriate request class and create a new instance by
   //    calling create_<RequestType>.  Do not imnstantiate Request classes
   //    directly as this makes the user code impossible to test with mock
   //    requests or a mock cache.
-  // -  Create a new instance of the transaction subclass passing it the request
-  //    object.
-  // -  Call Cache::send, passing in the transaction object.
+  // -  Call Cache::send, passing in the transaction and request.
 
   /// @class Transaction base class for transactions involving the cache.
   class Transaction
   {
   public:
-    /// Constructor.
-    ///
-    /// @param req underlying request object.  The transaction takes ownership
-    /// of this and is responsible for freeing it.
-    Transaction(Request* req);
-    virtual ~Transaction();
+    Transaction() {};
+    virtual ~Transaction() {};
 
-    void run(CacheClientInterface* client);
-
-    virtual void on_success() = 0;
-    virtual void on_failure(ResultCode error, std::string& text) = 0;
-
-  protected:
-    Request* _req;
+    virtual void on_success(Request* req) = 0;
+    virtual void on_failure(Request* req, ResultCode error, std::string& text) = 0;
   };
 
   /// @class Request base class for all cache requests.
   class Request
   {
+    friend class Cache;
+
   public:
     /// Constructor.
     /// @param column_family the column family the request operates on.
@@ -359,8 +351,7 @@ public:
     /// @param client the client to use to interact with the database.
     /// @param trx the parent transaction (which is notified when the request is
     ///   complete).
-    virtual void run(CacheClientInterface* client,
-                     Transaction *trx);
+    virtual void run(CacheClientInterface* client);
 
   protected:
     /// Method that contains the business logic of the request.
