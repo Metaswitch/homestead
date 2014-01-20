@@ -231,7 +231,7 @@ void Cache::delete_client(void *client)
 
 void Cache::send(Cache::Transaction* trx, Cache::Request* req)
 {
-  req->_trx = trx;
+  req->set_trx(trx);
   _thread_pool->add_work(req); req = NULL;
 }
 

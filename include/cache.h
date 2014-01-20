@@ -335,8 +335,6 @@ public:
   /// @class Request base class for all cache requests.
   class Request
   {
-    friend class Cache;
-
   public:
     /// Constructor.
     /// @param column_family the column family the request operates on.
@@ -352,6 +350,9 @@ public:
     /// @param trx the parent transaction (which is notified when the request is
     ///   complete).
     virtual void run(CacheClientInterface* client);
+
+    virtual void set_trx(Transaction* trx) { _trx = trx; }
+    virtual Transaction* get_trx() { return _trx; }
 
   protected:
     /// Method that contains the business logic of the request.
