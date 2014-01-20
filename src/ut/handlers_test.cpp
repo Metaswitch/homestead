@@ -41,6 +41,8 @@
 #include "mockhttpstack.hpp"
 #include "handlers.h"
 
+#include "mockcache.hpp"
+
 TEST(HandlersTest, SimpleMainline)
 {
   MockHttpStack stack;
@@ -50,3 +52,51 @@ TEST(HandlersTest, SimpleMainline)
   handler->run();
   EXPECT_EQ("OK", req.content());
 }
+
+#if 0
+using ::testing::Return;
+using ::testing::SetArgReferee;
+using ::testing::_;
+using ::testing::Invoke;
+using ::testing::WithArgs;
+
+// Transaction that would be implemented in the handlers.
+class ExampleTransaction : public Cache::Transaction
+{
+  void on_success(Cache::Request* req)
+  {
+    std::string xml;
+    dynamic_cast<Cache::GetIMSSubscription*>(req)->get_result(xml);
+    std::cout << "GOT RESULT: " << xml << std::endl;
+  }
+
+  void on_failure(Cache::Request* req, Cache::ResultCode rc, std::string& text)
+  {
+    std::cout << "FAILED:" << std::endl << text << std::endl;
+  }
+};
+
+// Start of the test code.
+TEST(HandlersTest, ExampleTransaction)
+{
+  MockCache cache;
+  MockCache::MockGetIMSSubscription mock_req;
+
+  EXPECT_CALL(cache, create_GetIMSSubscription("kermit"))
+    .WillOnce(Return(&mock_req));
+  EXPECT_CALL(cache, send(_, &mock_req))
+    .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
+  EXPECT_CALL(mock_req, get_result(_))
+    .WillRepeatedly(SetArgReferee<0>("<some boring xml>"));
+
+  // This would be in the code-under-test.
+  ExampleTransaction* tsx = new ExampleTransaction;
+  Cache::Request* req = cache.create_GetIMSSubscription("kermit");
+  cache.send(tsx, req);
+
+  // Back to the test code.
+  Cache::Transaction* t = mock_req.get_trx();
+  ASSERT_FALSE(t == NULL);
+  t->on_success(&mock_req);
+}
+#endif

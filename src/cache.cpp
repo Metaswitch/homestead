@@ -277,7 +277,8 @@ void Cache::CacheThreadPool::process_work(Request* &req)
 //
 
 Cache::Request::Request(const std::string& column_family) :
-  _column_family(column_family)
+  _column_family(column_family),
+  _trx(NULL)
 {}
 
 

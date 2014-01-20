@@ -40,13 +40,13 @@
 #include "gmock/gmock.h"
 #include "cache.h"
 
-const DigestAuthVector mock_digest_av;
+//static const DigestAuthVector mock_digest_av;
 
 class MockCache : public Cache
 {
 public:
-  MockCache();
-  virtual ~MockCache();
+  MockCache() {};
+  virtual ~MockCache() {};
 
   //
   // Initialization / termination methods
@@ -56,11 +56,11 @@ public:
   MOCK_METHOD4(configure, void(std::string cass_hostname,
                                uint16_t cass_port,
                                unsigned int num_threads,
-                               unsigned int max_queue = 0));
+                               unsigned int max_queue));
   MOCK_METHOD0(start, ResultCode());
   MOCK_METHOD0(stop, void());
   MOCK_METHOD0(wait_stopped, void());
-  MOCK_METHOD1(send, void(Transaction* trx, Request* req));
+  MOCK_METHOD2(send, void(Transaction* trx, Request* req));
 
   //
   // Methods that create cache request objects.
@@ -69,22 +69,22 @@ public:
                PutIMSSubscription*(const std::string& public_id,
                                    const std::string& xml,
                                    const int64_t timestamp,
-                                   const int32_t ttl = 0));
+                                   const int32_t ttl));
   MOCK_METHOD4(create_PutIMSSubscription,
                PutIMSSubscription*(std::vector<std::string>& public_ids,
                                    const std::string& xml,
                                    const int64_t timestamp,
-                                   const int32_t ttl = 0));
+                                   const int32_t ttl));
   MOCK_METHOD4(create_PutAssociatedPublicID,
                PutAssociatedPublicID*(const std::string& private_id,
                                       const std::string& assoc_public_id,
                                       const int64_t timestamp,
-                                      const int32_t ttl = 0));
+                                      const int32_t ttl));
   MOCK_METHOD4(create_PutAuthVector,
                PutAuthVector* (const std::string& private_id,
                                const DigestAuthVector& auth_vector,
                                const int64_t timestamp,
-                               const int32_t ttl = 0));
+                               const int32_t ttl));
   MOCK_METHOD1(create_GetIMSSubscription,
                GetIMSSubscription*(const std::string& public_id));
   MOCK_METHOD1(create_GetAssociatedPublicIDs,
@@ -103,7 +103,7 @@ public:
   MOCK_METHOD2(create_DeletePrivateIDs,
                DeletePrivateIDs*(const std::string& private_id,
                                  int64_t timestamp));
-  MOCK_METHOD2(create_DeletePrivateIDs, i
+  MOCK_METHOD2(create_DeletePrivateIDs,
                DeletePrivateIDs*(const std::vector<std::string>& private_ids,
                                  int64_t timestamp));
 
@@ -117,12 +117,10 @@ public:
   // -  The Test creates a MockGetIMSSubscription object.
   //
   // -  The test sets up MockCache to expect create_GetIMSSubscription().
-  //    This checks the parameters and returns the mock object (see also the
-  //    MockCache::expect_request() helper method).
+  //    This checks the parameters and returns the mock object.
   //
   // -  The test sets up MockCache to expect send() with the mock request passed
-  //    in.  This stores the transaction on the mock request (see also the
-  //    MockCache::store_trx() helper method)
+  //    in.  This stores the transaction on the mock request.
   //
   // To generate a response.
   //
@@ -138,19 +136,19 @@ public:
   {
     MockPutIMSSubscription() : PutIMSSubscription("", "", 0) {}
     virtual ~MockPutIMSSubscription() {}
-  }
+  };
 
   class MockPutAssociatedPublicID : public PutAssociatedPublicID
   {
     MockPutAssociatedPublicID() : PutAssociatedPublicID("", "", 0) {}
     virtual ~MockPutAssociatedPublicID() {}
-  }
+  };
 
-  class MockPutAuthVector : public PutAuthVector
-  {
-    MockPutAuthVector() : PutAuthVector("", mock_digest_av, 0) {}
-    virtual ~MockPutAuthVector() {}
-  }
+  //class MockPutAuthVector : public PutAuthVector
+  //{
+   // MockPutAuthVector() : PutAuthVector("", mock_digest_av, 0) {}
+    //virtual ~MockPutAuthVector() {}
+  //};
 
   class MockGetIMSSubscription : public GetIMSSubscription
   {
@@ -158,7 +156,7 @@ public:
     virtual ~MockGetIMSSubscription() {}
 
     MOCK_METHOD1(get_result, void(std::string& xml));
-  }
+  };
 
   class MockGetAssociatedPublicIDs : public GetAssociatedPublicIDs
   {
@@ -166,7 +164,7 @@ public:
     virtual ~MockGetAssociatedPublicIDs() {}
 
     MOCK_METHOD1(get_result, void(std::vector<std::string>& public_ids));
-  }
+  };
 
   class MockGetAuthVector : public GetAuthVector
   {
@@ -174,19 +172,19 @@ public:
     virtual ~MockGetAuthVector() {}
 
     MOCK_METHOD1(get_result, void(DigestAuthVector& av));
-  }
+  };
 
   class MockDeletePublicIDs : public DeletePublicIDs
   {
     MockDeletePublicIDs() : DeletePublicIDs("", 0) {}
     virtual ~MockDeletePublicIDs() {}
-  }
+  };
 
   class MockDeletePrivateIDs : public DeletePrivateIDs
   {
     MockDeletePrivateIDs() : DeletePrivateIDs("", 0) {}
     virtual ~MockDeletePrivateIDs() {}
-  }
+  };
 };
 
 #endif
