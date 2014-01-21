@@ -509,7 +509,6 @@ RegistrationTerminationAnswer::RegistrationTerminationAnswer(Diameter::Message& 
                                                              Diameter::Message(msg)
 {
   LOG_DEBUG("Sending Registration-Termination Answer");
-  add_new_session_id();
   add_vendor_spec_app_id();
   add(Diameter::AVP(dict->RESULT_CODE).val_i32(result_code));
   add(Diameter::AVP(dict->AUTH_SESSION_STATE).val_i32(auth_session_state));
@@ -617,7 +616,6 @@ PushProfileAnswer::PushProfileAnswer(Diameter::Message& msg,
 
 {
   LOG_DEBUG("Sending Push-Profile Answer");
-  add_new_session_id();
   add_vendor_spec_app_id();
   add(Diameter::AVP(dict->RESULT_CODE).val_i32(result_code));
   add(Diameter::AVP(dict->AUTH_SESSION_STATE).val_i32(auth_session_state));

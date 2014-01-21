@@ -422,25 +422,3 @@ TEST_F(CxTest, LIRNoOptionalParamsTest)
   EXPECT_EQ(IMPU, test_str);
   EXPECT_NE(true, lir.auth_type(&test_i32));
 }
-
-TEST_F(CxTest, RTATest)
-{
-  Cx::RegistrationTerminationAnswer rta(_cx_dict,
-                                        RESULT_CODE,
-                                        AUTH_SESSION_STATE,
-                                        IMPIS);
-  Diameter::Message msg = launder_message(rta);
-  rta = Cx::RegistrationTerminationAnswer(msg);
-  check_common_answer_fields(rta);
-  EXPECT_EQ(IMPIS, rta.associated_identities());
-}
-
-TEST_F(CxTest, PPATest)
-{
-  Cx::PushProfileAnswer ppa(_cx_dict,
-                            RESULT_CODE,
-                            AUTH_SESSION_STATE);
-  Diameter::Message msg = launder_message(ppa);
-  ppa = Cx::PushProfileAnswer(msg);
-  check_common_answer_fields(ppa);
-}
