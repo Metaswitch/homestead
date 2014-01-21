@@ -710,11 +710,11 @@ void RegistrationTerminationHandler::run()
   _impus = rtr.impus();
   if (_impus.empty())
   {
-    Cache::Request* get_public_ids = new Cache::GetAssociatedPublicIDs(_impis);
-    CacheTransaction<RegistrationTerminationHandler>* tsx = new CacheTransaction<RegistrationTerminationHandler>(get_public_ids, this);
+    Cache::Request* get_public_ids = HssCacheHandler::_cache->create_GetAssociatedPublicIDs(_impis);
+    CacheTransaction<RegistrationTerminationHandler>* tsx = new CacheTransaction<RegistrationTerminationHandler>(this);
     tsx->set_success_clbk(&RegistrationTerminationHandler::delete_identities);
     tsx->set_failure_clbk(&RegistrationTerminationHandler::on_cache_failure);
-    HssCacheHandler::_cache->send(tsx);
+    HssCacheHandler::_cache->send(tsx, get_public_ids);
   }
   else
   {
@@ -729,12 +729,12 @@ void RegistrationTerminationHandler::delete_identities(Cache::Request* request)
     Cache::GetAssociatedPublicIDs* get_public_ids = (Cache::GetAssociatedPublicIDs*)request;
     get_public_ids->get_result(_impus);
   }
-  Cache::Request* delete_public_ids = new Cache::DeletePublicIDs(_impus, Cache::generate_timestamp());
-  CacheTransaction<RegistrationTerminationHandler>* public_ids_tsx = new CacheTransaction<RegistrationTerminationHandler>(delete_public_ids, this);
-  HssCacheHandler::_cache->send(public_ids_tsx);
-  Cache::Request* delete_private_ids = new Cache::DeletePrivateIDs(_impis, Cache::generate_timestamp());
-  CacheTransaction<RegistrationTerminationHandler>* private_ids_tsx = new CacheTransaction<RegistrationTerminationHandler>(delete_private_ids, this);
-  HssCacheHandler::_cache->send(private_ids_tsx);
+  Cache::Request* delete_public_ids = HssCacheHandler::_cache->create_DeletePublicIDs(_impus, Cache::generate_timestamp());
+  CacheTransaction<RegistrationTerminationHandler>* public_ids_tsx = new CacheTransaction<RegistrationTerminationHandler>(this);
+  HssCacheHandler::_cache->send(public_ids_tsx, delete_public_ids);
+  Cache::Request* delete_private_ids = HssCacheHandler::_cache->create_DeletePrivateIDs(_impis, Cache::generate_timestamp());
+  CacheTransaction<RegistrationTerminationHandler>* private_ids_tsx = new CacheTransaction<RegistrationTerminationHandler>(this);
+  HssCacheHandler::_cache->send(private_ids_tsx, delete_private_ids);
 
   Cx::RegistrationTerminationRequest rtr(_msg);
   int auth_session_state;
@@ -771,17 +771,17 @@ void PushProfileHandler::run()
   digest_auth_vector = ppr.digest_auth_vector();
   if ((!impi.empty()) && (!digest_auth_vector.ha1.empty()))
   {
-    Cache::Request* put_auth_vector = new Cache::PutAuthVector(impi, digest_auth_vector, Cache::generate_timestamp(), _cfg->impu_cache_ttl);
-    CacheTransaction<PushProfileHandler>* tsx = new CacheTransaction<PushProfileHandler>(put_auth_vector, NULL);
-    HssCacheHandler::_cache->send(tsx);
+    Cache::Request* put_auth_vector = HssCacheHandler::_cache->create_PutAuthVector(impi, digest_auth_vector, Cache::generate_timestamp(), _cfg->impu_cache_ttl);
+    CacheTransaction<PushProfileHandler>* tsx = new CacheTransaction<PushProfileHandler>(NULL);
+    HssCacheHandler::_cache->send(tsx, put_auth_vector);
   }
   std::string user_data;
   if (ppr.user_data(&user_data))
   {
     std::vector<std::string> impus = get_public_ids(user_data);
-    Cache::Request* put_ims_subscription = new Cache::PutIMSSubscription(impus, user_data, Cache::generate_timestamp(), _cfg->ims_sub_cache_ttl);
-    CacheTransaction<PushProfileHandler>* tsx = new CacheTransaction<PushProfileHandler>(put_ims_subscription, NULL);
-    HssCacheHandler::_cache->send(tsx);
+    Cache::Request* put_ims_subscription = HssCacheHandler::_cache->create_PutIMSSubscription(impus, user_data, Cache::generate_timestamp(), _cfg->ims_sub_cache_ttl);
+    CacheTransaction<PushProfileHandler>* tsx = new CacheTransaction<PushProfileHandler>(NULL);
+    HssCacheHandler::_cache->send(tsx, put_ims_subscription);
   }
 
   int auth_session_state;

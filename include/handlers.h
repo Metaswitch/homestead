@@ -166,6 +166,11 @@ public:
     _failure_clbk = fun;
   }
 
+protected:
+  H* _handler;
+  success_clbk_t _success_clbk;
+  failure_clbk_t _failure_clbk;
+
   void on_success(Cache::Request* req)
   {
     if ((_handler != NULL) && (_success_clbk != NULL))
@@ -175,8 +180,8 @@ public:
   }
 
   void on_failure(Cache::Request* req,
-                  Cache::ResultCode error,
-                  std::string& text)
+      Cache::ResultCode error,
+      std::string& text)
   {
     if ((_handler != NULL) && (_failure_clbk != NULL))
     {

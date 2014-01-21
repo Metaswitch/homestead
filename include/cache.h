@@ -699,6 +699,12 @@ public:
     return new GetAssociatedPublicIDs(private_id);
   }
 
+  virtual GetAssociatedPublicIDs*
+    create_GetAssociatedPublicIDs(const std::vector<std::string>& private_ids)
+  {
+    return new GetAssociatedPublicIDs(private_ids);
+  }
+
   class GetAuthVector : public GetRequest
   {
   public:
