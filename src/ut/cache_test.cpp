@@ -52,7 +52,7 @@ using ::testing::MakeMatcher;
 using ::testing::Matcher;
 using ::testing::MatcherInterface;
 using ::testing::MatchResultListener;
-using ::testing::InvokeWithoutArgs;
+using ::testing::Invoke;
 using ::testing::AllOf;
 using ::testing::Gt;
 using ::testing::Lt;
@@ -94,8 +94,8 @@ public:
 class TestTransaction : public Cache::Transaction
 {
 public:
-  TestTransaction(Cache::Request* req, sem_t* sem) :
-    Cache::Transaction(req), _sem(sem)
+  TestTransaction(sem_t* sem) :
+    Cache::Transaction(), _sem(sem)
   {}
 
   virtual ~TestTransaction()
@@ -103,8 +103,10 @@ public:
     sem_post(_sem);
   }
 
-  MOCK_METHOD0(on_success, void());
-  MOCK_METHOD2(on_failure, void(Cache::ResultCode error, std::string& text));
+  MOCK_METHOD1(on_success, void(Cache::Request*req));
+  MOCK_METHOD3(on_failure, void(Cache::Request* req,
+                                Cache::ResultCode error,
+                                std::string& text));
 
 private:
   sem_t* _sem;
@@ -140,18 +142,17 @@ public:
 class RecordingTransaction : public TestTransaction
 {
 public:
-  RecordingTransaction(Cache::Request* req,
-                       sem_t* sem,
+  RecordingTransaction(sem_t* sem,
                        ResultRecorderInterface* recorder) :
-    TestTransaction(req, sem),
+    TestTransaction(sem),
     _recorder(recorder)
   {}
 
   virtual ~RecordingTransaction() {}
 
-  void record_result()
+  void record_result(Cache::Request* req)
   {
-    _recorder->save(_req);
+    _recorder->save(req);
   }
 
 private:
@@ -204,15 +205,14 @@ public:
   // Helper methods to make a TestTransaction or RecordingTransation. This
   // passes the semaphore into the transaction constructor - this is posted to
   // when the transaction completes.
-  TestTransaction* make_trx(Cache::Request* req)
+  TestTransaction* make_trx()
   {
-    return new TestTransaction(req, &_sem);
+    return new TestTransaction(&_sem);
   }
 
-  RecordingTransaction* make_rec_trx(Cache::Request* req,
-                                     ResultRecorderInterface *recorder)
+  RecordingTransaction* make_rec_trx(ResultRecorderInterface *recorder)
   {
-    return new RecordingTransaction(req, &_sem, recorder);
+    return new RecordingTransaction(&_sem, recorder);
   }
 
   // Wait for a single request to finish.  This method asserts if the request
@@ -231,10 +231,10 @@ public:
   }
 
   // Helper method to send a transaction and wait for it to succeed.
-  void do_successful_trx(TestTransaction* trx)
+  void do_successful_trx(TestTransaction* trx, Cache::Request* req)
   {
-    EXPECT_CALL(*trx, on_success());
-    _cache.send(trx);
+    EXPECT_CALL(*trx, on_success(_));
+    _cache.send(trx, req);
     wait();
   }
 
@@ -609,30 +609,34 @@ TEST_F(CacheInitializationTest, UnknownException)
 
 TEST_F(CacheRequestTest, PutIMSSubscriptionMainline)
 {
-  TestTransaction *trx = make_trx(
-    new Cache::PutIMSSubscription("kermit", "<xml>", 1000, 300));
+  TestTransaction *trx = make_trx();
+  Cache::Request* req =
+    _cache.create_PutIMSSubscription("kermit", "<xml>", 1000, 300);
 
   std::map<std::string, std::string> columns;
   columns["ims_subscription_xml"] = "<xml>";
 
   EXPECT_CALL(_client,
-              batch_mutate(MutationMap("impu", "kermit", columns, 1000, 300), _));
+              batch_mutate(
+                MutationMap("impu", "kermit", columns, 1000, 300), _));
 
-  do_successful_trx(trx);
+  do_successful_trx(trx, req);
 }
 
 
 TEST_F(CacheRequestTest, NoTTLOnPut)
 {
-  TestTransaction *trx = make_trx(
-    new Cache::PutIMSSubscription("kermit", "<xml>", 1000));
+  TestTransaction *trx = make_trx();
+  Cache::Request* req =
+    _cache.create_PutIMSSubscription("kermit", "<xml>", 1000);
 
   std::map<std::string, std::string> columns;
   columns["ims_subscription_xml"] = "<xml>";
 
-  EXPECT_CALL(_client, batch_mutate(MutationMap("impu", "kermit", columns, 1000), _));
+  EXPECT_CALL(_client, batch_mutate(
+                         MutationMap("impu", "kermit", columns, 1000), _));
 
-  do_successful_trx(trx);
+  do_successful_trx(trx, req);
 }
 
 
@@ -642,96 +646,104 @@ TEST_F(CacheRequestTest, PutIMSSubMultipleIDs)
   ids.push_back("kermit");
   ids.push_back("miss piggy");
 
-  TestTransaction *trx = make_trx(
-    new Cache::PutIMSSubscription(ids, "<xml>", 1000));
+  TestTransaction *trx = make_trx();
+  Cache::Request* req =
+    _cache.create_PutIMSSubscription(ids, "<xml>", 1000);
 
   std::map<std::string, std::string> columns;
   columns["ims_subscription_xml"] = "<xml>";
 
-  EXPECT_CALL(_client, batch_mutate(MutationMap("impu", ids, columns, 1000), _));
+  EXPECT_CALL(_client, batch_mutate(
+                         MutationMap("impu", ids, columns, 1000), _));
 
-  do_successful_trx(trx);
+  do_successful_trx(trx, req);
 }
 
 
 TEST_F(CacheRequestTest, PutTransportEx)
 {
-  TestTransaction *trx = make_trx(
-    new Cache::PutIMSSubscription("kermit", "<xml>", 1000));
+  TestTransaction *trx = make_trx();
+  Cache::Request* req =
+    _cache.create_PutIMSSubscription("kermit", "<xml>", 1000);
 
   apache::thrift::transport::TTransportException te;
   EXPECT_CALL(_client, batch_mutate(_, _)).WillOnce(Throw(te));
 
-  EXPECT_CALL(*trx, on_failure(Cache::CONNECTION_ERROR, _));
-  _cache.send(trx);
+  EXPECT_CALL(*trx, on_failure(_, Cache::CONNECTION_ERROR, _));
+  _cache.send(trx, req);
   wait();
 }
 
 
 TEST_F(CacheRequestTest, PutInvalidRequestException)
 {
-  TestTransaction *trx = make_trx(
-    new Cache::PutIMSSubscription("kermit", "<xml>", 1000));
+  TestTransaction *trx = make_trx();
+  Cache::Request* req =
+    _cache.create_PutIMSSubscription("kermit", "<xml>", 1000);
 
   cass::InvalidRequestException ire;
   EXPECT_CALL(_client, batch_mutate(_, _)).WillOnce(Throw(ire));
 
-  EXPECT_CALL(*trx, on_failure(Cache::INVALID_REQUEST, _));
-  _cache.send(trx);
+  EXPECT_CALL(*trx, on_failure(_, Cache::INVALID_REQUEST, _));
+  _cache.send(trx, req);
   wait();
 }
 
 
 TEST_F(CacheRequestTest, PutNotFoundException)
 {
-  TestTransaction *trx = make_trx(
-    new Cache::PutIMSSubscription("kermit", "<xml>", 1000));
+  TestTransaction *trx = make_trx();
+  Cache::Request* req =
+    _cache.create_PutIMSSubscription("kermit", "<xml>", 1000);
 
   cass::NotFoundException nfe;
   EXPECT_CALL(_client, batch_mutate(_, _)).WillOnce(Throw(nfe));
 
-  EXPECT_CALL(*trx, on_failure(Cache::NOT_FOUND, _));
-  _cache.send(trx);
+  EXPECT_CALL(*trx, on_failure(_, Cache::NOT_FOUND, _));
+  _cache.send(trx, req);
   wait();
 }
 
 
 TEST_F(CacheRequestTest, PutRowNotFoundException)
 {
-  TestTransaction *trx = make_trx(
-    new Cache::PutIMSSubscription("kermit", "<xml>", 1000));
+  TestTransaction *trx = make_trx();
+  Cache::Request* req =
+    _cache.create_PutIMSSubscription("kermit", "<xml>", 1000);
 
   Cache::RowNotFoundException rnfe("muppets", "kermit");
   EXPECT_CALL(_client, batch_mutate(_, _)).WillOnce(Throw(rnfe));
 
-  EXPECT_CALL(*trx, on_failure(Cache::NOT_FOUND, _));
-  _cache.send(trx);
+  EXPECT_CALL(*trx, on_failure(_, Cache::NOT_FOUND, _));
+  _cache.send(trx, req);
   wait();
 }
 
 
 TEST_F(CacheRequestTest, PutUnknownException)
 {
-  TestTransaction *trx = make_trx(
-    new Cache::PutIMSSubscription("kermit", "<xml>", 1000));
+  TestTransaction *trx = make_trx();
+  Cache::Request* req =
+    _cache.create_PutIMSSubscription("kermit", "<xml>", 1000);
 
   std::string ex("Made up exception");
   EXPECT_CALL(_client, batch_mutate(_, _)).WillOnce(Throw(ex));
 
-  EXPECT_CALL(*trx, on_failure(Cache::UNKNOWN_ERROR, _));
-  _cache.send(trx);
+  EXPECT_CALL(*trx, on_failure(_, Cache::UNKNOWN_ERROR, _));
+  _cache.send(trx, req);
   wait();
 }
 
 
 TEST_F(CacheRequestTest, PutsHaveConsistencyLevelOne)
 {
-  TestTransaction *trx = make_trx(
-    new Cache::PutIMSSubscription("kermit", "<xml>", 1000, 300));
+  TestTransaction *trx = make_trx();
+  Cache::Request* req =
+    _cache.create_PutIMSSubscription("kermit", "<xml>", 1000, 300);
 
   EXPECT_CALL(_client, batch_mutate(_, cass::ConsistencyLevel::ONE));
 
-  do_successful_trx(trx);
+  do_successful_trx(trx, req);
 }
 
 
@@ -743,8 +755,9 @@ TEST_F(CacheRequestTest, PutAuthVectorMainline)
   av.qop = "auth";
   av.preferred = true;
 
-  TestTransaction *trx = make_trx(
-    new Cache::PutAuthVector("gonzo", av, 1000));
+  TestTransaction *trx = make_trx();
+  Cache::Request* req =
+    _cache.create_PutAuthVector("gonzo", av, 1000);
 
   std::map<std::string, std::string> columns;
   columns["digest_ha1"] = av.ha1;
@@ -755,14 +768,15 @@ TEST_F(CacheRequestTest, PutAuthVectorMainline)
   EXPECT_CALL(_client,
               batch_mutate(MutationMap("impi", "gonzo", columns, 1000), _));
 
-  do_successful_trx(trx);
+  do_successful_trx(trx, req);
 }
 
 
 TEST_F(CacheRequestTest, PutAsoocPublicIdMainline)
 {
-  TestTransaction *trx = make_trx(
-    new Cache::PutAssociatedPublicID("gonzo", "kermit", 1000));
+  TestTransaction *trx = make_trx();
+  Cache::Request* req =
+    _cache.create_PutAssociatedPublicID("gonzo", "kermit", 1000);
 
   std::map<std::string, std::string> columns;
   columns["public_id_kermit"] = "";
@@ -770,19 +784,23 @@ TEST_F(CacheRequestTest, PutAsoocPublicIdMainline)
   EXPECT_CALL(_client,
               batch_mutate(MutationMap("impi", "gonzo", columns, 1000), _));
 
-  do_successful_trx(trx);
+  do_successful_trx(trx, req);
 }
 
 
 TEST_F(CacheRequestTest, DeletePublicId)
 {
-  TestTransaction *trx = make_trx(
-    new Cache::DeletePublicIDs("kermit", 1000));
+  TestTransaction *trx = make_trx();
+  Cache::Request* req =
+    _cache.create_DeletePublicIDs("kermit", 1000);
 
   EXPECT_CALL(_client,
-              remove("kermit", ColumnPathForTable("impu"), 1000, cass::ConsistencyLevel::ONE));
+              remove("kermit",
+                     ColumnPathForTable("impu"),
+                     1000,
+                     cass::ConsistencyLevel::ONE));
 
-  do_successful_trx(trx);
+  do_successful_trx(trx, req);
 }
 
 
@@ -793,21 +811,23 @@ TEST_F(CacheRequestTest, DeleteMultiPublicIds)
   ids.push_back("gonzo");
   ids.push_back("miss piggy");
 
-  TestTransaction *trx = make_trx(
-    new Cache::DeletePublicIDs(ids, 1000));
+  TestTransaction *trx = make_trx();
+  Cache::Request* req =
+    _cache.create_DeletePublicIDs(ids, 1000);
 
   EXPECT_CALL(_client, remove("kermit", ColumnPathForTable("impu"), _, _));
   EXPECT_CALL(_client, remove("gonzo", ColumnPathForTable("impu"), _, _));
   EXPECT_CALL(_client, remove("miss piggy", ColumnPathForTable("impu"), _, _));
 
-  do_successful_trx(trx);
+  do_successful_trx(trx, req);
 }
 
 
 TEST_F(CacheRequestTest, DeletePrivateId)
 {
-  TestTransaction *trx = make_trx(
-    new Cache::DeletePrivateIDs("kermit", 1000));
+  TestTransaction *trx = make_trx();
+  Cache::Request* req =
+    _cache.create_DeletePrivateIDs("kermit", 1000);
 
   EXPECT_CALL(_client,
               remove("kermit",
@@ -815,7 +835,7 @@ TEST_F(CacheRequestTest, DeletePrivateId)
                      1000,
                      cass::ConsistencyLevel::ONE));
 
-  do_successful_trx(trx);
+  do_successful_trx(trx, req);
 }
 
 
@@ -826,25 +846,27 @@ TEST_F(CacheRequestTest, DeleteMultiPrivateIds)
   ids.push_back("gonzo");
   ids.push_back("miss piggy");
 
-  TestTransaction *trx = make_trx(
-    new Cache::DeletePrivateIDs(ids, 1000));
+  TestTransaction *trx = make_trx();
+  Cache::Request* req =
+    _cache.create_DeletePrivateIDs(ids, 1000);
 
   EXPECT_CALL(_client, remove("kermit", ColumnPathForTable("impi"), _, _));
   EXPECT_CALL(_client, remove("gonzo", ColumnPathForTable("impi"), _, _));
   EXPECT_CALL(_client, remove("miss piggy", ColumnPathForTable("impi"), _, _));
 
-  do_successful_trx(trx);
+  do_successful_trx(trx, req);
 }
 
 
 TEST_F(CacheRequestTest, DeletesHaveConsistencyLevelOne)
 {
-  TestTransaction *trx = make_trx(
-    new Cache::DeletePublicIDs("kermit", 1000));
+  TestTransaction *trx = make_trx();
+  Cache::Request* req =
+    _cache.create_DeletePublicIDs("kermit", 1000);
 
   EXPECT_CALL(_client, remove(_, _, _, cass::ConsistencyLevel::ONE));
 
-  do_successful_trx(trx);
+  do_successful_trx(trx, req);
 }
 
 
@@ -861,8 +883,8 @@ TEST_F(CacheRequestTest, GetIMSSubscriptionMainline)
   make_slice(slice, columns);
 
   ResultRecorder<Cache::GetIMSSubscription, std::string> rec;
-  RecordingTransaction* trx = make_rec_trx(new Cache::GetIMSSubscription("kermit"),
-                                           &rec);
+  RecordingTransaction* trx = make_rec_trx(&rec);
+  Cache::Request *req = _cache.create_GetIMSSubscription("kermit");
 
   EXPECT_CALL(_client, get_slice(_,
                                  "kermit",
@@ -871,9 +893,9 @@ TEST_F(CacheRequestTest, GetIMSSubscriptionMainline)
                                  _))
     .WillOnce(SetArgReferee<0>(slice));
 
-  EXPECT_CALL(*trx, on_success())
-    .WillOnce(InvokeWithoutArgs(trx, &RecordingTransaction::record_result));
-  _cache.send(trx);
+  EXPECT_CALL(*trx, on_success(_))
+    .WillOnce(Invoke(trx, &RecordingTransaction::record_result));
+  _cache.send(trx, req);
   wait();
 
   EXPECT_EQ("<howdy>", rec.result);
@@ -882,13 +904,15 @@ TEST_F(CacheRequestTest, GetIMSSubscriptionMainline)
 
 TEST_F(CacheRequestTest, GetIMSSubscriptionNotFound)
 {
-  TestTransaction* trx = make_trx(new Cache::GetIMSSubscription("kermit"));
+  TestTransaction* trx = make_trx();
+  Cache::Request* req =
+    _cache.create_GetIMSSubscription("kermit");
 
   EXPECT_CALL(_client, get_slice(_, "kermit", _, _, _))
     .WillOnce(SetArgReferee<0>(empty_slice));
 
-  EXPECT_CALL(*trx, on_failure(Cache::NOT_FOUND, _));
-  _cache.send(trx);
+  EXPECT_CALL(*trx, on_failure(_, Cache::NOT_FOUND, _));
+  _cache.send(trx, req);
   wait();
 }
 
@@ -911,8 +935,8 @@ TEST_F(CacheRequestTest, GetAuthVectorAllColsReturned)
   make_slice(slice, columns);
 
   ResultRecorder<Cache::GetAuthVector, DigestAuthVector> rec;
-  RecordingTransaction* trx = make_rec_trx(new Cache::GetAuthVector("kermit"),
-                                           &rec);
+  RecordingTransaction* trx = make_rec_trx(&rec);
+  Cache::Request* req = _cache.create_GetAuthVector("kermit");
 
   EXPECT_CALL(_client, get_slice(_,
                                  "kermit",
@@ -921,9 +945,9 @@ TEST_F(CacheRequestTest, GetAuthVectorAllColsReturned)
                                  _))
     .WillOnce(SetArgReferee<0>(slice));
 
-  EXPECT_CALL(*trx, on_success())
-    .WillOnce(InvokeWithoutArgs(trx, &RecordingTransaction::record_result));
-  _cache.send(trx);
+  EXPECT_CALL(*trx, on_success(_))
+    .WillOnce(Invoke(trx, &RecordingTransaction::record_result));
+  _cache.send(trx, req);
   wait();
 
   EXPECT_EQ("somehash", rec.result.ha1);
@@ -942,15 +966,15 @@ TEST_F(CacheRequestTest, GetAuthVectorNonDefaultableColsReturned)
   make_slice(slice, columns);
 
   ResultRecorder<Cache::GetAuthVector, DigestAuthVector> rec;
-  RecordingTransaction* trx = make_rec_trx(new Cache::GetAuthVector("kermit"),
-                                           &rec);
+  RecordingTransaction* trx = make_rec_trx(&rec);
+  Cache::Request* req = _cache.create_GetAuthVector("kermit");
 
   EXPECT_CALL(_client, get_slice(_, _, _, _, _))
     .WillOnce(SetArgReferee<0>(slice));
 
-  EXPECT_CALL(*trx, on_success())
-    .WillOnce(InvokeWithoutArgs(trx, &RecordingTransaction::record_result));
-  _cache.send(trx);
+  EXPECT_CALL(*trx, on_success(_))
+    .WillOnce(Invoke(trx, &RecordingTransaction::record_result));
+  _cache.send(trx, req);
   wait();
 
   EXPECT_EQ("somehash", rec.result.ha1);
@@ -971,14 +995,14 @@ TEST_F(CacheRequestTest, GetAuthVectorHa1NotReturned)
   make_slice(slice, columns);
 
   ResultRecorder<Cache::GetAuthVector, DigestAuthVector> rec;
-  RecordingTransaction* trx = make_rec_trx(new Cache::GetAuthVector("kermit"),
-                                           &rec);
+  RecordingTransaction* trx = make_rec_trx(&rec);
+  Cache::Request* req = _cache.create_GetAuthVector("kermit");
 
   EXPECT_CALL(_client, get_slice(_, _, _, _, _))
     .WillOnce(SetArgReferee<0>(slice));
 
-  EXPECT_CALL(*trx, on_failure(Cache::NOT_FOUND, _));
-  _cache.send(trx);
+  EXPECT_CALL(*trx, on_failure(_, Cache::NOT_FOUND, _));
+  _cache.send(trx, req);
   wait();
 }
 
@@ -986,14 +1010,14 @@ TEST_F(CacheRequestTest, GetAuthVectorHa1NotReturned)
 TEST_F(CacheRequestTest, GetAuthVectorNoColsReturned)
 {
   ResultRecorder<Cache::GetAuthVector, DigestAuthVector> rec;
-  RecordingTransaction* trx = make_rec_trx(new Cache::GetAuthVector("kermit"),
-                                           &rec);
+  RecordingTransaction* trx = make_rec_trx(&rec);
+  Cache::Request* req = _cache.create_GetAuthVector("kermit");
 
   EXPECT_CALL(_client, get_slice(_, _, _, _, _))
     .WillOnce(SetArgReferee<0>(empty_slice));
 
-  EXPECT_CALL(*trx, on_failure(Cache::NOT_FOUND, _));
-  _cache.send(trx);
+  EXPECT_CALL(*trx, on_failure(_, Cache::NOT_FOUND, _));
+  _cache.send(trx, req);
   wait();
 }
 
@@ -1018,8 +1042,8 @@ TEST_F(CacheRequestTest, GetAuthVectorPublicIdRequested)
   make_slice(slice, columns);
 
   ResultRecorder<Cache::GetAuthVector, DigestAuthVector> rec;
-  RecordingTransaction* trx = make_rec_trx(
-    new Cache::GetAuthVector("kermit", "gonzo"), &rec);
+  RecordingTransaction* trx = make_rec_trx(&rec);
+  Cache::Request *req = _cache.create_GetAuthVector("kermit", "gonzo");
 
   EXPECT_CALL(_client, get_slice(_,
                                  "kermit",
@@ -1028,9 +1052,9 @@ TEST_F(CacheRequestTest, GetAuthVectorPublicIdRequested)
                                  _))
     .WillOnce(SetArgReferee<0>(slice));
 
-  EXPECT_CALL(*trx, on_success())
-    .WillOnce(InvokeWithoutArgs(trx, &RecordingTransaction::record_result));
-  _cache.send(trx);
+  EXPECT_CALL(*trx, on_success(_))
+    .WillOnce(Invoke(trx, &RecordingTransaction::record_result));
+  _cache.send(trx, req);
   wait();
 
   EXPECT_EQ("somehash", rec.result.ha1);
@@ -1052,14 +1076,14 @@ TEST_F(CacheRequestTest, GetAuthVectorPublicIdRequestedNotReturned)
   make_slice(slice, columns);
 
   ResultRecorder<Cache::GetAuthVector, DigestAuthVector> rec;
-  RecordingTransaction* trx = make_rec_trx(
-    new Cache::GetAuthVector("kermit", "gonzo"), &rec);
+  RecordingTransaction* trx = make_rec_trx(&rec);
+  Cache::Request *req = _cache.create_GetAuthVector("kermit", "gonzo");
 
   EXPECT_CALL(_client, get_slice(_, _, _, _, _))
     .WillOnce(SetArgReferee<0>(slice));
 
-  EXPECT_CALL(*trx, on_failure(Cache::NOT_FOUND, _));
-  _cache.send(trx);
+  EXPECT_CALL(*trx, on_failure(_, Cache::NOT_FOUND, _));
+  _cache.send(trx, req);
   wait();
 }
 
@@ -1074,8 +1098,8 @@ TEST_F(CacheRequestTest, GetAssocPublicIDsMainline)
   make_slice(slice, columns);
 
   ResultRecorder<Cache::GetAssociatedPublicIDs, std::vector<std::string>> rec;
-  RecordingTransaction* trx = make_rec_trx(
-    new Cache::GetAssociatedPublicIDs("kermit"), &rec);
+  RecordingTransaction* trx = make_rec_trx(&rec);
+  Cache::Request* req = _cache.create_GetAssociatedPublicIDs("kermit");
 
   EXPECT_CALL(_client,
               get_slice(_,
@@ -1085,9 +1109,9 @@ TEST_F(CacheRequestTest, GetAssocPublicIDsMainline)
                         _))
     .WillOnce(SetArgReferee<0>(slice));
 
-  EXPECT_CALL(*trx, on_success())
-    .WillOnce(InvokeWithoutArgs(trx, &RecordingTransaction::record_result));
-  _cache.send(trx);
+  EXPECT_CALL(*trx, on_success(_))
+    .WillOnce(Invoke(trx, &RecordingTransaction::record_result));
+  _cache.send(trx, req);
   wait();
 
   std::vector<std::string> expected_ids;
@@ -1151,15 +1175,15 @@ TEST_F(CacheRequestTest, GetAssocPublicIDsMultipleIDs)
 TEST_F(CacheRequestTest, GetAssocPublicIDsNoResults)
 {
   ResultRecorder<Cache::GetAssociatedPublicIDs, std::vector<std::string>> rec;
-  RecordingTransaction* trx = make_rec_trx(
-    new Cache::GetAssociatedPublicIDs("kermit"), &rec);
+  RecordingTransaction* trx = make_rec_trx(&rec);
+  Cache::Request* req = _cache.create_GetAssociatedPublicIDs("kermit");
 
   EXPECT_CALL(_client, get_slice(_, "kermit", _, _, _))
     .WillOnce(SetArgReferee<0>(empty_slice));
 
   // GetAssociatedPublicIDs fires on_failure if there are no associated IDs.
-  EXPECT_CALL(*trx, on_failure(Cache::NOT_FOUND, _));
-  _cache.send(trx);
+  EXPECT_CALL(*trx, on_failure(_, Cache::NOT_FOUND, _));
+  _cache.send(trx, req);
   wait();
 }
 
@@ -1176,8 +1200,9 @@ TEST_F(CacheRequestTest, HaGetMainline)
   make_slice(slice, columns);
 
   ResultRecorder<Cache::GetIMSSubscription, std::string> rec;
-  RecordingTransaction* trx = make_rec_trx(new Cache::GetIMSSubscription("kermit"),
-                                           &rec);
+  RecordingTransaction* trx = make_rec_trx(&rec);
+  Cache::Request* req = _cache.create_GetIMSSubscription("kermit");
+
   cass::NotFoundException nfe;
   EXPECT_CALL(_client, get_slice(_,
                                  "kermit",
@@ -1192,9 +1217,9 @@ TEST_F(CacheRequestTest, HaGetMainline)
                                  cass::ConsistencyLevel::QUORUM))
     .WillOnce(SetArgReferee<0>(slice));
 
-  EXPECT_CALL(*trx, on_success())
-    .WillOnce(InvokeWithoutArgs(trx, &RecordingTransaction::record_result));
-  _cache.send(trx);
+  EXPECT_CALL(*trx, on_success(_))
+    .WillOnce(Invoke(trx, &RecordingTransaction::record_result));
+  _cache.send(trx, req);
   wait();
 
   EXPECT_EQ("<howdy>", rec.result);
@@ -1213,8 +1238,9 @@ TEST_F(CacheRequestTest, HaGet2ndReadNotFoundException)
   make_slice(slice, columns);
 
   ResultRecorder<Cache::GetIMSSubscription, std::string> rec;
-  RecordingTransaction* trx = make_rec_trx(new Cache::GetIMSSubscription("kermit"),
-                                           &rec);
+  RecordingTransaction* trx = make_rec_trx(&rec);
+  Cache::Request* req = _cache.create_GetIMSSubscription("kermit");
+
   cass::NotFoundException nfe;
   EXPECT_CALL(_client, get_slice(_, _, _, _,
                                  cass::ConsistencyLevel::ONE))
@@ -1223,8 +1249,8 @@ TEST_F(CacheRequestTest, HaGet2ndReadNotFoundException)
                                  cass::ConsistencyLevel::QUORUM))
     .WillOnce(Throw(nfe));
 
-  EXPECT_CALL(*trx, on_failure(Cache::NOT_FOUND, _));
-  _cache.send(trx);
+  EXPECT_CALL(*trx, on_failure(_, Cache::NOT_FOUND, _));
+  _cache.send(trx, req);
   wait();
 }
 
@@ -1241,8 +1267,9 @@ TEST_F(CacheRequestTest, HaGet2ndReadUnavailableException)
   make_slice(slice, columns);
 
   ResultRecorder<Cache::GetIMSSubscription, std::string> rec;
-  RecordingTransaction* trx = make_rec_trx(new Cache::GetIMSSubscription("kermit"),
-                                           &rec);
+  RecordingTransaction* trx = make_rec_trx(&rec);
+  Cache::Request* req = _cache.create_GetIMSSubscription("kermit");
+
   cass::NotFoundException nfe;
   EXPECT_CALL(_client, get_slice(_, _, _, _,
                                  cass::ConsistencyLevel::ONE))
@@ -1253,8 +1280,8 @@ TEST_F(CacheRequestTest, HaGet2ndReadUnavailableException)
                                  cass::ConsistencyLevel::QUORUM))
     .WillOnce(Throw(ue));
 
-  EXPECT_CALL(*trx, on_failure(Cache::NOT_FOUND, _));
-  _cache.send(trx);
+  EXPECT_CALL(*trx, on_failure(_, Cache::NOT_FOUND, _));
+  _cache.send(trx, req);
   wait();
 }
 

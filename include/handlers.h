@@ -146,8 +146,8 @@ template <class H>
 class CacheTransaction : public Cache::Transaction
 {
 public:
-  CacheTransaction(Cache::Request* request, H* handler) :
-    Cache::Transaction(request),
+  CacheTransaction(H* handler) :
+    Cache::Transaction(),
     _handler(handler),
     _success_clbk(NULL),
     _failure_clbk(NULL)
@@ -166,24 +166,21 @@ public:
     _failure_clbk = fun;
   }
 
-protected:
-  H* _handler;
-  success_clbk_t _success_clbk;
-  failure_clbk_t _failure_clbk;
-
-  void on_success()
+  void on_success(Cache::Request* req)
   {
     if ((_handler != NULL) && (_success_clbk != NULL))
     {
-      boost::bind(_success_clbk, _handler, _req)();
+      boost::bind(_success_clbk, _handler, req)();
     }
   }
 
-  void on_failure(Cache::ResultCode error, std::string& text)
+  void on_failure(Cache::Request* req,
+                  Cache::ResultCode error,
+                  std::string& text)
   {
     if ((_handler != NULL) && (_failure_clbk != NULL))
     {
-      boost::bind(_failure_clbk, _handler, _req, error, text)();
+      boost::bind(_failure_clbk, _handler, req, error, text)();
     }
   }
 };
@@ -306,7 +303,8 @@ class ImpuIMSSubscriptionHandler : public HssCacheHandler
 public:
   struct Config
   {
-    Config(int _ims_sub_cache_ttl = 3600) : ims_sub_cache_ttl(_ims_sub_cache_ttl) {}
+    Config(bool _hss_configured = true, int _ims_sub_cache_ttl = 3600) : hss_configured(_hss_configured), ims_sub_cache_ttl(_ims_sub_cache_ttl) {}
+    bool hss_configured;
     int ims_sub_cache_ttl;
   };
 
