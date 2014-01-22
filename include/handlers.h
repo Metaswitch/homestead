@@ -43,6 +43,7 @@
 #include "diameterstack.h"
 #include "cache.h"
 #include "httpstack.h"
+#include "statisticsmanager.h"
 
 // Result-Code AVP constants
 const int DIAMETER_SUCCESS = 2001;
@@ -81,6 +82,7 @@ public:
                                  const std::string& server_name,
                                  Cx::Dictionary* dict);
   static void configure_cache(Cache* cache);
+  static void configure_stats(StatisticsManager* stats_manager);
 
   void on_diameter_timeout();
 
@@ -185,6 +187,7 @@ protected:
   static std::string _server_name;
   static Cx::Dictionary* _dict;
   static Cache* _cache;
+  static StatisticsManager* _stats_manager;
 };
 
 class ImpiHandler : public HssCacheHandler

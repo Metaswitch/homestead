@@ -40,6 +40,7 @@
 
 #include "accesslogger.h"
 #include "log.h"
+#include "statisticsmanager.h"
 #include "diameterstack.h"
 #include "httpstack.h"
 #include "handlers.h"
@@ -62,7 +63,7 @@ struct options
   bool log_to_file;
   std::string log_directory;
   int log_level;
-}; 
+};
 
 void usage(void)
 {
@@ -244,6 +245,8 @@ int main(int argc, char**argv)
 
   LOG_STATUS("Log level set to %d", options.log_level);
 
+  StatisticsManager* stats_manager = new StatisticsManager();
+
   Diameter::Stack* diameter_stack = Diameter::Stack::get_instance();
   Cx::Dictionary* dict = NULL;
   try
@@ -278,24 +281,33 @@ int main(int argc, char**argv)
                                       options.server_name,
                                       dict);
   HssCacheHandler::configure_cache(cache);
+  HssCacheHandler::configure_stats(stats_manager);
+
   // We should only query the cache for AV information if there is no HSS.  If there is an HSS, we
   // should always hit it.  If there is not, the AV information must have been provisioned in the
   // "cache" (which becomes persistent).
   bool hss_configured = !(options.dest_host.empty() || (options.dest_host == "0.0.0.0"));
+
   ImpiHandler::Config impi_handler_config(hss_configured, options.impu_cache_ttl);
   ImpiRegistrationStatusHandler::Config registration_status_handler_config(hss_configured);
   ImpuLocationInfoHandler::Config location_info_handler_config(hss_configured);
   ImpuIMSSubscriptionHandler::Config impu_handler_config(hss_configured, options.ims_sub_cache_ttl);
+
   HttpStack::HandlerFactory<PingHandler> ping_handler_factory;
   HttpStack::ConfiguredHandlerFactory<ImpiDigestHandler, ImpiHandler::Config> impi_digest_handler_factory(&impi_handler_config);
   HttpStack::ConfiguredHandlerFactory<ImpiAvHandler, ImpiHandler::Config> impi_av_handler_factory(&impi_handler_config);
   HttpStack::ConfiguredHandlerFactory<ImpiRegistrationStatusHandler, ImpiRegistrationStatusHandler::Config> impi_reg_status_handler_factory(&registration_status_handler_config);
   HttpStack::ConfiguredHandlerFactory<ImpuLocationInfoHandler, ImpuLocationInfoHandler::Config> impu_loc_info_handler_factory(&location_info_handler_config);
   HttpStack::ConfiguredHandlerFactory<ImpuIMSSubscriptionHandler, ImpuIMSSubscriptionHandler::Config> impu_ims_sub_handler_factory(&impu_handler_config);
+
   try
   {
     http_stack->initialize();
-    http_stack->configure(options.http_address, options.http_port, options.http_threads, access_logger);
+    http_stack->configure(options.http_address,
+                          options.http_port,
+                          options.http_threads,
+                          access_logger,
+                          stats_manager);
     http_stack->register_handler("^/ping$",
                                  &ping_handler_factory);
     http_stack->register_handler("^/impi/[^/]*/digest$",
@@ -340,6 +352,8 @@ int main(int argc, char**argv)
     fprintf(stderr, "Caught Diameter::Stack::Exception - %s - %d\n", e._func, e._rc);
   }
   delete dict;
+
+  delete stats_manager; stats_manager = NULL;
 
   signal(SIGTERM, SIG_DFL);
   sem_destroy(&term_sem);

@@ -223,7 +223,7 @@ private:
   ///
   /// The thread pool used by the cache.  This is a simple subclass of
   /// ThreadPool that also stores a pointer back to the cache.
-  class CacheThreadPool : public ThreadPool<Request *>
+  class CacheThreadPool : public ThreadPool<Cache::Request *>
   {
   public:
     CacheThreadPool(Cache *cache,

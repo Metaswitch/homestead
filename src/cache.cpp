@@ -381,7 +381,7 @@ put_columns(const std::vector<std::string>& keys,
   std::vector<Mutation> mutations;
 
   // The mutation map is of the form {"key": {"column_family": [mutations] } }
-  std::map<std::string, std::map<std::string, std::vector<Mutation>>> mutmap;
+  std::map<std::string, std::map<std::string, std::vector<Mutation> > > mutmap;
 
   // Populate the mutations vector.
   for (std::map<std::string, std::string>::const_iterator it = columns.begin();

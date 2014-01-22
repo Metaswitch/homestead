@@ -12,13 +12,18 @@ TARGET := homestead
 TARGET_TEST := homestead_test
 
 TARGET_SOURCES := accesslogger.cpp \
+                  accumulator.cpp \
                   cache.cpp \
+                  counter.cpp \
                   cx.cpp \
                   diameterstack.cpp \
                   handlers.cpp \
                   httpstack.cpp \
                   logger.cpp \
-                  log.cpp
+                  log.cpp \
+                  statistic.cpp \
+                  statisticsmanager.cpp \
+                  zmq_lvc.cpp
 
 TARGET_SOURCES_BUILD := main.cpp
 

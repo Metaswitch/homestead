@@ -56,6 +56,7 @@ std::string HssCacheHandler::_dest_host;
 std::string HssCacheHandler::_server_name;
 Cx::Dictionary* HssCacheHandler::_dict;
 Cache* HssCacheHandler::_cache = NULL;
+StatisticsManager* HssCacheHandler::_stats_manager = NULL;
 
 void HssCacheHandler::configure_diameter(Diameter::Stack* diameter_stack,
                                          const std::string& dest_realm,
@@ -73,6 +74,11 @@ void HssCacheHandler::configure_diameter(Diameter::Stack* diameter_stack,
 void HssCacheHandler::configure_cache(Cache* cache)
 {
   _cache = cache;
+}
+
+void HssCacheHandler::configure_stats(StatisticsManager* stats_manager)
+{
+  _stats_manager = stats_manager;
 }
 
 void HssCacheHandler::on_diameter_timeout()

@@ -77,12 +77,14 @@ void HttpStack::initialize()
 void HttpStack::configure(const std::string& bind_address,
                           unsigned short bind_port,
                           int num_threads,
-                          AccessLogger* access_logger)
+                          AccessLogger* access_logger,
+                          StatisticsManager* stats_manager)
 {
   _bind_address = bind_address;
   _bind_port = bind_port;
   _num_threads = num_threads;
   _access_logger = access_logger;
+  _stats_manager = stats_manager;
 }
 
 void HttpStack::register_handler(char* path, HttpStack::BaseHandlerFactory* factory)

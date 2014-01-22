@@ -43,6 +43,7 @@
 #include <evhtp.h>
 
 #include "accesslogger.h"
+#include "statisticsmanager.h"
 
 class HttpStack
 {
@@ -59,21 +60,42 @@ public:
   {
   public:
     Request(HttpStack* stack, evhtp_request_t* req) : _stack(stack), _req(req) {}
-    inline std::string path() {return url_unescape(std::string(_req->uri->path->path));}
-    inline std::string full_path() {return url_unescape(std::string(_req->uri->path->full));}
-    inline std::string file() {return url_unescape(std::string((_req->uri->path->file != NULL) ? _req->uri->path->file : ""));}
+
+    inline std::string path()
+    {
+      return url_unescape(std::string(_req->uri->path->path));
+    }
+
+    inline std::string full_path()
+    {
+      return url_unescape(std::string(_req->uri->path->full));
+    }
+
+    inline std::string file()
+    {
+      return url_unescape(std::string((_req->uri->path->file != NULL) ?
+                                        _req->uri->path->file : ""));
+    }
+
     inline std::string param(const std::string& name)
     {
       const char* param = evhtp_kv_find(_req->uri->query, name.c_str());
       return url_unescape(std::string(param != NULL ? param : ""));
     }
-    void add_content(const std::string& content) {evbuffer_add(_req->buffer_out, content.c_str(), content.length());}
+
+    void add_content(const std::string& content)
+    {
+      evbuffer_add(_req->buffer_out, content.c_str(), content.length());
+    }
+
     void send_reply(int rc);
-    inline evhtp_request_t* req() {return _req;}
+
+    inline evhtp_request_t* req() { return _req; }
 
   private:
     HttpStack* _stack;
     evhtp_request_t* _req;
+
     std::string url_unescape(const std::string& s)
     {
       std::string r;
@@ -143,7 +165,8 @@ public:
   virtual void configure(const std::string& bind_address,
                          unsigned short port,
                          int num_threads,
-                         AccessLogger* access_logger = NULL);
+                         AccessLogger* access_logger = NULL,
+                         StatisticsManager* stats_manager = NULL);
   virtual void register_handler(char* path, BaseHandlerFactory* factory);
   virtual void start();
   virtual void stop();
@@ -175,7 +198,10 @@ private:
   std::string _bind_address;
   unsigned short _bind_port;
   int _num_threads;
+
+  StatisticsManager* _stats_manager;
   AccessLogger* _access_logger;
+
   evbase_t* _evbase;
   evhtp_t* _evhtp;
   pthread_t _event_base_thread;
