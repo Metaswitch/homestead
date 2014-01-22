@@ -58,6 +58,17 @@ Cx::Dictionary* HssCacheHandler::_dict;
 Cache* HssCacheHandler::_cache = NULL;
 StatisticsManager* HssCacheHandler::_stats_manager = NULL;
 
+const static HssCacheHandler::StatsFlags DIGEST_STATS =
+  static_cast<HssCacheHandler::StatsFlags>(
+    HssCacheHandler::STAT_HSS_LATENCY |
+    HssCacheHandler::STAT_HSS_DIGEST_LATENCY);
+
+const static HssCacheHandler::StatsFlags SUBSCRIPTION_STATS =
+  static_cast<HssCacheHandler::StatsFlags>(
+    HssCacheHandler::STAT_HSS_LATENCY |
+    HssCacheHandler::STAT_HSS_SUBSCRIPTION_LATENCY);
+
+
 void HssCacheHandler::configure_diameter(Diameter::Stack* diameter_stack,
                                          const std::string& dest_realm,
                                          const std::string& dest_host,
@@ -209,7 +220,9 @@ void ImpiHandler::send_mar()
                                   _server_name,
                                   _scheme,
                                   _authorization);
-  DiameterTransaction* tsx = new DiameterTransaction(_dict, this);
+  DiameterTransaction* tsx =
+    new DiameterTransaction(_dict, this, DIGEST_STATS);
+
   tsx->set_response_clbk(&ImpiHandler::on_mar_response);
   mar->send(tsx, 200);
 }
@@ -406,7 +419,8 @@ void ImpiRegistrationStatusHandler::run()
           _impu,
           _visited_network,
           _authorization_type);
-    DiameterTransaction* tsx = new DiameterTransaction(_dict, this);
+    DiameterTransaction* tsx =
+      new DiameterTransaction(_dict, this, SUBSCRIPTION_STATS);
     tsx->set_response_clbk(&ImpiRegistrationStatusHandler::on_uar_response);
     uar->send(tsx, 200);
   }
@@ -501,7 +515,8 @@ void ImpuLocationInfoHandler::run()
           _originating,
           _impu,
           _authorization_type);
-    DiameterTransaction* tsx = new DiameterTransaction(_dict, this);
+    DiameterTransaction* tsx =
+      new DiameterTransaction(_dict, this, SUBSCRIPTION_STATS);
     tsx->set_response_clbk(&ImpuLocationInfoHandler::on_lir_response);
     lir->send(tsx, 200);
   }
@@ -608,7 +623,8 @@ void ImpuIMSSubscriptionHandler::on_get_ims_subscription_failure(Cache::Request*
                                       _impi,
                                       _impu,
                                       _server_name);
-    DiameterTransaction* tsx = new DiameterTransaction(_dict, this);
+    DiameterTransaction* tsx =
+      new DiameterTransaction(_dict, this, SUBSCRIPTION_STATS);
     tsx->set_response_clbk(&ImpuIMSSubscriptionHandler::on_sar_response);
     sar->send(tsx, 200);
   }
