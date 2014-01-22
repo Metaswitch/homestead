@@ -23,6 +23,7 @@ TARGET_SOURCES := accesslogger.cpp \
                   log.cpp \
                   statistic.cpp \
                   statisticsmanager.cpp \
+                  utils.cpp \
                   zmq_lvc.cpp
 
 TARGET_SOURCES_BUILD := main.cpp

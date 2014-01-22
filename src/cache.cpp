@@ -335,8 +335,11 @@ void Cache::Request::run(Cache::CacheClientInterface *client)
 
   if (rc != OK)
   {
-    // We caught an exception so call the error callback to notify the cache
-    // user.
+    // Caught an exception so:
+    // - Stop the transaction duration timer (it might not have been stopped
+    // yet).
+    // - Notify the user of the error.
+    _trx->stop_timer();
     _trx->on_failure(this, rc, error_text);
   }
 }
@@ -418,7 +421,9 @@ put_columns(const std::vector<std::string>& keys,
   }
 
   // Execute the database operation.
+  _trx->start_timer();
   _client->batch_mutate(mutmap, ConsistencyLevel::ONE);
+  _trx->stop_timer();
 }
 
 //
@@ -572,7 +577,9 @@ issue_get_for_key(const std::string& key,
   ColumnParent cparent;
   cparent.column_family = _column_family;
 
+  _trx->start_timer();
   _client->get_slice(columns, key, cparent, predicate, consistency_level);
+  _trx->stop_timer();
 
   if (columns.size() == 0)
   {
@@ -601,7 +608,10 @@ delete_row(const std::string& key,
 {
   ColumnPath cp;
   cp.column_family = _column_family;
+
+  _trx->start_timer();
   _client->remove(key, cp, timestamp, ConsistencyLevel::ONE);
+  _trx->stop_timer();
 }
 
 //

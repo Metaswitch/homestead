@@ -44,6 +44,7 @@
 
 #include "accesslogger.h"
 #include "statisticsmanager.h"
+#include "utils.h"
 
 class HttpStack
 {
@@ -59,7 +60,11 @@ public:
   class Request
   {
   public:
-    Request(HttpStack* stack, evhtp_request_t* req) : _stack(stack), _req(req) {}
+    Request(HttpStack* stack, evhtp_request_t* req) :
+      _stack(stack), _req(req), stopwatch()
+    {
+      stopwatch.start();
+    }
 
     inline std::string path()
     {
@@ -90,11 +95,21 @@ public:
 
     void send_reply(int rc);
 
+
+    /// Get the latency of the request.
+    ///
+    /// @param latency_us The latency of the request in microseconds.  Only
+    /// valid if the fucntion returns true.
+    ///
+    /// @return Whether the latency has been successfully obtained.
+    bool get_latency(unsigned long& latency_us);
+
     inline evhtp_request_t* req() { return _req; }
 
   private:
     HttpStack* _stack;
     evhtp_request_t* _req;
+    Utils::StopWatch stopwatch;
 
     std::string url_unescape(const std::string& s)
     {

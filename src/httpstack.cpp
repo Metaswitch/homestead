@@ -43,7 +43,13 @@ HttpStack::HttpStack() {}
 
 void HttpStack::Request::send_reply(int rc)
 {
+  stopwatch.stop();
   _stack->send_reply(*this, rc);
+}
+
+bool HttpStack::Request::get_latency(unsigned long& latency_us)
+{
+  return stopwatch.read(latency_us);
 }
 
 void HttpStack::send_reply(Request& req, int rc)
@@ -55,6 +61,13 @@ void HttpStack::send_reply(Request& req, int rc)
   // Resume the request to actually send it.  This matches the function to pause the request in
   // HttpStack::handler_callback_fn.
   evhtp_request_resume(req.req());
+
+  // Update the latency stats.
+  unsigned long latency_us = 0;
+  if ((_stats_manager != NULL) && (req.get_latency(latency_us)))
+  {
+    _stats_manager->update_H_latency_us(latency_us);
+  }
 }
 
 void HttpStack::initialize()
