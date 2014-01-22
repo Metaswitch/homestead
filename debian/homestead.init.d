@@ -82,6 +82,8 @@ get_settings()
 {
         # Set up defaults and then pull in the settings for this node.
         sas_server=0.0.0.0
+        hss_hostname=0.0.0.0
+        hss_port=3868
         . /etc/clearwater/config
 
         # Set up defaults for user settings then pull in any overrides.

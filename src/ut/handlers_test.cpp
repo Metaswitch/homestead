@@ -1,5 +1,5 @@
 /**
- * @file mockhttpstack.h Mock HTTP stack.
+ * @file handlers_test.cpp UT for Handlers module.
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2013  Metaswitch Networks Ltd
@@ -34,55 +34,69 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#ifndef MOCKHTTPSTACK_H__
-#define MOCKHTTPSTACK_H__
+#define GTEST_HAS_POSIX_RE 0
+#include "test_utils.hpp"
+#include <curl/curl.h>
 
-#include "gmock/gmock.h"
-#include "httpstack.h"
+#include "mockhttpstack.hpp"
+#include "handlers.h"
 
-class MockHttpStack : public HttpStack
+#include "mockcache.hpp"
+
+TEST(HandlersTest, SimpleMainline)
 {
-public:
-  class Request : public HttpStack::Request
+  MockHttpStack stack;
+  MockHttpStack::Request req(&stack, "/", "ping");
+  EXPECT_CALL(stack, send_reply(testing::_, 200));
+  PingHandler* handler = new PingHandler(req);
+  handler->run();
+  EXPECT_EQ("OK", req.content());
+}
+
+#if 0
+using ::testing::Return;
+using ::testing::SetArgReferee;
+using ::testing::_;
+using ::testing::Invoke;
+using ::testing::WithArgs;
+
+// Transaction that would be implemented in the handlers.
+class ExampleTransaction : public Cache::Transaction
+{
+  void on_success(Cache::Request* req)
   {
-  public:
-    Request(HttpStack* stack, std::string path, std::string file, std::string query = "") : HttpStack::Request(stack, evhtp_request(path, file, query)) {}
-    ~Request()
-    {
-      evhtp_connection_t* conn = _req->conn;
-      evhtp_request_free(_req);
-      free(conn);
-    }
-    std::string content()
-    {
-      size_t len = evbuffer_get_length(_req->buffer_out);
-      return std::string((char*)evbuffer_pullup(_req->buffer_out, len), len);
-    }
+    std::string xml;
+    dynamic_cast<Cache::GetIMSSubscription*>(req)->get_result(xml);
+    std::cout << "GOT RESULT: " << xml << std::endl;
+  }
 
-  private:
-    static evhtp_request_t* evhtp_request(std::string path, std::string file, std::string query = "")
-    {
-      evhtp_request_t* req = evhtp_request_new(NULL, NULL);
-      req->conn = (evhtp_connection_t*)calloc(sizeof(evhtp_connection_t), 1);
-      req->uri = (evhtp_uri_t*)calloc(sizeof(evhtp_uri_t), 1);
-      req->uri->path = (evhtp_path_t*)calloc(sizeof(evhtp_path_t), 1);
-      req->uri->path->full = strdup((path + file).c_str());
-      req->uri->path->file = strdup(file.c_str());
-      req->uri->path->path = strdup(path.c_str());
-      req->uri->path->match_start = (char*)calloc(1, 1);
-      req->uri->path->match_end = (char*)calloc(1, 1);
-      req->uri->query = evhtp_parse_query(query.c_str(), query.length());
-      return req;
-    }
-  };
-
-  MOCK_METHOD0(initialize, void());
-  MOCK_METHOD4(configure, void(const std::string&, unsigned short, int, AccessLogger*));
-  MOCK_METHOD2(register_handler, void(char*, BaseHandlerFactory*));
-  MOCK_METHOD0(start, void());
-  MOCK_METHOD0(stop, void());
-  MOCK_METHOD0(wait_stopped, void());
-  MOCK_METHOD2(send_reply, void(HttpStack::Request&, int));
+  void on_failure(Cache::Request* req, Cache::ResultCode rc, std::string& text)
+  {
+    std::cout << "FAILED:" << std::endl << text << std::endl;
+  }
 };
 
+// Start of the test code.
+TEST(HandlersTest, ExampleTransaction)
+{
+  MockCache cache;
+  MockCache::MockGetIMSSubscription mock_req;
+
+  EXPECT_CALL(cache, create_GetIMSSubscription("kermit"))
+    .WillOnce(Return(&mock_req));
+  EXPECT_CALL(cache, send(_, &mock_req))
+    .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
+  EXPECT_CALL(mock_req, get_result(_))
+    .WillRepeatedly(SetArgReferee<0>("<some boring xml>"));
+
+  // This would be in the code-under-test.
+  ExampleTransaction* tsx = new ExampleTransaction;
+  Cache::Request* req = cache.create_GetIMSSubscription("kermit");
+  cache.send(tsx, req);
+
+  // Back to the test code.
+  Cache::Transaction* t = mock_req.get_trx();
+  ASSERT_FALSE(t == NULL);
+  t->on_success(&mock_req);
+}
 #endif

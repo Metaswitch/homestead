@@ -305,6 +305,7 @@ public:
   virtual void send();
   virtual void send(Transaction* tsx);
   virtual void send(Transaction* tsx, unsigned int timeout_ms);
+  void operator=(Message const&);
 
 private:
   const Dictionary* _dict;

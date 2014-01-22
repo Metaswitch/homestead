@@ -101,7 +101,7 @@ void Cache::configure(std::string cass_hostname,
 
 Cache::ResultCode Cache::start()
 {
-  ResultCode rc = ResultCode::OK;
+  ResultCode rc = OK;
 
   // Check that we can connect to cassandra by getting a client. This logs in
   // and switches to the cache keyspace, so is a good test of whether cassandra
@@ -113,25 +113,25 @@ Cache::ResultCode Cache::start()
   }
   catch(TTransportException te)
   {
-    rc = ResultCode::CONNECTION_ERROR;
+    rc = CONNECTION_ERROR;
   }
   catch(NotFoundException nfe)
   {
-    rc = ResultCode::NOT_FOUND;
+    rc = NOT_FOUND;
   }
   catch(...)
   {
-    rc = ResultCode::UNKNOWN_ERROR;
+    rc = UNKNOWN_ERROR;
   }
 
   // Start the thread pool.
-  if (rc == ResultCode::OK)
+  if (rc == OK)
   {
     _thread_pool = new CacheThreadPool(this, _num_threads, _max_queue);
 
     if (!_thread_pool->start())
     {
-      rc = ResultCode::RESOURCE_ERROR;
+      rc = RESOURCE_ERROR; // LCOV_EXCL_LINE
     }
   }
 
@@ -184,11 +184,12 @@ Cache::~Cache()
 }
 
 
-Cache::CacheClient* Cache::get_client()
+// LCOV_EXCL_START - UTs do not cover relationship of clients to threads.
+Cache::CacheClientInterface* Cache::get_client()
 {
   // See if we've already got a client for this thread.  If not allocate a new
   // one and write it back into thread-local storage.
-  Cache::CacheClient* client = (Cache::CacheClient*)pthread_getspecific(_thread_local);
+  Cache::CacheClientInterface* client = (Cache::CacheClientInterface*)pthread_getspecific(_thread_local);
 
   if (client == NULL)
   {
@@ -211,7 +212,7 @@ void Cache::release_client()
 {
   // If this thread already has a client delete it and remove it from
   // thread-local storage.
-  Cache::CacheClient* client = (Cache::CacheClient*)pthread_getspecific(_thread_local);
+  Cache::CacheClientInterface* client = (Cache::CacheClientInterface*)pthread_getspecific(_thread_local);
 
   if (client != NULL)
   {
@@ -223,13 +224,15 @@ void Cache::release_client()
 
 void Cache::delete_client(void *client)
 {
-  delete (Cache::CacheClient *)client; client = NULL;
+  delete (Cache::CacheClientInterface *)client; client = NULL;
 }
+// LCOV_EXCL_STOP
 
 
-void Cache::send(Cache::Transaction* trx)
+void Cache::send(Cache::Transaction* trx, Cache::Request* req)
 {
-  _thread_pool->add_work(trx); trx = NULL;
+  req->set_trx(trx);
+  _thread_pool->add_work(req); req = NULL;
 }
 
 
@@ -240,7 +243,7 @@ void Cache::send(Cache::Transaction* trx)
 Cache::CacheThreadPool::CacheThreadPool(Cache *cache,
                                         unsigned int num_threads,
                                         unsigned int max_queue) :
-  ThreadPool<Cache::Transaction *>(num_threads, max_queue),
+  ThreadPool<Cache::Request *>(num_threads, max_queue),
   _cache(cache)
 {}
 
@@ -249,60 +252,50 @@ Cache::CacheThreadPool::~CacheThreadPool()
 {}
 
 
-void Cache::CacheThreadPool::process_work(Transaction* &trx)
+void Cache::CacheThreadPool::process_work(Request* &req)
 {
   // Run the request.  Catch all exceptions to stop an error from killing the
   // worker thread.
   try
   {
-    trx->run(_cache->get_client());
+    req->run(_cache->get_client());
   }
+  // LCOV_EXCL_START Transaction catches all exceptions so the thread pool
+  // fallback code is never triggered.
   catch(...)
   {
     LOG_ERROR("Unhandled exception when processing cache request");
   }
+  // LCOV_EXCL_STOP
 
   // We own the request so we have to free it.
-  delete trx; trx = NULL;
+  delete req; req = NULL;
 }
 
 //
 // Request methods
 //
 
-Cache::Transaction::Transaction(Request *req) :
-  _req(req)
-{}
-
-Cache::Transaction::~Transaction()
-{
-  delete _req; _req = NULL;
-}
-
-void Cache::Transaction::run(Cache::CacheClient* client)
-{
-  _req->run(client, this);
-}
-
-
-Cache::Request::Request(std::string& column_family) :
-  _column_family(column_family)
+Cache::Request::Request(const std::string& column_family) :
+  _column_family(column_family),
+  _trx(NULL)
 {}
 
 
 Cache::Request::~Request()
-{}
-
-
-void Cache::Request::run(Cache::CacheClient *client, Cache::Transaction* trx)
 {
-  ResultCode rc = ResultCode::OK;
+  delete _trx; _trx = NULL;
+}
+
+
+void Cache::Request::run(Cache::CacheClientInterface *client)
+{
+  ResultCode rc = OK;
   std::string error_text = "";
 
-  // Store the client and transaction pointers so they are available to
-  // subclasses that override perform().
+  // Store the client and transaction pointer so it is available to subclasses
+  // that override perform().
   _client = client;
-  _trx = trx;
 
   // Call perform() to actually do the business logic of the request.  Catch
   // exceptions and turn them into return codes and error text.
@@ -312,39 +305,39 @@ void Cache::Request::run(Cache::CacheClient *client, Cache::Transaction* trx)
   }
   catch(TTransportException& te)
   {
-    rc = ResultCode::CONNECTION_ERROR;
+    rc = CONNECTION_ERROR;
     error_text = (boost::format("Exception: %s [%d]\n")
                   % te.what() % te.getType()).str();
   }
   catch(InvalidRequestException& ire)
   {
-    rc = ResultCode::INVALID_REQUEST;
+    rc = INVALID_REQUEST;
     error_text = (boost::format("Exception: %s [%s]\n")
                   % ire.what() % ire.why.c_str()).str();
   }
   catch(NotFoundException& nfe)
   {
-    rc = ResultCode::NOT_FOUND;
+    rc = NOT_FOUND;
     error_text = (boost::format("Exception: %s\n")
                   % nfe.what()).str();
   }
   catch(Cache::RowNotFoundException& row_nfe)
   {
-    rc = ResultCode::NOT_FOUND;
+    rc = NOT_FOUND;
     error_text = (boost::format("Row %s not present in column_family %s\n")
                   % row_nfe.get_key() % row_nfe.get_column_family()).str();
   }
   catch(...)
   {
-    rc = ResultCode::UNKNOWN_ERROR;
+    rc = UNKNOWN_ERROR;
     error_text = "Unknown error";
   }
 
-  if (rc != ResultCode::OK)
+  if (rc != OK)
   {
     // We caught an exception so call the error callback to notify the cache
     // user.
-    _trx->on_failure(rc, error_text);
+    _trx->on_failure(this, rc, error_text);
   }
 }
 
@@ -352,7 +345,7 @@ void Cache::Request::run(Cache::CacheClient *client, Cache::Transaction* trx)
 // ModificationRequest methods.
 //
 
-Cache::ModificationRequest::ModificationRequest(std::string& column_family,
+Cache::ModificationRequest::ModificationRequest(const std::string& column_family,
                                                 int64_t timestamp) :
   Cache::Request(column_family),
   _timestamp(timestamp)
@@ -366,7 +359,7 @@ Cache::ModificationRequest::~ModificationRequest()
 // PutRequest methods
 //
 
-Cache::PutRequest::PutRequest(std::string& column_family,
+Cache::PutRequest::PutRequest(const std::string& column_family,
                               int64_t timestamp,
                               int32_t ttl) :
   Cache::ModificationRequest(column_family, timestamp),
@@ -379,8 +372,8 @@ Cache::PutRequest::~PutRequest()
 
 
 void Cache::PutRequest::
-put_columns(std::vector<std::string>& keys,
-            std::map<std::string, std::string>& columns,
+put_columns(const std::vector<std::string>& keys,
+            const std::map<std::string, std::string>& columns,
             int64_t timestamp,
             int32_t ttl)
 {
@@ -391,7 +384,7 @@ put_columns(std::vector<std::string>& keys,
   std::map<std::string, std::map<std::string, std::vector<Mutation>>> mutmap;
 
   // Populate the mutations vector.
-  for (std::map<std::string, std::string>::iterator it = columns.begin();
+  for (std::map<std::string, std::string>::const_iterator it = columns.begin();
        it != columns.end();
        ++it)
   {
@@ -432,7 +425,7 @@ put_columns(std::vector<std::string>& keys,
 // GetRequest methods.
 //
 
-Cache::GetRequest::GetRequest(std::string& column_family) :
+Cache::GetRequest::GetRequest(const std::string& column_family) :
   Request(column_family)
 {}
 
@@ -477,17 +470,19 @@ Cache::GetRequest::~GetRequest()
         }
 
 
+#if 0
 void Cache::GetRequest::
-ha_get_row(std::string& key,
+ha_get_row(const std::string& key,
            std::vector<ColumnOrSuperColumn>& columns)
 {
   HA(get_row, key, columns);
 }
+#endif
 
 
 void Cache::GetRequest::
-ha_get_columns(std::string& key,
-               std::vector<std::string>& names,
+ha_get_columns(const std::string& key,
+               const std::vector<std::string>& names,
                std::vector<ColumnOrSuperColumn>& columns)
 {
   HA(get_columns, key, names, columns);
@@ -495,16 +490,17 @@ ha_get_columns(std::string& key,
 
 
 void Cache::GetRequest::
-ha_get_columns_with_prefix(std::string& key,
-                           std::string& prefix,
+ha_get_columns_with_prefix(const std::string& key,
+                           const std::string& prefix,
                            std::vector<ColumnOrSuperColumn>& columns)
 {
   HA(get_columns_with_prefix, key, prefix, columns);
 }
 
 
+#if 0
 void Cache::GetRequest::
-get_row(std::string& key,
+get_row(const std::string& key,
         std::vector<ColumnOrSuperColumn>& columns,
         ConsistencyLevel::type consistency_level)
 {
@@ -520,11 +516,12 @@ get_row(std::string& key,
 
   issue_get_for_key(key, sp, columns, consistency_level);
 }
+#endif
 
 
 void Cache::GetRequest::
-get_columns(std::string& key,
-            std::vector<std::string>& names,
+get_columns(const std::string& key,
+            const std::vector<std::string>& names,
             std::vector<ColumnOrSuperColumn>& columns,
             ConsistencyLevel::type consistency_level)
 {
@@ -538,8 +535,8 @@ get_columns(std::string& key,
 
 
 void Cache::GetRequest::
-get_columns_with_prefix(std::string& key,
-                        std::string& prefix,
+get_columns_with_prefix(const std::string& key,
+                        const std::string& prefix,
                         std::vector<ColumnOrSuperColumn>& columns,
                         ConsistencyLevel::type consistency_level)
 {
@@ -567,8 +564,8 @@ get_columns_with_prefix(std::string& key,
 
 
 void Cache::GetRequest::
-issue_get_for_key(std::string& key,
-                  SlicePredicate& predicate,
+issue_get_for_key(const std::string& key,
+                  const SlicePredicate& predicate,
                   std::vector<ColumnOrSuperColumn>& columns,
                   ConsistencyLevel::type consistency_level)
 {
@@ -588,7 +585,7 @@ issue_get_for_key(std::string& key,
 // DeleteRowsRequest methods
 //
 
-Cache::DeleteRowsRequest::DeleteRowsRequest(std::string& column_family,
+Cache::DeleteRowsRequest::DeleteRowsRequest(const std::string& column_family,
                                             int64_t timestamp) :
   ModificationRequest(column_family, timestamp)
 {}
@@ -599,7 +596,7 @@ Cache::DeleteRowsRequest::~DeleteRowsRequest()
 
 
 void Cache::DeleteRowsRequest::
-delete_row(std::string& key,
+delete_row(const std::string& key,
            int64_t timestamp)
 {
   ColumnPath cp;
@@ -612,10 +609,10 @@ delete_row(std::string& key,
 //
 
 Cache::PutIMSSubscription::
-PutIMSSubscription(std::string& public_id,
-                   std::string& xml,
-                   int64_t timestamp,
-                   int32_t ttl) :
+PutIMSSubscription(const std::string& public_id,
+                   const std::string& xml,
+                   const int64_t timestamp,
+                   const int32_t ttl) :
   PutRequest(IMPU, timestamp, ttl),
   _public_ids(1, public_id),
   _xml(xml)
@@ -623,10 +620,10 @@ PutIMSSubscription(std::string& public_id,
 
 
 Cache::PutIMSSubscription::
-PutIMSSubscription(std::vector<std::string>& public_ids,
-                   std::string& xml,
-                   int64_t timestamp,
-                   int32_t ttl) :
+PutIMSSubscription(const std::vector<std::string>& public_ids,
+                   const std::string& xml,
+                   const int64_t timestamp,
+                   const int32_t ttl) :
   PutRequest(IMPU, timestamp, ttl),
   _public_ids(public_ids),
   _xml(xml)
@@ -644,7 +641,7 @@ void Cache::PutIMSSubscription::perform()
   columns[IMS_SUB_XML_COLUMN_NAME] = _xml;
 
   put_columns(_public_ids, columns, _timestamp, _ttl);
-  _trx->on_success();
+  _trx->on_success(this);
 }
 
 //
@@ -652,10 +649,10 @@ void Cache::PutIMSSubscription::perform()
 //
 
 Cache::PutAssociatedPublicID::
-PutAssociatedPublicID(std::string& private_id,
-                      std::string& assoc_public_id,
-                      int64_t timestamp,
-                      int32_t ttl) :
+PutAssociatedPublicID(const std::string& private_id,
+                      const std::string& assoc_public_id,
+                      const int64_t timestamp,
+                      const int32_t ttl) :
   PutRequest(IMPI, timestamp, ttl),
   _private_id(private_id),
   _assoc_public_id(assoc_public_id)
@@ -675,7 +672,7 @@ void Cache::PutAssociatedPublicID::perform()
   std::vector<std::string> keys(1, _private_id);
 
   put_columns(keys, columns, _timestamp, _ttl);
-  _trx->on_success();
+  _trx->on_success(this);
 }
 
 //
@@ -683,11 +680,11 @@ void Cache::PutAssociatedPublicID::perform()
 //
 
 Cache::PutAuthVector::
-PutAuthVector(std::string& private_id,
-              DigestAuthVector& auth_vector,
-              int64_t timestamp,
-              int32_t ttl) :
-  PutRequest(IMPI, timestamp),
+PutAuthVector(const std::string& private_id,
+              const DigestAuthVector& auth_vector,
+              const int64_t timestamp,
+              const int32_t ttl) :
+  PutRequest(IMPI, timestamp, ttl),
   _private_ids(1, private_id),
   _auth_vector(auth_vector)
 {}
@@ -707,7 +704,7 @@ void Cache::PutAuthVector::perform()
   columns[KNOWN_PREFERRED_COLUMN_NAME] = _auth_vector.preferred ? "\x01" : "\x00";
 
   put_columns(_private_ids, columns, _timestamp, _ttl);
-  _trx->on_success();
+  _trx->on_success(this);
 }
 
 
@@ -716,7 +713,7 @@ void Cache::PutAuthVector::perform()
 //
 
 Cache::GetIMSSubscription::
-GetIMSSubscription(std::string& public_id) :
+GetIMSSubscription(const std::string& public_id) :
   GetRequest(IMPU),
   _public_id(public_id),
   _xml()
@@ -735,16 +732,9 @@ void Cache::GetIMSSubscription::perform()
 
   ha_get_columns(_public_id, requested_columns, results);
 
-  if (results.size() == 0)
-  {
-    std::string error_text("IMS subscription XML not found");
-    _trx->on_failure(ResultCode::NOT_FOUND, error_text);
-  }
-  else
-  {
-    _xml = results[0].column.value;
-    _trx->on_success();
-  }
+  // We must have a result, ha_get_columns raises RowNotFoundException if not.
+  _xml = results[0].column.value;
+  _trx->on_success(this);
 }
 
 void Cache::GetIMSSubscription::get_result(std::string& xml)
@@ -757,7 +747,7 @@ void Cache::GetIMSSubscription::get_result(std::string& xml)
 //
 
 Cache::GetAssociatedPublicIDs::
-GetAssociatedPublicIDs(std::string& private_id) :
+GetAssociatedPublicIDs(const std::string& private_id) :
   GetRequest(IMPI),
   _private_id(private_id),
   _public_ids()
@@ -787,7 +777,7 @@ void Cache::GetAssociatedPublicIDs::perform()
     _public_ids.push_back(it->column.name);
   }
 
-  _trx->on_success();
+  _trx->on_success(this);
 }
 
 void Cache::GetAssociatedPublicIDs::get_result(std::vector<std::string>& ids)
@@ -800,7 +790,7 @@ void Cache::GetAssociatedPublicIDs::get_result(std::vector<std::string>& ids)
 //
 
 Cache::GetAuthVector::
-GetAuthVector(std::string& private_id) :
+GetAuthVector(const std::string& private_id) :
   GetRequest(IMPI),
   _private_id(private_id),
   _public_id(""),
@@ -809,8 +799,8 @@ GetAuthVector(std::string& private_id) :
 
 
 Cache::GetAuthVector::
-GetAuthVector(std::string& private_id,
-              std::string& public_id) :
+GetAuthVector(const std::string& private_id,
+              const std::string& public_id) :
   GetRequest(IMPI),
   _private_id(private_id),
   _public_id(public_id),
@@ -886,17 +876,17 @@ void Cache::GetAuthVector::perform()
     std::string error_text = (boost::format(
         "Private ID '%s' exists but does not have associated public ID '%s'")
         % _private_id % _public_id).str();
-    _trx->on_failure(ResultCode::NOT_FOUND, error_text);
+    _trx->on_failure(this, NOT_FOUND, error_text);
   }
   else if (_auth_vector.ha1 == "")
   {
     // The HA1 column was not found.  This cannot be defaulted so is an error.
     std::string error_text = "HA1 column not found";
-    _trx->on_failure(ResultCode::NOT_FOUND, error_text);
+    _trx->on_failure(this, NOT_FOUND, error_text);
   }
   else
   {
-    _trx->on_success();
+    _trx->on_success(this);
   }
 }
 
@@ -910,14 +900,14 @@ void Cache::GetAuthVector::get_result(DigestAuthVector& av)
 //
 
 Cache::DeletePublicIDs::
-DeletePublicIDs(std::string& public_id, int64_t timestamp) :
+DeletePublicIDs(const std::string& public_id, int64_t timestamp) :
   DeleteRowsRequest(IMPU, timestamp),
   _public_ids(1, public_id)
 {}
 
 
 Cache::DeletePublicIDs::
-DeletePublicIDs(std::vector<std::string>& public_ids, int64_t timestamp) :
+DeletePublicIDs(const std::vector<std::string>& public_ids, int64_t timestamp) :
   DeleteRowsRequest(IMPU, timestamp),
   _public_ids(public_ids)
 {}
@@ -929,14 +919,14 @@ Cache::DeletePublicIDs::
 
 void Cache::DeletePublicIDs::perform()
 {
-  for (std::vector<std::string>::iterator it = _public_ids.begin();
+  for (std::vector<std::string>::const_iterator it = _public_ids.begin();
        it != _public_ids.end();
        ++it)
   {
     delete_row(*it, _timestamp);
   }
 
-  _trx->on_success();
+  _trx->on_success(this);
 }
 
 //
@@ -944,14 +934,14 @@ void Cache::DeletePublicIDs::perform()
 //
 
 Cache::DeletePrivateIDs::
-DeletePrivateIDs(std::string& private_id, int64_t timestamp) :
+DeletePrivateIDs(const std::string& private_id, int64_t timestamp) :
   DeleteRowsRequest(IMPI, timestamp),
   _private_ids(1, private_id)
 {}
 
 
 Cache::DeletePrivateIDs::
-DeletePrivateIDs(std::vector<std::string>& private_ids, int64_t timestamp) :
+DeletePrivateIDs(const std::vector<std::string>& private_ids, int64_t timestamp) :
   DeleteRowsRequest(IMPI, timestamp),
   _private_ids(private_ids)
 {}
@@ -964,12 +954,12 @@ Cache::DeletePrivateIDs::
 
 void Cache::DeletePrivateIDs::perform()
 {
-  for (std::vector<std::string>::iterator it = _private_ids.begin();
+  for (std::vector<std::string>::const_iterator it = _private_ids.begin();
        it != _private_ids.end();
        ++it)
   {
     delete_row(*it, _timestamp);
   }
 
-  _trx->on_success();
+  _trx->on_success(this);
 }
