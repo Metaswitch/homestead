@@ -153,6 +153,12 @@ void HttpStack::handler_callback_fn(evhtp_request_t* req, void* handler_factory)
   // request asynchronously.  The HttpStack::Request::send_reply method resumes.
   evhtp_request_pause(req);
 
+  if (_stats_manager != NULL)
+  {
+    // TODO also update "rejected due to overload" stats.
+    _stats_manager->incr_H_incoming_requests();
+  }
+
   // Create a Request and a Handler and kick off processing.
   Request request(INSTANCE, req);
   Handler* handler = ((HttpStack::BaseHandlerFactory*)handler_factory)->create(request);
