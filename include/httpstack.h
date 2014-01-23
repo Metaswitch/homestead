@@ -42,9 +42,10 @@
 
 #include <evhtp.h>
 
+#include "utils.h"
 #include "accesslogger.h"
 #include "statisticsmanager.h"
-#include "utils.h"
+#include "load_monitor.h"
 
 class HttpStack
 {
@@ -94,6 +95,8 @@ public:
     }
 
     void send_reply(int rc);
+
+    void record_penalty() { _stack->record_penalty(); }
 
 
     /// Get the latency of the request.
@@ -147,6 +150,8 @@ public:
     virtual void run() = 0;
 
   protected:
+    void record_penalty() { _req.record_penalty(); }
+
     Request _req;
   };
 
@@ -187,6 +192,7 @@ public:
   virtual void stop();
   virtual void wait_stopped();
   virtual void send_reply(Request& req, int rc);
+  void record_penalty();
 
   void log(const std::string uri, int rc)
   {
@@ -204,6 +210,8 @@ private:
   virtual ~HttpStack() {}
   static void handler_callback_fn(evhtp_request_t* req, void* handler_factory);
   static void* event_base_thread_fn(void* http_stack_ptr);
+  void handler_callback(evhtp_request_t* req,
+                        BaseHandlerFactory* handler_factory);
   void event_base_thread_fn();
 
   // Don't implement the following, to avoid copies of this instance.
@@ -216,6 +224,7 @@ private:
 
   StatisticsManager* _stats_manager;
   AccessLogger* _access_logger;
+  LoadMonitor _load_monitor;
 
   evbase_t* _evbase;
   evhtp_t* _evhtp;

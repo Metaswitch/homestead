@@ -39,7 +39,14 @@
 HttpStack* HttpStack::INSTANCE = &DEFAULT_INSTANCE;
 HttpStack HttpStack::DEFAULT_INSTANCE;
 
-HttpStack::HttpStack() {}
+const static int TARGET_LATENCY = 100000;
+const static int MAX_BUCKET_SIZE = 20;
+const static float INIT_TOKEN_RATE = 10.0;
+const static float MIN_TOKEN_RATE = 10.0;
+
+HttpStack::HttpStack() :
+  _load_monitor(TARGET_LATENCY, MAX_BUCKET_SIZE, INIT_TOKEN_RATE, MIN_TOKEN_RATE)
+{}
 
 void HttpStack::Request::send_reply(int rc)
 {
@@ -149,20 +156,38 @@ void HttpStack::wait_stopped()
 
 void HttpStack::handler_callback_fn(evhtp_request_t* req, void* handler_factory)
 {
-  // Pause the request processing (which stops it from being cancelled), as we may process this
-  // request asynchronously.  The HttpStack::Request::send_reply method resumes.
-  evhtp_request_pause(req);
+  INSTANCE->handler_callback(req, (HttpStack::BaseHandlerFactory*)handler_factory);
+}
 
+void HttpStack::handler_callback(evhtp_request_t* req,
+                                 HttpStack::BaseHandlerFactory* handler_factory)
+{
   if (_stats_manager != NULL)
   {
-    // TODO also update "rejected due to overload" stats.
     _stats_manager->incr_H_incoming_requests();
   }
 
-  // Create a Request and a Handler and kick off processing.
-  Request request(INSTANCE, req);
-  Handler* handler = ((HttpStack::BaseHandlerFactory*)handler_factory)->create(request);
-  handler->run();
+  if (_load_monitor.admit_request())
+  {
+    // Pause the request processing (which stops it from being cancelled), as we
+    // may process this request asynchronously.  The
+    // HttpStack::Request::send_reply method resumes.
+    evhtp_request_pause(req);
+
+    // Create a Request and a Handler and kick off processing.
+    Request request(this, req);
+    Handler* handler = handler_factory->create(request);
+    handler->run();
+  }
+  else
+  {
+    evhtp_send_reply(req, 503);
+
+    if (_stats_manager != NULL)
+    {
+      _stats_manager->incr_H_rejected_overload();
+    }
+  }
 }
 
 void* HttpStack::event_base_thread_fn(void* http_stack_ptr)
@@ -174,4 +199,9 @@ void* HttpStack::event_base_thread_fn(void* http_stack_ptr)
 void HttpStack::event_base_thread_fn()
 {
   event_base_loop(_evbase, 0);
+}
+
+void HttpStack::record_penalty()
+{
+  _load_monitor.incr_penalties();
 }

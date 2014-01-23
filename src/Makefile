@@ -19,6 +19,7 @@ TARGET_SOURCES := accesslogger.cpp \
                   diameterstack.cpp \
                   handlers.cpp \
                   httpstack.cpp \
+                  load_monitor.cpp \
                   logger.cpp \
                   log.cpp \
                   statistic.cpp \
