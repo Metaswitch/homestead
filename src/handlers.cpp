@@ -530,6 +530,7 @@ void ImpuLocationInfoHandler::on_lir_response(Diameter::Message& rsp)
     writer.String(JSON_RC.c_str());
     writer.Int(result_code ? result_code : experimental_result_code);
     std::string server_name;
+
     // If the HSS returned a server_name, return that. If not, return the
     // server capabilities, even if none are returned by the HSS.
     if ((result_code == DIAMETER_SUCCESS) && (lia.server_name(&server_name)))
@@ -654,6 +655,195 @@ void ImpuIMSSubscriptionHandler::on_sar_response(Diameter::Message& rsp)
 }
 
 std::vector<std::string> ImpuIMSSubscriptionHandler::get_public_ids(const std::string& user_data)
+{
+  std::vector<std::string> public_ids;
+
+  // Parse the XML document, saving off the passed-in string first (as parsing
+  // is destructive).
+  rapidxml::xml_document<> doc;
+  char* user_data_str = doc.allocate_string(user_data.c_str());
+
+  try
+  {
+    doc.parse<rapidxml::parse_strip_xml_namespaces>(user_data_str);
+  }
+  catch (rapidxml::parse_error err)
+  {
+    LOG_ERROR("Parse error in IMS Subscription document: %s\n\n%s", err.what(), user_data.c_str());
+    doc.clear();
+  }
+
+  // Walk through all nodes in the hierarchy IMSSubscription->ServiceProfile->PublicIdentity
+  // ->Identity.
+  rapidxml::xml_node<>* is = doc.first_node("IMSSubscription");
+  if (is)
+  {
+    for (rapidxml::xml_node<>* sp = is->first_node("ServiceProfile");
+         sp;
+         sp = is->next_sibling("ServiceProfile"))
+    {
+      for (rapidxml::xml_node<>* pi = sp->first_node("PublicIdentity");
+           pi;
+           pi = sp->next_sibling("PublicIdentity"))
+      {
+        for (rapidxml::xml_node<>* id = pi->first_node("Identity");
+             id;
+             id = pi->next_sibling("Identity"))
+        {
+          public_ids.push_back((std::string)id->value());
+        }
+      }
+    }
+  }
+
+  return public_ids;
+}
+
+void RegistrationTerminationHandler::run()
+{
+  // Received a Registration Termination Request. Delete all private IDs and public IDs
+  // associated with this RTR from the cache.
+  LOG_INFO("Received Regestration Termination Request");
+  Cx::RegistrationTerminationRequest rtr(_msg);
+
+  // The RTR should contain a User-Name AVP with one private ID, and then an 
+  // Associated-Identities AVP with any number of associated private IDs.
+  std::string impi;
+  rtr.impi(&impi);
+  _impis.push_back(impi);
+  std::vector<std::string> associated_identities = rtr.associated_identities();
+  _impis.insert(_impis.end(), associated_identities.begin(), associated_identities.end());
+
+  // The RTR may also contain some number of Public-Identity AVPs containing public IDs.
+  // If we can't find any, we go to the cache and find any public IDs associated with the
+  // private IDs we've got.
+  _impus = rtr.impus();
+
+  if (_impus.empty())
+  {
+    LOG_DEBUG("No public IDs on the RTR - go to the cache");
+    Cache::Request* get_public_ids = HssCacheHandler::_cache->create_GetAssociatedPublicIDs(_impis);
+    HssCacheHandler::CacheTransaction<RegistrationTerminationHandler>* tsx = new HssCacheHandler::CacheTransaction<RegistrationTerminationHandler>(this);
+    tsx->set_success_clbk(&RegistrationTerminationHandler::delete_all_identities);
+    tsx->set_failure_clbk(&RegistrationTerminationHandler::delete_private_identities);
+    HssCacheHandler::_cache->send(tsx, get_public_ids);
+  }
+  else
+  {
+    RegistrationTerminationHandler::delete_all_identities(NULL);
+  }
+
+  // Get the Auth-Session-State. RTRs are required to have an Auth-Session-State, so
+  // this AVP will be present.
+  int auth_session_state;
+  rtr.auth_session_state(&auth_session_state);
+
+  // build_response calls in to freeDiameter and creates an answer from a request. Once this
+  // is done, _msg will point at the answer. Then use our Cx layer to create a RTA object
+  // and add the correct AVPs. We currently always return DIAMETER_SUCCESS. We may want
+  // to return DIAMETER_UNABLE_TO_COMPLY for failures in future.
+  _msg.build_response();
+  Cx::RegistrationTerminationAnswer rta(_msg,
+                                        HssCacheHandler::_dict,
+                                        "DIAMETER_SUCCESS",
+                                        auth_session_state,
+                                        _impis);
+
+  // Send the RTA back to the HSS.
+  LOG_INFO("Ready to send RTA");
+  rta.send(NULL, 200);
+}
+
+void RegistrationTerminationHandler::delete_all_identities(Cache::Request* request)
+{
+  // If _impus is empty, we must have just been to the cache to find some public IDs.
+  // Get these public IDs.
+  if (_impus.empty())
+  {
+    LOG_DEBUG("Extract associated public IDs from cache request");
+    Cache::GetAssociatedPublicIDs* get_public_ids = (Cache::GetAssociatedPublicIDs*)request;
+    get_public_ids->get_result(_impus);
+  }
+
+  // If _impus is still empty then we couldn't find any public IDs associated with
+  // the private IDs, so there are no public IDs to delete.
+  if (!_impus.empty())
+  {
+    LOG_INFO("Deleting public IDs from RTR");
+    Cache::Request* delete_public_ids = HssCacheHandler::_cache->create_DeletePublicIDs(_impus, Cache::generate_timestamp());
+    HssCacheHandler::CacheTransaction<RegistrationTerminationHandler>* public_ids_tsx = new HssCacheHandler::CacheTransaction<RegistrationTerminationHandler>(this);
+    HssCacheHandler::_cache->send(public_ids_tsx, delete_public_ids);
+  }
+
+  // Delete the _impis extracted from the RTR.
+  LOG_INFO("Deleting private IDs from RTR");
+  Cache::Request* delete_private_ids = HssCacheHandler::_cache->create_DeletePrivateIDs(_impis, Cache::generate_timestamp());
+  HssCacheHandler::CacheTransaction<RegistrationTerminationHandler>* private_ids_tsx = new HssCacheHandler::CacheTransaction<RegistrationTerminationHandler>(this);
+  HssCacheHandler::_cache->send(private_ids_tsx, delete_private_ids);
+}
+
+void RegistrationTerminationHandler::delete_private_identities(Cache::Request* request, Cache::ResultCode error, std::string& text)
+{
+  // Cache returned an error so just try and delete private identities.
+  LOG_INFO("Cache returned an error so we have no public identities to delete. Deleting private IDs from RTR.");
+  Cache::Request* delete_private_ids = HssCacheHandler::_cache->create_DeletePrivateIDs(_impis, Cache::generate_timestamp());
+  HssCacheHandler::CacheTransaction<RegistrationTerminationHandler>* private_ids_tsx = new HssCacheHandler::CacheTransaction<RegistrationTerminationHandler>(this);
+  HssCacheHandler::_cache->send(private_ids_tsx, delete_private_ids);
+}
+
+void PushProfileHandler::run()
+{
+  // Received a Push Profile Request. We may need to update a digest in the cache. We may
+  // need to update an IMS subscription in the cache.
+  Cx::PushProfileRequest ppr(_msg);
+
+  // If we have a private ID and a digest specified on the PPR, update the digest for this impi
+  // in the cache.
+  std::string impi;
+  ppr.impi(&impi);
+  DigestAuthVector digest_auth_vector;
+  digest_auth_vector = ppr.digest_auth_vector();
+  if ((!impi.empty()) && (!digest_auth_vector.ha1.empty()))
+  {
+    LOG_INFO("Updating digest for private ID %s from PPR", impi.c_str());
+    Cache::Request* put_auth_vector = HssCacheHandler::_cache->create_PutAuthVector(impi, digest_auth_vector, Cache::generate_timestamp(), _cfg->impu_cache_ttl);
+    HssCacheHandler::CacheTransaction<PushProfileHandler>* tsx = new HssCacheHandler::CacheTransaction<PushProfileHandler>(NULL);
+    HssCacheHandler::_cache->send(tsx, put_auth_vector);
+  }
+
+  // If the PPR contains a User-Data AVP containing IMS subscription, update the impu table in the
+  // cache with this IMS subscription for each public ID mentioned.
+  std::string user_data;
+  if (ppr.user_data(&user_data))
+  {
+    LOG_INFO("Updating IMS subscription from PPR");
+    std::vector<std::string> impus = get_public_ids(user_data);
+    Cache::Request* put_ims_subscription = HssCacheHandler::_cache->create_PutIMSSubscription(impus, user_data, Cache::generate_timestamp(), _cfg->ims_sub_cache_ttl);
+    HssCacheHandler::CacheTransaction<PushProfileHandler>* tsx = new HssCacheHandler::CacheTransaction<PushProfileHandler>(NULL);
+    HssCacheHandler::_cache->send(tsx, put_ims_subscription);
+  }
+
+  // Get the Auth-Session-State. PPRs are required to have an Auth-Session-State, so
+  // this AVP will be present.
+  int auth_session_state;
+  ppr.auth_session_state(&auth_session_state);
+
+  // build_response calls in to freeDiameter and creates an answer from a request. Once this
+  // is done, _msg will point at the answer. Then use our Cx layer to create a RTA object
+  // and add the correct AVPs. We currently always return DIAMETER_SUCCESS. We may want
+  // to return DIAMETER_UNABLE_TO_COMPLY for failures in future.
+  _msg.build_response();
+  Cx::PushProfileAnswer ppa(_msg,
+                            HssCacheHandler::_dict,
+                            "DIAMETER_SUCCESS",
+                            auth_session_state);
+
+  // Send the PPA back to the HSS.
+  LOG_INFO("Ready to send PPA");
+  ppa.send(NULL, 200);
+}
+
+std::vector<std::string> PushProfileHandler::get_public_ids(const std::string& user_data)
 {
   std::vector<std::string> public_ids;
 

@@ -81,6 +81,7 @@ public:
                                  const std::string& server_name,
                                  Cx::Dictionary* dict);
   static void configure_cache(Cache* cache);
+  inline Cache* cache() const {return _cache;}
 
   void on_diameter_timeout();
 
@@ -178,6 +179,9 @@ public:
     }
   };
 
+  friend class RegistrationTerminationHandler;
+  friend class PushProfileHandler;
+
 protected:
   static Diameter::Stack* _diameter_stack;
   static std::string _dest_realm;
@@ -214,7 +218,6 @@ public:
   void on_mar_response(Diameter::Message& rsp);
   virtual void send_reply(const DigestAuthVector& av) = 0;
   virtual void send_reply(const AKAAuthVector& av) = 0;
-
   typedef HssCacheHandler::CacheTransaction<ImpiHandler> CacheTransaction;
   typedef HssCacheHandler::DiameterTransaction<ImpiHandler> DiameterTransaction;
 
@@ -332,4 +335,50 @@ private:
   static std::vector<std::string> get_public_ids(const std::string& user_data);
 };
 
+class RegistrationTerminationHandler : public Diameter::Stack::Handler
+{
+public:
+  struct Config
+  {
+    Config(int _ims_sub_cache_ttl = 3600) : ims_sub_cache_ttl(_ims_sub_cache_ttl) {}
+    int ims_sub_cache_ttl;
+  };
+
+  RegistrationTerminationHandler(Diameter::Message& msg, const Config* cfg) :
+    Diameter::Stack::Handler(msg), _cfg(cfg)
+  {}
+
+  void run();
+  void delete_all_identities(Cache::Request* request);
+  void delete_private_identities(Cache::Request* request, Cache::ResultCode error, std::string& text);
+
+  typedef HssCacheHandler::CacheTransaction<RegistrationTerminationHandler> CacheTransaction;
+
+private:
+  const Config* _cfg;
+  std::vector<std::string> _impis;
+  std::vector<std::string> _impus;
+};
+
+class PushProfileHandler : public Diameter::Stack::Handler
+{
+public:
+  struct Config
+  {
+    Config(int _impu_cache_ttl = 0, int _ims_sub_cache_ttl = 3600) : ims_sub_cache_ttl(_ims_sub_cache_ttl) {}
+    int impu_cache_ttl;
+    int ims_sub_cache_ttl;
+  };
+
+  PushProfileHandler(Diameter::Message& msg, const Config* cfg) :
+    Diameter::Stack::Handler(msg), _cfg(cfg)
+  {}
+
+  void run();
+
+private:
+  const Config* _cfg;
+  static std::vector<std::string> get_public_ids(const std::string& user_data);
+};
 #endif
+  void on_delete_identities_success(Cache::Request* request);
