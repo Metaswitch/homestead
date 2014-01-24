@@ -47,6 +47,7 @@
 using ::testing::Return;
 using ::testing::StrictMock;
 using ::testing::_;
+using ::testing::Gt;
 
 /// Fixture for HttpStackTest.
 class HttpStackTest : public testing::Test
@@ -122,7 +123,7 @@ class HttpStackStatsTest : public HttpStackTest
 {
 public:
   HttpStackStatsTest() {}
-  virtual ~HttpStackStatsTest() {}
+  virtual ~HttpStackStatsTest() { cwtest_reset_time(); }
 
   void start_stack()
   {
@@ -146,6 +147,22 @@ public:
   void run()
   {
     _req.add_content("OK");
+    _req.send_reply(200);
+    delete this;
+  }
+};
+
+// A handler that takes a long time to process requests (to test latency stats).
+const int DELAY_MS = 2000;
+const unsigned long DELAY_US = DELAY_MS * 1000;
+
+class SlowHandler : public HttpStack::Handler
+{
+public:
+  SlowHandler(HttpStack::Request& req) : HttpStack::Handler(req) {};
+  void run()
+  {
+    cwtest_advance_time_ms(DELAY_MS);
     _req.send_reply(200);
     delete this;
   }
@@ -197,12 +214,12 @@ TEST_F(HttpStackStatsTest, SuccessfulRequest)
 {
   start_stack();
 
-  HttpStack::HandlerFactory<BasicHandler> factory;
+  HttpStack::HandlerFactory<SlowHandler> factory;
   _stack->register_handler("^/BasicHandler$", &factory);
 
   EXPECT_CALL(_load_monitor, admit_request()).WillOnce(Return(true));
   EXPECT_CALL(_stats_manager, incr_H_incoming_requests()).Times(1);
-  EXPECT_CALL(_stats_manager, update_H_latency_us(_)).Times(1);
+  EXPECT_CALL(_stats_manager, update_H_latency_us(Gt(DELAY_US))).Times(1);
   EXPECT_CALL(_load_monitor, request_complete(_)).Times(1);
 
   int status;
