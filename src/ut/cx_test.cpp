@@ -98,7 +98,7 @@ public:
 
   static Diameter::Message launder_message(const Diameter::Message& msg)
   {
-    struct msg* msg_to_build = msg.msg();
+    struct msg* msg_to_build = msg.fd_msg();
     uint8_t* buffer;
     size_t len;
     int rc = fd_msg_bufferize(msg_to_build, &buffer, &len);

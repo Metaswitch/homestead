@@ -321,11 +321,11 @@ void Cache::Request::run(Cache::CacheClientInterface *client)
     error_text = (boost::format("Exception: %s\n")
                   % nfe.what()).str();
   }
-  catch(Cache::RowNotFoundException& row_nfe)
+  catch(Cache::NoResultsException& row_nre)
   {
     rc = NOT_FOUND;
     error_text = (boost::format("Row %s not present in column_family %s\n")
-                  % row_nfe.get_key() % row_nfe.get_column_family()).str();
+                  % row_nre.get_key() % row_nre.get_column_family()).str();
   }
   catch(...)
   {
@@ -576,7 +576,7 @@ issue_get_for_key(const std::string& key,
 
   if (columns.size() == 0)
   {
-    Cache::RowNotFoundException row_not_found_ex(_column_family, key);
+    Cache::NoResultsException row_not_found_ex(_column_family, key);
     throw row_not_found_ex;
   }
 }
@@ -732,7 +732,7 @@ void Cache::GetIMSSubscription::perform()
 
   ha_get_columns(_public_id, requested_columns, results);
 
-  // We must have a result, ha_get_columns raises RowNotFoundException if not.
+  // We must have a result, ha_get_columns raises NoResultsException if not.
   _xml = results[0].column.value;
   _trx->on_success(this);
 }
@@ -776,9 +776,16 @@ void Cache::GetAssociatedPublicIDs::perform()
        it != _private_ids.end();
        ++it)
   {
-    ha_get_columns_with_prefix(*it,
-                               ASSOC_PUBLIC_ID_COLUMN_PREFIX,
-                               columns);
+    try
+    {
+      ha_get_columns_with_prefix(*it,
+                                 ASSOC_PUBLIC_ID_COLUMN_PREFIX,
+                                 columns);
+    }
+    catch(Cache::NoResultsException& row_nre)
+    {
+      LOG_INFO("Couldn't find any public IDs for private ID %s", (*it).c_str());
+    }
 
     // Convert the query results from a vector of columns to a vector containing
     // the column names. The public_id prefix has already been stripped, so this
@@ -791,6 +798,9 @@ void Cache::GetAssociatedPublicIDs::perform()
     }
     columns.clear();
   }
+
+  // Move the std::set of public_ids to the std::vector of _public_ids so that they
+  // are available to the handler.
   std::copy(public_ids.begin(), public_ids.end(), std::back_inserter(_public_ids));
 
   _trx->on_success(this);

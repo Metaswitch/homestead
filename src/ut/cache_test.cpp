@@ -598,7 +598,7 @@ TEST_F(CacheInitializationTest, NotFoundException)
 
 TEST_F(CacheInitializationTest, UnknownException)
 {
-  Cache::RowNotFoundException rnfe("muppets", "kermit");
+  Cache::NoResultsException rnfe("muppets", "kermit");
   EXPECT_CALL(_cache, get_client()).Times(1).WillOnce(Throw(rnfe));
   EXPECT_CALL(_cache, release_client()).Times(0);
 
@@ -705,13 +705,13 @@ TEST_F(CacheRequestTest, PutNotFoundException)
 }
 
 
-TEST_F(CacheRequestTest, PutRowNotFoundException)
+TEST_F(CacheRequestTest, PutNoResultsException)
 {
   TestTransaction *trx = make_trx();
   Cache::Request* req =
     _cache.create_PutIMSSubscription("kermit", "<xml>", 1000);
 
-  Cache::RowNotFoundException rnfe("muppets", "kermit");
+  Cache::NoResultsException rnfe("muppets", "kermit");
   EXPECT_CALL(_client, batch_mutate(_, _)).WillOnce(Throw(rnfe));
 
   EXPECT_CALL(*trx, on_failure(_, Cache::NOT_FOUND, _));
@@ -1138,28 +1138,29 @@ TEST_F(CacheRequestTest, GetAssocPublicIDsMultipleIDs)
   private_ids.push_back("miss piggy");
 
   ResultRecorder<Cache::GetAssociatedPublicIDs, std::vector<std::string>> rec;
-  RecordingTransaction* trx = make_rec_trx(
-      new Cache::GetAssociatedPublicIDs(private_ids), &rec);
+  RecordingTransaction* trx = make_rec_trx(&rec);
+  Cache::Request* req = _cache.create_GetAssociatedPublicIDs(private_ids);
 
   EXPECT_CALL(_client,
-      get_slice(_,
-        "kermit",
-        ColumnPathForTable("impi"),
-        ColumnsWithPrefix("public_id_"),
-        _))
+              get_slice(_,
+                        "kermit",
+                        ColumnPathForTable("impi"),
+                        ColumnsWithPrefix("public_id_"),
+                        _))
     .WillOnce(SetArgReferee<0>(slice));
 
   EXPECT_CALL(_client,
-      get_slice(_,
-        "miss piggy",
-        ColumnPathForTable("impi"),
-        ColumnsWithPrefix("public_id_"),
-        _))
+              get_slice(_,
+              "miss piggy",
+              ColumnPathForTable("impi"),
+              ColumnsWithPrefix("public_id_"),
+              _))
     .WillOnce(SetArgReferee<0>(slice));
 
-  EXPECT_CALL(*trx, on_success())
-    .WillOnce(InvokeWithoutArgs(trx, &RecordingTransaction::record_result));
-  _cache.send(trx);
+  // Expect on_success to fire, but results should be empty.
+  EXPECT_CALL(*trx, on_success(_))
+    .WillOnce(Invoke(trx, &RecordingTransaction::record_result));
+  _cache.send(trx, req);
   wait();
 
   std::vector<std::string> expected_ids;
@@ -1174,17 +1175,37 @@ TEST_F(CacheRequestTest, GetAssocPublicIDsMultipleIDs)
 
 TEST_F(CacheRequestTest, GetAssocPublicIDsNoResults)
 {
+  std::map<std::string, std::string> columns;
+  columns["public_id_gonzo"] = "";
+  columns["public_id_miss piggy"] = "";
+
+  std::vector<cass::ColumnOrSuperColumn> slice;
+  make_slice(slice, columns);
+
   ResultRecorder<Cache::GetAssociatedPublicIDs, std::vector<std::string>> rec;
   RecordingTransaction* trx = make_rec_trx(&rec);
   Cache::Request* req = _cache.create_GetAssociatedPublicIDs("kermit");
 
-  EXPECT_CALL(_client, get_slice(_, "kermit", _, _, _))
-    .WillOnce(SetArgReferee<0>(empty_slice));
+  EXPECT_CALL(_client,
+      get_slice(_,
+        "kermit",
+        ColumnPathForTable("impi"),
+        ColumnsWithPrefix("public_id_"),
+        _))
+    .WillOnce(SetArgReferee<0>(slice));
 
-  // GetAssociatedPublicIDs fires on_failure if there are no associated IDs.
-  EXPECT_CALL(*trx, on_failure(_, Cache::NOT_FOUND, _));
+  EXPECT_CALL(*trx, on_success(_))
+    .WillOnce(Invoke(trx, &RecordingTransaction::record_result));
   _cache.send(trx, req);
   wait();
+
+  std::vector<std::string> expected_ids;
+  expected_ids.push_back("gonzo");
+  expected_ids.push_back("miss piggy");
+  std::sort(expected_ids.begin(), expected_ids.end());
+  std::sort(rec.result.begin(), rec.result.end());
+
+  EXPECT_EQ(expected_ids, rec.result);
 }
 
 

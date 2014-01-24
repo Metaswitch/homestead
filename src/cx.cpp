@@ -99,7 +99,7 @@ UserAuthorizationRequest::UserAuthorizationRequest(const Dictionary* dict,
                                                    const std::string& authorization_type) :
                                                    Diameter::Message(dict, dict->USER_AUTHORIZATION_REQUEST)
 {
-  LOG_DEBUG("Sending User-Authorization request for %s/%s", impi.c_str(), impu.c_str());
+  LOG_DEBUG("Building User-Authorization request for %s/%s", impi.c_str(), impu.c_str());
   add_new_session_id();
   add_vendor_spec_app_id();  
   add(Diameter::AVP(dict->AUTH_SESSION_STATE).val_i32(1));
@@ -164,7 +164,7 @@ LocationInfoRequest::LocationInfoRequest(const Dictionary* dict,
                                          const std::string& authorization_type) :
                                          Diameter::Message(dict, dict->LOCATION_INFO_REQUEST)
 {
-  LOG_DEBUG("Sending User-Authorization request for %s", impu.c_str());
+  LOG_DEBUG("Building User-Authorization request for %s", impu.c_str());
   add_new_session_id();
   add_vendor_spec_app_id();
   add(Diameter::AVP(dict->AUTH_SESSION_STATE).val_i32(1));
@@ -431,7 +431,7 @@ ServerAssignmentRequest::ServerAssignmentRequest(const Dictionary* dict,
                                                  const std::string& server_name) :
                                                  Diameter::Message(dict, dict->SERVER_ASSIGNMENT_REQUEST)
 {
-  LOG_DEBUG("Sending User-Authorization request for %s/%s", impi.c_str(), impu.c_str());
+  LOG_DEBUG("Building User-Authorization request for %s/%s", impi.c_str(), impu.c_str());
   add_new_session_id();
   add_vendor_spec_app_id();
   add(Diameter::AVP(dict->AUTH_SESSION_STATE).val_i32(1));
@@ -502,17 +502,18 @@ std::vector<std::string> RegistrationTerminationRequest::impus() const
 }
 
 RegistrationTerminationAnswer::RegistrationTerminationAnswer(Diameter::Message& msg,
-                                                             const Dictionary* dict,
-                                                             int result_code,
+                                                             Dictionary* dict,
+                                                             char* result_code,
                                                              int auth_session_state,
                                                              std::vector<std::string> impis) :
-                                                             Diameter::Message(msg)
+                                                             Diameter::Message(dict, msg.fd_msg())
 {
-  LOG_DEBUG("Sending Registration-Termination Answer");
+  LOG_DEBUG("Building Registration-Termination Answer");
   add_vendor_spec_app_id();
-  add(Diameter::AVP(dict->RESULT_CODE).val_i32(result_code));
+  set_result_code(result_code);
   add(Diameter::AVP(dict->AUTH_SESSION_STATE).val_i32(auth_session_state));
-  add_origin();
+
+  // Add all the private IDS we've deleted in an Associated-Identities AVP.
   Diameter::AVP associated_identities(dict->ASSOCIATED_IDENTITIES);
   if (!impis.empty())
   {
@@ -609,15 +610,14 @@ DigestAuthVector PushProfileRequest::digest_auth_vector() const
 }
 
 PushProfileAnswer::PushProfileAnswer(Diameter::Message& msg,
-                                     const Dictionary* dict,
-                                     int result_code,
+                                     Dictionary* dict,
+                                     char* result_code,
                                      int auth_session_state) :
-                                     Diameter::Message(msg)
+                                     Diameter::Message(dict, msg.fd_msg())
 
 {
-  LOG_DEBUG("Sending Push-Profile Answer");
+  LOG_DEBUG("Building Push-Profile Answer");
   add_vendor_spec_app_id();
-  add(Diameter::AVP(dict->RESULT_CODE).val_i32(result_code));
+  set_result_code(result_code);
   add(Diameter::AVP(dict->AUTH_SESSION_STATE).val_i32(auth_session_state));
-  add_origin();
 }

@@ -281,17 +281,17 @@ protected:
   void operator=(Cache const &);
 
 public:
-  /// @class RowNotFoundException exception that is thrown to indicate that a
+  /// @class NoResultsException exception that is thrown to indicate that a
   //requested row does not exist.
-  class RowNotFoundException
+  class NoResultsException
   {
   public:
-    RowNotFoundException(const std::string& column_family, const std::string& key) :
+    NoResultsException(const std::string& column_family, const std::string& key) :
       _column_family(column_family),
       _key(key)
     {};
 
-    virtual ~RowNotFoundException() {} ;
+    virtual ~NoResultsException() {} ;
 
     std::string& get_column_family() { return _column_family; };
     std::string& get_key() { return _key; };
@@ -663,16 +663,10 @@ public:
   public:
     /// Get the public Ids that are associated with a single private ID.
     ///
-    /// Note that if there are no public IDs, this request fires on_failure with
-    /// a result of NOT_FOUND.
-    ///
     /// @param private_id the private ID.
     GetAssociatedPublicIDs(const std::string& private_id);
 
     /// Get the public Ids that are associated with multiple private IDs.
-    ///
-    /// Note that if there are no public IDs, this request fires on_failure with
-    /// a result of NOT_FOUND.
     ///
     /// @param private_ids a vector of private IDs.
     GetAssociatedPublicIDs(const std::vector<std::string>& private_ids);

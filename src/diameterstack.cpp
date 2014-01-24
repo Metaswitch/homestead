@@ -94,22 +94,58 @@ void Stack::advertize_application(const Dictionary::Application& app)
 
 void Stack::register_handler(const Dictionary::Application& app, const Dictionary::Message& msg, BaseHandlerFactory* factory)
 {
+  // Register a callback for messages from our application with the specified message type. DISP_HOW_CC indicates that we
+  // want to match on command code (and allows us to optionally match on application if specified). Use a pointer to our
+  // HandlerFactory to pass through to our callback function.
   struct disp_when data;
   memset(&data, 0, sizeof(data));
   data.app = app.dict();
   data.command = msg.dict();
   int rc = fd_disp_register(handler_callback_fn, DISP_HOW_CC, &data, (void *)factory, &callback_handler);
+
   if (rc != 0)
   {
     throw Exception("fd_disp_register", rc); //LCOV_EXCL_LINE
   }
 }
 
+void Stack::register_fallback_handler(const Dictionary::Application &app)
+{
+  // Register a fallback callback for messages of an unexpected type to our application
+  // so that we can log receiving an unexpected message. We use the same callback function
+  // to handle unexpected messages as expected messages, but we don't pass through a HandlerFactory.
+  struct disp_when data;
+  memset(&data, 0, sizeof(data));
+  data.app = app.dict();
+  int rc = fd_disp_register(handler_callback_fn, DISP_HOW_APPID, &data, NULL, &callback_handler);
+
+  if (rc != 0)
+  {
+    throw Exception("fd_disp_register", rc); //LCOV_EXCL_LINE
+  }
+}
+
+
 int Stack::handler_callback_fn(struct msg** req, struct avp* avp, struct session* sess, void* handler_factory, enum disp_action* act)
 {
+  if (handler_factory == NULL)
+  {
+    // This means we have received a message of an unexpected type.
+    LOG_DEBUG("Message of unexpected type received");
+    return 0;
+  }
+
+  // Convert the received message into one our Message objects, and create a new handler instance of the 
+  // correct type.
   Message msg(((Diameter::Stack::BaseHandlerFactory*)handler_factory)->_dict, *req);
   Handler* handler = ((Diameter::Stack::BaseHandlerFactory*)handler_factory)->create(msg);
   handler->run();
+
+  // The handler will turn the message associated with the handler into an answer which we wish to send to the HSS.
+  // Setting the action to DISP_ACT_SEND ensures that we will send this answer on without going to any other callbacks.
+  // Return 0 to indicate no errors with the callback.
+  *req = handler->fd_msg();
+  *act = DISP_ACT_SEND;
   return 0;
 }
 
@@ -127,6 +163,11 @@ void Stack::stop()
 {
   if (_initialized)
   {
+    if (callback_handler)
+    {
+      (void)fd_disp_unregister(&callback_handler, NULL);
+    }
+
     int rc = fd_core_shutdown();
     if (rc != 0)
     {
@@ -145,10 +186,6 @@ void Stack::wait_stopped()
       throw Exception("fd_core_wait_shutdown_complete", rc); // LCOV_EXCL_LINE
     }
     fd_log_handler_unregister();
-    if (callback_handler)
-    {
-      fd_disp_unregister(&callback_handler, NULL);
-    }
     _initialized = false;
   }
 }
@@ -302,7 +339,7 @@ Message::~Message()
 {
   if (_free_on_delete)
   {
-    fd_msg_free(_msg);
+    fd_msg_free(_fd_msg);
   }
 }
 
@@ -310,10 +347,10 @@ void Message::operator=(Message const& msg)
 {
   if (_free_on_delete)
   {
-    fd_msg_free(_msg);
+    fd_msg_free(_fd_msg);
   }
   _dict = msg._dict;
-  _msg = msg._msg;
+  _fd_msg = msg._fd_msg;
   _free_on_delete = msg._free_on_delete;
 }
 
@@ -386,13 +423,13 @@ int Message::vendor_id() const
 
 void Message::send()
 {
-  fd_msg_send(&_msg, NULL, NULL);
+  fd_msg_send(&_fd_msg, NULL, NULL);
   _free_on_delete = false;
 }
 
 void Message::send(Transaction* tsx)
 {
-  fd_msg_send(&_msg, Transaction::on_response, tsx);
+  fd_msg_send(&_fd_msg, Transaction::on_response, tsx);
   _free_on_delete = false;
 }
 
@@ -405,6 +442,6 @@ void Message::send(Transaction* tsx, unsigned int timeout_ms)
   timeout_ts.tv_nsec += (timeout_ms % 1000) * 1000 * 1000;
   timeout_ts.tv_sec += timeout_ms / 1000 + timeout_ts.tv_nsec / (1000 * 1000 * 1000);
   timeout_ts.tv_nsec = timeout_ts.tv_nsec % (1000 * 1000 * 1000);
-  fd_msg_send_timeout(&_msg, Transaction::on_response, tsx, Transaction::on_timeout, &timeout_ts);
+  fd_msg_send_timeout(&_fd_msg, Transaction::on_response, tsx, Transaction::on_timeout, &timeout_ts);
   _free_on_delete = false;
 }

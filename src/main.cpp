@@ -258,6 +258,7 @@ int main(int argc, char**argv)
     Diameter::Stack::ConfiguredHandlerFactory<PushProfileHandler, PushProfileHandler::Config> ppr_handler_factory(dict, &pp_handler_config);
     diameter_stack->register_handler(dict->CX, dict->REGISTRATION_TERMINATION_REQUEST, &rtr_handler_factory);
     diameter_stack->register_handler(dict->CX, dict->PUSH_PROFILE_REQUEST, &ppr_handler_factory);
+    diameter_stack->register_fallback_handler(dict->CX);
     diameter_stack->start();
   }
   catch (Diameter::Stack::Exception& e)

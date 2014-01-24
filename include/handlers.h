@@ -81,6 +81,7 @@ public:
                                  const std::string& server_name,
                                  Cx::Dictionary* dict);
   static void configure_cache(Cache* cache);
+  inline Cache* cache() const {return _cache;}
 
   void on_diameter_timeout();
 
@@ -130,6 +131,54 @@ public:
     }
   };
 
+  template <class H>
+  class CacheTransaction : public Cache::Transaction
+  {
+  public:
+    CacheTransaction(H* handler) :
+      Cache::Transaction(),
+      _handler(handler),
+      _success_clbk(NULL),
+      _failure_clbk(NULL)
+    {};
+
+    typedef void(H::*success_clbk_t)(Cache::Request*);
+    typedef void(H::*failure_clbk_t)(Cache::Request*, Cache::ResultCode, std::string&);
+
+    void set_success_clbk(success_clbk_t fun)
+    {
+      _success_clbk = fun;
+    }
+
+    void set_failure_clbk(failure_clbk_t fun)
+    {
+      _failure_clbk = fun;
+    }
+
+  protected:
+    H* _handler;
+    success_clbk_t _success_clbk;
+    failure_clbk_t _failure_clbk;
+
+    void on_success(Cache::Request* req)
+    {
+      if ((_handler != NULL) && (_success_clbk != NULL))
+      {
+        boost::bind(_success_clbk, _handler, req)();
+      }
+    }
+
+    void on_failure(Cache::Request* req,
+                    Cache::ResultCode error,
+                    std::string& text)
+    {
+      if ((_handler != NULL) && (_failure_clbk != NULL))
+      {
+        boost::bind(_failure_clbk, _handler, req, error, text)();
+      }
+    }
+  };
+
   friend class RegistrationTerminationHandler;
   friend class PushProfileHandler;
 
@@ -140,54 +189,6 @@ protected:
   static std::string _server_name;
   static Cx::Dictionary* _dict;
   static Cache* _cache;
-};
-
-template <class H>
-class CacheTransaction : public Cache::Transaction
-{
-public:
-  CacheTransaction(H* handler) :
-    Cache::Transaction(),
-    _handler(handler),
-    _success_clbk(NULL),
-    _failure_clbk(NULL)
-  {};
-
-  typedef void(H::*success_clbk_t)(Cache::Request*);
-  typedef void(H::*failure_clbk_t)(Cache::Request*, Cache::ResultCode, std::string&);
-
-  void set_success_clbk(success_clbk_t fun)
-  {
-    _success_clbk = fun;
-  }
-
-  void set_failure_clbk(failure_clbk_t fun)
-  {
-    _failure_clbk = fun;
-  }
-
-protected:
-  H* _handler;
-  success_clbk_t _success_clbk;
-  failure_clbk_t _failure_clbk;
-
-  void on_success(Cache::Request* req)
-  {
-    if ((_handler != NULL) && (_success_clbk != NULL))
-    {
-      boost::bind(_success_clbk, _handler, req)();
-    }
-  }
-
-  void on_failure(Cache::Request* req,
-      Cache::ResultCode error,
-      std::string& text)
-  {
-    if ((_handler != NULL) && (_failure_clbk != NULL))
-    {
-      boost::bind(_failure_clbk, _handler, req, error, text)();
-    }
-  }
 };
 
 class ImpiHandler : public HssCacheHandler
@@ -217,6 +218,7 @@ public:
   void on_mar_response(Diameter::Message& rsp);
   virtual void send_reply(const DigestAuthVector& av) = 0;
   virtual void send_reply(const AKAAuthVector& av) = 0;
+  typedef HssCacheHandler::CacheTransaction<ImpiHandler> CacheTransaction;
   typedef HssCacheHandler::DiameterTransaction<ImpiHandler> DiameterTransaction;
 
 protected:
@@ -321,6 +323,8 @@ public:
   void on_get_ims_subscription_success(Cache::Request* request);
   void on_get_ims_subscription_failure(Cache::Request* request, Cache::ResultCode error, std::string& text);
   void on_sar_response(Diameter::Message& rsp);
+
+  typedef HssCacheHandler::CacheTransaction<ImpuIMSSubscriptionHandler> CacheTransaction;
   typedef HssCacheHandler::DiameterTransaction<ImpuIMSSubscriptionHandler> DiameterTransaction;
 
 private:
@@ -345,8 +349,10 @@ public:
   {}
 
   void run();
-  void delete_identities(Cache::Request* request);
-  void on_cache_failure(Cache::Request* request, Cache::ResultCode error, std::string& text);
+  void delete_all_identities(Cache::Request* request);
+  void delete_private_identities(Cache::Request* request, Cache::ResultCode error, std::string& text);
+
+  typedef HssCacheHandler::CacheTransaction<RegistrationTerminationHandler> CacheTransaction;
 
 private:
   const Config* _cfg;
@@ -372,7 +378,6 @@ public:
 
 private:
   const Config* _cfg;
-
   static std::vector<std::string> get_public_ids(const std::string& user_data);
 };
 #endif
