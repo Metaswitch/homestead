@@ -46,6 +46,7 @@
 
 using ::testing::Return;
 using ::testing::StrictMock;
+using ::testing::_;
 
 /// Fixture for HttpStackTest.
 class HttpStackTest : public testing::Test
@@ -126,15 +127,8 @@ private:
 class HttpStackStatsTest : public HttpStackTest
 {
 public:
-  HttpStackStatsTest()
-  {
-    cwtest_completely_control_time(true);
-  }
-
-  virtual ~HttpStackStatsTest()
-  {
-    cwtest_reset_time();
-  }
+  HttpStackStatsTest() {}
+  virtual ~HttpStackStatsTest() {}
 
   void start_stack()
   {
@@ -161,28 +155,6 @@ public:
     _req.send_reply(200);
     delete this;
   }
-};
-
-// A handler that increments time while it is executing, to simulate a request
-// that takes a long time to process.
-const int DELAY_MS = 13;
-const int DELAY_US = DELAY_MS * 1000;
-
-class SlowHandler : public HttpStack::Handler
-{
-public:
-  SlowHandler(HttpStack::Request& req) : HttpStack::Handler(req) {}
-  virtual ~SlowHandler() {}
-
-  void run()
-  {
-    cwtest_advance_time_ms(DELAY_MS);
-    _req.send_reply(200);
-    delete this;
-  }
-
-private:
-  /* data */
 };
 
 TEST_F(HttpStackTest, SimpleMainline)
@@ -231,16 +203,16 @@ TEST_F(HttpStackStatsTest, SuccessfulRequest)
 {
   start_stack();
 
-  HttpStack::HandlerFactory<SlowHandler> factory;
-  _stack->register_handler("^/SlowHandler$", &factory);
+  HttpStack::HandlerFactory<BasicHandler> factory;
+  _stack->register_handler("^/BasicHandler$", &factory);
 
   EXPECT_CALL(_load_monitor, admit_request()).WillOnce(Return(true));
   EXPECT_CALL(_stats_manager, incr_H_incoming_requests()).Times(1);
-  EXPECT_CALL(_stats_manager, update_H_latency_us(DELAY_US)).Times(1);
-  EXPECT_CALL(_load_monitor, request_complete(DELAY_US)).Times(1);
+  EXPECT_CALL(_stats_manager, update_H_latency_us(_)).Times(1);
+  EXPECT_CALL(_load_monitor, request_complete(_)).Times(1);
 
   int status;
-  int rc = get("/SlowHandler", &status, NULL);
+  int rc = get("/BasicHandler", &status, NULL);
   ASSERT_EQ(CURLE_OK, rc);
   ASSERT_EQ(200, status);
 
@@ -251,15 +223,15 @@ TEST_F(HttpStackStatsTest, RejectOverload)
 {
   start_stack();
 
-  HttpStack::HandlerFactory<SlowHandler> factory;
-  _stack->register_handler("^/SlowHandler$", &factory);
+  HttpStack::HandlerFactory<BasicHandler> factory;
+  _stack->register_handler("^/BasicHandler$", &factory);
 
   EXPECT_CALL(_load_monitor, admit_request()).WillOnce(Return(false));
   EXPECT_CALL(_stats_manager, incr_H_incoming_requests()).Times(1);
   EXPECT_CALL(_stats_manager, incr_H_rejected_overload()).Times(1);
 
   int status;
-  int rc = get("/SlowHandler", &status, NULL);
+  int rc = get("/BasicHandler", &status, NULL);
   ASSERT_EQ(CURLE_OK, rc);
   ASSERT_EQ(503, status);  // Request is rejected with a 503.
 
