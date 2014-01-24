@@ -30,6 +30,7 @@ TARGET_SOURCES := accesslogger.cpp \
 TARGET_SOURCES_BUILD := main.cpp
 
 TARGET_SOURCES_TEST := test_main.cpp \
+                       test_interposer.cpp \
                        cx_test.cpp \
                        diameterstack_test.cpp \
                        cache_test.cpp \

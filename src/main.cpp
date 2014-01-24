@@ -41,6 +41,7 @@
 #include "accesslogger.h"
 #include "log.h"
 #include "statisticsmanager.h"
+#include "load_monitor.h"
 #include "diameterstack.h"
 #include "httpstack.h"
 #include "handlers.h"
@@ -246,6 +247,7 @@ int main(int argc, char**argv)
   LOG_STATUS("Log level set to %d", options.log_level);
 
   StatisticsManager* stats_manager = new StatisticsManager();
+  LoadMonitor* load_monitor = new LoadMonitor(100000, 20, 10.0, 10.0);
 
   Diameter::Stack* diameter_stack = Diameter::Stack::get_instance();
   Cx::Dictionary* dict = NULL;
@@ -307,7 +309,8 @@ int main(int argc, char**argv)
                           options.http_port,
                           options.http_threads,
                           access_logger,
-                          stats_manager);
+                          stats_manager,
+                          load_monitor);
     http_stack->register_handler("^/ping$",
                                  &ping_handler_factory);
     http_stack->register_handler("^/impi/[^/]*/digest$",
@@ -354,6 +357,7 @@ int main(int argc, char**argv)
   delete dict;
 
   delete stats_manager; stats_manager = NULL;
+  delete load_monitor; load_monitor = NULL;
 
   signal(SIGTERM, SIG_DFL);
   sem_destroy(&term_sem);

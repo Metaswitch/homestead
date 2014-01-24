@@ -186,7 +186,8 @@ public:
                          unsigned short port,
                          int num_threads,
                          AccessLogger* access_logger = NULL,
-                         StatisticsManager* stats_manager = NULL);
+                         StatisticsManager* stats_manager = NULL,
+                         LoadMonitor* load_monitor = NULL);
   virtual void register_handler(char* path, BaseHandlerFactory* factory);
   virtual void start();
   virtual void stop();
@@ -222,9 +223,9 @@ private:
   unsigned short _bind_port;
   int _num_threads;
 
-  StatisticsManager* _stats_manager;
   AccessLogger* _access_logger;
-  LoadMonitor _load_monitor;
+  StatisticsManager* _stats_manager;
+  LoadMonitor* _load_monitor;
 
   evbase_t* _evbase;
   evhtp_t* _evhtp;

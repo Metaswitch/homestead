@@ -36,9 +36,16 @@
 
 #define GTEST_HAS_POSIX_RE 0
 #include "test_utils.hpp"
+#include "test_interposer.hpp"
 #include <curl/curl.h>
 
 #include "httpstack.h"
+
+#include "mockloadmonitor.hpp"
+#include "mockstatisticsmanager.hpp"
+
+using ::testing::Return;
+using ::testing::StrictMock;
 
 /// Fixture for HttpStackTest.
 class HttpStackTest : public testing::Test
@@ -60,7 +67,7 @@ public:
       stop_stack();
     }
   }
-  
+
   void start_stack()
   {
     _stack = HttpStack::get_instance();
@@ -68,7 +75,7 @@ public:
     _stack->configure(_host.c_str(), _port, 1);
     _stack->start();
   }
-  
+
   void stop_stack()
   {
     _stack->stop();
@@ -76,25 +83,32 @@ public:
     _stack = NULL;
   }
 
-  int get(const std::string& path, int& status, std::string& response)
+  int get(const std::string& path, int* status_ptr, std::string* response_ptr)
   {
     std::string url = _url_prefix + path;
     curl_global_init(CURL_GLOBAL_DEFAULT);
     CURL* curl = curl_easy_init();
-  
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, &string_store);
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
+
+    if (response_ptr)
+    {
+      curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, &string_store);
+      curl_easy_setopt(curl, CURLOPT_WRITEDATA, response_ptr);
+    }
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-  
+
     int rc = curl_easy_perform(curl);
-    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status);
-  
+
+    if (status_ptr)
+    {
+      curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, status_ptr);
+    }
+
     curl_easy_cleanup(curl);
     curl_global_cleanup();
-  
+
     return rc;
   }
-  
+
   HttpStack* _stack;
 
 private:
@@ -107,6 +121,33 @@ private:
   std::string _host;
   int _port;
   std::string _url_prefix;
+};
+
+class HttpStackStatsTest : public HttpStackTest
+{
+public:
+  HttpStackStatsTest()
+  {
+    cwtest_completely_control_time(true);
+  }
+
+  virtual ~HttpStackStatsTest()
+  {
+    cwtest_reset_time();
+  }
+
+  void start_stack()
+  {
+    _stack = HttpStack::get_instance();
+    _stack->initialize();
+    _stack->configure(_host.c_str(), _port, 1, NULL, &_stats_manager, &_load_monitor);
+    _stack->start();
+  }
+
+private:
+  // Strict mocks - we only allow method calls that the test explicitly expects.
+  StrictMock<MockLoadMonitor> _load_monitor;
+  StrictMock<MockStatisticsManager> _stats_manager;
 };
 
 // Basic Handler to test handler function.
@@ -122,6 +163,28 @@ public:
   }
 };
 
+// A handler that increments time while it is executing, to simulate a request
+// that takes a long time to process.
+const int DELAY_MS = 13;
+const int DELAY_US = DELAY_MS * 1000;
+
+class SlowHandler : public HttpStack::Handler
+{
+public:
+  SlowHandler(HttpStack::Request& req) : HttpStack::Handler(req) {}
+  virtual ~SlowHandler() {}
+
+  void run()
+  {
+    cwtest_advance_time_ms(DELAY_MS);
+    _req.send_reply(200);
+    delete this;
+  }
+
+private:
+  /* data */
+};
+
 TEST_F(HttpStackTest, SimpleMainline)
 {
   start_stack();
@@ -134,7 +197,7 @@ TEST_F(HttpStackTest, NoHandler)
 
   int status;
   std::string response;
-  int rc = get("/NoHandler", status, response);
+  int rc = get("/NoHandler", &status, &response);
   ASSERT_EQ(CURLE_OK, rc);
   ASSERT_EQ(404, status);
 
@@ -150,15 +213,55 @@ TEST_F(HttpStackTest, SimpleHandler)
 
   int status;
   std::string response;
-  int rc = get("/BasicHandler", status, response);
+  int rc = get("/BasicHandler", &status, &response);
   ASSERT_EQ(CURLE_OK, rc);
   ASSERT_EQ(200, status);
   ASSERT_EQ("OK", response);
 
   // Check that NoHandler _doesn't_ match.
-  rc = get("/NoHandler", status, response);
+  rc = get("/NoHandler", &status, &response);
   ASSERT_EQ(CURLE_OK, rc);
   ASSERT_EQ(404, status);
+
+  stop_stack();
+}
+
+
+TEST_F(HttpStackStatsTest, SuccessfulRequest)
+{
+  start_stack();
+
+  HttpStack::HandlerFactory<SlowHandler> factory;
+  _stack->register_handler("^/SlowHandler$", &factory);
+
+  EXPECT_CALL(_load_monitor, admit_request()).WillOnce(Return(true));
+  EXPECT_CALL(_stats_manager, incr_H_incoming_requests()).Times(1);
+  EXPECT_CALL(_stats_manager, update_H_latency_us(DELAY_US)).Times(1);
+  EXPECT_CALL(_load_monitor, request_complete(DELAY_US)).Times(1);
+
+  int status;
+  int rc = get("/SlowHandler", &status, NULL);
+  ASSERT_EQ(CURLE_OK, rc);
+  ASSERT_EQ(200, status);
+
+  stop_stack();
+}
+
+TEST_F(HttpStackStatsTest, RejectOverload)
+{
+  start_stack();
+
+  HttpStack::HandlerFactory<SlowHandler> factory;
+  _stack->register_handler("^/SlowHandler$", &factory);
+
+  EXPECT_CALL(_load_monitor, admit_request()).WillOnce(Return(false));
+  EXPECT_CALL(_stats_manager, incr_H_incoming_requests()).Times(1);
+  EXPECT_CALL(_stats_manager, incr_H_rejected_overload()).Times(1);
+
+  int status;
+  int rc = get("/SlowHandler", &status, NULL);
+  ASSERT_EQ(CURLE_OK, rc);
+  ASSERT_EQ(503, status);  // Request is rejected with a 503.
 
   stop_stack();
 }

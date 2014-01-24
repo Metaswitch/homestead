@@ -42,10 +42,10 @@
 #include "accumulator.h"
 
 #define COUNTER_INCR_METHOD(NAME) \
-  void incr_##NAME() { (NAME).increment(); }
+  virtual void incr_##NAME() { (NAME).increment(); }
 
 #define ACCUMULATOR_UPDATE_METHOD(NAME) \
-  void update_##NAME(unsigned long sample) { (NAME).accumulate(sample); }
+  virtual void update_##NAME(unsigned long sample) { (NAME).accumulate(sample); }
 
 class StatisticsManager
 {

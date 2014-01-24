@@ -39,13 +39,10 @@
 HttpStack* HttpStack::INSTANCE = &DEFAULT_INSTANCE;
 HttpStack HttpStack::DEFAULT_INSTANCE;
 
-const static int TARGET_LATENCY = 100000;
-const static int MAX_BUCKET_SIZE = 20;
-const static float INIT_TOKEN_RATE = 10.0;
-const static float MIN_TOKEN_RATE = 10.0;
-
 HttpStack::HttpStack() :
-  _load_monitor(TARGET_LATENCY, MAX_BUCKET_SIZE, INIT_TOKEN_RATE, MIN_TOKEN_RATE)
+  _access_logger(NULL),
+  _stats_manager(NULL),
+  _load_monitor(NULL)
 {}
 
 void HttpStack::Request::send_reply(int rc)
@@ -69,11 +66,19 @@ void HttpStack::send_reply(Request& req, int rc)
   // HttpStack::handler_callback_fn.
   evhtp_request_resume(req.req());
 
-  // Update the latency stats.
+  // Update the latency stats and throttling algorithm.
   unsigned long latency_us = 0;
-  if ((_stats_manager != NULL) && (req.get_latency(latency_us)))
+  if (req.get_latency(latency_us))
   {
-    _stats_manager->update_H_latency_us(latency_us);
+    if (_load_monitor != NULL)
+    {
+      _load_monitor->request_complete(latency_us);
+    }
+
+    if (_stats_manager != NULL)
+    {
+      _stats_manager->update_H_latency_us(latency_us);
+    }
   }
 }
 
@@ -88,6 +93,7 @@ void HttpStack::initialize()
     evthread_use_pthreads();
     _evbase = event_base_new();
   }
+
   if (!_evhtp)
   {
     _evhtp = evhtp_new(_evbase, NULL);
@@ -98,13 +104,15 @@ void HttpStack::configure(const std::string& bind_address,
                           unsigned short bind_port,
                           int num_threads,
                           AccessLogger* access_logger,
-                          StatisticsManager* stats_manager)
+                          StatisticsManager* stats_manager,
+                          LoadMonitor* load_monitor)
 {
   _bind_address = bind_address;
   _bind_port = bind_port;
   _num_threads = num_threads;
   _access_logger = access_logger;
   _stats_manager = stats_manager;
+  _load_monitor = load_monitor;
 }
 
 void HttpStack::register_handler(char* path, HttpStack::BaseHandlerFactory* factory)
@@ -167,7 +175,7 @@ void HttpStack::handler_callback(evhtp_request_t* req,
     _stats_manager->incr_H_incoming_requests();
   }
 
-  if (_load_monitor.admit_request())
+  if ((_load_monitor == NULL) || _load_monitor->admit_request())
   {
     // Pause the request processing (which stops it from being cancelled), as we
     // may process this request asynchronously.  The
@@ -203,5 +211,8 @@ void HttpStack::event_base_thread_fn()
 
 void HttpStack::record_penalty()
 {
-  _load_monitor.incr_penalties();
+  if (_load_monitor != NULL)
+  {
+    _load_monitor->incr_penalties();
+  }
 }
