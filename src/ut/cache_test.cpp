@@ -1157,7 +1157,6 @@ TEST_F(CacheRequestTest, GetAssocPublicIDsMultipleIDs)
               _))
     .WillOnce(SetArgReferee<0>(slice));
 
-  // Expect on_success to fire, but results should be empty.
   EXPECT_CALL(*trx, on_success(_))
     .WillOnce(Invoke(trx, &RecordingTransaction::record_result));
   _cache.send(trx, req);
@@ -1175,35 +1174,20 @@ TEST_F(CacheRequestTest, GetAssocPublicIDsMultipleIDs)
 
 TEST_F(CacheRequestTest, GetAssocPublicIDsNoResults)
 {
-  std::map<std::string, std::string> columns;
-  columns["public_id_gonzo"] = "";
-  columns["public_id_miss piggy"] = "";
-
-  std::vector<cass::ColumnOrSuperColumn> slice;
-  make_slice(slice, columns);
-
   ResultRecorder<Cache::GetAssociatedPublicIDs, std::vector<std::string>> rec;
   RecordingTransaction* trx = make_rec_trx(&rec);
   Cache::Request* req = _cache.create_GetAssociatedPublicIDs("kermit");
 
-  EXPECT_CALL(_client,
-      get_slice(_,
-        "kermit",
-        ColumnPathForTable("impi"),
-        ColumnsWithPrefix("public_id_"),
-        _))
-    .WillOnce(SetArgReferee<0>(slice));
+  EXPECT_CALL(_client, get_slice(_, "kermit", _, _, _))
+    .WillOnce(SetArgReferee<0>(empty_slice));
 
+  // Expect on_success to fire, but results should be empty.
   EXPECT_CALL(*trx, on_success(_))
     .WillOnce(Invoke(trx, &RecordingTransaction::record_result));
   _cache.send(trx, req);
   wait();
 
   std::vector<std::string> expected_ids;
-  expected_ids.push_back("gonzo");
-  expected_ids.push_back("miss piggy");
-  std::sort(expected_ids.begin(), expected_ids.end());
-  std::sort(rec.result.begin(), rec.result.end());
 
   EXPECT_EQ(expected_ids, rec.result);
 }
