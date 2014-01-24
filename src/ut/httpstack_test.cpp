@@ -168,6 +168,18 @@ public:
   }
 };
 
+class PenaltyHandler : public HttpStack::Handler
+{
+public:
+  PenaltyHandler(HttpStack::Request& req) : HttpStack::Handler(req) {};
+  void run()
+  {
+    _req.record_penalty();
+    _req.send_reply(200);
+    delete this;
+  }
+};
+
 TEST_F(HttpStackTest, SimpleMainline)
 {
   start_stack();
@@ -220,7 +232,7 @@ TEST_F(HttpStackStatsTest, SuccessfulRequest)
   EXPECT_CALL(_load_monitor, admit_request()).WillOnce(Return(true));
   EXPECT_CALL(_stats_manager, incr_H_incoming_requests()).Times(1);
   EXPECT_CALL(_stats_manager, update_H_latency_us(DELAY_US)).Times(1);
-  EXPECT_CALL(_load_monitor, request_complete(_)).Times(1);
+  EXPECT_CALL(_load_monitor, request_complete(DELAY_US)).Times(1);
 
   int status;
   std::string response;
@@ -247,6 +259,28 @@ TEST_F(HttpStackStatsTest, RejectOverload)
   int rc = get("/BasicHandler", status, response);
   ASSERT_EQ(CURLE_OK, rc);
   ASSERT_EQ(503, status);  // Request is rejected with a 503.
+
+  stop_stack();
+}
+
+TEST_F(HttpStackStatsTest, LatencyPenalties)
+{
+  start_stack();
+
+  HttpStack::HandlerFactory<PenaltyHandler> factory;
+  _stack->register_handler("^/BasicHandler$", &factory);
+
+  EXPECT_CALL(_load_monitor, admit_request()).WillOnce(Return(true));
+  EXPECT_CALL(_load_monitor, incr_penalties()).Times(1);
+  EXPECT_CALL(_stats_manager, incr_H_incoming_requests()).Times(1);
+  EXPECT_CALL(_stats_manager, update_H_latency_us(_)).Times(1);
+  EXPECT_CALL(_load_monitor, request_complete(_)).Times(1);
+
+  int status;
+  std::string response;
+  int rc = get("/BasicHandler", status, response);
+  ASSERT_EQ(CURLE_OK, rc);
+  ASSERT_EQ(200, status);
 
   stop_stack();
 }
