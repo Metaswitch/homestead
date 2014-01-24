@@ -38,6 +38,7 @@
 
 HttpStack* HttpStack::INSTANCE = &DEFAULT_INSTANCE;
 HttpStack HttpStack::DEFAULT_INSTANCE;
+bool HttpStack::_ev_using_pthreads = false;
 
 HttpStack::HttpStack() :
   _access_logger(NULL),
@@ -86,11 +87,16 @@ void HttpStack::initialize()
 {
   // Initialize if we haven't already done so.  We don't do this in the
   // constructor because we can't throw exceptions on failure.
+  if (!_ev_using_pthreads)
+  {
+    // Tell libevent to use pthreads.  If you don't, it seems to disable
+    // locking, with hilarious results.
+    evthread_use_pthreads();
+    _ev_using_pthreads = true;
+  }
+
   if (!_evbase)
   {
-    // Tell libevent to use pthreads.  If you don't, it seems to disable locking, with hilarious
-    // results.
-    evthread_use_pthreads();
     _evbase = event_base_new();
   }
 

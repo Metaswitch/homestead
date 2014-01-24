@@ -230,6 +230,8 @@ private:
   evbase_t* _evbase;
   evhtp_t* _evhtp;
   pthread_t _event_base_thread;
+
+  static bool _ev_using_pthreads;
 };
 
 #endif
