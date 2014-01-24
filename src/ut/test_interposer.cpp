@@ -101,10 +101,16 @@ void cwtest_reset_time()
   pthread_mutex_unlock(&time_offset_lock);
 }
 
-void cwtest_completely_control_time(bool control)
+void cwtest_completely_control_time()
 {
+  if (!real_clock_gettime)
+  {
+    real_clock_gettime = (int (*)(clockid_t, struct timespec *))dlsym(RTLD_NEXT, "clock_gettime");
+  }
+
   pthread_mutex_lock(&time_offset_lock);
-  completely_control_time = control;
+  completely_control_time = true;
+  real_clock_gettime(CLOCK_MONOTONIC, &time_offset);
   pthread_mutex_unlock(&time_offset_lock);
 }
 

@@ -122,7 +122,7 @@ private:
 class HttpStackStatsTest : public HttpStackTest
 {
 public:
-  HttpStackStatsTest() {}
+  HttpStackStatsTest() { cwtest_completely_control_time(); }
   virtual ~HttpStackStatsTest() { cwtest_reset_time(); }
 
   void start_stack()
@@ -219,7 +219,7 @@ TEST_F(HttpStackStatsTest, SuccessfulRequest)
 
   EXPECT_CALL(_load_monitor, admit_request()).WillOnce(Return(true));
   EXPECT_CALL(_stats_manager, incr_H_incoming_requests()).Times(1);
-  EXPECT_CALL(_stats_manager, update_H_latency_us(Gt(DELAY_US))).Times(1);
+  EXPECT_CALL(_stats_manager, update_H_latency_us(DELAY_US)).Times(1);
   EXPECT_CALL(_load_monitor, request_complete(_)).Times(1);
 
   int status;
