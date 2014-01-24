@@ -84,25 +84,19 @@ public:
     _stack = NULL;
   }
 
-  int get(const std::string& path, int* status_ptr, std::string* response_ptr)
+  int get(const std::string& path, int& status, std::string& response)
   {
     std::string url = _url_prefix + path;
     curl_global_init(CURL_GLOBAL_DEFAULT);
     CURL* curl = curl_easy_init();
 
-    if (response_ptr)
-    {
-      curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, &string_store);
-      curl_easy_setopt(curl, CURLOPT_WRITEDATA, response_ptr);
-    }
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, &string_store);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
 
     int rc = curl_easy_perform(curl);
 
-    if (status_ptr)
-    {
-      curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, status_ptr);
-    }
+    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status);
 
     curl_easy_cleanup(curl);
     curl_global_cleanup();
@@ -169,7 +163,7 @@ TEST_F(HttpStackTest, NoHandler)
 
   int status;
   std::string response;
-  int rc = get("/NoHandler", &status, &response);
+  int rc = get("/NoHandler", status, response);
   ASSERT_EQ(CURLE_OK, rc);
   ASSERT_EQ(404, status);
 
@@ -185,13 +179,13 @@ TEST_F(HttpStackTest, SimpleHandler)
 
   int status;
   std::string response;
-  int rc = get("/BasicHandler", &status, &response);
+  int rc = get("/BasicHandler", status, response);
   ASSERT_EQ(CURLE_OK, rc);
   ASSERT_EQ(200, status);
   ASSERT_EQ("OK", response);
 
   // Check that NoHandler _doesn't_ match.
-  rc = get("/NoHandler", &status, &response);
+  rc = get("/NoHandler", status, response);
   ASSERT_EQ(CURLE_OK, rc);
   ASSERT_EQ(404, status);
 
@@ -212,7 +206,8 @@ TEST_F(HttpStackStatsTest, SuccessfulRequest)
   EXPECT_CALL(_load_monitor, request_complete(_)).Times(1);
 
   int status;
-  int rc = get("/BasicHandler", &status, NULL);
+  std::string response;
+  int rc = get("/BasicHandler", status, response);
   ASSERT_EQ(CURLE_OK, rc);
   ASSERT_EQ(200, status);
 
@@ -231,7 +226,8 @@ TEST_F(HttpStackStatsTest, RejectOverload)
   EXPECT_CALL(_stats_manager, incr_H_rejected_overload()).Times(1);
 
   int status;
-  int rc = get("/BasicHandler", &status, NULL);
+  std::string response;
+  int rc = get("/BasicHandler", status, response);
   ASSERT_EQ(CURLE_OK, rc);
   ASSERT_EQ(503, status);  // Request is rejected with a 503.
 
