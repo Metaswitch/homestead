@@ -39,6 +39,7 @@
 #include "gtest/gtest.h"
 #include "gmock/gmock.h"
 #include "test_utils.hpp"
+#include "test_interposer.hpp"
 
 #include <cache.h>
 
@@ -101,6 +102,22 @@ public:
   virtual ~TestTransaction()
   {
     sem_post(_sem);
+  }
+
+  void check_latency(unsigned long expected_latency_us)
+  {
+    unsigned long actual_latency_us;
+    bool rc;
+
+    rc = get_duration(actual_latency_us);
+    EXPECT_TRUE(rc);
+    EXPECT_EQ(expected_latency_us, actual_latency_us);
+
+    cwtest_advance_time_ms(1);
+
+    rc = get_duration(actual_latency_us);
+    EXPECT_TRUE(rc);
+    EXPECT_EQ(expected_latency_us, actual_latency_us);
   }
 
   MOCK_METHOD1(on_success, void(Cache::Request*req));
@@ -240,6 +257,26 @@ public:
 
   // Semaphore that the main thread waits on while a transaction is outstanding.
   sem_t _sem;
+};
+
+class CacheLatencyTest : public CacheRequestTest
+{
+public:
+  CacheLatencyTest() : CacheRequestTest()
+  {
+    cwtest_completely_control_time();
+  }
+
+  virtual ~CacheLatencyTest() { cwtest_reset_time(); }
+
+  // This test mucks around with time so we override wait to jusr wait on the
+  // semaphore rather than the safer timedwait (which spots script hangs).
+  // Hopefully any functional hanging-type bugs will already have caused the
+  // script to fail before the Latency tests are run.
+  void wait()
+  {
+    sem_wait(&_sem);
+  }
 };
 
 
@@ -1253,4 +1290,23 @@ TEST(CacheGenerateTimestamp, CreatesMicroTimestamp)
 
   EXPECT_THAT(Cache::generate_timestamp(),
               AllOf(Gt(us_curr - grace), Lt(us_curr + grace)));
+}
+
+ACTION_P(AdvanceTimeMs, ms) { cwtest_advance_time_ms(ms); }
+ACTION_P2(CheckLatency, trx, ms) { trx->check_latency(ms * 1000); }
+
+TEST_F(CacheLatencyTest, Foo)
+{
+  TestTransaction *trx = make_trx();
+  Cache::Request* req =
+    _cache.create_PutIMSSubscription("kermit", "<xml>", 1000, 300);
+
+  std::map<std::string, std::string> columns;
+  columns["ims_subscription_xml"] = "<xml>";
+
+  EXPECT_CALL(_client, batch_mutate(_, _)).WillOnce(AdvanceTimeMs(12));
+  EXPECT_CALL(*trx, on_success(_)).WillOnce(CheckLatency(trx, 12));
+
+  _cache.send(trx, req);
+  wait();
 }

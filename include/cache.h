@@ -344,7 +344,7 @@ public:
     /// true.
     ///
     /// @return whether the duration has been obtained.
-    bool get_duration(unsigned long duration_us)
+    bool get_duration(unsigned long& duration_us)
     {
       return _stopwatch.read(duration_us);
     }
