@@ -1,9 +1,9 @@
-#!/bin/sh
+#!/bin/bash
 
-# @file homestead.monit
+# @file poll_homestead.sh
 #
 # Project Clearwater - IMS in the Cloud
-# Copyright (C) 2013  Metaswitch Networks Ltd
+# Copyright (C) 2014  Metaswitch Networks Ltd
 #
 # This program is free software: you can redistribute it and/or modify it
 # under the terms of the GNU General Public License as published by the
@@ -34,24 +34,12 @@
 # under which the OpenSSL Project distributes the OpenSSL toolkit software,
 # as those licenses appear in the file LICENSE-OPENSSL.
 
+# This script uses HTTP to poll a homestead process and check whether it is healthy.
+
 . /etc/clearwater/config
 
-# Set up the monit configuration for homestead with the right IP addresses and ports
-cat > /etc/monit/conf.d/homestead.monit <<EOF
-# Poll every 10 seconds
-set daemon 10
+PORT=8888
 
-# Monitor the server's PID file and check its public interfaces.
-check process homestead pidfile /var/run/homestead.pid
-  start program = "/etc/init.d/homestead start"
-  stop program = "/etc/init.d/homestead stop"
-# TODO monitor HTTPS as well as HTTP.
-#  if failed host localhost port 8443 type TCPSSL protocol http
-#    and use the request "/ping" then restart
-check program poll_homestead with path "/usr/share/clearwater/bin/poll_homestead.sh"
-  if status != 0 for 2 cycles then exec "/etc/init.d/homestead abort-restart"
-EOF
-chmod 0644 /etc/monit/conf.d/homestead.monit
+# Not currently implemented, just return success.
 
-# Force monit to reload its configuration
-service monit reload
+exit 0
