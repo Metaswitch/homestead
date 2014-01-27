@@ -40,7 +40,7 @@
 #include "gmock/gmock.h"
 #include "cache.h"
 
-//static const DigestAuthVector mock_digest_av;
+static DigestAuthVector mock_digest_av;
 
 class MockCache : public Cache
 {
@@ -144,11 +144,11 @@ public:
     virtual ~MockPutAssociatedPublicID() {}
   };
 
-  //class MockPutAuthVector : public PutAuthVector
-  //{
-   // MockPutAuthVector() : PutAuthVector("", mock_digest_av, 0) {}
-    //virtual ~MockPutAuthVector() {}
-  //};
+  class MockPutAuthVector : public PutAuthVector
+  {
+    MockPutAuthVector() : PutAuthVector("", mock_digest_av, 0) {}
+    virtual ~MockPutAuthVector() {}
+  };
 
   class MockGetIMSSubscription : public GetIMSSubscription
   {

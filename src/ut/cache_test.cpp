@@ -55,6 +55,7 @@ using ::testing::MatcherInterface;
 using ::testing::MatchResultListener;
 using ::testing::Invoke;
 using ::testing::AllOf;
+using ::testing::DoAll;
 using ::testing::Gt;
 using ::testing::Lt;
 
@@ -1292,10 +1293,11 @@ TEST(CacheGenerateTimestamp, CreatesMicroTimestamp)
               AllOf(Gt(us_curr - grace), Lt(us_curr + grace)));
 }
 
+
 ACTION_P(AdvanceTimeMs, ms) { cwtest_advance_time_ms(ms); }
 ACTION_P2(CheckLatency, trx, ms) { trx->check_latency(ms * 1000); }
 
-TEST_F(CacheLatencyTest, Foo)
+TEST_F(CacheLatencyTest, PutRecordsLatency)
 {
   TestTransaction *trx = make_trx();
   Cache::Request* req =
@@ -1306,6 +1308,67 @@ TEST_F(CacheLatencyTest, Foo)
 
   EXPECT_CALL(_client, batch_mutate(_, _)).WillOnce(AdvanceTimeMs(12));
   EXPECT_CALL(*trx, on_success(_)).WillOnce(CheckLatency(trx, 12));
+
+  _cache.send(trx, req);
+  wait();
+}
+
+
+TEST_F(CacheLatencyTest, DeleteRecordsLatency)
+{
+  TestTransaction *trx = make_trx();
+  Cache::Request* req =
+    _cache.create_DeletePublicIDs("kermit", 1000);
+
+  EXPECT_CALL(_client, remove(_, _, _, _)).WillOnce(AdvanceTimeMs(13));
+  EXPECT_CALL(*trx, on_success(_)).WillOnce(CheckLatency(trx, 13));
+
+  _cache.send(trx, req);
+  wait();
+}
+
+
+TEST_F(CacheLatencyTest, GetRecordsLatency)
+{
+  std::vector<std::string> requested_columns;
+  requested_columns.push_back("ims_subscription_xml");
+
+  std::map<std::string, std::string> columns;
+  columns["ims_subscription_xml"] = "<howdy>";
+
+  std::vector<cass::ColumnOrSuperColumn> slice;
+  make_slice(slice, columns);
+
+  ResultRecorder<Cache::GetIMSSubscription, std::string> rec;
+  RecordingTransaction* trx = make_rec_trx(&rec);
+  Cache::Request *req = _cache.create_GetIMSSubscription("kermit");
+
+  EXPECT_CALL(_client, get_slice(_, _, _, _, _))
+    .WillOnce(DoAll(SetArgReferee<0>(slice),
+                    AdvanceTimeMs(14)));
+
+  EXPECT_CALL(*trx, on_success(_))
+    .WillOnce(DoAll(Invoke(trx, &RecordingTransaction::record_result),
+                    CheckLatency(trx, 14)));
+
+  _cache.send(trx, req);
+  wait();
+}
+
+
+TEST_F(CacheLatencyTest, ErrorRecordsLatency)
+{
+  TestTransaction *trx = make_trx();
+  Cache::Request* req =
+    _cache.create_PutIMSSubscription("kermit", "<xml>", 1000, 300);
+
+  std::map<std::string, std::string> columns;
+  columns["ims_subscription_xml"] = "<xml>";
+
+  cass::NotFoundException nfe;
+  EXPECT_CALL(_client, batch_mutate(_, _))
+    .WillOnce(DoAll(AdvanceTimeMs(12), Throw(nfe)));
+  EXPECT_CALL(*trx, on_failure(_, _, _)).WillOnce(CheckLatency(trx, 12));
 
   _cache.send(trx, req);
   wait();
