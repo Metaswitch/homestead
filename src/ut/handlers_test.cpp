@@ -38,10 +38,10 @@
 #include "test_utils.hpp"
 #include <curl/curl.h>
 
+#include "mockdiameterstack.hpp"
 #include "mockhttpstack.hpp"
-#include "handlers.h"
-
 #include "mockcache.hpp"
+#include "handlers.h"
 
 TEST(HandlersTest, SimpleMainline)
 {
@@ -51,6 +51,70 @@ TEST(HandlersTest, SimpleMainline)
   PingHandler* handler = new PingHandler(req);
   handler->run();
   EXPECT_EQ("OK", req.content());
+}
+
+TEST(HandlersTest, RegistrationStatus)
+{
+  MockHttpStack httpstack;
+  MockHttpStack::Request req(&httpstack, "/impi/impi@example.com/", "registration-status", "?impu=sip:impu@example.com");
+  ImpiRegistrationStatusHandler::Config cfg(true);
+  ImpiRegistrationStatusHandler* handler = new ImpiRegistrationStatusHandler(req, &cfg);
+  // Expect these to be made...
+  // MockDiameterMessage msg;
+  // MockDiameterTransaction tsx;
+  // Check response callback is set properly
+  EXPECT_CALL(msg, send(tsx, 200))
+    .Times(1);
+  handler->run();
+
+  MockDiameterMessage rsp;
+  int i32;
+  std::string str;
+  EXPECT_CALL(rsp, get_i32_from_avp(&i32))
+    .Times(1)
+    .WillOnce(DoAll(SetArgReferee<0>(2001), Return(true)));
+  EXPECT_CALL(rsp, experimental_result_code())
+    .Times(1)
+    .WillOnce(Return(0));
+  EXPECT_CALL(rsp, get_str_from_avp(&str))
+    .Times(1)
+    .WillOnce(DoAll(SetArgReferee<0>("scscf"), Return(true)));
+  EXPECT_CALL(httpstack, send_reply(testing::_, 200));
+  handler->on_uar_response(rsp);
+
+  // Build the expected JSON response
+  rapidjson::StringBuffer sb;
+  rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
+  writer.StartObject();
+  writer.String(JSON_RC.c_str());
+  writer.Int(2001);
+  writer.String(JSON_SCSCF.c_str());
+  writer.String("scscf");
+  writer.EndObject();
+  EXPECT_EQ(sb.GetString(), req.content());
+}
+
+TEST(HandlersTest, RegistrationStatusNoHSS)
+{
+  // Configure no HSS
+  MockHttpStack httpstack;
+  MockHttpStack::Request req(&httpstack, "/impi/impi@example.com/", "registration-status", "?impu=sip:impu@example.com");
+  ImpiRegistrationStatusHandler::Config cfg(false);
+  ImpiRegistrationStatusHandler* handler = new ImpiRegistrationStatusHandler(req, &cfg);
+  EXPECT_CALL(httpstack, send_reply(testing::_, 200));
+  handler->run();
+
+  // Build the expected JSON response
+  rapidjson::StringBuffer sb;
+  rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
+  writer.StartObject();
+  writer.String(JSON_RC.c_str());
+  writer.Int(2001);
+  writer.String(JSON_SCSCF.c_str());
+  // GDR - default server name
+  writer.String();
+  writer.EndObject();
+  EXPECT_EQ(sb.GetString(), req.content());
 }
 
 #if 0
