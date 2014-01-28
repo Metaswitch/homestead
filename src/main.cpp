@@ -257,6 +257,13 @@ int main(int argc, char**argv)
     diameter_stack->configure(options.diameter_conf);
     dict = new Cx::Dictionary();
     diameter_stack->advertize_application(dict->CX);
+    RegistrationTerminationHandler::Config rt_handler_config(options.ims_sub_cache_ttl);
+    PushProfileHandler::Config pp_handler_config(options.impu_cache_ttl, options.ims_sub_cache_ttl);
+    Diameter::Stack::ConfiguredHandlerFactory<RegistrationTerminationHandler, RegistrationTerminationHandler::Config> rtr_handler_factory(dict, &rt_handler_config);
+    Diameter::Stack::ConfiguredHandlerFactory<PushProfileHandler, PushProfileHandler::Config> ppr_handler_factory(dict, &pp_handler_config);
+    diameter_stack->register_handler(dict->CX, dict->REGISTRATION_TERMINATION_REQUEST, &rtr_handler_factory);
+    diameter_stack->register_handler(dict->CX, dict->PUSH_PROFILE_REQUEST, &ppr_handler_factory);
+    diameter_stack->register_fallback_handler(dict->CX);
     diameter_stack->start();
   }
   catch (Diameter::Stack::Exception& e)
