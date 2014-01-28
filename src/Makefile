@@ -18,7 +18,8 @@ TARGET_SOURCES := accesslogger.cpp \
                   handlers.cpp \
                   httpstack.cpp \
                   logger.cpp \
-                  log.cpp
+                  log.cpp \
+                  xmlutils.cpp
 
 TARGET_SOURCES_BUILD := main.cpp
 

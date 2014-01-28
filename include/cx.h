@@ -101,15 +101,17 @@ public:
                            const std::string& authorization_type);
   inline UserAuthorizationRequest(Diameter::Message& msg) : Diameter::Message(msg) {};
 
-  inline bool impu(std::string* str) const
+  inline std::string impu() const
   {
-    return get_str_from_avp(((Cx::Dictionary*)dict())->PUBLIC_IDENTITY, str);
+    std::string str;
+    get_str_from_avp(((Cx::Dictionary*)dict())->PUBLIC_IDENTITY, str);
+    return str;
   }
-  inline bool visited_network(std::string* str) const
+  inline bool visited_network(std::string& str) const
   {
     return get_str_from_avp(((Cx::Dictionary*)dict())->VISITED_NETWORK_IDENTIFIER, str);
   }
-  inline bool auth_type(int* i32) const
+  inline bool auth_type(int32_t& i32) const
   {
     return get_i32_from_avp(((Cx::Dictionary*)dict())->USER_AUTHORIZATION_TYPE, i32);
   }
@@ -121,7 +123,7 @@ public:
   UserAuthorizationAnswer(const Dictionary* dict);
   inline UserAuthorizationAnswer(Diameter::Message& msg) : Diameter::Message(msg) {};
 
-  inline bool server_name(std::string* str) const
+  inline bool server_name(std::string& str) const
   {
     return get_str_from_avp(((Cx::Dictionary*)dict())->SERVER_NAME, str);
   }
@@ -140,15 +142,17 @@ public:
                       const std::string& authorization_type);
   inline LocationInfoRequest(Diameter::Message& msg) : Diameter::Message(msg) {};
 
-  inline bool originating(int* i32) const
+  inline bool originating(int32_t& i32) const
   {
     return get_i32_from_avp(((Cx::Dictionary*)dict())->ORIGINATING_REQUEST, i32);
   }
-  inline bool impu(std::string* str) const
+  inline std::string impu() const
   {
-    return get_str_from_avp(((Cx::Dictionary*)dict())->PUBLIC_IDENTITY, str);
+    std::string str;
+    get_str_from_avp(((Cx::Dictionary*)dict())->PUBLIC_IDENTITY, str);
+    return str;
   }
-  inline bool auth_type(int* i32) const
+  inline bool auth_type(int32_t& i32) const
   {
     return get_i32_from_avp(((Cx::Dictionary*)dict())->USER_AUTHORIZATION_TYPE, i32);
   }
@@ -160,7 +164,7 @@ public:
   LocationInfoAnswer(const Dictionary* dict);
   inline LocationInfoAnswer(Diameter::Message& msg) : Diameter::Message(msg) {};
 
-  inline bool server_name(std::string* str) const
+  inline bool server_name(std::string& str) const
   {
     return get_str_from_avp(((Cx::Dictionary*)dict())->SERVER_NAME, str);
   }
@@ -180,17 +184,19 @@ public:
                         const std::string& sip_authorization = "");
   inline MultimediaAuthRequest(Diameter::Message& msg) : Diameter::Message(msg) {};
 
-  inline bool impu(std::string* str) const
+  inline std::string impu() const
   {
-    return get_str_from_avp(((Cx::Dictionary*)dict())->PUBLIC_IDENTITY, str);
+    std::string str;
+    get_str_from_avp(((Cx::Dictionary*)dict())->PUBLIC_IDENTITY, str);
+    return str;
   }
-  inline bool server_name(std::string* str) const
+  inline bool server_name(std::string& str) const
   {
     return get_str_from_avp(((Cx::Dictionary*)dict())->SERVER_NAME, str);
   }
   std::string sip_auth_scheme() const;
   std::string sip_authorization() const;
-  inline bool sip_number_auth_items(int* i32) const
+  inline bool sip_number_auth_items(int32_t& i32) const
   {
     return get_i32_from_avp(((Cx::Dictionary*)dict())->SIP_NUMBER_AUTH_ITEMS, i32);
   }
@@ -200,7 +206,7 @@ class MultimediaAuthAnswer : public Diameter::Message
 {
 public:
   MultimediaAuthAnswer(const Dictionary* dict,
-                       int result_code);
+                       int32_t result_code);
   inline MultimediaAuthAnswer(Diameter::Message& msg) : Diameter::Message(msg) {};
 
   std::string sip_auth_scheme() const;
@@ -223,19 +229,21 @@ public:
                           const std::string& server_name);
   inline ServerAssignmentRequest(Diameter::Message& msg) : Diameter::Message(msg) {};
 
-  inline bool impu(std::string* str) const
+  inline std::string impu() const
   {
-    return get_str_from_avp(((Cx::Dictionary*)dict())->PUBLIC_IDENTITY, str);
+    std::string str;
+    get_str_from_avp(((Cx::Dictionary*)dict())->PUBLIC_IDENTITY, str);
+    return str;
   }
-  inline bool server_name(std::string* str) const
+  inline bool server_name(std::string& str) const
   {
     return get_str_from_avp(((Cx::Dictionary*)dict())->SERVER_NAME, str);
   }
-  inline bool server_assignment_type(int* i32) const
+  inline bool server_assignment_type(int32_t& i32) const
   {
     return get_i32_from_avp(((Cx::Dictionary*)dict())->SERVER_ASSIGNMENT_TYPE, i32);
   }
-  inline bool user_data_already_available(int* i32) const
+  inline bool user_data_already_available(int32_t& i32) const
   {
     return get_i32_from_avp(((Cx::Dictionary*)dict())->USER_DATA_ALREADY_AVAILABLE, i32);
   }
@@ -247,7 +255,7 @@ public:
   ServerAssignmentAnswer(const Dictionary* dict);
   inline ServerAssignmentAnswer(Diameter::Message& msg) : Diameter::Message(msg) {};
 
-  inline bool user_data(std::string* str) const
+  inline bool user_data(std::string& str) const
   {
     return get_str_from_avp(((Cx::Dictionary*)dict())->USER_DATA, str);
   }
@@ -268,8 +276,8 @@ class RegistrationTerminationAnswer : public Diameter::Message
 public:
   RegistrationTerminationAnswer(Diameter::Message& msg,
                                 Dictionary* dict,
-                                char* result_code,
-                                int auth_session_state,
+                                const std::string result_code,
+                                int32_t auth_session_state,
                                 std::vector<std::string> impis);
   inline RegistrationTerminationAnswer(Diameter::Message& msg) : Diameter::Message(msg) {};
 
@@ -283,7 +291,7 @@ public:
   inline PushProfileRequest(Diameter::Message& msg) : Diameter::Message(msg) {};
 
   DigestAuthVector digest_auth_vector() const;
-  inline bool user_data(std::string* str) const
+  inline bool user_data(std::string& str) const
   {
     return get_str_from_avp(((Cx::Dictionary*)dict())->USER_DATA, str);
   }
@@ -294,8 +302,8 @@ class PushProfileAnswer : public Diameter::Message
 public:
   PushProfileAnswer(Diameter::Message& msg,
                     Dictionary* dict,
-                    char* result_code,
-                    int auth_session_state);
+                    const std::string result_code,
+                    int32_t auth_session_state);
   inline PushProfileAnswer(Diameter::Message& msg) : Diameter::Message(msg) {};
 };
 };

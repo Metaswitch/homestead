@@ -321,11 +321,11 @@ void Cache::Request::run(Cache::CacheClientInterface *client)
     error_text = (boost::format("Exception: %s\n")
                   % nfe.what()).str();
   }
-  catch(Cache::NoResultsException& row_nre)
+  catch(Cache::NoResultsException& nre)
   {
     rc = NOT_FOUND;
     error_text = (boost::format("Row %s not present in column_family %s\n")
-                  % row_nre.get_key() % row_nre.get_column_family()).str();
+                  % nre.get_key() % nre.get_column_family()).str();
   }
   catch(...)
   {
@@ -782,7 +782,7 @@ void Cache::GetAssociatedPublicIDs::perform()
                                  ASSOC_PUBLIC_ID_COLUMN_PREFIX,
                                  columns);
     }
-    catch(Cache::NoResultsException& row_nre)
+    catch(Cache::NoResultsException& nre)
     {
       LOG_INFO("Couldn't find any public IDs for private ID %s", (*it).c_str());
     }
