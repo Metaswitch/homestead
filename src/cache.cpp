@@ -95,8 +95,8 @@ void Cache::configure(std::string cass_hostname,
   LOG_STATUS("Configuring cache");
   LOG_STATUS("  Hostname:  %s", cass_hostname.c_str());
   LOG_STATUS("  Port:      %u", cass_port);
-  LOG_STATUS("  Threads:   %s", num_threads);
-  LOG_STATUS("  Max Queue: %s", max_queue);
+  LOG_STATUS("  Threads:   %u", num_threads);
+  LOG_STATUS("  Max Queue: %u", max_queue);
   _cass_hostname = cass_hostname;
   _cass_port = cass_port;
   _num_threads = num_threads;
