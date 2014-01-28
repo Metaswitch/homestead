@@ -239,6 +239,7 @@ int main(int argc, char**argv)
   AccessLogger* access_logger = NULL;
   if (options.access_log_enabled)
   {
+    LOG_STATUS("Access logging enabled to %s", options.access_log_directory.c_str());
     access_logger = new AccessLogger(options.access_log_directory);
   }
 
@@ -263,7 +264,8 @@ int main(int argc, char**argv)
   }
   catch (Diameter::Stack::Exception& e)
   {
-    fprintf(stderr, "Caught Diameter::Stack::Exception - %s - %d\n", e._func, e._rc);
+    LOG_ERROR("Failed to initialize Diameter stack - function %s, rc %d", e._func, e._rc);
+    exit(2);
   }
 
   Cache* cache = Cache::get_instance();
@@ -274,8 +276,8 @@ int main(int argc, char**argv)
 
   if (rc != Cache::OK)
   {
-    fprintf(stderr, "Error starting cache: %d\n", rc);
-    // TODO: Crash if this fails (and fix up most common cause - schema not configured in Cassandra).
+    LOG_ERROR("Failed to initialize cache - rc %d", rc);
+    exit(2);
   }
 
   HttpStack* http_stack = HttpStack::get_instance();
@@ -319,10 +321,13 @@ int main(int argc, char**argv)
   }
   catch (HttpStack::Exception& e)
   {
-    fprintf(stderr, "Caught HttpStack::Exception - %s - %d\n", e._func, e._rc);
+    LOG_ERROR("Failed to initialize HttpStack stack - function %s, rc %d", e._func, e._rc);
+    exit(2);
   }
 
+  LOG_STATUS("Start-up complete - wait for termination signal");
   sem_wait(&term_sem);
+  LOG_STATUS("Termination signal received - terminating");
 
   try
   {
@@ -331,7 +336,7 @@ int main(int argc, char**argv)
   }
   catch (HttpStack::Exception& e)
   {
-    fprintf(stderr, "Caught HttpStack::Exception - %s - %d\n", e._func, e._rc);
+    LOG_ERROR("Failed to stop HttpStack stack - function %s, rc %d", e._func, e._rc);
   }
 
   cache->stop();
@@ -344,7 +349,7 @@ int main(int argc, char**argv)
   }
   catch (Diameter::Stack::Exception& e)
   {
-    fprintf(stderr, "Caught Diameter::Stack::Exception - %s - %d\n", e._func, e._rc);
+    LOG_ERROR("Failed to stop Diameter stack - function %s, rc %d", e._func, e._rc);
   }
   delete dict;
 
