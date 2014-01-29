@@ -40,6 +40,7 @@
 #include "zmq_lvc.h"
 #include "counter.h"
 #include "accumulator.h"
+#include "httpstack.h"
 
 #define COUNTER_INCR_METHOD(NAME) \
   virtual void incr_##NAME() { (NAME).increment(); }
@@ -47,7 +48,7 @@
 #define ACCUMULATOR_UPDATE_METHOD(NAME) \
   virtual void update_##NAME(unsigned long sample) { (NAME).accumulate(sample); }
 
-class StatisticsManager
+class StatisticsManager : public HttpStack::StatsInterface
 {
 public:
   StatisticsManager(long poll_timeout_ms = 1000);
@@ -61,6 +62,14 @@ public:
 
   COUNTER_INCR_METHOD(H_incoming_requests);
   COUNTER_INCR_METHOD(H_rejected_overload);
+
+  // Methods required to implement the HTTP stack stats interface.
+  void update_http_latency_us(unsigned long latency_us)
+  {
+    update_H_hss_latency_us(latency_us);
+  }
+  void incr_http_incoming_requests() { incr_H_incoming_requests(); }
+  void incr_http_rejected_overload() { incr_H_rejected_overload(); }
 
 private:
   LastValueCache lvc;

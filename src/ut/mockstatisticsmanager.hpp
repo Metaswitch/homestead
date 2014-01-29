@@ -55,6 +55,10 @@ public:
 
   MOCK_METHOD0(incr_H_incoming_requests, void());
   MOCK_METHOD0(incr_H_rejected_overload, void());
+
+  MOCK_METHOD1(update_http_latency_us, void(unsigned long sample));
+  MOCK_METHOD0(incr_http_incoming_requests, void());
+  MOCK_METHOD0(incr_http_rejected_overload, void());
 };
 
 #endif
