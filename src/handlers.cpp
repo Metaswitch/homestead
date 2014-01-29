@@ -226,12 +226,12 @@ void ImpiHandler::send_mar()
 void ImpiHandler::on_mar_response(Diameter::Message& rsp)
 {
   Cx::MultimediaAuthAnswer maa(rsp);
-  int32_t result_code = DIAMETER_SUCCESS;
+  int32_t result_code = 0;
   maa.result_code(result_code);
   LOG_DEBUG("Received Multimedia-Auth answer with result code %d", result_code);
   switch (result_code)
   {
-    case DIAMETER_SUCCESS:
+    case 2001:
       {
         std::string sip_auth_scheme = maa.sip_auth_scheme();
         if (sip_auth_scheme == _cfg->scheme_digest)
@@ -448,14 +448,14 @@ void ImpiRegistrationStatusHandler::run()
 void ImpiRegistrationStatusHandler::on_uar_response(Diameter::Message& rsp)
 {
   Cx::UserAuthorizationAnswer uaa(rsp);
-  int32_t result_code = DIAMETER_SUCCESS;
+  int32_t result_code = 0;
   uaa.result_code(result_code);
   int32_t experimental_result_code = uaa.experimental_result_code();
   LOG_DEBUG("Received User-Authorization answer with result %d/%d",
             result_code, experimental_result_code);
-  if ((result_code == DIAMETER_SUCCESS) &&
-      ((experimental_result_code == DIAMETER_FIRST_REGISTRATION) ||
-       (experimental_result_code == DIAMETER_SUBSEQUENT_REGISTRATION)))
+  if ((result_code == DIAMETER_SUCCESS) ||
+      (experimental_result_code == DIAMETER_FIRST_REGISTRATION) ||
+      (experimental_result_code == DIAMETER_SUBSEQUENT_REGISTRATION))
   {
     rapidjson::StringBuffer sb;
     rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
@@ -555,14 +555,13 @@ void ImpuLocationInfoHandler::run()
 void ImpuLocationInfoHandler::on_lir_response(Diameter::Message& rsp)
 {
   Cx::LocationInfoAnswer lia(rsp);
-  int32_t result_code = DIAMETER_SUCCESS;
+  int32_t result_code = 0;
   lia.result_code(result_code);
   int32_t experimental_result_code = lia.experimental_result_code();
   LOG_DEBUG("Received Location-Info answer with result %d/%d",
             result_code, experimental_result_code);
-  if ((result_code == DIAMETER_SUCCESS) &&
-      ((experimental_result_code == 0) ||
-       (experimental_result_code == DIAMETER_UNREGISTERED_SERVICE)))
+  if ((result_code == DIAMETER_SUCCESS) ||
+      (experimental_result_code == DIAMETER_UNREGISTERED_SERVICE))
   {
     rapidjson::StringBuffer sb;
     rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
@@ -668,12 +667,12 @@ void ImpuIMSSubscriptionHandler::on_get_ims_subscription_failure(Cache::Request*
 void ImpuIMSSubscriptionHandler::on_sar_response(Diameter::Message& rsp)
 {
   Cx::ServerAssignmentAnswer saa(rsp);
-  int32_t result_code = DIAMETER_SUCCESS;
+  int32_t result_code = 0;
   saa.result_code(result_code);
   LOG_DEBUG("Received Server-Assignment answer with result code %d", result_code);
   switch (result_code)
   {
-    case DIAMETER_SUCCESS:
+    case 2001:
       {
         std::string user_data;
         saa.user_data(user_data);
