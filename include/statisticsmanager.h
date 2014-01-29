@@ -66,7 +66,7 @@ public:
   // Methods required to implement the HTTP stack stats interface.
   void update_http_latency_us(unsigned long latency_us)
   {
-    update_H_hss_latency_us(latency_us);
+    update_H_latency_us(latency_us);
   }
   void incr_http_incoming_requests() { incr_H_incoming_requests(); }
   void incr_http_rejected_overload() { incr_H_rejected_overload(); }
