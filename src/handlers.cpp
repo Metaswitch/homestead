@@ -226,7 +226,7 @@ void ImpiHandler::send_mar()
 void ImpiHandler::on_mar_response(Diameter::Message& rsp)
 {
   Cx::MultimediaAuthAnswer maa(rsp);
-  int32_t result_code;
+  int32_t result_code = 0;
   maa.result_code(result_code);
   LOG_DEBUG("Received Multimedia-Auth answer with result code %d", result_code);
   switch (result_code)
@@ -448,7 +448,7 @@ void ImpiRegistrationStatusHandler::run()
 void ImpiRegistrationStatusHandler::on_uar_response(Diameter::Message& rsp)
 {
   Cx::UserAuthorizationAnswer uaa(rsp);
-  int32_t result_code;
+  int32_t result_code = 0;
   uaa.result_code(result_code);
   int32_t experimental_result_code = uaa.experimental_result_code();
   LOG_DEBUG("Received User-Authorization answer with result %d/%d",
@@ -555,7 +555,7 @@ void ImpuLocationInfoHandler::run()
 void ImpuLocationInfoHandler::on_lir_response(Diameter::Message& rsp)
 {
   Cx::LocationInfoAnswer lia(rsp);
-  int32_t result_code;
+  int32_t result_code = 0;
   lia.result_code(result_code);
   int32_t experimental_result_code = lia.experimental_result_code();
   LOG_DEBUG("Received Location-Info answer with result %d/%d",
@@ -667,7 +667,7 @@ void ImpuIMSSubscriptionHandler::on_get_ims_subscription_failure(Cache::Request*
 void ImpuIMSSubscriptionHandler::on_sar_response(Diameter::Message& rsp)
 {
   Cx::ServerAssignmentAnswer saa(rsp);
-  int32_t result_code;
+  int32_t result_code = 0;
   saa.result_code(result_code);
   LOG_DEBUG("Received Server-Assignment answer with result code %d", result_code);
   switch (result_code)
@@ -757,7 +757,7 @@ void RegistrationTerminationHandler::run()
 
   // Send the RTA back to the HSS.
   LOG_INFO("Ready to send RTA");
-  rta.send(NULL, 200);
+  rta.send();
 }
 
 void RegistrationTerminationHandler::on_get_public_ids_success(Cache::Request* request)
@@ -838,5 +838,5 @@ void PushProfileHandler::run()
 
   // Send the PPA back to the HSS.
   LOG_INFO("Ready to send PPA");
-  ppa.send(NULL, 200);
+  ppa.send();
 }
