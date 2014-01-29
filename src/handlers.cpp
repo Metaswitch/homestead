@@ -88,10 +88,6 @@ void HssCacheHandler::on_diameter_timeout()
 
 // General IMPI handling.
 
-const std::string ImpiHandler::SCHEME_UNKNOWN = "unknown";
-const std::string ImpiHandler::SCHEME_SIP_DIGEST = "SIP Digest";
-const std::string ImpiHandler::SCHEME_DIGEST_AKAV1_MD5 = "Digest-AKAv1-MD5";
-
 void ImpiHandler::run()
 {
   if (parse_request())
@@ -146,7 +142,7 @@ void ImpiHandler::get_av()
 {
   if (_impu.empty())
   {
-    if (_scheme == SCHEME_DIGEST_AKAV1_MD5)
+    if (_scheme == _cfg->scheme_aka)
     {
       // If the requested scheme is AKA, there's no point in looking up the cached public ID.
       // Even if we find it, we can't use it due to restrictions in the AKA protocol.
@@ -238,7 +234,7 @@ void ImpiHandler::on_mar_response(Diameter::Message& rsp)
     case 2001:
       {
         std::string sip_auth_scheme = maa.sip_auth_scheme();
-        if (sip_auth_scheme == SCHEME_SIP_DIGEST)
+        if (sip_auth_scheme == _cfg->scheme_digest)
         {
           send_reply(maa.digest_auth_vector());
           if (_cfg->impu_cache_ttl != 0)
@@ -254,7 +250,7 @@ void ImpiHandler::on_mar_response(Diameter::Message& rsp)
             _cache->send(tsx, put_public_id);
           }
         }
-        else if (sip_auth_scheme == SCHEME_DIGEST_AKAV1_MD5)
+        else if (sip_auth_scheme == _cfg->scheme_aka)
         {
           send_reply(maa.aka_auth_vector());
         }
@@ -288,7 +284,7 @@ bool ImpiDigestHandler::parse_request()
 
   _impi = path.substr(prefix.length(), path.find_first_of("/", prefix.length()) - prefix.length());
   _impu = _req.param("public_id");
-  _scheme = SCHEME_SIP_DIGEST;
+  _scheme = _cfg->scheme_digest;
   _authorization = "";
 
   return true;
@@ -326,15 +322,15 @@ bool ImpiAvHandler::parse_request()
   std::string scheme = _req.file();
   if (scheme == "av")
   {
-    _scheme = SCHEME_UNKNOWN;
+    _scheme = _cfg->scheme_unknown;
   }
   else if (scheme == "digest")
   {
-    _scheme = SCHEME_SIP_DIGEST;
+    _scheme = _cfg->scheme_digest;
   }
   else if (scheme == "aka")
   {
-    _scheme = SCHEME_DIGEST_AKAV1_MD5;
+    _scheme = _cfg->scheme_aka;
   }
   else
   {

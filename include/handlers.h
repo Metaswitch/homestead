@@ -197,9 +197,22 @@ class ImpiHandler : public HssCacheHandler
 public:
   struct Config
   {
-    Config(bool _hss_configured = true, int _impu_cache_ttl = 0) : query_cache_av(!_hss_configured), impu_cache_ttl(_impu_cache_ttl) {}
+    Config(bool _hss_configured = true,
+           int _impu_cache_ttl = 0,
+           std::string _scheme_unknown = "Unknown",
+           std::string _scheme_digest = "SIP Digest",
+           std::string _scheme_aka = "Digest-AKAv1-MD5") :
+    query_cache_av(!_hss_configured),
+    impu_cache_ttl(_impu_cache_ttl),
+    scheme_unknown(_scheme_unknown),
+    scheme_digest(_scheme_digest),
+    scheme_aka(_scheme_aka) {}
+
     bool query_cache_av;
     int impu_cache_ttl;
+    std::string scheme_unknown;
+    std::string scheme_digest;
+    std::string scheme_aka;
   };
 
   ImpiHandler(HttpStack::Request& req, const Config* cfg) :
@@ -223,10 +236,6 @@ public:
   typedef HssCacheHandler::DiameterTransaction<ImpiHandler> DiameterTransaction;
 
 protected:
-  static const std::string SCHEME_UNKNOWN;
-  static const std::string SCHEME_SIP_DIGEST;
-  static const std::string SCHEME_DIGEST_AKAV1_MD5;
-
   const Config* _cfg;
   std::string _impi;
   std::string _impu;
