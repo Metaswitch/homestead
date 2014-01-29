@@ -151,8 +151,8 @@ public:
 
       // If we got an overload response (result code of 3004) record a penalty
       // for the purposes of overload control.
-      int result_code;
-      if (rsp.result_code(&result_code) && (result_code == 3004))
+      int32_t result_code;
+      if (rsp.result_code(result_code) && (result_code == 3004))
       {
         _handler->record_penalty();
       }

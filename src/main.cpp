@@ -262,7 +262,6 @@ int main(int argc, char**argv)
     exit(2);
   }
 
->>>>>>> origin/dev
   Diameter::Stack* diameter_stack = Diameter::Stack::get_instance();
   RegistrationTerminationHandler::Config rt_handler_config(NULL, NULL, 0);
   PushProfileHandler::Config pp_handler_config(NULL, NULL, 0, 0);
