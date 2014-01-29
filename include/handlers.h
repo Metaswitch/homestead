@@ -339,7 +339,13 @@ class RegistrationTerminationHandler : public Diameter::Stack::Handler
 public:
   struct Config
   {
-    Config(Cache* _cache, Cx::Dictionary* _dict, int _ims_sub_cache_ttl = 3600) : cache(_cache), dict(_dict), ims_sub_cache_ttl(_ims_sub_cache_ttl) {}
+    Config(Cache* _cache,
+           Cx::Dictionary* _dict,
+           int _ims_sub_cache_ttl = 3600) :
+           cache(_cache),
+           dict(_dict),
+           ims_sub_cache_ttl(_ims_sub_cache_ttl) {}
+
     Cache* cache;
     Cx::Dictionary* dict;
     int ims_sub_cache_ttl;
@@ -368,7 +374,13 @@ class PushProfileHandler : public Diameter::Stack::Handler
 public:
   struct Config
   {
-    Config(Cache* _cache, Cx::Dictionary* _dict, int _impu_cache_ttl = 0, int _ims_sub_cache_ttl = 3600) : cache(_cache), dict(_dict), ims_sub_cache_ttl(_ims_sub_cache_ttl) {}
+    Config(Cache* _cache, Cx::Dictionary* _dict,
+           int _impu_cache_ttl = 0,
+           int _ims_sub_cache_ttl = 3600) :
+           cache(_cache),
+           dict(_dict),
+           ims_sub_cache_ttl(_ims_sub_cache_ttl) {}
+
     Cache* cache;
     Cx::Dictionary* dict;
     int impu_cache_ttl;
