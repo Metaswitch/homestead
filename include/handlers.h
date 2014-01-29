@@ -60,6 +60,10 @@ const int DIAMETER_ERROR_IDENTITIES_DONT_MATCH = 5002;
 const int DIAMETER_ERROR_IDENTITY_NOT_REGISTERED = 5003;
 const int DIAMETER_ERROR_ROAMING_NOT_ALLOWED = 5004;
 
+// Result-Code AVP strings used in set_result_code function
+const std::string DIAMETER_REQ_SUCCESS = "DIAMETER_SUCCESS";
+const std::string DIAMETER_REQ_FAILURE = "DIAMETER_UNABLE_TO_COMPLY";
+
 // JSON string constants
 const std::string JSON_RC = "result-code";
 const std::string JSON_SCSCF = "scscf";
@@ -247,9 +251,6 @@ public:
 
   };
 
-  friend class RegistrationTerminationHandler;
-  friend class PushProfileHandler;
-
 protected:
   static Diameter::Stack* _diameter_stack;
   static std::string _dest_realm;
@@ -400,8 +401,6 @@ private:
   const Config* _cfg;
   std::string _impi;
   std::string _impu;
-
-  static std::vector<std::string> get_public_ids(const std::string& user_data);
 };
 
 class RegistrationTerminationHandler : public Diameter::Stack::Handler
@@ -409,7 +408,15 @@ class RegistrationTerminationHandler : public Diameter::Stack::Handler
 public:
   struct Config
   {
-    Config(int _ims_sub_cache_ttl = 3600) : ims_sub_cache_ttl(_ims_sub_cache_ttl) {}
+    Config(Cache* _cache,
+           Cx::Dictionary* _dict,
+           int _ims_sub_cache_ttl = 3600) :
+           cache(_cache),
+           dict(_dict),
+           ims_sub_cache_ttl(_ims_sub_cache_ttl) {}
+
+    Cache* cache;
+    Cx::Dictionary* dict;
     int ims_sub_cache_ttl;
   };
 
@@ -418,8 +425,6 @@ public:
   {}
 
   void run();
-  void delete_all_identities(Cache::Request* request);
-  void delete_private_identities(Cache::Request* request, Cache::ResultCode error, std::string& text);
 
   typedef HssCacheHandler::CacheTransaction<RegistrationTerminationHandler> CacheTransaction;
 
@@ -427,6 +432,10 @@ private:
   const Config* _cfg;
   std::vector<std::string> _impis;
   std::vector<std::string> _impus;
+
+  void on_get_public_ids_success(Cache::Request* request);
+  void on_get_public_ids_failure(Cache::Request* request, Cache::ResultCode error, std::string& text);
+  void delete_identities();
 };
 
 class PushProfileHandler : public Diameter::Stack::Handler
@@ -434,7 +443,15 @@ class PushProfileHandler : public Diameter::Stack::Handler
 public:
   struct Config
   {
-    Config(int _impu_cache_ttl = 0, int _ims_sub_cache_ttl = 3600) : ims_sub_cache_ttl(_ims_sub_cache_ttl) {}
+    Config(Cache* _cache, Cx::Dictionary* _dict,
+           int _impu_cache_ttl = 0,
+           int _ims_sub_cache_ttl = 3600) :
+           cache(_cache),
+           dict(_dict),
+           ims_sub_cache_ttl(_ims_sub_cache_ttl) {}
+
+    Cache* cache;
+    Cx::Dictionary* dict;
     int impu_cache_ttl;
     int ims_sub_cache_ttl;
   };
@@ -447,7 +464,5 @@ public:
 
 private:
   const Config* _cfg;
-  static std::vector<std::string> get_public_ids(const std::string& user_data);
 };
 #endif
-  void on_delete_identities_success(Cache::Request* request);

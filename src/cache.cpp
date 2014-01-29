@@ -92,6 +92,11 @@ void Cache::configure(std::string cass_hostname,
                       unsigned int num_threads,
                       unsigned int max_queue)
 {
+  LOG_STATUS("Configuring cache");
+  LOG_STATUS("  Hostname:  %s", cass_hostname.c_str());
+  LOG_STATUS("  Port:      %u", cass_port);
+  LOG_STATUS("  Threads:   %u", num_threads);
+  LOG_STATUS("  Max Queue: %u", max_queue);
   _cass_hostname = cass_hostname;
   _cass_port = cass_port;
   _num_threads = num_threads;
@@ -106,6 +111,7 @@ Cache::ResultCode Cache::start()
   // Check that we can connect to cassandra by getting a client. This logs in
   // and switches to the cache keyspace, so is a good test of whether cassandra
   // is working properly.
+  LOG_STATUS("Starting cache");
   try
   {
     get_client();
@@ -113,14 +119,17 @@ Cache::ResultCode Cache::start()
   }
   catch(TTransportException te)
   {
+    LOG_ERROR("Cache caught TTransportException: %s", te.what());
     rc = CONNECTION_ERROR;
   }
   catch(NotFoundException nfe)
   {
+    LOG_ERROR("Cache caught NotFoundException: %s", nfe.what());
     rc = NOT_FOUND;
   }
   catch(...)
   {
+    LOG_ERROR("Cache caught unknown exception!");
     rc = UNKNOWN_ERROR;
   }
 
@@ -141,6 +150,7 @@ Cache::ResultCode Cache::start()
 
 void Cache::stop()
 {
+  LOG_STATUS("Stopping cache");
   if (_thread_pool != NULL)
   {
     _thread_pool->stop();
@@ -150,6 +160,7 @@ void Cache::stop()
 
 void Cache::wait_stopped()
 {
+  LOG_STATUS("Waiting for cache to stop");
   if (_thread_pool != NULL)
   {
     _thread_pool->join();
@@ -171,6 +182,7 @@ int64_t Cache::generate_timestamp()
   timestamp *= 1000000;
   timestamp += (clock_time.tv_nsec / 1000);
 
+  LOG_DEBUG("Generated Cassandra timestamp %llu", timestamp);
   return timestamp;
 }
 
@@ -189,10 +201,12 @@ Cache::CacheClientInterface* Cache::get_client()
 {
   // See if we've already got a client for this thread.  If not allocate a new
   // one and write it back into thread-local storage.
+  LOG_DEBUG("Getting thread-local CacheClientInterface");
   Cache::CacheClientInterface* client = (Cache::CacheClientInterface*)pthread_getspecific(_thread_local);
 
   if (client == NULL)
   {
+    LOG_DEBUG("No thread-local CacheClientInterface - creating one");
     boost::shared_ptr<TTransport> socket =
         boost::shared_ptr<TSocket>(new TSocket(_cass_hostname, _cass_port));
     boost::shared_ptr<TFramedTransport> transport =
@@ -212,10 +226,12 @@ void Cache::release_client()
 {
   // If this thread already has a client delete it and remove it from
   // thread-local storage.
+  LOG_DEBUG("Looking to release thread-local CacheClientInterface");
   Cache::CacheClientInterface* client = (Cache::CacheClientInterface*)pthread_getspecific(_thread_local);
 
   if (client != NULL)
   {
+    LOG_DEBUG("Found thread-local CacheClientInterface - destroying");
     delete_client(client); client = NULL;
     pthread_setspecific(_thread_local, NULL);
   }
@@ -321,11 +337,11 @@ void Cache::Request::run(Cache::CacheClientInterface *client)
     error_text = (boost::format("Exception: %s\n")
                   % nfe.what()).str();
   }
-  catch(Cache::NoResultsException& row_nre)
+  catch(Cache::NoResultsException& nre)
   {
     rc = NOT_FOUND;
     error_text = (boost::format("Row %s not present in column_family %s\n")
-                  % row_nre.get_key() % row_nre.get_column_family()).str();
+                  % nre.get_key() % nre.get_column_family()).str();
   }
   catch(...)
   {
@@ -339,6 +355,7 @@ void Cache::Request::run(Cache::CacheClientInterface *client)
     // - Stop the transaction duration timer (it might not have been stopped
     // yet).
     // - Notify the user of the error.
+    LOG_ERROR("Cache request failed: rc=%d, %s", rc, error_text.c_str());
     _trx->stop_timer();
     _trx->on_failure(this, rc, error_text);
   }
@@ -387,10 +404,12 @@ put_columns(const std::vector<std::string>& keys,
   std::map<std::string, std::map<std::string, std::vector<Mutation> > > mutmap;
 
   // Populate the mutations vector.
+  LOG_DEBUG("Constructing cache put request with timestamp %lld and TTL %d", timestamp, ttl);
   for (std::map<std::string, std::string>::const_iterator it = columns.begin();
        it != columns.end();
        ++it)
   {
+    LOG_DEBUG("  %s => %s", it->first.c_str(), it->second.c_str());
     Mutation mutation;
     Column* column = &mutation.column_or_supercolumn.column;
 
@@ -421,6 +440,7 @@ put_columns(const std::vector<std::string>& keys,
   }
 
   // Execute the database operation.
+  LOG_DEBUG("Executing put request operation");
   _trx->start_timer();
   _client->batch_mutate(mutmap, ConsistencyLevel::ONE);
   _trx->stop_timer();
@@ -458,7 +478,7 @@ Cache::GetRequest::~GetRequest()
         }                                                                    \
         catch(NotFoundException& nfe)                                        \
         {                                                                    \
-          LOG_DEBUG("Failed ONE read for %s. Try QUORUM");                   \
+          LOG_DEBUG("Failed ONE read for %s. Try QUORUM", #METHOD);          \
                                                                              \
           try                                                                \
           {                                                                  \
@@ -610,6 +630,7 @@ delete_row(const std::string& key,
   cp.column_family = _column_family;
 
   _trx->start_timer();
+  LOG_DEBUG("Deleting row with key %s (timestamp %lld", key.c_str(), timestamp);
   _client->remove(key, cp, timestamp, ConsistencyLevel::ONE);
   _trx->stop_timer();
 }
@@ -737,6 +758,8 @@ Cache::GetIMSSubscription::
 
 void Cache::GetIMSSubscription::perform()
 {
+  LOG_DEBUG("Issuing get for column %s for key %s",
+            IMS_SUB_XML_COLUMN_NAME.c_str(), _public_id.c_str());
   std::vector<ColumnOrSuperColumn> results;
   std::vector<std::string> requested_columns(1, IMS_SUB_XML_COLUMN_NAME);
 
@@ -786,13 +809,14 @@ void Cache::GetAssociatedPublicIDs::perform()
        it != _private_ids.end();
        ++it)
   {
+    LOG_DEBUG("Looking for public IDs for private ID %s", it->c_str());
     try
     {
       ha_get_columns_with_prefix(*it,
                                  ASSOC_PUBLIC_ID_COLUMN_PREFIX,
                                  columns);
     }
-    catch(Cache::NoResultsException& row_nre)
+    catch(Cache::NoResultsException& nre)
     {
       LOG_INFO("Couldn't find any public IDs for private ID %s", (*it).c_str());
     }
@@ -804,6 +828,7 @@ void Cache::GetAssociatedPublicIDs::perform()
         column_it != columns.end();
         ++column_it)
     {
+      LOG_DEBUG("Found associated public ID %s", column_it->column.name.c_str());
       public_ids.insert(column_it->column.name);
     }
     columns.clear();
@@ -851,6 +876,7 @@ Cache::GetAuthVector::
 
 void Cache::GetAuthVector::perform()
 {
+  LOG_DEBUG("Looking for authentication vector for %s", _private_id.c_str());
   std::vector<std::string> requested_columns;
   std::string public_id_col = "";
   bool public_id_requested = false;
@@ -863,6 +889,7 @@ void Cache::GetAuthVector::perform()
 
   if (_public_id.length() > 0)
   {
+    LOG_DEBUG("Checking public ID %s", _public_id.c_str());
     // We've been asked to verify the private ID has an associated public ID.
     // So request the public ID column as well.
     //
@@ -872,6 +899,7 @@ void Cache::GetAuthVector::perform()
     public_id_requested = true;
   }
 
+  LOG_DEBUG("Issuing cache query");
   std::vector<ColumnOrSuperColumn> results;
   ha_get_columns(_private_id, requested_columns, results);
 
@@ -912,12 +940,14 @@ void Cache::GetAuthVector::perform()
     std::string error_text = (boost::format(
         "Private ID '%s' exists but does not have associated public ID '%s'")
         % _private_id % _public_id).str();
+    LOG_DEBUG("Cache query failed: %s", error_text.c_str());
     _trx->on_failure(this, NOT_FOUND, error_text);
   }
   else if (_auth_vector.ha1 == "")
   {
     // The HA1 column was not found.  This cannot be defaulted so is an error.
     std::string error_text = "HA1 column not found";
+    LOG_DEBUG("Cache query failed: %s", error_text.c_str());
     _trx->on_failure(this, NOT_FOUND, error_text);
   }
   else

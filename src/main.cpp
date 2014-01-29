@@ -241,6 +241,7 @@ int main(int argc, char**argv)
   AccessLogger* access_logger = NULL;
   if (options.access_log_enabled)
   {
+    LOG_STATUS("Access logging enabled to %s", options.access_log_directory.c_str());
     access_logger = new AccessLogger(options.access_log_directory);
   }
 
@@ -248,28 +249,6 @@ int main(int argc, char**argv)
 
   StatisticsManager* stats_manager = new StatisticsManager();
   LoadMonitor* load_monitor = new LoadMonitor(100000, 20, 10.0, 10.0);
-
-  Diameter::Stack* diameter_stack = Diameter::Stack::get_instance();
-  Cx::Dictionary* dict = NULL;
-  try
-  {
-    diameter_stack->initialize();
-    diameter_stack->configure(options.diameter_conf);
-    dict = new Cx::Dictionary();
-    diameter_stack->advertize_application(dict->CX);
-    RegistrationTerminationHandler::Config rt_handler_config(options.ims_sub_cache_ttl);
-    PushProfileHandler::Config pp_handler_config(options.impu_cache_ttl, options.ims_sub_cache_ttl);
-    Diameter::Stack::ConfiguredHandlerFactory<RegistrationTerminationHandler, RegistrationTerminationHandler::Config> rtr_handler_factory(dict, &rt_handler_config);
-    Diameter::Stack::ConfiguredHandlerFactory<PushProfileHandler, PushProfileHandler::Config> ppr_handler_factory(dict, &pp_handler_config);
-    diameter_stack->register_handler(dict->CX, dict->REGISTRATION_TERMINATION_REQUEST, &rtr_handler_factory);
-    diameter_stack->register_handler(dict->CX, dict->PUSH_PROFILE_REQUEST, &ppr_handler_factory);
-    diameter_stack->register_fallback_handler(dict->CX);
-    diameter_stack->start();
-  }
-  catch (Diameter::Stack::Exception& e)
-  {
-    fprintf(stderr, "Caught Diameter::Stack::Exception - %s - %d\n", e._func, e._rc);
-  }
 
   Cache* cache = Cache::get_instance();
   cache->initialize();
@@ -279,8 +258,36 @@ int main(int argc, char**argv)
 
   if (rc != Cache::OK)
   {
-    fprintf(stderr, "Error starting cache: %d\n", rc);
-    // TODO: Crash if this fails (and fix up most common cause - schema not configured in Cassandra).
+    LOG_ERROR("Failed to initialize cache - rc %d", rc);
+    exit(2);
+  }
+
+>>>>>>> origin/dev
+  Diameter::Stack* diameter_stack = Diameter::Stack::get_instance();
+  RegistrationTerminationHandler::Config rt_handler_config(NULL, NULL, 0);
+  PushProfileHandler::Config pp_handler_config(NULL, NULL, 0, 0);
+  Diameter::Stack::ConfiguredHandlerFactory<RegistrationTerminationHandler, RegistrationTerminationHandler::Config> rtr_handler_factory(NULL, NULL);
+  Diameter::Stack::ConfiguredHandlerFactory<PushProfileHandler, PushProfileHandler::Config> ppr_handler_factory(NULL, NULL);
+  Cx::Dictionary* dict = NULL;
+  try
+  {
+    diameter_stack->initialize();
+    diameter_stack->configure(options.diameter_conf);
+    dict = new Cx::Dictionary();
+    diameter_stack->advertize_application(dict->CX);
+    rt_handler_config = RegistrationTerminationHandler::Config(cache, dict, options.ims_sub_cache_ttl);
+    pp_handler_config = PushProfileHandler::Config(cache, dict, options.impu_cache_ttl, options.ims_sub_cache_ttl);
+    rtr_handler_factory = Diameter::Stack::ConfiguredHandlerFactory<RegistrationTerminationHandler, RegistrationTerminationHandler::Config>(dict, &rt_handler_config);
+    ppr_handler_factory = Diameter::Stack::ConfiguredHandlerFactory<PushProfileHandler, PushProfileHandler::Config>(dict, &pp_handler_config);
+    diameter_stack->register_handler(dict->CX, dict->REGISTRATION_TERMINATION_REQUEST, &rtr_handler_factory);
+    diameter_stack->register_handler(dict->CX, dict->PUSH_PROFILE_REQUEST, &ppr_handler_factory);
+    diameter_stack->register_fallback_handler(dict->CX);
+    diameter_stack->start();
+  }
+  catch (Diameter::Stack::Exception& e)
+  {
+    LOG_ERROR("Failed to initialize Diameter stack - function %s, rc %d", e._func, e._rc);
+    exit(2);
   }
 
   HttpStack* http_stack = HttpStack::get_instance();
@@ -334,10 +341,13 @@ int main(int argc, char**argv)
   }
   catch (HttpStack::Exception& e)
   {
-    fprintf(stderr, "Caught HttpStack::Exception - %s - %d\n", e._func, e._rc);
+    LOG_ERROR("Failed to initialize HttpStack stack - function %s, rc %d", e._func, e._rc);
+    exit(2);
   }
 
+  LOG_STATUS("Start-up complete - wait for termination signal");
   sem_wait(&term_sem);
+  LOG_STATUS("Termination signal received - terminating");
 
   try
   {
@@ -346,7 +356,7 @@ int main(int argc, char**argv)
   }
   catch (HttpStack::Exception& e)
   {
-    fprintf(stderr, "Caught HttpStack::Exception - %s - %d\n", e._func, e._rc);
+    LOG_ERROR("Failed to stop HttpStack stack - function %s, rc %d", e._func, e._rc);
   }
 
   cache->stop();
@@ -359,7 +369,7 @@ int main(int argc, char**argv)
   }
   catch (Diameter::Stack::Exception& e)
   {
-    fprintf(stderr, "Caught Diameter::Stack::Exception - %s - %d\n", e._func, e._rc);
+    LOG_ERROR("Failed to stop Diameter stack - function %s, rc %d", e._func, e._rc);
   }
   delete dict;
 
