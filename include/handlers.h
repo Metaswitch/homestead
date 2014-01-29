@@ -221,6 +221,8 @@ public:
 
     void on_success(Cache::Request* req)
     {
+      update_latency_stats();
+
       if ((_handler != NULL) && (_success_clbk != NULL))
       {
         boost::bind(_success_clbk, _handler, req)();
@@ -231,6 +233,8 @@ public:
                     Cache::ResultCode error,
                     std::string& text)
     {
+      update_latency_stats();
+
       if ((_handler != NULL) && (_failure_clbk != NULL))
       {
         boost::bind(_failure_clbk, _handler, req, error, text)();
