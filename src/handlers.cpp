@@ -685,9 +685,8 @@ void ImpuIMSSubscriptionHandler::on_sar_response(Diameter::Message& rsp)
 
         if (_cfg->ims_sub_cache_ttl != 0)
         {
-          std::vector<std::string> public_ids = XmlUtils::get_public_ids(user_data);
           LOG_DEBUG("Attempting to cache IMS subscription for public IDs");
-          std::vector<std::string> public_ids = get_public_ids(user_data);
+          std::vector<std::string> public_ids = XmlUtils::get_public_ids(user_data);
           if (!public_ids.empty())
           {
             LOG_DEBUG("Got public IDs to cache against - doing it");
