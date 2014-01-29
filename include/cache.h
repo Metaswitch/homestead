@@ -281,17 +281,17 @@ protected:
   void operator=(Cache const &);
 
 public:
-  /// @class RowNotFoundException exception that is thrown to indicate that a
+  /// @class NoResultsException exception that is thrown to indicate that a
   //requested row does not exist.
-  class RowNotFoundException
+  class NoResultsException
   {
   public:
-    RowNotFoundException(const std::string& column_family, const std::string& key) :
+    NoResultsException(const std::string& column_family, const std::string& key) :
       _column_family(column_family),
       _key(key)
     {};
 
-    virtual ~RowNotFoundException() {} ;
+    virtual ~NoResultsException() {} ;
 
     std::string& get_column_family() { return _column_family; };
     std::string& get_key() { return _key; };
@@ -661,13 +661,15 @@ public:
   class GetAssociatedPublicIDs : public GetRequest
   {
   public:
-    /// Get the public Ids that are associated with a private ID.
-    ///
-    /// Note that if there are no public IDs, this request fires on_failure with
-    /// a result of NOT_FOUND.
+    /// Get the public Ids that are associated with a single private ID.
     ///
     /// @param private_id the private ID.
     GetAssociatedPublicIDs(const std::string& private_id);
+
+    /// Get the public Ids that are associated with multiple private IDs.
+    ///
+    /// @param private_ids a vector of private IDs.
+    GetAssociatedPublicIDs(const std::vector<std::string>& private_ids);
     virtual ~GetAssociatedPublicIDs();
 
     /// Access the result of the request.
@@ -677,7 +679,7 @@ public:
 
   protected:
     // Request parameters.
-    std::string _private_id;
+    std::vector<std::string> _private_ids;
 
     // Result.
     std::vector<std::string> _public_ids;
@@ -689,6 +691,12 @@ public:
     create_GetAssociatedPublicIDs(const std::string& private_id)
   {
     return new GetAssociatedPublicIDs(private_id);
+  }
+
+  virtual GetAssociatedPublicIDs*
+    create_GetAssociatedPublicIDs(const std::vector<std::string>& private_ids)
+  {
+    return new GetAssociatedPublicIDs(private_ids);
   }
 
   class GetAuthVector : public GetRequest
@@ -776,15 +784,15 @@ public:
   class DeletePrivateIDs : public DeleteRowsRequest
   {
   public:
-    /// Delete an single private ID from the cache.
+    /// Delete a single private ID from the cache.
     ///
     /// @param private_id the private ID to delete.
-    DeletePrivateIDs(const std::string& public_id, int64_t timestamp);
+    DeletePrivateIDs(const std::string& private_id, int64_t timestamp);
 
     /// Delete an single private ID from the cache.
     ///
-    /// @param private_id the private ID to delete.
-    DeletePrivateIDs(const std::vector<std::string>& public_ids,
+    /// @param private_ids the private IDs to delete.
+    DeletePrivateIDs(const std::vector<std::string>& private_ids,
                      int64_t timestamp);
     virtual ~DeletePrivateIDs();
 
