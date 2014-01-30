@@ -57,6 +57,10 @@ Dictionary::Dictionary() :
   MULTIMEDIA_AUTH_ANSWER("3GPP/Multimedia-Auth-Answer"),
   SERVER_ASSIGNMENT_REQUEST("3GPP/Server-Assignment-Request"),
   SERVER_ASSIGNMENT_ANSWER("3GPP/Server-Assignment-Answer"),
+  REGISTRATION_TERMINATION_REQUEST("3GPP/Registration-Termination-Request"),
+  REGISTRATION_TERMINATION_ANSWER("3GPP/Registration-Termination-Answer"),
+  PUSH_PROFILE_REQUEST("3GPP/Push-Profile-Request"),
+  PUSH_PROFILE_ANSWER("3GPP/Push-Profile-Answer"),
   PUBLIC_IDENTITY("3GPP", "Public-Identity"),
   SIP_AUTH_DATA_ITEM("3GPP", "SIP-Auth-Data-Item"),
   SIP_AUTH_SCHEME("3GPP", "SIP-Authentication-Scheme"),
@@ -78,7 +82,11 @@ Dictionary::Dictionary() :
   CX_DIGEST_QOP("3GPP", "Digest-QoP"),
   SIP_AUTHENTICATE("3GPP", "SIP-Authenticate"),
   CONFIDENTIALITY_KEY("3GPP", "Confidentiality-Key"),
-  INTEGRITY_KEY("3GPP", "Integrity-Key")
+  INTEGRITY_KEY("3GPP", "Integrity-Key"),
+  ASSOCIATED_IDENTITIES("3GPP", "Associated-Identities"),
+  DEREGISTRATION_REASON("3GPP", "Deregistration-Reason"),
+  IDENTITY_WITH_EMERGENCY_REGISTRATION("3GPP", "Identity-with-Emergency-Registration"),
+  CHARGING_INFORMATION("3GPP", "Charging-Information")
 {
 }
 
@@ -91,7 +99,7 @@ UserAuthorizationRequest::UserAuthorizationRequest(const Dictionary* dict,
                                                    const std::string& authorization_type) :
                                                    Diameter::Message(dict, dict->USER_AUTHORIZATION_REQUEST)
 {
-  LOG_DEBUG("Sending User-Authorization request for %s/%s", impi.c_str(), impu.c_str());
+  LOG_DEBUG("Building User-Authorization request for %s/%s", impi.c_str(), impu.c_str());
   add_new_session_id();
   add_vendor_spec_app_id();  
   add(Diameter::AVP(dict->AUTH_SESSION_STATE).val_i32(1));
@@ -129,18 +137,21 @@ ServerCapabilities UserAuthorizationAnswer::server_capabilities() const
 
   // Server capabilities are grouped into mandatory capabilities and optional capabilities
   // underneath the SERVER_CAPABILITIES AVP.
+  LOG_DEBUG("Getting server capabilties from User-Authorization answer");
   Diameter::AVP::iterator avps = begin(((Cx::Dictionary*)dict())->SERVER_CAPABILITIES);
   if (avps != end())
   {
     Diameter::AVP::iterator avps2 = avps->begin(((Cx::Dictionary*)dict())->MANDATORY_CAPABILITY);
     while (avps2 != end())
     {
+      LOG_DEBUG("Found mandatory capability %d", avps2->val_i32());
       server_capabilities.mandatory_capabilities.push_back(avps2->val_i32());
       avps2++;
     }
     avps2 = avps->begin(((Cx::Dictionary*)dict())->OPTIONAL_CAPABILITY);
     while (avps2 != end())
     {
+      LOG_DEBUG("Found optional capability %d", avps2->val_i32());
       server_capabilities.optional_capabilities.push_back(avps2->val_i32());
       avps2++;
     }
@@ -156,7 +167,7 @@ LocationInfoRequest::LocationInfoRequest(const Dictionary* dict,
                                          const std::string& authorization_type) :
                                          Diameter::Message(dict, dict->LOCATION_INFO_REQUEST)
 {
-  LOG_DEBUG("Sending User-Authorization request for %s", impu.c_str());
+  LOG_DEBUG("Building Location-Info request for %s", impu.c_str());
   add_new_session_id();
   add_vendor_spec_app_id();
   add(Diameter::AVP(dict->AUTH_SESSION_STATE).val_i32(1));
@@ -191,18 +202,21 @@ ServerCapabilities LocationInfoAnswer::server_capabilities() const
 
   // Server capabilities are grouped into mandatory capabilities and optional capabilities
   // underneath the SERVER_CAPABILITIES AVP.
+  LOG_DEBUG("Getting server capabilties from Location-Info answer");
   Diameter::AVP::iterator avps = begin(((Cx::Dictionary*)dict())->SERVER_CAPABILITIES);
   if (avps != end())
   {
     Diameter::AVP::iterator avps2 = avps->begin(((Cx::Dictionary*)dict())->MANDATORY_CAPABILITY);
     while (avps2 != end())
     {
+      LOG_DEBUG("Found mandatory capability %d", avps2->val_i32());
       server_capabilities.mandatory_capabilities.push_back(avps2->val_i32());
       avps2++;
     }
     avps2 = avps->begin(((Cx::Dictionary*)dict())->OPTIONAL_CAPABILITY);
     while (avps2 != end())
     {
+      LOG_DEBUG("Found optional capability %d", avps2->val_i32());
       server_capabilities.optional_capabilities.push_back(avps2->val_i32());
       avps2++;
     }
@@ -220,6 +234,7 @@ MultimediaAuthRequest::MultimediaAuthRequest(const Dictionary* dict,
                                              const std::string& sip_authorization) :
                                              Diameter::Message(dict, dict->MULTIMEDIA_AUTH_REQUEST)
 {
+  LOG_DEBUG("Building Multimedia-Auth request for %s/%s", impi.c_str(), impu.c_str());
   add_new_session_id();
   add_vendor_spec_app_id();
   add(Diameter::AVP(dict->AUTH_SESSION_STATE).val_i32(1));
@@ -232,6 +247,7 @@ MultimediaAuthRequest::MultimediaAuthRequest(const Dictionary* dict,
   sip_auth_data_item.add(Diameter::AVP(dict->SIP_AUTH_SCHEME).val_str(sip_auth_scheme));
   if (!sip_authorization.empty())
   {
+    LOG_DEBUG("Specifying SIP-Authorization %s", sip_authorization.c_str());
     sip_auth_data_item.add(Diameter::AVP(dict->SIP_AUTHORIZATION).val_str(sip_authorization));
   }
   add(sip_auth_data_item);
@@ -249,6 +265,7 @@ std::string MultimediaAuthRequest::sip_auth_scheme() const
     if (avps != end())
     {
       sip_auth_scheme = avps->val_str();
+      LOG_DEBUG("Got SIP-Auth-Scheme %s", sip_auth_scheme.c_str());
     }
   }
   return sip_auth_scheme;
@@ -264,13 +281,14 @@ std::string MultimediaAuthRequest::sip_authorization() const
     if (avps != end())
     {
       sip_authorization = avps->val_str();
+      LOG_DEBUG("Got SIP-Authorization %s", sip_authorization.c_str());
     }
   }
   return sip_authorization;
 }
 
 MultimediaAuthAnswer::MultimediaAuthAnswer(const Dictionary* dict,
-                                           int result_code) :
+                                           int32_t result_code) :
                                            Diameter::Message(dict, dict->MULTIMEDIA_AUTH_ANSWER)
 {
   add(Diameter::AVP(dict->RESULT_CODE).val_i32(result_code));
@@ -286,6 +304,7 @@ std::string MultimediaAuthAnswer::sip_auth_scheme() const
     if (avps != end())
     {
       sip_auth_scheme = avps->val_str();
+      LOG_DEBUG("Got SIP-Auth-Scheme %s", sip_auth_scheme.c_str());
     }
   }
   return sip_auth_scheme;
@@ -293,6 +312,7 @@ std::string MultimediaAuthAnswer::sip_auth_scheme() const
 
 DigestAuthVector MultimediaAuthAnswer::digest_auth_vector() const
 {
+  LOG_DEBUG("Getting digest authentication vector from Multimedia-Auth answer");
   DigestAuthVector digest_auth_vector;
   Diameter::AVP::iterator avps = begin(((Cx::Dictionary*)dict())->SIP_AUTH_DATA_ITEM);
   if (avps != end())
@@ -305,6 +325,7 @@ DigestAuthVector MultimediaAuthAnswer::digest_auth_vector() const
       if (avps2 != end())
       {
         digest_auth_vector.ha1 = avps2->val_str();
+        LOG_DEBUG("Found Digest-HA1 %s", digest_auth_vector.ha1.c_str());
       }
       else
       {
@@ -313,6 +334,7 @@ DigestAuthVector MultimediaAuthAnswer::digest_auth_vector() const
         if (avps2 != end())
         {
           digest_auth_vector.ha1 = avps2->val_str();
+          LOG_DEBUG("Found (non-3GPP) Digest-HA1 %s", digest_auth_vector.ha1.c_str());
         }
       }
       // Look for the realm.
@@ -320,6 +342,7 @@ DigestAuthVector MultimediaAuthAnswer::digest_auth_vector() const
       if (avps2 != end())
       {
         digest_auth_vector.realm = avps2->val_str();
+        LOG_DEBUG("Found Digest-Realm %s", digest_auth_vector.realm.c_str());
       }
       else
       {
@@ -328,6 +351,7 @@ DigestAuthVector MultimediaAuthAnswer::digest_auth_vector() const
         if (avps2 != end())
         {
           digest_auth_vector.realm = avps2->val_str();
+          LOG_DEBUG("Found (non-3GPP) Digest-Realm %s", digest_auth_vector.realm.c_str());
         }
       }
       // Look for the QoP.
@@ -335,6 +359,7 @@ DigestAuthVector MultimediaAuthAnswer::digest_auth_vector() const
       if (avps2 != end())
       {
         digest_auth_vector.qop = avps2->val_str();
+        LOG_DEBUG("Found Digest-QoP %s", digest_auth_vector.qop.c_str());
       }
       else
       {
@@ -343,6 +368,7 @@ DigestAuthVector MultimediaAuthAnswer::digest_auth_vector() const
         if (avps2 != end())
         {
           digest_auth_vector.qop = avps2->val_str();
+          LOG_DEBUG("Found (non-3GPP) Digest-QoP %s", digest_auth_vector.qop.c_str());
         }
       }
     }
@@ -352,6 +378,7 @@ DigestAuthVector MultimediaAuthAnswer::digest_auth_vector() const
 
 AKAAuthVector MultimediaAuthAnswer::aka_auth_vector() const
 {
+  LOG_DEBUG("Getting AKA authentication vector from Multimedia-Auth answer");
   AKAAuthVector aka_auth_vector;
   Diameter::AVP::iterator avps = begin(((Cx::Dictionary*)dict())->SIP_AUTH_DATA_ITEM);
   if (avps != end())
@@ -363,6 +390,7 @@ AKAAuthVector MultimediaAuthAnswer::aka_auth_vector() const
       size_t len;
       const uint8_t* data = avps2->val_os(len);
       aka_auth_vector.challenge = base64(data, len);
+      LOG_DEBUG("Found SIP-Authenticate (challenge) %s", aka_auth_vector.challenge.c_str());
     }
     // Look for the response.
     avps2 = avps->begin(((Cx::Dictionary*)dict())->SIP_AUTHORIZATION);
@@ -371,6 +399,7 @@ AKAAuthVector MultimediaAuthAnswer::aka_auth_vector() const
       size_t len;
       const uint8_t* data = avps2->val_os(len);
       aka_auth_vector.response = hex(data, len);
+      LOG_DEBUG("Found SIP-Authorization (response) %s", aka_auth_vector.response.c_str());
     }
     // Look for the encryption key.
     avps2 = avps->begin(((Cx::Dictionary*)dict())->CONFIDENTIALITY_KEY);
@@ -379,6 +408,7 @@ AKAAuthVector MultimediaAuthAnswer::aka_auth_vector() const
       size_t len;
       const uint8_t* data = avps2->val_os(len);
       aka_auth_vector.crypt_key = hex(data, len);
+      LOG_DEBUG("Found Confidentiality-Key %s", aka_auth_vector.crypt_key.c_str());
     }
     // Look for the integrity key.
     avps2 = avps->begin(((Cx::Dictionary*)dict())->INTEGRITY_KEY);
@@ -387,6 +417,7 @@ AKAAuthVector MultimediaAuthAnswer::aka_auth_vector() const
       size_t len;
       const uint8_t* data = avps2->val_os(len);
       aka_auth_vector.integrity_key = hex(data, len);
+      LOG_DEBUG("Found Integrity-Key %s", aka_auth_vector.integrity_key.c_str());
     }
   }
   return aka_auth_vector;
@@ -423,7 +454,7 @@ ServerAssignmentRequest::ServerAssignmentRequest(const Dictionary* dict,
                                                  const std::string& server_name) :
                                                  Diameter::Message(dict, dict->SERVER_ASSIGNMENT_REQUEST)
 {
-  LOG_DEBUG("Sending User-Authorization request for %s/%s", impi.c_str(), impu.c_str());
+  LOG_DEBUG("Building Server-Assignment request for %s/%s", impi.c_str(), impu.c_str());
   add_new_session_id();
   add_vendor_spec_app_id();
   add(Diameter::AVP(dict->AUTH_SESSION_STATE).val_i32(1));
@@ -432,6 +463,7 @@ ServerAssignmentRequest::ServerAssignmentRequest(const Dictionary* dict,
   add(Diameter::AVP(dict->DESTINATION_REALM).val_str(dest_realm));
   if (!impi.empty())
   {
+    LOG_DEBUG("Specifying User-Name %s", impi.c_str());
     add(Diameter::AVP(dict->USER_NAME).val_str(impi));
   }
   add(Diameter::AVP(dict->PUBLIC_IDENTITY).val_str(impu));
@@ -454,4 +486,178 @@ ServerAssignmentRequest::ServerAssignmentRequest(const Dictionary* dict,
 ServerAssignmentAnswer::ServerAssignmentAnswer(const Dictionary* dict) :
                                                Diameter::Message(dict, dict->SERVER_ASSIGNMENT_ANSWER)
 {
+}
+
+RegistrationTerminationRequest::RegistrationTerminationRequest(const Dictionary* dict) :
+                                                               Diameter::Message(dict, dict->REGISTRATION_TERMINATION_REQUEST)
+{
+}
+
+std::vector<std::string> RegistrationTerminationRequest::associated_identities() const
+{
+  std::vector<std::string> associated_identities;
+
+  // Associated Identities are found in USER_NAME AVPS inside the ASSOCIATED_IDENTITIES AVP.
+  LOG_DEBUG("Getting Associated-Identities from Registration-Termination request");
+  Diameter::AVP::iterator avps = begin(((Cx::Dictionary*)dict())->ASSOCIATED_IDENTITIES);
+  if (avps != end())
+  {
+    Diameter::AVP::iterator avps2 = avps->begin(dict()->USER_NAME);
+    while (avps2 != end())
+    {
+      LOG_DEBUG("Found User-Name %s", avps2->val_str().c_str());
+      associated_identities.push_back(avps2->val_str());
+      avps2++;
+    }
+  }
+  return associated_identities;
+}
+
+std::vector<std::string> RegistrationTerminationRequest::impus() const
+{
+  std::vector<std::string> impus;
+
+  // Find all the PUBLIC_IDENTITY AVPS.
+  LOG_DEBUG("Getting Public-Identities from Registration-Termination request");
+  Diameter::AVP::iterator avps = begin(((Cx::Dictionary*)dict())->PUBLIC_IDENTITY);
+  while (avps != end())
+  {
+    LOG_DEBUG("Found Public-Identity %s", avps->val_str().c_str());
+    impus.push_back(avps->val_str());
+    avps++;
+  }
+  return impus;
+}
+
+RegistrationTerminationAnswer::RegistrationTerminationAnswer(Diameter::Message& msg,
+                                                             Dictionary* dict,
+                                                             const std::string result_code,
+                                                             int32_t auth_session_state,
+                                                             std::vector<std::string> associated_identities) :
+                                                             Diameter::Message(msg)
+{
+  LOG_DEBUG("Building Registration-Termination answer");
+  build_response();
+  add_vendor_spec_app_id();
+  set_result_code(result_code);
+  add(Diameter::AVP(dict->AUTH_SESSION_STATE).val_i32(auth_session_state));
+
+  // Add all the private IDs we've deleted in an Associated-Identities AVP.
+  Diameter::AVP associated_identities_avp(dict->ASSOCIATED_IDENTITIES);
+  if (!associated_identities.empty())
+  {
+    for (std::vector<std::string>::iterator it = associated_identities.begin();
+         it != associated_identities.end();
+         ++it)
+    {
+      LOG_DEBUG("Adding Associated-Identities/User-Name %s", it->c_str());
+      associated_identities_avp.add(Diameter::AVP(dict->USER_NAME).val_str(*it));
+    }
+    add(associated_identities_avp);
+  }
+}
+
+std::vector<std::string> RegistrationTerminationAnswer::associated_identities() const
+{
+  std::vector<std::string> associated_identities;
+
+  // Associated Identities are found in USER_NAME AVPS inside the ASSOCIATED_IDENTITIES AVP.
+  LOG_DEBUG("Getting Associated-Identities from Registration-Termination answer");
+  Diameter::AVP::iterator avps = begin(((Cx::Dictionary*)dict())->ASSOCIATED_IDENTITIES);
+  if (avps != end())
+  {
+    Diameter::AVP::iterator avps2 = avps->begin(dict()->USER_NAME);
+    while (avps2 != end())
+    {
+      LOG_DEBUG("Found User-Name %s", avps2->val_str().c_str());
+      associated_identities.push_back(avps2->val_str());
+      avps2++;
+    }
+  }
+  return associated_identities;
+}
+
+PushProfileRequest::PushProfileRequest(const Dictionary* dict) :
+                                       Diameter::Message(dict, dict->PUSH_PROFILE_REQUEST)
+{
+}
+
+DigestAuthVector PushProfileRequest::digest_auth_vector() const
+{
+  LOG_DEBUG("Getting digest authentication vector from Push-Profile request");
+  DigestAuthVector digest_auth_vector;
+  Diameter::AVP::iterator avps = begin(((Cx::Dictionary*)dict())->SIP_AUTH_DATA_ITEM);
+  if (avps != end())
+  {
+    avps = avps->begin(((Cx::Dictionary*)dict())->SIP_DIGEST_AUTHENTICATE);
+    if (avps != end())
+    {
+      // Look for the digest.
+      Diameter::AVP::iterator avps2 = avps->begin(((Cx::Dictionary*)dict())->CX_DIGEST_HA1);
+      if (avps2 != end())
+      {
+        digest_auth_vector.ha1 = avps2->val_str();
+        LOG_DEBUG("Found Digest-HA1 %s", digest_auth_vector.ha1.c_str());
+      }
+      else
+      {
+        // Some HSSs (in particular OpenIMSCore), use non-3GPP Digest-HA1.  Check for this too.
+        avps2 = avps->begin(((Cx::Dictionary*)dict())->DIGEST_HA1);
+        if (avps2 != end())
+        {
+          digest_auth_vector.ha1 = avps2->val_str();
+          LOG_DEBUG("Found (non-3GPP) Digest-HA1 %s", digest_auth_vector.ha1.c_str());
+        }
+      }
+      // Look for the realm.
+      avps2 = avps->begin(((Cx::Dictionary*)dict())->CX_DIGEST_REALM);
+      if (avps2 != end())
+      {
+        digest_auth_vector.realm = avps2->val_str();
+        LOG_DEBUG("Found Digest-Realm %s", digest_auth_vector.realm.c_str());
+      }
+      else
+      {
+        // Some HSSs (in particular OpenIMSCore), use non-3GPP Digest-Realm.  Check for this too.
+        avps2 = avps->begin(((Cx::Dictionary*)dict())->DIGEST_REALM);
+        if (avps2 != end())
+        {
+          digest_auth_vector.realm = avps2->val_str();
+          LOG_DEBUG("Found (non-3GPP) Digest-Realm %s", digest_auth_vector.realm.c_str());
+        }
+      }
+      // Look for the QoP.
+      avps2 = avps->begin(((Cx::Dictionary*)dict())->CX_DIGEST_QOP);
+      if (avps2 != end())
+      {
+        digest_auth_vector.qop = avps2->val_str();
+        LOG_DEBUG("Found Digest-QoP %s", digest_auth_vector.qop.c_str());
+      }
+      else
+      {
+        // Some HSSs (in particular OpenIMSCore), use non-3GPP Digest-QoP.  Check for this too.
+        avps2 = avps->begin(((Cx::Dictionary*)dict())->DIGEST_QOP);
+        if (avps2 != end())
+        {
+          digest_auth_vector.qop = avps2->val_str();
+          LOG_DEBUG("Found (non-3GPP) Digest-QoP %s", digest_auth_vector.qop.c_str());
+        }
+      }
+    }
+  }
+  return digest_auth_vector;
+}
+
+PushProfileAnswer::PushProfileAnswer(Diameter::Message& msg,
+                                     Dictionary* dict,
+                                     const std::string result_code,
+                                     int32_t auth_session_state) :
+                                     Diameter::Message(msg)
+
+{
+  LOG_DEBUG("Building Push-Profile answer");
+  build_response();
+  add_vendor_spec_app_id();
+  set_result_code(result_code);
+  add(Diameter::AVP(dict->AUTH_SESSION_STATE).val_i32(auth_session_state));
 }

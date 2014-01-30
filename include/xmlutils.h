@@ -1,5 +1,5 @@
 /**
- * @file accesslogger.h Declaration of AccessLogger class.
+ * @file cx.h class definition wrapping Cx
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2013  Metaswitch Networks Ltd
@@ -34,30 +34,14 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-///
-///
+#ifndef XMLUTILS_H__
+#define XMLUTILS_H__
 
-#ifndef ACCESSLOGGER_H__
-#define ACCESSLOGGER_H__
+#include <string>
+#include <vector>
 
-#include <sstream>
-
-#include "logger.h"
-
-class AccessLogger
+namespace XmlUtils
 {
-public:
-  AccessLogger(const std::string& directory);
-  ~AccessLogger();
-
-  void log(const std::string& url,
-           int rc);
-
-private:
-  static const int BUFFER_SIZE = 1000;
-
-  Logger* _logger;
-};
-
+  std::vector<std::string> get_public_ids(const std::string& user_data);
+}
 #endif
-

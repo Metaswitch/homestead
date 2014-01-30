@@ -1,5 +1,5 @@
 /**
- * @file accesslogger.cpp
+ * @file cx.h class definition wrapping Cx
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2013  Metaswitch Networks Ltd
@@ -34,28 +34,56 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#include <stdio.h>
+#include "xmlutils.h"
 
-#include "accesslogger.h"
+#include "log.h"
 
-AccessLogger::AccessLogger(const std::string& directory)
+#include "rapidxml/rapidxml.hpp"
+
+namespace XmlUtils
 {
-  _logger = new Logger(directory, std::string("access"));
-  _logger->set_flags(Logger::ADD_TIMESTAMPS|Logger::FLUSH_ON_WRITE);
+std::vector<std::string> get_public_ids(const std::string& user_data)
+{
+  std::vector<std::string> public_ids;
+
+  // Parse the XML document, saving off the passed-in string first (as parsing
+  // is destructive).
+  rapidxml::xml_document<> doc;
+  char* user_data_str = doc.allocate_string(user_data.c_str());
+
+  try
+  {
+    doc.parse<rapidxml::parse_strip_xml_namespaces>(user_data_str);
+  }
+  catch (rapidxml::parse_error err)
+  {
+    LOG_ERROR("Parse error in IMS Subscription document: %s\n\n%s", err.what(), user_data.c_str());
+    doc.clear();
+  }
+
+  // Walk through all nodes in the hierarchy IMSSubscription->ServiceProfile->PublicIdentity
+  // ->Identity.
+  rapidxml::xml_node<>* is = doc.first_node("IMSSubscription");
+  if (is)
+  {
+    for (rapidxml::xml_node<>* sp = is->first_node("ServiceProfile");
+         sp;
+         sp = is->next_sibling("ServiceProfile"))
+    {
+      for (rapidxml::xml_node<>* pi = sp->first_node("PublicIdentity");
+           pi;
+           pi = sp->next_sibling("PublicIdentity"))
+      {
+        for (rapidxml::xml_node<>* id = pi->first_node("Identity");
+             id;
+             id = pi->next_sibling("Identity"))
+        {
+          public_ids.push_back((std::string)id->value());
+        }
+      }
+    }
+  }
+
+  return public_ids;
 }
-
-AccessLogger::~AccessLogger()
-{
-  delete _logger;
-}
-
-void AccessLogger::log(const std::string& uri,
-                       int rc)
-{
-  char buf[BUFFER_SIZE];
-  snprintf(buf, sizeof(buf),
-           "%d GET %s\n",
-           rc,
-           uri.c_str());
-  _logger->write(buf);
 }

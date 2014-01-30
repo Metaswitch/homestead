@@ -59,6 +59,10 @@ const int DIAMETER_ERROR_IDENTITIES_DONT_MATCH = 5002;
 const int DIAMETER_ERROR_IDENTITY_NOT_REGISTERED = 5003;
 const int DIAMETER_ERROR_ROAMING_NOT_ALLOWED = 5004;
 
+// Result-Code AVP strings used in set_result_code function
+const std::string DIAMETER_REQ_SUCCESS = "DIAMETER_SUCCESS";
+const std::string DIAMETER_REQ_FAILURE = "DIAMETER_UNABLE_TO_COMPLY";
+
 // JSON string constants
 const std::string JSON_RC = "result-code";
 const std::string JSON_SCSCF = "scscf";
@@ -81,6 +85,7 @@ public:
                                  const std::string& server_name,
                                  Cx::Dictionary* dict);
   static void configure_cache(Cache* cache);
+  inline Cache* cache() const {return _cache;}
 
   void on_diameter_timeout();
 
@@ -192,9 +197,22 @@ class ImpiHandler : public HssCacheHandler
 public:
   struct Config
   {
-    Config(bool _hss_configured = true, int _impu_cache_ttl = 0) : query_cache_av(!_hss_configured), impu_cache_ttl(_impu_cache_ttl) {}
+    Config(bool _hss_configured = true,
+           int _impu_cache_ttl = 0,
+           std::string _scheme_unknown = "Unknown",
+           std::string _scheme_digest = "SIP Digest",
+           std::string _scheme_aka = "Digest-AKAv1-MD5") :
+    query_cache_av(!_hss_configured),
+    impu_cache_ttl(_impu_cache_ttl),
+    scheme_unknown(_scheme_unknown),
+    scheme_digest(_scheme_digest),
+    scheme_aka(_scheme_aka) {}
+
     bool query_cache_av;
     int impu_cache_ttl;
+    std::string scheme_unknown;
+    std::string scheme_digest;
+    std::string scheme_aka;
   };
 
   ImpiHandler(HttpStack::Request& req, const Config* cfg) :
@@ -214,15 +232,10 @@ public:
   void on_mar_response(Diameter::Message& rsp);
   virtual void send_reply(const DigestAuthVector& av) = 0;
   virtual void send_reply(const AKAAuthVector& av) = 0;
-
   typedef HssCacheHandler::CacheTransaction<ImpiHandler> CacheTransaction;
   typedef HssCacheHandler::DiameterTransaction<ImpiHandler> DiameterTransaction;
 
 protected:
-  static const std::string SCHEME_UNKNOWN;
-  static const std::string SCHEME_SIP_DIGEST;
-  static const std::string SCHEME_DIGEST_AKAV1_MD5;
-
   const Config* _cfg;
   std::string _impi;
   std::string _impu;
@@ -328,8 +341,68 @@ private:
   const Config* _cfg;
   std::string _impi;
   std::string _impu;
-
-  static std::vector<std::string> get_public_ids(const std::string& user_data);
 };
 
+class RegistrationTerminationHandler : public Diameter::Stack::Handler
+{
+public:
+  struct Config
+  {
+    Config(Cache* _cache,
+           Cx::Dictionary* _dict,
+           int _ims_sub_cache_ttl = 3600) :
+           cache(_cache),
+           dict(_dict),
+           ims_sub_cache_ttl(_ims_sub_cache_ttl) {}
+
+    Cache* cache;
+    Cx::Dictionary* dict;
+    int ims_sub_cache_ttl;
+  };
+
+  RegistrationTerminationHandler(Diameter::Message& msg, const Config* cfg) :
+    Diameter::Stack::Handler(msg), _cfg(cfg)
+  {}
+
+  void run();
+
+  typedef HssCacheHandler::CacheTransaction<RegistrationTerminationHandler> CacheTransaction;
+
+private:
+  const Config* _cfg;
+  std::vector<std::string> _impis;
+  std::vector<std::string> _impus;
+
+  void on_get_public_ids_success(Cache::Request* request);
+  void on_get_public_ids_failure(Cache::Request* request, Cache::ResultCode error, std::string& text);
+  void delete_identities();
+};
+
+class PushProfileHandler : public Diameter::Stack::Handler
+{
+public:
+  struct Config
+  {
+    Config(Cache* _cache, Cx::Dictionary* _dict,
+           int _impu_cache_ttl = 0,
+           int _ims_sub_cache_ttl = 3600) :
+           cache(_cache),
+           dict(_dict),
+           ims_sub_cache_ttl(_ims_sub_cache_ttl) {}
+
+    Cache* cache;
+    Cx::Dictionary* dict;
+    int impu_cache_ttl;
+    int ims_sub_cache_ttl;
+  };
+
+  PushProfileHandler(Diameter::Message& msg, const Config* cfg) :
+    Diameter::Stack::Handler(msg), _cfg(cfg)
+  {}
+
+  void run();
+
+private:
+  const Config* _cfg;
+};
 #endif
