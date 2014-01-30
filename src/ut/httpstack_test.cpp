@@ -122,15 +122,23 @@ private:
 class HttpStackStatsTest : public HttpStackTest
 {
 public:
-  HttpStackStatsTest() { cwtest_completely_control_time(); }
-  virtual ~HttpStackStatsTest() { cwtest_reset_time(); }
-
-  void start_stack()
+  HttpStackStatsTest()
   {
     _stack = HttpStack::get_instance();
     _stack->initialize();
     _stack->configure(_host.c_str(), _port, 1, NULL, &_stats_manager, &_load_monitor);
     _stack->start();
+
+    cwtest_completely_control_time();
+  }
+  virtual ~HttpStackStatsTest()
+  {
+    cwtest_reset_time();
+    stop_stack();
+  }
+
+  void start_stack()
+  {
   }
 
 private:
@@ -224,8 +232,6 @@ TEST_F(HttpStackTest, SimpleHandler)
 
 TEST_F(HttpStackStatsTest, SuccessfulRequest)
 {
-  start_stack();
-
   HttpStack::HandlerFactory<SlowHandler> factory;
   _stack->register_handler("^/BasicHandler$", &factory);
 
@@ -239,14 +245,10 @@ TEST_F(HttpStackStatsTest, SuccessfulRequest)
   int rc = get("/BasicHandler", status, response);
   ASSERT_EQ(CURLE_OK, rc);
   ASSERT_EQ(200, status);
-
-  stop_stack();
 }
 
 TEST_F(HttpStackStatsTest, RejectOverload)
 {
-  start_stack();
-
   HttpStack::HandlerFactory<BasicHandler> factory;
   _stack->register_handler("^/BasicHandler$", &factory);
 
@@ -259,14 +261,10 @@ TEST_F(HttpStackStatsTest, RejectOverload)
   int rc = get("/BasicHandler", status, response);
   ASSERT_EQ(CURLE_OK, rc);
   ASSERT_EQ(503, status);  // Request is rejected with a 503.
-
-  stop_stack();
 }
 
 TEST_F(HttpStackStatsTest, LatencyPenalties)
 {
-  start_stack();
-
   HttpStack::HandlerFactory<PenaltyHandler> factory;
   _stack->register_handler("^/BasicHandler$", &factory);
 
@@ -281,6 +279,4 @@ TEST_F(HttpStackStatsTest, LatencyPenalties)
   int rc = get("/BasicHandler", status, response);
   ASSERT_EQ(CURLE_OK, rc);
   ASSERT_EQ(200, status);
-
-  stop_stack();
 }
