@@ -37,7 +37,8 @@ TARGET_SOURCES_TEST := test_main.cpp \
                        diameterstack_test.cpp \
                        cache_test.cpp \
                        handlers_test.cpp \
-                       httpstack_test.cpp
+                       httpstack_test.cpp \
+                       mockfreediameter.cpp
 
 TARGET_EXTRA_OBJS_TEST := gmock-all.o \
                           gtest-all.o
