@@ -93,14 +93,14 @@ public:
 // The transaction is destroyed by the Cache on one of it's worker threads.
 // When destroyed, this object posts to a semaphore which signals the main
 // thread to continue executing the testcase.
-class TestTransaction : public Cache::Transaction
+class CacheTestTransaction : public Cache::Transaction
 {
 public:
-  TestTransaction(sem_t* sem) :
+  CacheTestTransaction(sem_t* sem) :
     Cache::Transaction(), _sem(sem)
   {}
 
-  virtual ~TestTransaction()
+  virtual ~CacheTestTransaction()
   {
     sem_post(_sem);
   }
@@ -157,12 +157,12 @@ public:
 
 // A specialized transaction that can be configured to record the result of a
 // request on a recorder object.
-class RecordingTransaction : public TestTransaction
+class RecordingTransaction : public CacheTestTransaction
 {
 public:
   RecordingTransaction(sem_t* sem,
                        ResultRecorderInterface* recorder) :
-    TestTransaction(sem),
+    CacheTestTransaction(sem),
     _recorder(recorder)
   {}
 
@@ -220,12 +220,12 @@ public:
 
   virtual ~CacheRequestTest() {}
 
-  // Helper methods to make a TestTransaction or RecordingTransation. This
+  // Helper methods to make a CacheTestTransaction or RecordingTransation. This
   // passes the semaphore into the transaction constructor - this is posted to
   // when the transaction completes.
-  TestTransaction* make_trx()
+  CacheTestTransaction* make_trx()
   {
-    return new TestTransaction(&_sem);
+    return new CacheTestTransaction(&_sem);
   }
 
   RecordingTransaction* make_rec_trx(ResultRecorderInterface *recorder)
@@ -249,7 +249,7 @@ public:
   }
 
   // Helper method to send a transaction and wait for it to succeed.
-  void do_successful_trx(TestTransaction* trx, Cache::Request* req)
+  void do_successful_trx(CacheTestTransaction* trx, Cache::Request* req)
   {
     EXPECT_CALL(*trx, on_success(_));
     _cache.send(trx, req);
@@ -647,7 +647,7 @@ TEST_F(CacheInitializationTest, UnknownException)
 
 TEST_F(CacheRequestTest, PutIMSSubscriptionMainline)
 {
-  TestTransaction *trx = make_trx();
+  CacheTestTransaction *trx = make_trx();
   Cache::Request* req =
     _cache.create_PutIMSSubscription("kermit", "<xml>", 1000, 300);
 
@@ -664,7 +664,7 @@ TEST_F(CacheRequestTest, PutIMSSubscriptionMainline)
 
 TEST_F(CacheRequestTest, NoTTLOnPut)
 {
-  TestTransaction *trx = make_trx();
+  CacheTestTransaction *trx = make_trx();
   Cache::Request* req =
     _cache.create_PutIMSSubscription("kermit", "<xml>", 1000);
 
@@ -684,7 +684,7 @@ TEST_F(CacheRequestTest, PutIMSSubMultipleIDs)
   ids.push_back("kermit");
   ids.push_back("miss piggy");
 
-  TestTransaction *trx = make_trx();
+  CacheTestTransaction *trx = make_trx();
   Cache::Request* req =
     _cache.create_PutIMSSubscription(ids, "<xml>", 1000);
 
@@ -700,7 +700,7 @@ TEST_F(CacheRequestTest, PutIMSSubMultipleIDs)
 
 TEST_F(CacheRequestTest, PutTransportEx)
 {
-  TestTransaction *trx = make_trx();
+  CacheTestTransaction *trx = make_trx();
   Cache::Request* req =
     _cache.create_PutIMSSubscription("kermit", "<xml>", 1000);
 
@@ -715,7 +715,7 @@ TEST_F(CacheRequestTest, PutTransportEx)
 
 TEST_F(CacheRequestTest, PutInvalidRequestException)
 {
-  TestTransaction *trx = make_trx();
+  CacheTestTransaction *trx = make_trx();
   Cache::Request* req =
     _cache.create_PutIMSSubscription("kermit", "<xml>", 1000);
 
@@ -730,7 +730,7 @@ TEST_F(CacheRequestTest, PutInvalidRequestException)
 
 TEST_F(CacheRequestTest, PutNotFoundException)
 {
-  TestTransaction *trx = make_trx();
+  CacheTestTransaction *trx = make_trx();
   Cache::Request* req =
     _cache.create_PutIMSSubscription("kermit", "<xml>", 1000);
 
@@ -745,7 +745,7 @@ TEST_F(CacheRequestTest, PutNotFoundException)
 
 TEST_F(CacheRequestTest, PutNoResultsException)
 {
-  TestTransaction *trx = make_trx();
+  CacheTestTransaction *trx = make_trx();
   Cache::Request* req =
     _cache.create_PutIMSSubscription("kermit", "<xml>", 1000);
 
@@ -760,7 +760,7 @@ TEST_F(CacheRequestTest, PutNoResultsException)
 
 TEST_F(CacheRequestTest, PutUnknownException)
 {
-  TestTransaction *trx = make_trx();
+  CacheTestTransaction *trx = make_trx();
   Cache::Request* req =
     _cache.create_PutIMSSubscription("kermit", "<xml>", 1000);
 
@@ -775,7 +775,7 @@ TEST_F(CacheRequestTest, PutUnknownException)
 
 TEST_F(CacheRequestTest, PutsHaveConsistencyLevelOne)
 {
-  TestTransaction *trx = make_trx();
+  CacheTestTransaction *trx = make_trx();
   Cache::Request* req =
     _cache.create_PutIMSSubscription("kermit", "<xml>", 1000, 300);
 
@@ -793,7 +793,7 @@ TEST_F(CacheRequestTest, PutAuthVectorMainline)
   av.qop = "auth";
   av.preferred = true;
 
-  TestTransaction *trx = make_trx();
+  CacheTestTransaction *trx = make_trx();
   Cache::Request* req =
     _cache.create_PutAuthVector("gonzo", av, 1000);
 
@@ -812,7 +812,7 @@ TEST_F(CacheRequestTest, PutAuthVectorMainline)
 
 TEST_F(CacheRequestTest, PutAsoocPublicIdMainline)
 {
-  TestTransaction *trx = make_trx();
+  CacheTestTransaction *trx = make_trx();
   Cache::Request* req =
     _cache.create_PutAssociatedPublicID("gonzo", "kermit", 1000);
 
@@ -828,7 +828,7 @@ TEST_F(CacheRequestTest, PutAsoocPublicIdMainline)
 
 TEST_F(CacheRequestTest, DeletePublicId)
 {
-  TestTransaction *trx = make_trx();
+  CacheTestTransaction *trx = make_trx();
   Cache::Request* req =
     _cache.create_DeletePublicIDs("kermit", 1000);
 
@@ -849,7 +849,7 @@ TEST_F(CacheRequestTest, DeleteMultiPublicIds)
   ids.push_back("gonzo");
   ids.push_back("miss piggy");
 
-  TestTransaction *trx = make_trx();
+  CacheTestTransaction *trx = make_trx();
   Cache::Request* req =
     _cache.create_DeletePublicIDs(ids, 1000);
 
@@ -863,7 +863,7 @@ TEST_F(CacheRequestTest, DeleteMultiPublicIds)
 
 TEST_F(CacheRequestTest, DeletePrivateId)
 {
-  TestTransaction *trx = make_trx();
+  CacheTestTransaction *trx = make_trx();
   Cache::Request* req =
     _cache.create_DeletePrivateIDs("kermit", 1000);
 
@@ -884,7 +884,7 @@ TEST_F(CacheRequestTest, DeleteMultiPrivateIds)
   ids.push_back("gonzo");
   ids.push_back("miss piggy");
 
-  TestTransaction *trx = make_trx();
+  CacheTestTransaction *trx = make_trx();
   Cache::Request* req =
     _cache.create_DeletePrivateIDs(ids, 1000);
 
@@ -898,7 +898,7 @@ TEST_F(CacheRequestTest, DeleteMultiPrivateIds)
 
 TEST_F(CacheRequestTest, DeletesHaveConsistencyLevelOne)
 {
-  TestTransaction *trx = make_trx();
+  CacheTestTransaction *trx = make_trx();
   Cache::Request* req =
     _cache.create_DeletePublicIDs("kermit", 1000);
 
@@ -942,7 +942,7 @@ TEST_F(CacheRequestTest, GetIMSSubscriptionMainline)
 
 TEST_F(CacheRequestTest, GetIMSSubscriptionNotFound)
 {
-  TestTransaction* trx = make_trx();
+  CacheTestTransaction* trx = make_trx();
   Cache::Request* req =
     _cache.create_GetIMSSubscription("kermit");
 
@@ -1352,7 +1352,7 @@ ACTION_P2(CheckLatency, trx, ms) { trx->check_latency(ms * 1000); }
 
 TEST_F(CacheLatencyTest, PutRecordsLatency)
 {
-  TestTransaction *trx = make_trx();
+  CacheTestTransaction *trx = make_trx();
   Cache::Request* req =
     _cache.create_PutIMSSubscription("kermit", "<xml>", 1000, 300);
 
@@ -1369,7 +1369,7 @@ TEST_F(CacheLatencyTest, PutRecordsLatency)
 
 TEST_F(CacheLatencyTest, DeleteRecordsLatency)
 {
-  TestTransaction *trx = make_trx();
+  CacheTestTransaction *trx = make_trx();
   Cache::Request* req =
     _cache.create_DeletePublicIDs("kermit", 1000);
 
@@ -1411,7 +1411,7 @@ TEST_F(CacheLatencyTest, GetRecordsLatency)
 
 TEST_F(CacheLatencyTest, ErrorRecordsLatency)
 {
-  TestTransaction *trx = make_trx();
+  CacheTestTransaction *trx = make_trx();
   Cache::Request* req =
     _cache.create_PutIMSSubscription("kermit", "<xml>", 1000, 300);
 
