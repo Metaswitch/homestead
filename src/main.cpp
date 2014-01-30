@@ -57,6 +57,9 @@ struct options
   std::string server_name;
   int impu_cache_ttl;
   int ims_sub_cache_ttl;
+  std::string scheme_unknown;
+  std::string scheme_digest;
+  std::string scheme_aka;
   bool access_log_enabled;
   std::string access_log_directory;
   bool log_to_file;
@@ -79,6 +82,12 @@ void usage(void)
        "                            IMPU cache time-to-live in seconds (default: 0)\n"
        " -I, --ims-sub-cache-ttl <secs>\n"
        "                            IMS subscription cache time-to-live in seconds (default: 0)\n"
+       "     --scheme-unknown <string>\n"
+       "                            String to use to specify unknown SIP-Auth-Scheme (default: Unknown)\n"
+       "     --scheme-digest <string>\n"
+       "                            String to use to specify digest SIP-Auth-Scheme (default: SIP Digest)\n"
+       "     --scheme-aka <string>\n"
+       "                            String to use to specify AKA SIP-Auth-Scheme (default: Digest-AKAv1-MD5)\n"
        " -a, --access-log <directory>\n"
        "                            Generate access logs in specified directory\n"
        " -F, --log-file <directory>\n"
@@ -87,6 +96,14 @@ void usage(void)
        " -d, --daemon               Run as daemon\n"
        " -h, --help                 Show this help screen\n");
 }
+
+// Enum for option types not assigned short-forms
+enum OptionTypes
+{
+  SCHEME_UNKNOWN = 128, // start after the ASCII set ends to avoid conflicts
+  SCHEME_DIGEST,
+  SCHEME_AKA
+};
 
 int init_options(int argc, char**argv, struct options& options)
 {
@@ -100,6 +117,9 @@ int init_options(int argc, char**argv, struct options& options)
     {"server-name",       required_argument, NULL, 's'},
     {"impu-cache-ttl",    required_argument, NULL, 'i'},
     {"ims-sub-cache-ttl", required_argument, NULL, 'I'},
+    {"scheme-unknown",    required_argument, NULL, SCHEME_UNKNOWN},
+    {"scheme-digest",     required_argument, NULL, SCHEME_DIGEST},
+    {"scheme-aka",        required_argument, NULL, SCHEME_AKA},
     {"access-log",        required_argument, NULL, 'a'},
     {"log-file",          required_argument, NULL, 'F'},
     {"log-level",         required_argument, NULL, 'L'},
@@ -144,6 +164,18 @@ int init_options(int argc, char**argv, struct options& options)
 
     case 'I':
       options.ims_sub_cache_ttl = atoi(optarg);
+      break;
+
+    case SCHEME_UNKNOWN:
+      options.scheme_unknown = std::string(optarg);
+      break;
+
+    case SCHEME_DIGEST:
+      options.scheme_digest = std::string(optarg);
+      break;
+
+    case SCHEME_AKA:
+      options.scheme_aka = std::string(optarg);
       break;
 
     case 'a':
@@ -212,6 +244,9 @@ int main(int argc, char**argv)
   options.dest_realm = "dest-realm.unknown";
   options.dest_host = "dest-host.unknown";
   options.server_name = "sip:server-name.unknown";
+  options.scheme_unknown = "Unknown";
+  options.scheme_digest = "SIP Digest";
+  options.scheme_aka = "Digest-AKAv1-MD5";
   options.access_log_enabled = false;
   options.impu_cache_ttl = 0;
   options.ims_sub_cache_ttl = 0;
@@ -245,29 +280,6 @@ int main(int argc, char**argv)
 
   LOG_STATUS("Log level set to %d", options.log_level);
 
-  Diameter::Stack* diameter_stack = Diameter::Stack::get_instance();
-  Cx::Dictionary* dict = NULL;
-  try
-  {
-    diameter_stack->initialize();
-    diameter_stack->configure(options.diameter_conf);
-    dict = new Cx::Dictionary();
-    diameter_stack->advertize_application(dict->CX);
-    RegistrationTerminationHandler::Config rt_handler_config(options.ims_sub_cache_ttl);
-    PushProfileHandler::Config pp_handler_config(options.impu_cache_ttl, options.ims_sub_cache_ttl);
-    Diameter::Stack::ConfiguredHandlerFactory<RegistrationTerminationHandler, RegistrationTerminationHandler::Config> rtr_handler_factory(dict, &rt_handler_config);
-    Diameter::Stack::ConfiguredHandlerFactory<PushProfileHandler, PushProfileHandler::Config> ppr_handler_factory(dict, &pp_handler_config);
-    diameter_stack->register_handler(dict->CX, dict->REGISTRATION_TERMINATION_REQUEST, &rtr_handler_factory);
-    diameter_stack->register_handler(dict->CX, dict->PUSH_PROFILE_REQUEST, &ppr_handler_factory);
-    diameter_stack->register_fallback_handler(dict->CX);
-    diameter_stack->start();
-  }
-  catch (Diameter::Stack::Exception& e)
-  {
-    LOG_ERROR("Failed to initialize Diameter stack - function %s, rc %d", e._func, e._rc);
-    exit(2);
-  }
-
   Cache* cache = Cache::get_instance();
   cache->initialize();
   // TODO: Make number of threads configurable.
@@ -277,6 +289,33 @@ int main(int argc, char**argv)
   if (rc != Cache::OK)
   {
     LOG_ERROR("Failed to initialize cache - rc %d", rc);
+    exit(2);
+  }
+
+  Diameter::Stack* diameter_stack = Diameter::Stack::get_instance();
+  RegistrationTerminationHandler::Config rt_handler_config(NULL, NULL, 0);
+  PushProfileHandler::Config pp_handler_config(NULL, NULL, 0, 0);
+  Diameter::Stack::ConfiguredHandlerFactory<RegistrationTerminationHandler, RegistrationTerminationHandler::Config> rtr_handler_factory(NULL, NULL);
+  Diameter::Stack::ConfiguredHandlerFactory<PushProfileHandler, PushProfileHandler::Config> ppr_handler_factory(NULL, NULL);
+  Cx::Dictionary* dict = NULL;
+  try
+  {
+    diameter_stack->initialize();
+    diameter_stack->configure(options.diameter_conf);
+    dict = new Cx::Dictionary();
+    diameter_stack->advertize_application(dict->CX);
+    rt_handler_config = RegistrationTerminationHandler::Config(cache, dict, options.ims_sub_cache_ttl);
+    pp_handler_config = PushProfileHandler::Config(cache, dict, options.impu_cache_ttl, options.ims_sub_cache_ttl);
+    rtr_handler_factory = Diameter::Stack::ConfiguredHandlerFactory<RegistrationTerminationHandler, RegistrationTerminationHandler::Config>(dict, &rt_handler_config);
+    ppr_handler_factory = Diameter::Stack::ConfiguredHandlerFactory<PushProfileHandler, PushProfileHandler::Config>(dict, &pp_handler_config);
+    diameter_stack->register_handler(dict->CX, dict->REGISTRATION_TERMINATION_REQUEST, &rtr_handler_factory);
+    diameter_stack->register_handler(dict->CX, dict->PUSH_PROFILE_REQUEST, &ppr_handler_factory);
+    diameter_stack->register_fallback_handler(dict->CX);
+    diameter_stack->start();
+  }
+  catch (Diameter::Stack::Exception& e)
+  {
+    LOG_ERROR("Failed to initialize Diameter stack - function %s, rc %d", e._func, e._rc);
     exit(2);
   }
 
@@ -291,7 +330,11 @@ int main(int argc, char**argv)
   // should always hit it.  If there is not, the AV information must have been provisioned in the
   // "cache" (which becomes persistent).
   bool hss_configured = !(options.dest_host.empty() || (options.dest_host == "0.0.0.0"));
-  ImpiHandler::Config impi_handler_config(hss_configured, options.impu_cache_ttl);
+  ImpiHandler::Config impi_handler_config(hss_configured,
+                                          options.impu_cache_ttl,
+                                          options.scheme_unknown,
+                                          options.scheme_digest,
+                                          options.scheme_aka);
   ImpiRegistrationStatusHandler::Config registration_status_handler_config(hss_configured);
   ImpuLocationInfoHandler::Config location_info_handler_config(hss_configured);
   ImpuIMSSubscriptionHandler::Config impu_handler_config(hss_configured, options.ims_sub_cache_ttl);

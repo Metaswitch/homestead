@@ -288,7 +288,7 @@ std::string MultimediaAuthRequest::sip_authorization() const
 }
 
 MultimediaAuthAnswer::MultimediaAuthAnswer(const Dictionary* dict,
-                                           int result_code) :
+                                           int32_t result_code) :
                                            Diameter::Message(dict, dict->MULTIMEDIA_AUTH_ANSWER)
 {
   add(Diameter::AVP(dict->RESULT_CODE).val_i32(result_code));
@@ -531,28 +531,29 @@ std::vector<std::string> RegistrationTerminationRequest::impus() const
 
 RegistrationTerminationAnswer::RegistrationTerminationAnswer(Diameter::Message& msg,
                                                              Dictionary* dict,
-                                                             char* result_code,
-                                                             int auth_session_state,
-                                                             std::vector<std::string> impis) :
-                                                             Diameter::Message(dict, msg.fd_msg())
+                                                             const std::string result_code,
+                                                             int32_t auth_session_state,
+                                                             std::vector<std::string> associated_identities) :
+                                                             Diameter::Message(msg)
 {
   LOG_DEBUG("Building Registration-Termination answer");
+  build_response();
   add_vendor_spec_app_id();
   set_result_code(result_code);
   add(Diameter::AVP(dict->AUTH_SESSION_STATE).val_i32(auth_session_state));
 
-  // Add all the private IDS we've deleted in an Associated-Identities AVP.
-  Diameter::AVP associated_identities(dict->ASSOCIATED_IDENTITIES);
-  if (!impis.empty())
+  // Add all the private IDs we've deleted in an Associated-Identities AVP.
+  Diameter::AVP associated_identities_avp(dict->ASSOCIATED_IDENTITIES);
+  if (!associated_identities.empty())
   {
-    for (std::vector<std::string>::iterator it = impis.begin();
-         it != impis.end();
+    for (std::vector<std::string>::iterator it = associated_identities.begin();
+         it != associated_identities.end();
          ++it)
     {
       LOG_DEBUG("Adding Associated-Identities/User-Name %s", it->c_str());
-      associated_identities.add(Diameter::AVP(dict->USER_NAME).val_str(*it));
+      associated_identities_avp.add(Diameter::AVP(dict->USER_NAME).val_str(*it));
     }
-    add(associated_identities);
+    add(associated_identities_avp);
   }
 }
 
@@ -649,12 +650,13 @@ DigestAuthVector PushProfileRequest::digest_auth_vector() const
 
 PushProfileAnswer::PushProfileAnswer(Diameter::Message& msg,
                                      Dictionary* dict,
-                                     char* result_code,
-                                     int auth_session_state) :
-                                     Diameter::Message(dict, msg.fd_msg())
+                                     const std::string result_code,
+                                     int32_t auth_session_state) :
+                                     Diameter::Message(msg)
 
 {
   LOG_DEBUG("Building Push-Profile answer");
+  build_response();
   add_vendor_spec_app_id();
   set_result_code(result_code);
   add(Diameter::AVP(dict->AUTH_SESSION_STATE).val_i32(auth_session_state));
