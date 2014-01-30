@@ -42,12 +42,23 @@
 
 class MockDictionary : public Diameter::Dictionary
 {
+  MockDictionary() : Diameter::Dictionary() {}
+  virtual ~MockDictionary() {}
 
+  class MockMessage : public Diameter::Dictionary::Message
+  {
+    MockMessage(const std::string message) : Diameter::Dictionary::Message(message) {}
+    virtual ~MockMessage() {}
+  };
 };
 
 class MockDiameterTransaction : public Diameter::Transaction
 {
-  MOCK_METHOD1(_response_clbk
+  MockDiameterTransaction(MockDictionary* dict) : Diameter::Transaction(dict) {}
+  virtual ~MockDiameterTransaction() {}
+
+  MOCK_METHOD1(on_response, void(Diameter::Message&));
+  MOCK_METHOD0(on_timeout, void());
 };
 
 class MockAVP : public Diameter::AVP
@@ -56,10 +67,7 @@ class MockAVP : public Diameter::AVP
 
 class MockDiameterMessage : public Diameter::Message
 {
-  MockDiameterMessage(const Diameter::Dictionary* dict, const Diameter::Dictionary::Message& type) : Diameter::Message(dict, type) {}
-  MockDiameterMessage(Diameter::Dictionary* dict, struct msg* msg) : Diameter::Message(dict, msg) {}
-  MockDiameterMessage(const Diameter::Message& msg) : Diameter::Message(msg) {}
-
+  MockDiameterMessage(Diameter::Dictionary* dict) : Diameter::Message(dict, NULL) {}
   virtual ~MockDiameterMessage() {}
 
   MOCK_CONST_METHOD0(dict, Diameter::Dictionary*());
@@ -80,7 +88,7 @@ class MockDiameterMessage : public Diameter::Message
   MOCK_CONST_METHOD1(begin, Diameter::AVP::iterator(Diameter::Dictionary::AVP&));
   MOCK_CONST_METHOD0(end, Diameter::AVP::iterator());
   MOCK_METHOD0(send, void());
-  MOCK_METHOD1(send, void(Diameter::Transaction*));
+  MOCK_METHOD1(send, void(MockDiameterTransaction*));
   MOCK_METHOD2(send, void(Diameter::Transaction*, unsigned int));
 };
 
@@ -95,6 +103,9 @@ public:
   MOCK_METHOD0(start, void());
   MOCK_METHOD0(stop, void());
   MOCK_METHOD0(wait_stopped, void());
+  MOCK_METHOD1(send, void(struct msg*));
+  MOCK_METHOD2(send, void(struct msg*, Diameter::Transaction*));
+  MOCK_METHOD3(send, void(struct msg*, Diameter::Transaction*, unsigned int timeout_ms));
 };
 
 #endif

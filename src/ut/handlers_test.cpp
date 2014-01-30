@@ -43,11 +43,27 @@
 #include "mockcache.hpp"
 #include "handlers.h"
 
+using ::testing::Return;
+using ::testing::SetArgReferee;
+using ::testing::SetArgPointee;
+using ::testing::_;
+using ::testing::Invoke;
+using ::testing::WithArgs;
+
+static struct msg* _fd_msg;
+static Diameter::Transaction* _tsx;
+
+static void store (struct msg* msg, Diameter::Transaction* tsx)
+{
+  _fd_msg = msg;
+  _tsx = tsx;
+}
+
 TEST(HandlersTest, SimpleMainline)
 {
   MockHttpStack stack;
   MockHttpStack::Request req(&stack, "/", "ping");
-  EXPECT_CALL(stack, send_reply(testing::_, 200));
+  EXPECT_CALL(stack, send_reply(_, 200));
   PingHandler* handler = new PingHandler(req);
   handler->run();
   EXPECT_EQ("OK", req.content());
@@ -57,29 +73,28 @@ TEST(HandlersTest, RegistrationStatus)
 {
   MockHttpStack httpstack;
   MockHttpStack::Request req(&httpstack, "/impi/impi@example.com/", "registration-status", "?impu=sip:impu@example.com");
+  MockDiameterStack diameterstack;
   ImpiRegistrationStatusHandler::Config cfg(true);
   ImpiRegistrationStatusHandler* handler = new ImpiRegistrationStatusHandler(req, &cfg);
-  // Expect these to be made...
-  // MockDiameterMessage msg;
-  // MockDiameterTransaction tsx;
-  // Check response callback is set properly
-  EXPECT_CALL(msg, send(tsx, 200))
+  EXPECT_CALL(diameterstack, send(_, _, 200))
+    .WillOnce(WithArgs<0,1>(Invoke(store)))
     .Times(1);
   handler->run();
 
-  MockDiameterMessage rsp;
+  Diameter::Dictionary* dict;
+  MockDiameterMessage rsp(dict);
   int i32;
   std::string str;
-  EXPECT_CALL(rsp, get_i32_from_avp(&i32))
+  EXPECT_CALL(rsp, get_i32_from_avp(_, &i32))
     .Times(1)
-    .WillOnce(DoAll(SetArgReferee<0>(2001), Return(true)));
+    .WillOnce(DoAll(SetArgPointee<1>(2001), Return(true)));
   EXPECT_CALL(rsp, experimental_result_code())
     .Times(1)
     .WillOnce(Return(0));
-  EXPECT_CALL(rsp, get_str_from_avp(&str))
+  EXPECT_CALL(rsp, get_str_from_avp(_, &str))
     .Times(1)
-    .WillOnce(DoAll(SetArgReferee<0>("scscf"), Return(true)));
-  EXPECT_CALL(httpstack, send_reply(testing::_, 200));
+    .WillOnce(DoAll(SetArgPointee<1>("scscf"), Return(true)));
+  EXPECT_CALL(httpstack, send_reply(_, 200));
   handler->on_uar_response(rsp);
 
   // Build the expected JSON response
@@ -101,7 +116,7 @@ TEST(HandlersTest, RegistrationStatusNoHSS)
   MockHttpStack::Request req(&httpstack, "/impi/impi@example.com/", "registration-status", "?impu=sip:impu@example.com");
   ImpiRegistrationStatusHandler::Config cfg(false);
   ImpiRegistrationStatusHandler* handler = new ImpiRegistrationStatusHandler(req, &cfg);
-  EXPECT_CALL(httpstack, send_reply(testing::_, 200));
+  EXPECT_CALL(httpstack, send_reply(_, 200));
   handler->run();
 
   // Build the expected JSON response
@@ -112,7 +127,7 @@ TEST(HandlersTest, RegistrationStatusNoHSS)
   writer.Int(2001);
   writer.String(JSON_SCSCF.c_str());
   // GDR - default server name
-  writer.String();
+  writer.String("scscf");
   writer.EndObject();
   EXPECT_EQ(sb.GetString(), req.content());
 }
