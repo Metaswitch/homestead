@@ -48,6 +48,9 @@ class MockFreeDiameter
 public:
   MOCK_METHOD3(fd_msg_send, int( struct msg ** pmsg, void* anscb, void * data ));
   MOCK_METHOD5(fd_msg_send_timeout, int( struct msg ** pmsg, void *anscb, void * data, void *expirecb, const struct timespec *timeout ));
+  MOCK_METHOD2(fd_msg_hdr, int( struct msg *msg, struct msg_hdr ** pdata ));
+
+  struct msg_hdr hdr;
 };
 
 void mock_free_diameter(MockFreeDiameter* mock);

@@ -48,6 +48,7 @@
 
 using ::testing::_;
 using ::testing::Return;
+using ::testing::SetArgPointee;
 
 class DiameterTestTransaction : public Diameter::Transaction
 {
@@ -145,8 +146,11 @@ TEST_F(DiameterRequestTest, NormalRequestTimesLatency)
   DiameterTestTransaction *trx = make_trx();
 
   MockFreeDiameter mock_fd;
+  mock_fd.hdr.msg_code = 123;
   mock_free_diameter(&mock_fd);
 
+  EXPECT_CALL(mock_fd, fd_msg_hdr(_, _))
+    .WillRepeatedly(DoAll(SetArgPointee<1>(&mock_fd.hdr), Return(0)));
   EXPECT_CALL(mock_fd, fd_msg_send(_, _, _)).WillOnce(Return(0));
   msg.send(trx);
 
@@ -167,8 +171,11 @@ TEST_F(DiameterRequestTest, TimedoutRequestTimesLatency)
   DiameterTestTransaction *trx = make_trx();
 
   MockFreeDiameter mock_fd;
+  mock_fd.hdr.msg_code = 123;
   mock_free_diameter(&mock_fd);
 
+  EXPECT_CALL(mock_fd, fd_msg_hdr(_, _))
+    .WillRepeatedly(DoAll(SetArgPointee<1>(&mock_fd.hdr), Return(0)));
   EXPECT_CALL(mock_fd, fd_msg_send_timeout(_, _, _, _, _)).WillOnce(Return(0));
   msg.send(trx, 1000);
 
