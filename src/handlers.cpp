@@ -105,10 +105,6 @@ void HssCacheHandler::on_diameter_timeout()
 
 // General IMPI handling.
 
-const std::string ImpiHandler::SCHEME_UNKNOWN = "unknown";
-const std::string ImpiHandler::SCHEME_SIP_DIGEST = "SIP Digest";
-const std::string ImpiHandler::SCHEME_DIGEST_AKAV1_MD5 = "Digest-AKAv1-MD5";
-
 void ImpiHandler::run()
 {
   if (parse_request())
@@ -163,7 +159,7 @@ void ImpiHandler::get_av()
 {
   if (_impu.empty())
   {
-    if (_scheme == SCHEME_DIGEST_AKAV1_MD5)
+    if (_scheme == _cfg->scheme_aka)
     {
       // If the requested scheme is AKA, there's no point in looking up the cached public ID.
       // Even if we find it, we can't use it due to restrictions in the AKA protocol.
@@ -249,7 +245,7 @@ void ImpiHandler::send_mar()
 void ImpiHandler::on_mar_response(Diameter::Message& rsp)
 {
   Cx::MultimediaAuthAnswer maa(rsp);
-  int32_t result_code;
+  int32_t result_code = 0;
   maa.result_code(result_code);
   LOG_DEBUG("Received Multimedia-Auth answer with result code %d", result_code);
   switch (result_code)
@@ -257,7 +253,7 @@ void ImpiHandler::on_mar_response(Diameter::Message& rsp)
     case 2001:
       {
         std::string sip_auth_scheme = maa.sip_auth_scheme();
-        if (sip_auth_scheme == SCHEME_SIP_DIGEST)
+        if (sip_auth_scheme == _cfg->scheme_digest)
         {
           send_reply(maa.digest_auth_vector());
           if (_cfg->impu_cache_ttl != 0)
@@ -273,7 +269,7 @@ void ImpiHandler::on_mar_response(Diameter::Message& rsp)
             _cache->send(tsx, put_public_id);
           }
         }
-        else if (sip_auth_scheme == SCHEME_DIGEST_AKAV1_MD5)
+        else if (sip_auth_scheme == _cfg->scheme_aka)
         {
           send_reply(maa.aka_auth_vector());
         }
@@ -307,7 +303,7 @@ bool ImpiDigestHandler::parse_request()
 
   _impi = path.substr(prefix.length(), path.find_first_of("/", prefix.length()) - prefix.length());
   _impu = _req.param("public_id");
-  _scheme = SCHEME_SIP_DIGEST;
+  _scheme = _cfg->scheme_digest;
   _authorization = "";
 
   return true;
@@ -345,15 +341,15 @@ bool ImpiAvHandler::parse_request()
   std::string scheme = _req.file();
   if (scheme == "av")
   {
-    _scheme = SCHEME_UNKNOWN;
+    _scheme = _cfg->scheme_unknown;
   }
   else if (scheme == "digest")
   {
-    _scheme = SCHEME_SIP_DIGEST;
+    _scheme = _cfg->scheme_digest;
   }
   else if (scheme == "aka")
   {
-    _scheme = SCHEME_DIGEST_AKAV1_MD5;
+    _scheme = _cfg->scheme_aka;
   }
   else
   {
@@ -472,7 +468,7 @@ void ImpiRegistrationStatusHandler::run()
 void ImpiRegistrationStatusHandler::on_uar_response(Diameter::Message& rsp)
 {
   Cx::UserAuthorizationAnswer uaa(rsp);
-  int32_t result_code;
+  int32_t result_code = 0;
   uaa.result_code(result_code);
   int32_t experimental_result_code = uaa.experimental_result_code();
   LOG_DEBUG("Received User-Authorization answer with result %d/%d",
@@ -580,7 +576,7 @@ void ImpuLocationInfoHandler::run()
 void ImpuLocationInfoHandler::on_lir_response(Diameter::Message& rsp)
 {
   Cx::LocationInfoAnswer lia(rsp);
-  int32_t result_code;
+  int32_t result_code = 0;
   lia.result_code(result_code);
   int32_t experimental_result_code = lia.experimental_result_code();
   LOG_DEBUG("Received Location-Info answer with result %d/%d",
@@ -693,7 +689,7 @@ void ImpuIMSSubscriptionHandler::on_get_ims_subscription_failure(Cache::Request*
 void ImpuIMSSubscriptionHandler::on_sar_response(Diameter::Message& rsp)
 {
   Cx::ServerAssignmentAnswer saa(rsp);
-  int32_t result_code;
+  int32_t result_code = 0;
   saa.result_code(result_code);
   LOG_DEBUG("Received Server-Assignment answer with result code %d", result_code);
   switch (result_code)
@@ -783,7 +779,7 @@ void RegistrationTerminationHandler::run()
 
   // Send the RTA back to the HSS.
   LOG_INFO("Ready to send RTA");
-  rta.send(NULL, 200);
+  rta.send();
 }
 
 void RegistrationTerminationHandler::on_get_public_ids_success(Cache::Request* request)
@@ -864,5 +860,5 @@ void PushProfileHandler::run()
 
   // Send the PPA back to the HSS.
   LOG_INFO("Ready to send PPA");
-  ppa.send(NULL, 200);
+  ppa.send();
 }

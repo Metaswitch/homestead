@@ -101,6 +101,8 @@ get_settings()
             [ -r $file ] && . $file
           done
         fi
+
+        [ "$hss_mar_lowercase_unknown" != "Y" ] || scheme_unknown_arg="--scheme-unknown unknown"
 }
 
 #
@@ -131,6 +133,7 @@ do_start()
                      --server-name sip:$sprout_hostname:5054
                      --impu-cache-ttl $impu_cache_ttl 
                      --ims-sub-cache-ttl $ims_sub_cache_ttl
+                     $scheme_unknown_arg
                      -a $log_directory
                      -F $log_directory
                      -L $log_level"
