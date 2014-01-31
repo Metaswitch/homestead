@@ -72,6 +72,7 @@
 
 #include "authvector.h"
 #include "threadpool.h"
+#include "utils.h"
 
 namespace cass = org::apache::cassandra;
 
@@ -223,7 +224,7 @@ private:
   ///
   /// The thread pool used by the cache.  This is a simple subclass of
   /// ThreadPool that also stores a pointer back to the cache.
-  class CacheThreadPool : public ThreadPool<Request *>
+  class CacheThreadPool : public ThreadPool<Cache::Request *>
   {
   public:
     CacheThreadPool(Cache *cache,
@@ -330,6 +331,26 @@ public:
 
     virtual void on_success(Request* req) = 0;
     virtual void on_failure(Request* req, ResultCode error, std::string& text) = 0;
+
+    // Start and stop the transaction stopwatch.  Should only be called by cache
+    // module code.
+    void start_timer() { _stopwatch.start(); }
+    void stop_timer() { _stopwatch.stop(); }
+
+    /// Get the duration of the transaction.
+    ///
+    /// @param duration_us The duration of the transaction (measured as the
+    /// duration of the thrift request). Only valid if this function returns
+    /// true.
+    ///
+    /// @return whether the duration has been obtained.
+    bool get_duration(unsigned long& duration_us)
+    {
+      return _stopwatch.read(duration_us);
+    }
+
+  private:
+    Utils::StopWatch _stopwatch;
   };
 
   /// @class Request base class for all cache requests.

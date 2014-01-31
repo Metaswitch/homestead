@@ -34,6 +34,7 @@
 # under which the OpenSSL Project distributes the OpenSSL toolkit software,
 # as those licenses appear in the file LICENSE-OPENSSL.
 
+hss_port=3868
 . /etc/clearwater/config
 
 # Check whether the local IP address is IPv6.  If it is override some of the
