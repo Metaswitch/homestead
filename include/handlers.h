@@ -43,6 +43,7 @@
 #include "diameterstack.h"
 #include "cache.h"
 #include "httpstack.h"
+#include "statisticsmanager.h"
 
 // Result-Code AVP constants
 const int DIAMETER_SUCCESS = 2001;
@@ -85,19 +86,34 @@ public:
                                  const std::string& server_name,
                                  Cx::Dictionary* dict);
   static void configure_cache(Cache* cache);
+  static void configure_stats(StatisticsManager* stats_manager);
+
   inline Cache* cache() const {return _cache;}
 
   void on_diameter_timeout();
+
+  // Stats the HSS cache handlers can update.
+  enum StatsFlags
+  {
+    STAT_HSS_LATENCY              = 0x1,
+    STAT_HSS_DIGEST_LATENCY       = 0x2,
+    STAT_HSS_SUBSCRIPTION_LATENCY = 0x4,
+    STAT_CACHE_LATENCY            = 0x8,
+  };
 
   template <class H>
   class DiameterTransaction : public Diameter::Transaction
   {
   public:
-    DiameterTransaction(Cx::Dictionary* dict, H* handler) :
+
+    DiameterTransaction(Cx::Dictionary* dict,
+                        H* handler,
+                        StatsFlags stat_updates) :
       Diameter::Transaction(dict),
       _handler(handler),
       _timeout_clbk(&HssCacheHandler::on_diameter_timeout),
-      _response_clbk(NULL)
+      _response_clbk(NULL),
+      _stat_updates(stat_updates)
     {};
 
     typedef void(H::*timeout_clbk_t)();
@@ -117,9 +133,12 @@ public:
     H* _handler;
     timeout_clbk_t _timeout_clbk;
     response_clbk_t _response_clbk;
+    StatsFlags _stat_updates;
 
     void on_timeout()
     {
+      update_latency_stats();
+
       if ((_handler != NULL) && (_timeout_clbk != NULL))
       {
         boost::bind(_timeout_clbk, _handler)();
@@ -128,9 +147,45 @@ public:
 
     void on_response(Diameter::Message& rsp)
     {
+      update_latency_stats();
+
+      // If we got an overload response (result code of 3004) record a penalty
+      // for the purposes of overload control.
+      int32_t result_code;
+      if (rsp.result_code(result_code) && (result_code == 3004))
+      {
+        _handler->record_penalty();
+      }
+
       if ((_handler != NULL) && (_response_clbk != NULL))
       {
         boost::bind(_response_clbk, _handler, rsp)();
+      }
+    }
+
+  private:
+    void update_latency_stats()
+    {
+      StatisticsManager* stats = HssCacheHandler::_stats_manager;
+
+      if (stats != NULL)
+      {
+        unsigned long latency = 0;
+        if (get_duration(latency))
+        {
+          if (_stat_updates & STAT_HSS_LATENCY)
+          {
+            stats->update_H_hss_latency_us(latency);
+          }
+          if (_stat_updates & STAT_HSS_DIGEST_LATENCY)
+          {
+            stats->update_H_hss_digest_latency_us(latency);
+          }
+          if (_stat_updates & STAT_HSS_SUBSCRIPTION_LATENCY)
+          {
+            stats->update_H_hss_subscription_latency_us(latency);
+          }
+        }
       }
     }
   };
@@ -166,6 +221,8 @@ public:
 
     void on_success(Cache::Request* req)
     {
+      update_latency_stats();
+
       if ((_handler != NULL) && (_success_clbk != NULL))
       {
         boost::bind(_success_clbk, _handler, req)();
@@ -176,11 +233,26 @@ public:
                     Cache::ResultCode error,
                     std::string& text)
     {
+      update_latency_stats();
+
       if ((_handler != NULL) && (_failure_clbk != NULL))
       {
         boost::bind(_failure_clbk, _handler, req, error, text)();
       }
     }
+
+  private:
+    void update_latency_stats()
+    {
+      StatisticsManager* stats = HssCacheHandler::_stats_manager;
+
+      unsigned long latency = 0;
+      if ((stats != NULL) && get_duration(latency))
+      {
+        stats->update_H_cache_latency_us(latency);
+      }
+    }
+
   };
 
 protected:
@@ -190,6 +262,7 @@ protected:
   static std::string _server_name;
   static Cx::Dictionary* _dict;
   static Cache* _cache;
+  static StatisticsManager* _stats_manager;
 };
 
 class ImpiHandler : public HssCacheHandler

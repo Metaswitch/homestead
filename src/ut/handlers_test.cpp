@@ -36,18 +36,22 @@
 
 #define GTEST_HAS_POSIX_RE 0
 #include "test_utils.hpp"
+#include "test_interposer.hpp"
 #include <curl/curl.h>
 
 #include "mockdiameterstack.hpp"
 #include "mockhttpstack.hpp"
 #include "mockcache.hpp"
 #include "handlers.h"
+#include "mockstatisticsmanager.hpp"
 
 using ::testing::Return;
 using ::testing::SetArgReferee;
 using ::testing::_;
 using ::testing::Invoke;
 using ::testing::WithArgs;
+using ::testing::NiceMock;
+using ::testing::StrictMock;
 
 /// Fixture for HandlersTest.
 class HandlersTest : public testing::Test
@@ -72,9 +76,13 @@ public:
   static MockCache* _cache;
   static MockHttpStack* _httpstack;
 
+  // Two mock stats managers, so we can choose whether to ignore stats or not.
+  static NiceMock<MockStatisticsManager>* _nice_stats;
+  static StrictMock<MockStatisticsManager>* _stats;
+
   static struct msg* _caught_fd_msg;
   static Diameter::Transaction* _caught_diam_tsx;
-  
+
   std::string test_str;
   int32_t test_i32;
 
@@ -88,16 +96,25 @@ public:
     _cx_dict = new Cx::Dictionary();
     _cache = new MockCache();
     _httpstack = new MockHttpStack();
+    _nice_stats = new NiceMock<MockStatisticsManager>;
+
     HssCacheHandler::configure_diameter(_mock_stack,
                                         DEST_REALM,
                                         DEST_HOST,
                                         DEFAULT_SERVER_NAME,
                                         _cx_dict);
     HssCacheHandler::configure_cache(_cache);
+    HssCacheHandler::configure_stats(_nice_stats);
+
+    cwtest_completely_control_time();
   }
 
   static void TearDownTestCase()
   {
+    cwtest_reset_time();
+
+    delete _stats; _stats = NULL;
+    delete _nice_stats; _nice_stats = NULL;
     delete _cx_dict; _cx_dict = NULL;
     delete _mock_stack; _mock_stack = NULL;
     delete _cache; _cache = NULL;
@@ -219,6 +236,18 @@ public:
     _caught_fd_msg = NULL;
   }
 
+  void ignore_stats(bool ignore)
+  {
+    if (ignore)
+    {
+      HssCacheHandler::configure_stats(_nice_stats);
+    }
+    else
+    {
+      HssCacheHandler::configure_stats(_stats);
+    }
+  }
+
   HandlersTest() {}
   ~HandlersTest() {}
 };
@@ -244,6 +273,8 @@ MockDiameterStack* HandlersTest::_mock_stack = NULL;
 Cx::Dictionary* HandlersTest::_cx_dict = NULL;
 MockCache* HandlersTest::_cache = NULL;
 MockHttpStack* HandlersTest::_httpstack = NULL;
+NiceMock<MockStatisticsManager>* HandlersTest::_nice_stats = NULL;
+StrictMock<MockStatisticsManager>* HandlersTest::_stats = NULL;
 
 struct msg* HandlersTest::_caught_fd_msg = NULL;
 Diameter::Transaction* HandlersTest::_caught_diam_tsx = NULL;
