@@ -12,24 +12,33 @@ TARGET := homestead
 TARGET_TEST := homestead_test
 
 TARGET_SOURCES := accesslogger.cpp \
+                  accumulator.cpp \
                   cache.cpp \
+                  counter.cpp \
                   cx.cpp \
                   diameterstack.cpp \
                   handlers.cpp \
                   httpstack.cpp \
+                  load_monitor.cpp \
                   logger.cpp \
                   log.cpp \
-									utils.cpp \
+                  statistic.cpp \
+                  statisticsmanager.cpp \
+                  utils.cpp \
+                  zmq_lvc.cpp \
+                  log.cpp \
                   xmlutils.cpp
 
 TARGET_SOURCES_BUILD := main.cpp
 
 TARGET_SOURCES_TEST := test_main.cpp \
+                       test_interposer.cpp \
                        cx_test.cpp \
                        diameterstack_test.cpp \
                        cache_test.cpp \
                        handlers_test.cpp \
-                       httpstack_test.cpp
+                       httpstack_test.cpp \
+                       mockfreediameter.cpp
 
 TARGET_EXTRA_OBJS_TEST := gmock-all.o \
                           gtest-all.o
@@ -56,10 +65,11 @@ CPPFLAGS += -Wno-write-strings \
 CPPFLAGS += -I${ROOT}/include \
             -I${ROOT}/usr/include \
             -I${ROOT}/modules/cpp-common/include \
+            -I${ROOT}/modules/cpp-common/test_utils \
             -I${ROOT}/modules/rapidjson/include
 
 # Add modules/cpp-common/src as a VPATH to pull in required common modules
-VPATH := ${ROOT}/modules/cpp-common/src
+VPATH := ${ROOT}/modules/cpp-common/src:${ROOT}/modules/cpp-common/test_utils
 
 # Production build:
 #
