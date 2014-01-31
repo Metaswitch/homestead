@@ -211,6 +211,7 @@ void ImpiHandler::send_mar()
 {
   Cx::MultimediaAuthRequest* mar =
     new Cx::MultimediaAuthRequest(_dict,
+                                  _diameter_stack,
                                   _dest_realm,
                                   _dest_host,
                                   _impi,
@@ -418,6 +419,7 @@ void ImpiRegistrationStatusHandler::run()
 
     Cx::UserAuthorizationRequest* uar =
       new Cx::UserAuthorizationRequest(_dict,
+                                       _diameter_stack,
                                        _dest_host,
                                        _dest_realm,
                                        _impi,
@@ -526,6 +528,7 @@ void ImpuLocationInfoHandler::run()
 
     Cx::LocationInfoRequest* lir =
       new Cx::LocationInfoRequest(_dict,
+                                  _diameter_stack,
                                   _dest_host,
                                   _dest_realm,
                                   _originating,
@@ -647,6 +650,7 @@ void ImpuIMSSubscriptionHandler::on_get_ims_subscription_failure(Cache::Request*
     LOG_DEBUG("No cached IMS subscription found, and HSS configured - query it");
     Cx::ServerAssignmentRequest* sar =
       new Cx::ServerAssignmentRequest(_dict,
+                                      _diameter_stack,
                                       _dest_host,
                                       _dest_realm,
                                       _impi,

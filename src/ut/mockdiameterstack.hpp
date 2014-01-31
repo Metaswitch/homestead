@@ -40,58 +40,6 @@
 #include "gmock/gmock.h"
 #include "diameterstack.h"
 
-class MockDictionary : public Diameter::Dictionary
-{
-  MockDictionary() : Diameter::Dictionary() {}
-  virtual ~MockDictionary() {}
-
-  class MockMessage : public Diameter::Dictionary::Message
-  {
-    MockMessage(const std::string message) : Diameter::Dictionary::Message(message) {}
-    virtual ~MockMessage() {}
-  };
-};
-
-class MockDiameterTransaction : public Diameter::Transaction
-{
-  MockDiameterTransaction(MockDictionary* dict) : Diameter::Transaction(dict) {}
-  virtual ~MockDiameterTransaction() {}
-
-  MOCK_METHOD1(on_response, void(Diameter::Message&));
-  MOCK_METHOD0(on_timeout, void());
-};
-
-class MockAVP : public Diameter::AVP
-{
-};
-
-class MockDiameterMessage : public Diameter::Message
-{
-  MockDiameterMessage(Diameter::Dictionary* dict) : Diameter::Message(dict, NULL) {}
-  virtual ~MockDiameterMessage() {}
-
-  MOCK_CONST_METHOD0(dict, Diameter::Dictionary*());
-  MOCK_METHOD0(fd_msg, struct msg*());
-  MOCK_METHOD0(build_response, void());
-  MOCK_METHOD0(add_new_session_id, Message&());
-  MOCK_METHOD0(add_vendor_spec_app_id, Message&());
-  MOCK_METHOD0(add_origin, Message&());
-  MOCK_METHOD1(set_result_code, Message&(char*));
-  MOCK_METHOD1(add, Message&(Diameter::AVP&));
-  MOCK_CONST_METHOD2(get_str_from_avp, bool(const Diameter::Dictionary::AVP&, std::string*));
-  MOCK_CONST_METHOD2(get_i32_from_avp, bool(const Diameter::Dictionary::AVP&, int*));
-  MOCK_CONST_METHOD0(experimental_result_code, int());
-  MOCK_CONST_METHOD0(vendor_id, int());
-  MOCK_CONST_METHOD1(impi, bool(std::string*));
-  MOCK_CONST_METHOD1(auth_session_state, bool(int));
-  MOCK_CONST_METHOD0(begin, Diameter::AVP::iterator());
-  MOCK_CONST_METHOD1(begin, Diameter::AVP::iterator(Diameter::Dictionary::AVP&));
-  MOCK_CONST_METHOD0(end, Diameter::AVP::iterator());
-  MOCK_METHOD0(send, void());
-  MOCK_METHOD1(send, void(MockDiameterTransaction*));
-  MOCK_METHOD2(send, void(Diameter::Transaction*, unsigned int));
-};
-
 class MockDiameterStack : public Diameter::Stack
 {
 public:

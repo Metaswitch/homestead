@@ -91,13 +91,14 @@ Dictionary::Dictionary() :
 }
 
 UserAuthorizationRequest::UserAuthorizationRequest(const Dictionary* dict,
+                                                   Diameter::Stack* stack,
                                                    const std::string& dest_host,
                                                    const std::string& dest_realm,
                                                    const std::string& impi,
                                                    const std::string& impu,
                                                    const std::string& visited_network_identifier,
                                                    const std::string& authorization_type) :
-                                                   Diameter::Message(dict, dict->USER_AUTHORIZATION_REQUEST)
+                                                   Diameter::Message(dict, dict->USER_AUTHORIZATION_REQUEST, stack)
 {
   LOG_DEBUG("Building User-Authorization request for %s/%s", impi.c_str(), impu.c_str());
   add_new_session_id();
@@ -126,9 +127,17 @@ UserAuthorizationRequest::UserAuthorizationRequest(const Dictionary* dict,
   }
 }
 
-UserAuthorizationAnswer::UserAuthorizationAnswer(const Dictionary* dict) :
-                                                 Diameter::Message(dict, dict->USER_AUTHORIZATION_ANSWER)
+UserAuthorizationAnswer::UserAuthorizationAnswer(const Dictionary* dict,
+                                                 Diameter::Stack* stack,
+                                                 const int32_t& result_code,
+                                                 const int32_t& experimental_result_code,
+                                                 const std::string& server_name,
+                                                 const ServerCapabilities& capabs) :
+                                                 Diameter::Message(dict, dict->USER_AUTHORIZATION_ANSWER, stack)
 {
+  LOG_DEBUG("Building User-Authorization answer");
+  add(Diameter::AVP(dict->RESULT_CODE).val_i32(result_code));
+  add(Diameter::AVP(dict->SERVER_NAME).val_str(server_name));
 }
 
 ServerCapabilities UserAuthorizationAnswer::server_capabilities() const
@@ -160,12 +169,13 @@ ServerCapabilities UserAuthorizationAnswer::server_capabilities() const
 }
 
 LocationInfoRequest::LocationInfoRequest(const Dictionary* dict,
+                                         Diameter::Stack* stack,
                                          const std::string& dest_host,
                                          const std::string& dest_realm,
                                          const std::string& originating_request,
                                          const std::string& impu,
                                          const std::string& authorization_type) :
-                                         Diameter::Message(dict, dict->LOCATION_INFO_REQUEST)
+                                         Diameter::Message(dict, dict->LOCATION_INFO_REQUEST, stack)
 {
   LOG_DEBUG("Building Location-Info request for %s", impu.c_str());
   add_new_session_id();
@@ -191,9 +201,17 @@ LocationInfoRequest::LocationInfoRequest(const Dictionary* dict,
   }
 }
 
-LocationInfoAnswer::LocationInfoAnswer(const Dictionary* dict) :
-                                       Diameter::Message(dict, dict->LOCATION_INFO_ANSWER)
+LocationInfoAnswer::LocationInfoAnswer(const Dictionary* dict,
+                                       Diameter::Stack* stack,
+                                       const int32_t& result_code,
+                                       const int32_t& experimental_result_code,
+                                       const std::string& server_name,
+                                       const ServerCapabilities& capabs) :
+                                       Diameter::Message(dict, dict->USER_AUTHORIZATION_ANSWER, stack)
 {
+  LOG_DEBUG("Building Location-Info answer");
+  add(Diameter::AVP(dict->RESULT_CODE).val_i32(result_code));
+  add(Diameter::AVP(dict->SERVER_NAME).val_str(server_name));
 }
 
 ServerCapabilities LocationInfoAnswer::server_capabilities() const
@@ -225,6 +243,7 @@ ServerCapabilities LocationInfoAnswer::server_capabilities() const
 }
 
 MultimediaAuthRequest::MultimediaAuthRequest(const Dictionary* dict,
+                                             Diameter::Stack* stack,
                                              const std::string& dest_realm,
                                              const std::string& dest_host,
                                              const std::string& impi,
@@ -232,7 +251,7 @@ MultimediaAuthRequest::MultimediaAuthRequest(const Dictionary* dict,
                                              const std::string& server_name,
                                              const std::string& sip_auth_scheme,
                                              const std::string& sip_authorization) :
-                                             Diameter::Message(dict, dict->MULTIMEDIA_AUTH_REQUEST)
+                                             Diameter::Message(dict, dict->MULTIMEDIA_AUTH_REQUEST, stack)
 {
   LOG_DEBUG("Building Multimedia-Auth request for %s/%s", impi.c_str(), impu.c_str());
   add_new_session_id();
@@ -288,8 +307,9 @@ std::string MultimediaAuthRequest::sip_authorization() const
 }
 
 MultimediaAuthAnswer::MultimediaAuthAnswer(const Dictionary* dict,
+                                           Diameter::Stack* stack,
                                            int32_t result_code) :
-                                           Diameter::Message(dict, dict->MULTIMEDIA_AUTH_ANSWER)
+                                           Diameter::Message(dict, dict->MULTIMEDIA_AUTH_ANSWER, stack)
 {
   add(Diameter::AVP(dict->RESULT_CODE).val_i32(result_code));
 }
@@ -447,12 +467,13 @@ std::string MultimediaAuthAnswer::base64(const uint8_t* data, size_t len)
 }
 
 ServerAssignmentRequest::ServerAssignmentRequest(const Dictionary* dict,
+                                                 Diameter::Stack* stack,
                                                  const std::string& dest_host,
                                                  const std::string& dest_realm,
                                                  const std::string& impi,
                                                  const std::string& impu,
                                                  const std::string& server_name) :
-                                                 Diameter::Message(dict, dict->SERVER_ASSIGNMENT_REQUEST)
+                                                 Diameter::Message(dict, dict->SERVER_ASSIGNMENT_REQUEST, stack)
 {
   LOG_DEBUG("Building Server-Assignment request for %s/%s", impi.c_str(), impu.c_str());
   add_new_session_id();
@@ -483,13 +504,20 @@ ServerAssignmentRequest::ServerAssignmentRequest(const Dictionary* dict,
   add(Diameter::AVP(dict->USER_DATA_ALREADY_AVAILABLE).val_i32(0));
 }
 
-ServerAssignmentAnswer::ServerAssignmentAnswer(const Dictionary* dict) :
-                                               Diameter::Message(dict, dict->SERVER_ASSIGNMENT_ANSWER)
+ServerAssignmentAnswer::ServerAssignmentAnswer(const Dictionary* dict,
+                                               Diameter::Stack* stack,
+                                               const int32_t& result_code,
+                                               const std::string& ims_subscription) :
+                                               Diameter::Message(dict, dict->SERVER_ASSIGNMENT_ANSWER, stack)
 {
+  LOG_DEBUG("Building Server-Assignment answer");
+  add(Diameter::AVP(dict->RESULT_CODE).val_i32(result_code));
+  add(Diameter::AVP(dict->USER_DATA).val_str(ims_subscription));
 }
 
-RegistrationTerminationRequest::RegistrationTerminationRequest(const Dictionary* dict) :
-                                                               Diameter::Message(dict, dict->REGISTRATION_TERMINATION_REQUEST)
+RegistrationTerminationRequest::RegistrationTerminationRequest(const Dictionary* dict,
+                                                               Diameter::Stack* stack) :
+                                                               Diameter::Message(dict, dict->REGISTRATION_TERMINATION_REQUEST, stack)
 {
 }
 
@@ -577,8 +605,9 @@ std::vector<std::string> RegistrationTerminationAnswer::associated_identities() 
   return associated_identities;
 }
 
-PushProfileRequest::PushProfileRequest(const Dictionary* dict) :
-                                       Diameter::Message(dict, dict->PUSH_PROFILE_REQUEST)
+PushProfileRequest::PushProfileRequest(const Dictionary* dict,
+                                       Diameter::Stack* stack) :
+                                       Diameter::Message(dict, dict->PUSH_PROFILE_REQUEST, stack)
 {
 }
 

@@ -127,7 +127,7 @@ public:
       throw new std::runtime_error(ss.str());
     }
 
-    return Diameter::Message(_cx_dict, parsed_msg);
+    return Diameter::Message(_cx_dict, parsed_msg, _mock_stack);
   }
 
   void check_common_request_fields(const Diameter::Message& msg)
@@ -191,6 +191,7 @@ Cx::Dictionary* CxTest::_cx_dict = NULL;
 TEST_F(CxTest, MARTest)
 {
   Cx::MultimediaAuthRequest mar(_cx_dict,
+                                _mock_stack,
                                 DEST_REALM,
                                 DEST_HOST,
                                 IMPI,
@@ -213,6 +214,7 @@ TEST_F(CxTest, MARTest)
 TEST_F(CxTest, MARAuthorizationTest)
 {
   Cx::MultimediaAuthRequest mar(_cx_dict,
+                                _mock_stack,
                                 DEST_REALM,
                                 DEST_HOST,
                                 IMPI,
@@ -236,6 +238,7 @@ TEST_F(CxTest, MARAuthorizationTest)
 TEST_F(CxTest, SARTest)
 {
   Cx::ServerAssignmentRequest sar(_cx_dict,
+                                  _mock_stack,
                                   DEST_HOST,
                                   DEST_REALM,
                                   IMPI,
@@ -257,6 +260,7 @@ TEST_F(CxTest, SARTest)
 TEST_F(CxTest, SARNoImpiTest)
 {
   Cx::ServerAssignmentRequest sar(_cx_dict,
+                                  _mock_stack,
                                   DEST_HOST,
                                   DEST_REALM,
                                   EMPTY_STRING,
@@ -278,6 +282,7 @@ TEST_F(CxTest, SARNoImpiTest)
 TEST_F(CxTest, UARTest)
 {
   Cx::UserAuthorizationRequest uar(_cx_dict,
+                                   _mock_stack,
                                    DEST_HOST,
                                    DEST_REALM,
                                    IMPI,
@@ -298,6 +303,7 @@ TEST_F(CxTest, UARTest)
 TEST_F(CxTest, UARAuthTypeDeregTest)
 {
   Cx::UserAuthorizationRequest uar(_cx_dict,
+                                   _mock_stack,
                                    DEST_HOST,
                                    DEST_REALM,
                                    IMPI,
@@ -318,6 +324,7 @@ TEST_F(CxTest, UARAuthTypeDeregTest)
 TEST_F(CxTest, UARAuthTypeCapabTest)
 {
   Cx::UserAuthorizationRequest uar(_cx_dict,
+                                   _mock_stack,
                                    DEST_HOST,
                                    DEST_REALM,
                                    IMPI,
@@ -338,6 +345,7 @@ TEST_F(CxTest, UARAuthTypeCapabTest)
 TEST_F(CxTest, UARNoAuthTypeTest)
 {
   Cx::UserAuthorizationRequest uar(_cx_dict,
+                                   _mock_stack,
                                    DEST_HOST,
                                    DEST_REALM,
                                    IMPI,
@@ -358,6 +366,7 @@ TEST_F(CxTest, UARNoAuthTypeTest)
 TEST_F(CxTest, LIRTest)
 {
   Cx::LocationInfoRequest lir(_cx_dict,
+                              _mock_stack,
                               DEST_HOST,
                               DEST_REALM,
                               ORIGINATING_TRUE,
@@ -376,6 +385,7 @@ TEST_F(CxTest, LIRTest)
 TEST_F(CxTest, LIRWrongOptionalParamsTest)
 {
   Cx::LocationInfoRequest lir(_cx_dict,
+                              _mock_stack,
                               DEST_HOST,
                               DEST_REALM,
                               ORIGINATING_FALSE,
@@ -392,6 +402,7 @@ TEST_F(CxTest, LIRWrongOptionalParamsTest)
 TEST_F(CxTest, LIRNoOptionalParamsTest)
 {
   Cx::LocationInfoRequest lir(_cx_dict,
+                              _mock_stack,
                               DEST_HOST,
                               DEST_REALM,
                               EMPTY_STRING,
