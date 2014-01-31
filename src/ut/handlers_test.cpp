@@ -60,6 +60,11 @@ public:
   static const std::string IMPI;
   static const std::string IMPU;
   static const std::string IMS_SUBSCRIPTION;
+  static const std::string VISITED_NETWORK;
+  static const std::string AUTH_TYPE_DEREG;
+  static const ServerCapabilities CAPABILITIES;
+  static const ServerCapabilities NO_CAPABILITIES;
+  static const int32_t AUTH_SESSION_STATE;
 
   static Diameter::Stack* _real_stack;
   static MockDiameterStack* _mock_stack;
@@ -102,10 +107,15 @@ public:
     _real_stack = NULL;
   }
 
-  static void store(struct msg* msg, Diameter::Transaction* tsx)
+  static void store_msg_tsx(struct msg* msg, Diameter::Transaction* tsx)
   {
     _caught_fd_msg = msg;
     _caught_diam_tsx = tsx;
+  }
+
+  static void store_msg(struct msg* msg)
+  {
+    _caught_fd_msg = msg;
   }
 
   static std::string build_icscf_json(int32_t rc, std::string scscf, ServerCapabilities capabs)
@@ -151,6 +161,64 @@ public:
     return sb.GetString();
   }
 
+  static void registration_status_error_template(int32_t hss_rc, int32_t hss_experimental_rc, int32_t http_rc)
+  {
+    MockHttpStack::Request req(_httpstack,
+                               "/impi/" + IMPI + "/",
+                               "registration-status",
+                               "?impu=" + IMPU);
+    ImpiRegistrationStatusHandler::Config cfg(true);
+    ImpiRegistrationStatusHandler* handler = new ImpiRegistrationStatusHandler(req, &cfg);
+    EXPECT_CALL(*_mock_stack, send(_, _, 200))
+      .Times(1)
+      .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
+    handler->run();
+
+    ASSERT_FALSE(_caught_diam_tsx == NULL);
+    Cx::UserAuthorizationAnswer uaa(_cx_dict,
+                                    _mock_stack,
+                                    hss_rc,
+                                    hss_experimental_rc,
+                                    "",
+                                    NO_CAPABILITIES);
+    EXPECT_CALL(*_httpstack, send_reply(_, http_rc));
+    _caught_diam_tsx->on_response(uaa);
+
+    EXPECT_EQ("", req.content());
+
+    _caught_diam_tsx = NULL;
+    _caught_fd_msg = NULL;
+  }
+
+  static void location_info_error_template(int32_t hss_rc, int32_t hss_experimental_rc, int32_t http_rc)
+  {
+    MockHttpStack::Request req(_httpstack,
+                               "/impu/" + IMPU + "/",
+                               "location",
+                               "");
+    ImpuLocationInfoHandler::Config cfg(true);
+    ImpuLocationInfoHandler* handler = new ImpuLocationInfoHandler(req, &cfg);
+    EXPECT_CALL(*_mock_stack, send(_, _, 200))
+      .Times(1)
+      .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
+    handler->run();
+
+    ASSERT_FALSE(_caught_diam_tsx == NULL);
+    Cx::LocationInfoAnswer lia(_cx_dict,
+                               _mock_stack,
+                               hss_rc,
+                               hss_experimental_rc,
+                               "",
+                               NO_CAPABILITIES);
+    EXPECT_CALL(*_httpstack, send_reply(_, http_rc));
+    _caught_diam_tsx->on_response(lia);
+
+    EXPECT_EQ("", req.content());
+
+    _caught_diam_tsx = NULL;
+    _caught_fd_msg = NULL;
+  }
+
   HandlersTest() {}
   ~HandlersTest() {}
 };
@@ -162,6 +230,14 @@ const std::string HandlersTest::SERVER_NAME = "scscf";
 const std::string HandlersTest::IMPI = "impi@example.com";
 const std::string HandlersTest::IMPU = "sip:impu@example.com";
 const std::string HandlersTest::IMS_SUBSCRIPTION = "<some interesting XML>";
+const std::string HandlersTest::VISITED_NETWORK = "visited-network.com";
+const std::string HandlersTest::AUTH_TYPE_DEREG = "DEREG";
+const std::vector<int32_t> mandatory_capabilities = {1, 3};
+const std::vector<int32_t> optional_capabilities = {2, 4};
+const std::vector<int32_t> no_capabilities = {};
+const ServerCapabilities HandlersTest::CAPABILITIES(mandatory_capabilities, optional_capabilities);
+const ServerCapabilities HandlersTest::NO_CAPABILITIES(no_capabilities, no_capabilities);
+const int32_t HandlersTest::AUTH_SESSION_STATE = 1;
 
 Diameter::Stack* HandlersTest::_real_stack = NULL;
 MockDiameterStack* HandlersTest::_mock_stack = NULL;
@@ -233,7 +309,7 @@ TEST_F(HandlersTest, IMSSubscriptionHSS)
 
   EXPECT_CALL(*_mock_stack, send(_, _, 200))
     .Times(1)
-    .WillOnce(WithArgs<0,1>(Invoke(store)));
+    .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
   std::string error_text = "error";
   t->on_failure(&mock_req, Cache::NOT_FOUND, error_text);
 
@@ -269,6 +345,7 @@ TEST_F(HandlersTest, IMSSubscriptionHSS)
 
 TEST_F(HandlersTest, RegistrationStatus)
 {
+  // This test tests a mainline Registration Status handler case.
   MockHttpStack::Request req(_httpstack,
                              "/impi/" + IMPI + "/",
                              "registration-status",
@@ -277,7 +354,7 @@ TEST_F(HandlersTest, RegistrationStatus)
   ImpiRegistrationStatusHandler* handler = new ImpiRegistrationStatusHandler(req, &cfg);
   EXPECT_CALL(*_mock_stack, send(_, _, 200))
     .Times(1)
-    .WillOnce(WithArgs<0,1>(Invoke(store)));
+    .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
   handler->run();
 
   ASSERT_FALSE(_caught_diam_tsx == NULL);
@@ -294,25 +371,150 @@ TEST_F(HandlersTest, RegistrationStatus)
   EXPECT_TRUE(uar.auth_type(test_i32));
   EXPECT_EQ(0, test_i32);
 
-  ServerCapabilities capabs;
   Cx::UserAuthorizationAnswer uaa(_cx_dict,
                                   _mock_stack,
                                   DIAMETER_SUCCESS,
                                   0,
                                   SERVER_NAME,
-                                  capabs);
+                                  CAPABILITIES);
   EXPECT_CALL(*_httpstack, send_reply(_, 200));
   _caught_diam_tsx->on_response(uaa);
 
   // Build the expected JSON response and check it's correct
-  EXPECT_EQ(build_icscf_json(DIAMETER_SUCCESS, SERVER_NAME, capabs), req.content());
+  EXPECT_EQ(build_icscf_json(DIAMETER_SUCCESS, SERVER_NAME, CAPABILITIES), req.content());
 
   _caught_diam_tsx = NULL;
   _caught_fd_msg = NULL;
 }
 
+TEST_F(HandlersTest, RegistrationStatusOptParamsSubseqRegCapabs)
+{
+  // This test tests a Registration Status handler case. The scenario is unrealistic
+  // but lots of code branches are tested. Specifically, optional parameters
+  // on the HTTP request are added, and the success code
+  // DIAMETER_SUBSEQUENT_REGISTRATION is returned by the HSS with a set of server
+  // capabilities. 
+  MockHttpStack::Request req(_httpstack,
+                             "/impi/" + IMPI + "/",
+                             "registration-status",
+                             "?impu=" + IMPU + "&visited-network=" + VISITED_NETWORK + "&auth-type=" + AUTH_TYPE_DEREG);
+  ImpiRegistrationStatusHandler::Config cfg(true);
+  ImpiRegistrationStatusHandler* handler = new ImpiRegistrationStatusHandler(req, &cfg);
+  EXPECT_CALL(*_mock_stack, send(_, _, 200))
+    .Times(1)
+    .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
+  handler->run();
+
+  ASSERT_FALSE(_caught_diam_tsx == NULL);
+  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
+  Cx::UserAuthorizationRequest uar(msg);
+  EXPECT_TRUE(uar.get_str_from_avp(_cx_dict->DESTINATION_REALM, test_str));
+  EXPECT_EQ(DEST_REALM, test_str);
+  EXPECT_TRUE(uar.get_str_from_avp(_cx_dict->DESTINATION_HOST, test_str));
+  EXPECT_EQ(DEST_HOST, test_str);
+  EXPECT_EQ(IMPI, uar.impi());
+  EXPECT_EQ(IMPU, uar.impu());
+  EXPECT_TRUE(uar.visited_network(test_str));
+  EXPECT_EQ(VISITED_NETWORK, test_str);
+  EXPECT_TRUE(uar.auth_type(test_i32));
+  EXPECT_EQ(1, test_i32);
+
+  Cx::UserAuthorizationAnswer uaa(_cx_dict,
+                                  _mock_stack,
+                                  0,
+                                  DIAMETER_SUBSEQUENT_REGISTRATION,
+                                  "",
+                                  CAPABILITIES);
+  EXPECT_CALL(*_httpstack, send_reply(_, 200));
+  _caught_diam_tsx->on_response(uaa);
+
+  // Build the expected JSON response and check it's correct
+  EXPECT_EQ(build_icscf_json(DIAMETER_SUBSEQUENT_REGISTRATION, "", CAPABILITIES), req.content());
+
+  _caught_diam_tsx = NULL;
+  _caught_fd_msg = NULL;
+}
+
+TEST_F(HandlersTest, RegistrationStatusFirstRegNoCapabs)
+{
+  // This test tests a Registration Status handler case. The scenario is unrealistic
+  // but lots of code branches are tested. Specifically, the success code
+  // DIAMETER_FIRST_REGISTRATION is returned by the HSS, but no server or server
+  // capabilities are specified.
+  MockHttpStack::Request req(_httpstack,
+                             "/impi/" + IMPI + "/",
+                             "registration-status",
+                             "?impu=" + IMPU);
+  ImpiRegistrationStatusHandler::Config cfg(true);
+  ImpiRegistrationStatusHandler* handler = new ImpiRegistrationStatusHandler(req, &cfg);
+  EXPECT_CALL(*_mock_stack, send(_, _, 200))
+    .Times(1)
+    .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
+  handler->run();
+
+  ASSERT_FALSE(_caught_diam_tsx == NULL);
+  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
+  Cx::UserAuthorizationRequest uar(msg);
+  EXPECT_TRUE(uar.get_str_from_avp(_cx_dict->DESTINATION_REALM, test_str));
+  EXPECT_EQ(DEST_REALM, test_str);
+  EXPECT_TRUE(uar.get_str_from_avp(_cx_dict->DESTINATION_HOST, test_str));
+  EXPECT_EQ(DEST_HOST, test_str);
+  EXPECT_EQ(IMPI, uar.impi());
+  EXPECT_EQ(IMPU, uar.impu());
+  EXPECT_TRUE(uar.visited_network(test_str));
+  EXPECT_EQ(DEST_REALM, test_str);
+  EXPECT_TRUE(uar.auth_type(test_i32));
+  EXPECT_EQ(0, test_i32);
+
+  Cx::UserAuthorizationAnswer uaa(_cx_dict,
+                                  _mock_stack,
+                                  0,
+                                  DIAMETER_FIRST_REGISTRATION,
+                                  "",
+                                  NO_CAPABILITIES);
+  EXPECT_CALL(*_httpstack, send_reply(_, 200));
+  _caught_diam_tsx->on_response(uaa);
+
+  // Build the expected JSON response and check it's correct
+  EXPECT_EQ(build_icscf_json(DIAMETER_FIRST_REGISTRATION, "", NO_CAPABILITIES), req.content());
+
+  _caught_diam_tsx = NULL;
+  _caught_fd_msg = NULL;
+}
+
+TEST_F(HandlersTest, RegistrationStatusUserUnknown)
+{
+  registration_status_error_template(0, DIAMETER_ERROR_USER_UNKNOWN, 404);
+}
+
+TEST_F(HandlersTest, RegistrationStatusIdentitiesDontMatch)
+{
+  registration_status_error_template(0, DIAMETER_ERROR_IDENTITIES_DONT_MATCH, 404);
+}
+
+TEST_F(HandlersTest, RegistrationStatusRoamingNowAllowed)
+{
+  registration_status_error_template(0, DIAMETER_ERROR_ROAMING_NOT_ALLOWED, 403);
+}
+
+TEST_F(HandlersTest, RegistrationStatusAuthRejected)
+{
+  registration_status_error_template(DIAMETER_AUTHORIZATION_REJECTED, 0, 403);
+}
+
+TEST_F(HandlersTest, RegistrationStatusDiameterBusy)
+{
+  registration_status_error_template(DIAMETER_TOO_BUSY, 0, 503);
+}
+
+TEST_F(HandlersTest, RegistrationStatusOtherError)
+{
+  registration_status_error_template(0, 0, 500);
+}
+
 TEST_F(HandlersTest, RegistrationStatusNoHSS)
 {
+  // Test Registration Status handler when no HSS is configured.
   MockHttpStack::Request req(_httpstack,
                              "/impi/" + IMPI + "/",
                              "registration-status",
@@ -323,8 +525,7 @@ TEST_F(HandlersTest, RegistrationStatusNoHSS)
   handler->run();
 
   // Build the expected JSON response and check it's correct
-  ServerCapabilities capabs;
-  EXPECT_EQ(build_icscf_json(DIAMETER_SUCCESS, DEFAULT_SERVER_NAME, capabs), req.content());
+  EXPECT_EQ(build_icscf_json(DIAMETER_SUCCESS, DEFAULT_SERVER_NAME, NO_CAPABILITIES), req.content());
 }
 
 //
@@ -333,6 +534,7 @@ TEST_F(HandlersTest, RegistrationStatusNoHSS)
 
 TEST_F(HandlersTest, LocationInfo)
 {
+  // This test tests a mainline Registration Status handler case.
   MockHttpStack::Request req(_httpstack,
                              "/impu/" + IMPU + "/",
                              "location",
@@ -341,7 +543,7 @@ TEST_F(HandlersTest, LocationInfo)
   ImpuLocationInfoHandler* handler = new ImpuLocationInfoHandler(req, &cfg);
   EXPECT_CALL(*_mock_stack, send(_, _, 200))
     .Times(1)
-    .WillOnce(WithArgs<0,1>(Invoke(store)));
+    .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
   handler->run();
 
   ASSERT_FALSE(_caught_diam_tsx == NULL);
@@ -355,25 +557,92 @@ TEST_F(HandlersTest, LocationInfo)
   EXPECT_FALSE(lir.originating(test_i32));
   EXPECT_FALSE(lir.auth_type(test_i32));
 
-  ServerCapabilities capabs;
   Cx::LocationInfoAnswer lia(_cx_dict,
                              _mock_stack,
                              DIAMETER_SUCCESS,
                              0,
                              SERVER_NAME,
-                             capabs);
+                             CAPABILITIES);
   EXPECT_CALL(*_httpstack, send_reply(_, 200));
   _caught_diam_tsx->on_response(lia);
 
   // Build the expected JSON response and check it's correct
-  EXPECT_EQ(build_icscf_json(DIAMETER_SUCCESS, SERVER_NAME, capabs), req.content());
+  EXPECT_EQ(build_icscf_json(DIAMETER_SUCCESS, SERVER_NAME, CAPABILITIES), req.content());
 
   _caught_diam_tsx = NULL;
   _caught_fd_msg = NULL;
 }
 
+TEST_F(HandlersTest, LocationInfoOptParamsUnregisteredService)
+{
+  // This test tests a Location Info handler case. The scenario is unrealistic
+  // but lots of code branches are tested. Specifically, optional parameters
+  // on the HTTP request are added, and the success code
+  // DIAMETER_UNREGISTERED_SERVICE is returned by the HSS with a set of server
+  // capabilities.
+  MockHttpStack::Request req(_httpstack,
+                             "/impu/" + IMPU + "/",
+                             "location",
+                             "?originating=true&auth-type=CAPAB");
+  ImpuLocationInfoHandler::Config cfg(true);
+  ImpuLocationInfoHandler* handler = new ImpuLocationInfoHandler(req, &cfg);
+  EXPECT_CALL(*_mock_stack, send(_, _, 200))
+    .Times(1)
+    .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
+  handler->run();
+
+  ASSERT_FALSE(_caught_diam_tsx == NULL);
+  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
+  Cx::LocationInfoRequest lir(msg);
+  EXPECT_TRUE(lir.get_str_from_avp(_cx_dict->DESTINATION_REALM, test_str));
+  EXPECT_EQ(DEST_REALM, test_str);
+  EXPECT_TRUE(lir.get_str_from_avp(_cx_dict->DESTINATION_HOST, test_str));
+  EXPECT_EQ(DEST_HOST, test_str);
+  EXPECT_EQ(IMPU, lir.impu());
+  EXPECT_TRUE(lir.originating(test_i32));
+  EXPECT_EQ(0, test_i32);
+  EXPECT_TRUE(lir.auth_type(test_i32));
+  EXPECT_EQ(2, test_i32);
+
+  Cx::LocationInfoAnswer lia(_cx_dict,
+                             _mock_stack,
+                             0,
+                             DIAMETER_UNREGISTERED_SERVICE,
+                             "",
+                             CAPABILITIES);
+  EXPECT_CALL(*_httpstack, send_reply(_, 200));
+  _caught_diam_tsx->on_response(lia);
+
+  // Build the expected JSON response and check it's correct
+  EXPECT_EQ(build_icscf_json(DIAMETER_UNREGISTERED_SERVICE, "", CAPABILITIES), req.content());
+
+  _caught_diam_tsx = NULL;
+  _caught_fd_msg = NULL;
+}
+
+TEST_F(HandlersTest, LocationInfoUserUnknown)
+{
+  location_info_error_template(0, DIAMETER_ERROR_USER_UNKNOWN, 404);
+}
+
+TEST_F(HandlersTest, LocationInfoIdentityNotRegistered)
+{
+  location_info_error_template(0, DIAMETER_ERROR_IDENTITY_NOT_REGISTERED, 404);
+}
+
+TEST_F(HandlersTest, LocationInfoDiameterBusy)
+{
+  location_info_error_template(DIAMETER_TOO_BUSY, 0, 503);
+}
+
+TEST_F(HandlersTest, LocationInfoOtherError)
+{
+  location_info_error_template(0, 0, 500);
+}
+
 TEST_F(HandlersTest, LocationInfoNoHSS)
 {
+  // Test Location Info handler when no HSS is configured.
   MockHttpStack::Request req(_httpstack,
                              "/impu/" + IMPU + "/",
                              "location",
@@ -384,8 +653,57 @@ TEST_F(HandlersTest, LocationInfoNoHSS)
   handler->run();
 
   // Build the expected JSON response and check it's correct
-  ServerCapabilities capabs;
-  EXPECT_EQ(build_icscf_json(DIAMETER_SUCCESS, DEFAULT_SERVER_NAME, capabs), req.content());
+  EXPECT_EQ(build_icscf_json(DIAMETER_SUCCESS, DEFAULT_SERVER_NAME, NO_CAPABILITIES), req.content());
+}
+
+//
+// Push Profile tests
+//
+
+TEST_F(HandlersTest, PushProfile)
+{
+  DigestAuthVector digest_av;
+  digest_av.ha1 = "ha1";
+  digest_av.realm = "realm";
+  digest_av.qop = "qop";
+  Cx::PushProfileRequest ppr(_cx_dict,
+                             _mock_stack,
+                             IMPI,
+                             digest_av,
+                             IMS_SUBSCRIPTION,
+                             AUTH_SESSION_STATE);
+  PushProfileHandler::Config cfg(_cache, _cx_dict, 0, 3600);
+  PushProfileHandler* handler = new PushProfileHandler(ppr, &cfg);
+
+  MockCache::MockPutAuthVector mock_req1;
+  EXPECT_CALL(*_cache, create_PutAuthVector(IMPI, digest_av, _, 0))
+    .WillOnce(Return(&mock_req1));
+  EXPECT_CALL(*_cache, send(_, &mock_req1))
+    .WillOnce(WithArgs<0>(Invoke(&mock_req1, &Cache::Request::set_trx)));
+  MockCache::MockPutIMSSubscription mock_req2;
+  EXPECT_CALL(*_cache, create_PutIMSSubscription("", IMS_SUBSCRIPTION, _, 3600))
+    .WillOnce(Return(&mock_req2));
+  EXPECT_CALL(*_cache, send(_, &mock_req2))
+    .WillOnce(WithArgs<0>(Invoke(&mock_req2, &Cache::Request::set_trx)));
+
+  EXPECT_CALL(*_mock_stack, send(_))
+    .Times(1)
+    .WillOnce(WithArgs<0>(Invoke(store_msg)));
+
+  handler->run();
+
+  Cache::Transaction* t = mock_req1.get_trx();
+  ASSERT_FALSE(t == NULL);
+  t = mock_req2.get_trx();
+  ASSERT_FALSE(t == NULL);
+
+  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
+  Cx::PushProfileAnswer ppa(msg);
+  EXPECT_TRUE(ppa.result_code(test_i32));
+  EXPECT_EQ(DIAMETER_SUCCESS, test_i32);
+  EXPECT_EQ(AUTH_SESSION_STATE, ppa.auth_session_state());
+
+  _caught_fd_msg = NULL;
 }
 
 #if 0

@@ -307,7 +307,11 @@ class PushProfileRequest : public Diameter::Message
 {
 public:
   PushProfileRequest(const Dictionary* dict,
-                     Diameter::Stack* stack);
+                     Diameter::Stack* stack,
+                     const std::string& impi,
+                     const DigestAuthVector& digest_av,
+                     const std::string& ims_subscription,
+                     const int32_t& auth_session_state);
   inline PushProfileRequest(Diameter::Message& msg) : Diameter::Message(msg) {};
 
   DigestAuthVector digest_auth_vector() const;

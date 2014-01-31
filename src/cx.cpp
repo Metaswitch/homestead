@@ -136,13 +136,47 @@ UserAuthorizationAnswer::UserAuthorizationAnswer(const Dictionary* dict,
                                                  Diameter::Message(dict, dict->USER_AUTHORIZATION_ANSWER, stack)
 {
   LOG_DEBUG("Building User-Authorization answer");
-  add(Diameter::AVP(dict->RESULT_CODE).val_i32(result_code));
-  add(Diameter::AVP(dict->SERVER_NAME).val_str(server_name));
+  if (result_code)
+  {
+    add(Diameter::AVP(dict->RESULT_CODE).val_i32(result_code));
+  }
+  else
+  {
+    Diameter::AVP experimental_result(dict->EXPERIMENTAL_RESULT);
+    experimental_result.add(Diameter::AVP(dict->EXPERIMENTAL_RESULT_CODE).val_i32(experimental_result_code));
+    add(experimental_result);
+  }
+
+  if (!server_name.empty())
+  {
+    add(Diameter::AVP(dict->SERVER_NAME).val_str(server_name));
+  }
+
+  Diameter::AVP server_capabilities(dict->SERVER_CAPABILITIES);
+  if (!capabs.mandatory_capabilities.empty())
+  {
+    for (std::vector<int32_t>::const_iterator it = capabs.mandatory_capabilities.begin();
+        it != capabs.mandatory_capabilities.end();
+        ++it)
+    {
+      server_capabilities.add(Diameter::AVP(dict->MANDATORY_CAPABILITY).val_i32(*it));
+    }
+  }
+  if (!capabs.optional_capabilities.empty())
+  {
+    for (std::vector<int32_t>::const_iterator it = capabs.optional_capabilities.begin();
+         it != capabs.optional_capabilities.end();
+         ++it)
+    {
+      server_capabilities.add(Diameter::AVP(dict->OPTIONAL_CAPABILITY).val_i32(*it));
+    }
+  }
+  add(server_capabilities);
 }
 
 ServerCapabilities UserAuthorizationAnswer::server_capabilities() const
 {
-  ServerCapabilities server_capabilities;
+  ServerCapabilities server_capabilities({}, {});
 
   // Server capabilities are grouped into mandatory capabilities and optional capabilities
   // underneath the SERVER_CAPABILITIES AVP.
@@ -210,13 +244,48 @@ LocationInfoAnswer::LocationInfoAnswer(const Dictionary* dict,
                                        Diameter::Message(dict, dict->USER_AUTHORIZATION_ANSWER, stack)
 {
   LOG_DEBUG("Building Location-Info answer");
-  add(Diameter::AVP(dict->RESULT_CODE).val_i32(result_code));
-  add(Diameter::AVP(dict->SERVER_NAME).val_str(server_name));
+
+  if (result_code)
+  {
+    add(Diameter::AVP(dict->RESULT_CODE).val_i32(result_code));
+  }
+  else
+  {
+    Diameter::AVP experimental_result(dict->EXPERIMENTAL_RESULT);
+    experimental_result.add(Diameter::AVP(dict->EXPERIMENTAL_RESULT_CODE).val_i32(experimental_result_code));
+    add(experimental_result);
+  }
+
+  if (!server_name.empty())
+  {
+    add(Diameter::AVP(dict->SERVER_NAME).val_str(server_name));
+  }
+
+  Diameter::AVP server_capabilities(dict->SERVER_CAPABILITIES);
+  if (!capabs.mandatory_capabilities.empty())
+  {
+    for (std::vector<int32_t>::const_iterator it = capabs.mandatory_capabilities.begin();
+        it != capabs.mandatory_capabilities.end();
+        ++it)
+    {
+      server_capabilities.add(Diameter::AVP(dict->MANDATORY_CAPABILITY).val_i32(*it));
+    }
+  }
+  if (!capabs.optional_capabilities.empty())
+  {
+    for (std::vector<int32_t>::const_iterator it = capabs.optional_capabilities.begin();
+        it != capabs.optional_capabilities.end();
+        ++it)
+    {
+      server_capabilities.add(Diameter::AVP(dict->OPTIONAL_CAPABILITY).val_i32(*it));
+    }
+  }
+  add(server_capabilities);
 }
 
 ServerCapabilities LocationInfoAnswer::server_capabilities() const
 {
-  ServerCapabilities server_capabilities;
+  ServerCapabilities server_capabilities({}, {});
 
   // Server capabilities are grouped into mandatory capabilities and optional capabilities
   // underneath the SERVER_CAPABILITIES AVP.
@@ -606,9 +675,24 @@ std::vector<std::string> RegistrationTerminationAnswer::associated_identities() 
 }
 
 PushProfileRequest::PushProfileRequest(const Dictionary* dict,
-                                       Diameter::Stack* stack) :
+                                       Diameter::Stack* stack,
+                                       const std::string& impi,
+                                       const DigestAuthVector& digest_av,
+                                       const std::string& ims_subscription,
+                                       const int32_t& auth_session_state) :
                                        Diameter::Message(dict, dict->PUSH_PROFILE_REQUEST, stack)
 {
+  LOG_DEBUG("Building Push-Profile request");
+  add(Diameter::AVP(dict->USER_NAME).val_str(impi));
+  add(Diameter::AVP(dict->USER_DATA).val_str(ims_subscription));
+  Diameter::AVP sip_auth_data_item(dict->SIP_AUTH_DATA_ITEM);
+  Diameter::AVP sip_digest_authenticate(dict->SIP_DIGEST_AUTHENTICATE);
+  sip_digest_authenticate.add(Diameter::AVP(dict->CX_DIGEST_HA1).val_str(digest_av.ha1));
+  sip_digest_authenticate.add(Diameter::AVP(dict->CX_DIGEST_REALM).val_str(digest_av.realm));
+  sip_digest_authenticate.add(Diameter::AVP(dict->CX_DIGEST_QOP).val_str(digest_av.qop));
+  sip_auth_data_item.add(sip_digest_authenticate);
+  add(sip_auth_data_item);
+  add(Diameter::AVP(dict->AUTH_SESSION_STATE).val_i32(auth_session_state));
 }
 
 DigestAuthVector PushProfileRequest::digest_auth_vector() const

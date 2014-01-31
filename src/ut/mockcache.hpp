@@ -144,11 +144,12 @@ public:
     virtual ~MockPutAssociatedPublicID() {}
   };
 
-  //class MockPutAuthVector : public PutAuthVector
-  //{
-   // MockPutAuthVector() : PutAuthVector("", mock_digest_av, 0) {}
-    //virtual ~MockPutAuthVector() {}
-  //};
+  class MockPutAuthVector : public PutAuthVector
+  {
+    DigestAuthVector mock_digest_av;
+    MockPutAuthVector() : PutAuthVector("", mock_digest_av, 0) {}
+    virtual ~MockPutAuthVector() {}
+  };
 
   class MockGetIMSSubscription : public GetIMSSubscription
   {
