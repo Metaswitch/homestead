@@ -57,6 +57,18 @@ std::string HssCacheHandler::_dest_host;
 std::string HssCacheHandler::_server_name;
 Cx::Dictionary* HssCacheHandler::_dict;
 Cache* HssCacheHandler::_cache = NULL;
+StatisticsManager* HssCacheHandler::_stats_manager = NULL;
+
+const static HssCacheHandler::StatsFlags DIGEST_STATS =
+  static_cast<HssCacheHandler::StatsFlags>(
+    HssCacheHandler::STAT_HSS_LATENCY |
+    HssCacheHandler::STAT_HSS_DIGEST_LATENCY);
+
+const static HssCacheHandler::StatsFlags SUBSCRIPTION_STATS =
+  static_cast<HssCacheHandler::StatsFlags>(
+    HssCacheHandler::STAT_HSS_LATENCY |
+    HssCacheHandler::STAT_HSS_SUBSCRIPTION_LATENCY);
+
 
 void HssCacheHandler::configure_diameter(Diameter::Stack* diameter_stack,
                                          const std::string& dest_realm,
@@ -80,6 +92,11 @@ void HssCacheHandler::configure_cache(Cache* cache)
   _cache = cache;
 }
 
+void HssCacheHandler::configure_stats(StatisticsManager* stats_manager)
+{
+  _stats_manager = stats_manager;
+}
+
 void HssCacheHandler::on_diameter_timeout()
 {
   _req.send_reply(503);
@@ -92,7 +109,7 @@ void ImpiHandler::run()
 {
   if (parse_request())
   {
-    LOG_DEBUG("Parsed HTTP request: private ID %s, public ID %s, scheme %s, authorization %s", 
+    LOG_DEBUG("Parsed HTTP request: private ID %s, public ID %s, scheme %s, authorization %s",
               _impi.c_str(), _impu.c_str(), _scheme.c_str(), _authorization.c_str());
     if (_cfg->query_cache_av)
     {
@@ -157,7 +174,7 @@ void ImpiHandler::get_av()
     }
   }
   else
-  { 
+  {
     send_mar();
   }
 }
@@ -219,7 +236,9 @@ void ImpiHandler::send_mar()
                                   _server_name,
                                   _scheme,
                                   _authorization);
-  DiameterTransaction* tsx = new DiameterTransaction(_dict, this);
+  DiameterTransaction* tsx =
+    new DiameterTransaction(_dict, this, DIGEST_STATS);
+
   tsx->set_response_clbk(&ImpiHandler::on_mar_response);
   mar->send(tsx, 200);
 }
@@ -414,7 +433,7 @@ void ImpiRegistrationStatusHandler::run()
       _visited_network = _dest_realm;
     }
     _authorization_type = _req.param("auth-type");
-    LOG_DEBUG("Parsed HTTP request: private ID %s, public ID %s, visited network %s, authorization type %s", 
+    LOG_DEBUG("Parsed HTTP request: private ID %s, public ID %s, visited network %s, authorization type %s",
               _impi.c_str(), _impu.c_str(), _visited_network.c_str(), _authorization_type.c_str());
 
     Cx::UserAuthorizationRequest* uar =
@@ -426,7 +445,8 @@ void ImpiRegistrationStatusHandler::run()
                                        _impu,
                                        _visited_network,
                                        _authorization_type);
-    DiameterTransaction* tsx = new DiameterTransaction(_dict, this);
+    DiameterTransaction* tsx =
+      new DiameterTransaction(_dict, this, SUBSCRIPTION_STATS);
     tsx->set_response_clbk(&ImpiRegistrationStatusHandler::on_uar_response);
     uar->send(tsx, 200);
   }
@@ -523,7 +543,7 @@ void ImpuLocationInfoHandler::run()
     _impu = path.substr(prefix.length(), path.find_first_of("/", prefix.length()) - prefix.length());
     _originating = _req.param("originating");
     _authorization_type = _req.param("auth-type");
-    LOG_DEBUG("Parsed HTTP request: public ID %s, originating %s, authorization type %s", 
+    LOG_DEBUG("Parsed HTTP request: public ID %s, originating %s, authorization type %s",
               _impu.c_str(), _originating.c_str(), _authorization_type.c_str());
 
     Cx::LocationInfoRequest* lir =
@@ -534,7 +554,8 @@ void ImpuLocationInfoHandler::run()
                                   _originating,
                                   _impu,
                                   _authorization_type);
-    DiameterTransaction* tsx = new DiameterTransaction(_dict, this);
+    DiameterTransaction* tsx =
+      new DiameterTransaction(_dict, this, SUBSCRIPTION_STATS);
     tsx->set_response_clbk(&ImpuLocationInfoHandler::on_lir_response);
     lir->send(tsx, 200);
   }
@@ -622,7 +643,7 @@ void ImpuIMSSubscriptionHandler::run()
 
   _impu = path.substr(prefix.length());
   _impi = _req.param("private_id");
-  LOG_DEBUG("Parsed HTTP request: private ID %s, public ID %s", 
+  LOG_DEBUG("Parsed HTTP request: private ID %s, public ID %s",
             _impi.c_str(), _impu.c_str());
 
   Cache::Request* get_ims_sub = _cache->create_GetIMSSubscription(_impu);
@@ -656,7 +677,8 @@ void ImpuIMSSubscriptionHandler::on_get_ims_subscription_failure(Cache::Request*
                                       _impi,
                                       _impu,
                                       _server_name);
-    DiameterTransaction* tsx = new DiameterTransaction(_dict, this);
+    DiameterTransaction* tsx =
+      new DiameterTransaction(_dict, this, SUBSCRIPTION_STATS);
     tsx->set_response_clbk(&ImpuIMSSubscriptionHandler::on_sar_response);
     sar->send(tsx, 200);
   }
@@ -720,7 +742,7 @@ void RegistrationTerminationHandler::run()
   LOG_INFO("Received Regestration Termination Request");
   Cx::RegistrationTerminationRequest rtr(_msg);
 
-  // The RTR should contain a User-Name AVP with one private ID, and then an 
+  // The RTR should contain a User-Name AVP with one private ID, and then an
   // Associated-Identities AVP with any number of associated private IDs.
   std::string impi = rtr.impi();
   _impis.push_back(impi);
