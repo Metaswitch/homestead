@@ -54,6 +54,7 @@ struct options
   std::string http_address;
   unsigned short http_port;
   int http_threads;
+  std::string cassandra;
   std::string dest_realm;
   std::string dest_host;
   std::string server_name;
@@ -77,6 +78,7 @@ void usage(void)
        " -H, --http <address>[:<port>]\n"
        "                            Set HTTP bind address and port (default: 0.0.0.0:8888)\n"
        " -t, --http-threads N       Number of HTTP threads (default: 1)\n"
+       " -S, --cassandra <address>  Set the IP address or FQDN of the Cassandra database (default: localhost)"
        " -D, --dest-realm <name>    Set Destination-Realm on Cx messages\n"
        " -d, --dest-host <name>     Set Destination-Host on Cx messages\n"
        " -s, --server-name <name>   Set Server-Name on Cx messages\n"
@@ -114,6 +116,7 @@ int init_options(int argc, char**argv, struct options& options)
     {"diameter-conf",     required_argument, NULL, 'c'},
     {"http",              required_argument, NULL, 'H'},
     {"http-threads",      required_argument, NULL, 't'},
+    {"cassandra",         required_argument, NULL, 'S'},
     {"dest-realm",        required_argument, NULL, 'D'},
     {"dest-host",         required_argument, NULL, 'd'},
     {"server-name",       required_argument, NULL, 's'},
@@ -131,7 +134,7 @@ int init_options(int argc, char**argv, struct options& options)
 
   int opt;
   int long_opt_ind;
-  while ((opt = getopt_long(argc, argv, "c:H:t:D:d:s:i:I:a:F:L:h", long_opt, &long_opt_ind)) != -1)
+  while ((opt = getopt_long(argc, argv, "c:H:t:S:D:d:s:i:I:a:F:L:h", long_opt, &long_opt_ind)) != -1)
   {
     switch (opt)
     {
@@ -146,6 +149,10 @@ int init_options(int argc, char**argv, struct options& options)
 
     case 't':
       options.http_threads = atoi(optarg);
+      break;
+
+    case 'S':
+      options.cassandra = std::string(optarg);
       break;
 
     case 'D':
@@ -243,6 +250,7 @@ int main(int argc, char**argv)
   options.http_address = "0.0.0.0";
   options.http_port = 8888;
   options.http_threads = 1;
+  options.cassandra = "localhost";
   options.dest_realm = "dest-realm.unknown";
   options.dest_host = "dest-host.unknown";
   options.server_name = "sip:server-name.unknown";
@@ -288,7 +296,7 @@ int main(int argc, char**argv)
   Cache* cache = Cache::get_instance();
   cache->initialize();
   // TODO: Make number of threads configurable.
-  cache->configure("localhost", 9160, 10);
+  cache->configure(options.cassandra, 9160, 10);
   Cache::ResultCode rc = cache->start();
 
   if (rc != Cache::OK)

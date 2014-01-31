@@ -37,14 +37,54 @@
 hss_port=3868
 . /etc/clearwater/config
 
+# Check whether the local IP address is IPv6.  If it is override some of the
+# configuration so that FreeDiameter will start.
+
+/usr/share/clearwater/bin/is_address_ipv6.py $local_ip
+is_ipv6_address=$?
+
+if [ $is_ipv6_address = 1 ]
+then
+  # An AIO node does not use a real HSS.  Set up the local Diameter to the unique
+  # IPv6 arpa hostname.
+  public_hostname=$(/usr/share/clearwater/bin/ipv6_to_hostname.py $local_ip)
+  hs_hostname=$public_hostname
+fi
+
+# If the certficates are present, check that they have the correct common name.
+if [ -f /var/lib/homestead/cert.pem ]
+then
+  current_name=$(certtool --certificate-info --infile /var/lib/homestead/ca.pem | egrep -e 'Subject: CN=' | sed 's/.*Subject: CN=//g')
+  if [ $current_name != $public_hostname ]
+  then 
+    # The current certificate do not have the required common name.  Remove them so that 
+    # they are regenerated below.
+    rm -f /var/lib/homestead/cert.pem /var/lib/homestead/privkey.pem /var/lib/homestead/ca.pem
+  fi
+fi
+
 # If any of the certificate files are missing, create new self-signed ones.
 if [ ! -f /var/lib/homestead/cert.pem ] ||
    [ ! -f /var/lib/homestead/privkey.pem ] ||
    [ ! -f /var/lib/homestead/ca.pem ]
 then
-  rm -f /var/lib/homestead/cert.pem /var/lib/homestead/privkey.pem /var/lib/homestead/ca.pem 
-  openssl req -new -batch -x509 -days 3650 -nodes -newkey rsa:1024 -out /var/lib/homestead/cert.pem -keyout /var/lib/homestead/privkey.pem  -subj /CN=$public_hostname
+  rm -f /var/lib/homestead/cert.pem /var/lib/homestead/privkey.pem /var/lib/homestead/ca.pem
+
+  # Build up the configuration file for GnuTLS
+  cat > /tmp/cert.cfg.$$ <<EOF
+cn = "$public_hostname"
+expiration_days = 3650
+EOF
+
+  # Create the certificates.
+  sudo certtool --generate-privkey --bits 1024 --template /tmp/cert.cfg.$$ --outfile /var/lib/homestead/privkey.pem
+  sudo certtool --generate-self-signed --bits 1024 --template /tmp/cert.cfg.$$ --load-privkey /var/lib/homestead/privkey.pem --outfile /var/lib/homestead/cert.pem
+
+  # Fix up the certificates in the directory.  The private key is created as readable
+  # by root only.  Fix it so that the homestead user can read it as well.
+  chmod 644 /var/lib/homestead/privkey.pem
   cp /var/lib/homestead/cert.pem /var/lib/homestead/ca.pem
+  rm /tmp/cert.cfg.$$
 fi
 
 # Set up the configuration for homestead with the right IP addresses and ports
