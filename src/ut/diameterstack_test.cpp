@@ -49,6 +49,7 @@
 using ::testing::_;
 using ::testing::Return;
 using ::testing::SetArgPointee;
+using ::testing::DoAll;
 
 class DiameterTestTransaction : public Diameter::Transaction
 {
@@ -92,11 +93,25 @@ public:
     _dict = new Cx::Dictionary();
 
     cwtest_completely_control_time();
+
+    // Mock out free diameter.  By default swallow all attempts to create new
+    // messages or read data out of them.
+    mock_free_diameter(&_mock_fd);
+
+    EXPECT_CALL(_mock_fd, fd_msg_new(_, _, _))
+      .WillRepeatedly(DoAll(SetArgPointee<2>((struct msg*)NULL), Return(0)));
+
+    _mock_fd.hdr.msg_code = 123;
+    EXPECT_CALL(_mock_fd, fd_msg_hdr(_, _))
+      .WillRepeatedly(DoAll(SetArgPointee<1>(&_mock_fd.hdr), Return(0)));
   }
 
   virtual ~DiameterRequestTest()
   {
+    unmock_free_diameter();
     cwtest_reset_time();
+
+    delete _dict; _dict = NULL;
 
     _stack->stop();
     _stack->wait_stopped();
@@ -110,6 +125,7 @@ public:
 private:
   Diameter::Stack* _stack;
   Cx::Dictionary* _dict;
+  MockFreeDiameter _mock_fd;
 };
 
 
@@ -140,44 +156,28 @@ ACTION_P2(CheckLatency, trx, ms) { trx->check_latency(ms * 1000); }
 
 TEST_F(DiameterRequestTest, NormalRequestTimesLatency)
 {
-  Diameter::Message msg(_dict, _dict->MULTIMEDIA_AUTH_REQUEST);
-  Diameter::Message rsp(_dict, _dict->MULTIMEDIA_AUTH_ANSWER);
+  Diameter::Message req(_dict, _dict->MULTIMEDIA_AUTH_REQUEST);
   struct msg *fd_rsp = NULL;
   DiameterTestTransaction *trx = make_trx();
 
-  MockFreeDiameter mock_fd;
-  mock_fd.hdr.msg_code = 123;
-  mock_free_diameter(&mock_fd);
-
-  EXPECT_CALL(mock_fd, fd_msg_hdr(_, _))
-    .WillRepeatedly(DoAll(SetArgPointee<1>(&mock_fd.hdr), Return(0)));
-  EXPECT_CALL(mock_fd, fd_msg_send(_, _, _)).WillOnce(Return(0));
-  msg.send(trx);
+  EXPECT_CALL(_mock_fd, fd_msg_send(_, _, _)).WillOnce(Return(0));
+  req.send(trx);
 
   cwtest_advance_time_ms(12);
 
   EXPECT_CALL(*trx, on_response(_)).WillOnce(CheckLatency(trx, 12));
   Diameter::Transaction::on_response(trx, &fd_rsp); trx = NULL;
-
-  unmock_free_diameter();
 }
 
 
 TEST_F(DiameterRequestTest, TimedoutRequestTimesLatency)
 {
-  Diameter::Message msg(_dict, _dict->MULTIMEDIA_AUTH_REQUEST);
-  Diameter::Message rsp(_dict, _dict->MULTIMEDIA_AUTH_ANSWER);
-  struct msg *fd_req = NULL;
+  Diameter::Message req(_dict, _dict->MULTIMEDIA_AUTH_REQUEST);
+  struct msg *fd_rsp = NULL;
   DiameterTestTransaction *trx = make_trx();
 
-  MockFreeDiameter mock_fd;
-  mock_fd.hdr.msg_code = 123;
-  mock_free_diameter(&mock_fd);
-
-  EXPECT_CALL(mock_fd, fd_msg_hdr(_, _))
-    .WillRepeatedly(DoAll(SetArgPointee<1>(&mock_fd.hdr), Return(0)));
-  EXPECT_CALL(mock_fd, fd_msg_send_timeout(_, _, _, _, _)).WillOnce(Return(0));
-  msg.send(trx, 1000);
+  EXPECT_CALL(_mock_fd, fd_msg_send_timeout(_, _, _, _, _)).WillOnce(Return(0));
+  req.send(trx, 1000);
 
   cwtest_advance_time_ms(15);
 
@@ -185,8 +185,6 @@ TEST_F(DiameterRequestTest, TimedoutRequestTimesLatency)
   Diameter::Transaction::on_timeout(trx,
                                     (DiamId_t)"DiameterIdentity",
                                     0,
-                                    &fd_req);
+                                    &fd_rsp);
   trx = NULL;
-
-  unmock_free_diameter();
 }
