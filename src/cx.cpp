@@ -585,9 +585,38 @@ ServerAssignmentAnswer::ServerAssignmentAnswer(const Dictionary* dict,
 }
 
 RegistrationTerminationRequest::RegistrationTerminationRequest(const Dictionary* dict,
-                                                               Diameter::Stack* stack) :
+                                                               Diameter::Stack* stack,
+                                                               const std::string& impi,
+                                                               std::vector<std::string>& associated_identities,
+                                                               std::vector<std::string>& impus,
+                                                               const int32_t& auth_session_state) :
                                                                Diameter::Message(dict, dict->REGISTRATION_TERMINATION_REQUEST, stack)
 {
+  LOG_DEBUG("Building Registration-Termination request");
+  add(Diameter::AVP(dict->AUTH_SESSION_STATE).val_i32(auth_session_state));
+  add(Diameter::AVP(dict->USER_NAME).val_str(impi));
+  Diameter::AVP associated_identities_avp(dict->ASSOCIATED_IDENTITIES);
+  if (!associated_identities.empty())
+  {
+    for (std::vector<std::string>::iterator it = associated_identities.begin();
+         it != associated_identities.end();
+         ++it)
+    {
+      LOG_DEBUG("Adding Associated-Identities/User-Name %s", it->c_str());
+      associated_identities_avp.add(Diameter::AVP(dict->USER_NAME).val_str(*it));
+    }
+    add(associated_identities_avp);
+  }
+  if (!impus.empty())
+  {
+    for (std::vector<std::string>::iterator it = impus.begin();
+         it != impus.end();
+         ++it)
+    {
+      LOG_DEBUG("Adding Public-Identity %s", it->c_str());
+      add(Diameter::AVP(dict->PUBLIC_IDENTITY).val_str(*it));
+    }
+  }
 }
 
 std::vector<std::string> RegistrationTerminationRequest::associated_identities() const

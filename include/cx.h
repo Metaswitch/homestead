@@ -283,7 +283,11 @@ class RegistrationTerminationRequest : public Diameter::Message
 {
 public:
   RegistrationTerminationRequest(const Dictionary* dict,
-                                 Diameter::Stack* stack);
+                                 Diameter::Stack* stack,
+                                 const std::string& impi,
+                                 std::vector<std::string>& associated_identities,
+                                 std::vector<std::string>& impus,
+                                 const int32_t& auth_session_state);
   inline RegistrationTerminationRequest(Diameter::Message& msg) : Diameter::Message(msg) {};
 
   std::vector<std::string> associated_identities() const;

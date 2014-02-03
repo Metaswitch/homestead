@@ -69,6 +69,8 @@ public:
   static const ServerCapabilities CAPABILITIES;
   static const ServerCapabilities NO_CAPABILITIES;
   static const int32_t AUTH_SESSION_STATE;
+  static std::vector<std::string> ASSOCIATED_IDENTITIES;
+  static std::vector<std::string> IMPUS;
 
   static Diameter::Stack* _real_stack;
   static MockDiameterStack* _mock_stack;
@@ -258,7 +260,9 @@ const std::string HandlersTest::DEFAULT_SERVER_NAME = "sprout";
 const std::string HandlersTest::SERVER_NAME = "scscf";
 const std::string HandlersTest::IMPI = "impi@example.com";
 const std::string HandlersTest::IMPU = "sip:impu@example.com";
-const std::string HandlersTest::IMS_SUBSCRIPTION = "<some interesting XML>";
+const std::string HandlersTest::IMS_SUBSCRIPTION = "<?xml version=\"1.0\"?><IMSSubscription><ServiceProfile><PublicIdentity><Identity>" +
+                                                   IMPU +
+                                                   "</Identity></PublicIdentity></ServiceProfile></IMSSubscription>";
 const std::string HandlersTest::VISITED_NETWORK = "visited-network.com";
 const std::string HandlersTest::AUTH_TYPE_DEREG = "DEREG";
 const std::vector<int32_t> mandatory_capabilities = {1, 3};
@@ -267,6 +271,8 @@ const std::vector<int32_t> no_capabilities = {};
 const ServerCapabilities HandlersTest::CAPABILITIES(mandatory_capabilities, optional_capabilities);
 const ServerCapabilities HandlersTest::NO_CAPABILITIES(no_capabilities, no_capabilities);
 const int32_t HandlersTest::AUTH_SESSION_STATE = 1;
+std::vector<std::string> HandlersTest::ASSOCIATED_IDENTITIES = {"impi456", "impi478"};
+std::vector<std::string> HandlersTest::IMPUS = {"impu456", "impu478"};
 
 Diameter::Stack* HandlersTest::_real_stack = NULL;
 MockDiameterStack* HandlersTest::_mock_stack = NULL;
@@ -360,11 +366,135 @@ TEST_F(HandlersTest, IMSSubscriptionHSS)
                                  _mock_stack,
                                  DIAMETER_SUCCESS,
                                  IMS_SUBSCRIPTION);
+
+  MockCache::MockPutIMSSubscription mock_req2;
+  std::vector<std::string> impus;
+  impus.push_back(IMPU);
+  EXPECT_CALL(*_cache, create_PutIMSSubscription(impus, IMS_SUBSCRIPTION, _, 3600))
+    .WillOnce(Return(&mock_req2));
+  EXPECT_CALL(*_cache, send(_, &mock_req2))
+    .WillOnce(WithArgs<0>(Invoke(&mock_req2, &Cache::Request::set_trx)));
+
   EXPECT_CALL(*_httpstack, send_reply(_, 200));
   _caught_diam_tsx->on_response(saa);
 
+  t = mock_req2.get_trx();
+  ASSERT_FALSE(t == NULL);
+
   // Build the expected JSON response and check it's correct
   EXPECT_EQ(IMS_SUBSCRIPTION, req.content());
+
+  _caught_diam_tsx = NULL;
+  _caught_fd_msg = NULL;
+}
+
+
+TEST_F(HandlersTest, IMSSubscriptionNoCacheNoHss)
+{
+  MockHttpStack::Request req(_httpstack,
+                             "/impu/" + IMPU,
+                             "",
+                             "?private_id=" + IMPI);
+  ImpuIMSSubscriptionHandler::Config cfg(false, 3600);
+  ImpuIMSSubscriptionHandler* handler = new ImpuIMSSubscriptionHandler(req, &cfg);
+
+  MockCache::MockGetIMSSubscription mock_req;
+  EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU))
+    .WillOnce(Return(&mock_req));
+  EXPECT_CALL(*_cache, send(_, &mock_req))
+    .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
+  handler->run();
+
+  Cache::Transaction* t = mock_req.get_trx();
+  ASSERT_FALSE(t == NULL);
+
+  EXPECT_CALL(*_httpstack, send_reply(_, 502));
+  std::string error_text = "error";
+  t->on_failure(&mock_req, Cache::NOT_FOUND, error_text);
+
+  _caught_diam_tsx = NULL;
+  _caught_fd_msg = NULL;
+}
+
+
+TEST_F(HandlersTest, IMSSubscriptionUserUnknown)
+{
+  MockHttpStack::Request req(_httpstack,
+                             "/impu/" + IMPU,
+                             "",
+                             "?private_id=" + IMPI);
+  ImpuIMSSubscriptionHandler::Config cfg(true, 3600);
+  ImpuIMSSubscriptionHandler* handler = new ImpuIMSSubscriptionHandler(req, &cfg);
+
+  MockCache::MockGetIMSSubscription mock_req;
+  EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU))
+    .WillOnce(Return(&mock_req));
+  EXPECT_CALL(*_cache, send(_, &mock_req))
+    .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
+  handler->run();
+
+  Cache::Transaction* t = mock_req.get_trx();
+  ASSERT_FALSE(t == NULL);
+
+  EXPECT_CALL(*_mock_stack, send(_, _, 200))
+    .Times(1)
+    .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
+  std::string error_text = "error";
+  t->on_failure(&mock_req, Cache::NOT_FOUND, error_text);
+
+  ASSERT_FALSE(_caught_diam_tsx == NULL);
+  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
+  Cx::ServerAssignmentRequest sar(msg);
+
+  Cx::ServerAssignmentAnswer saa(_cx_dict,
+                                 _mock_stack,
+                                 DIAMETER_ERROR_USER_UNKNOWN,
+                                 "");
+
+  EXPECT_CALL(*_httpstack, send_reply(_, 404));
+  _caught_diam_tsx->on_response(saa);
+
+  _caught_diam_tsx = NULL;
+  _caught_fd_msg = NULL;
+}
+
+
+TEST_F(HandlersTest, IMSSubscriptionOtherError)
+{
+  MockHttpStack::Request req(_httpstack,
+                             "/impu/" + IMPU,
+                             "",
+                             "?private_id=" + IMPI);
+  ImpuIMSSubscriptionHandler::Config cfg(true, 3600);
+  ImpuIMSSubscriptionHandler* handler = new ImpuIMSSubscriptionHandler(req, &cfg);
+
+  MockCache::MockGetIMSSubscription mock_req;
+  EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU))
+    .WillOnce(Return(&mock_req));
+  EXPECT_CALL(*_cache, send(_, &mock_req))
+    .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
+  handler->run();
+
+  Cache::Transaction* t = mock_req.get_trx();
+  ASSERT_FALSE(t == NULL);
+
+  EXPECT_CALL(*_mock_stack, send(_, _, 200))
+    .Times(1)
+    .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
+  std::string error_text = "error";
+  t->on_failure(&mock_req, Cache::NOT_FOUND, error_text);
+
+  ASSERT_FALSE(_caught_diam_tsx == NULL);
+  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
+  Cx::ServerAssignmentRequest sar(msg);
+
+  Cx::ServerAssignmentAnswer saa(_cx_dict,
+                                 _mock_stack,
+                                 0,
+                                 "");
+
+  EXPECT_CALL(*_httpstack, send_reply(_, 500));
+  _caught_diam_tsx->on_response(saa);
 
   _caught_diam_tsx = NULL;
   _caught_fd_msg = NULL;
@@ -688,6 +818,115 @@ TEST_F(HandlersTest, LocationInfoNoHSS)
 }
 
 //
+// Registration Termination tests
+//
+
+TEST_F(HandlersTest, RegistrationTerminationNoImpus)
+{
+  std::vector<std::string> no_impus;
+  Cx::RegistrationTerminationRequest rtr(_cx_dict,
+                                         _mock_stack,
+                                         IMPI,
+                                         ASSOCIATED_IDENTITIES,
+                                         no_impus,
+                                         AUTH_SESSION_STATE);
+  RegistrationTerminationHandler::Config cfg(_cache, _cx_dict, 0);
+  RegistrationTerminationHandler* handler = new RegistrationTerminationHandler(rtr, &cfg);
+
+  std::vector<std::string> associated_identities;
+  associated_identities.push_back(IMPI);
+  associated_identities.insert(associated_identities.end(), ASSOCIATED_IDENTITIES.begin(), ASSOCIATED_IDENTITIES.end());
+  MockCache::MockGetAssociatedPublicIDs mock_req;
+  EXPECT_CALL(*_cache, create_GetAssociatedPublicIDs(_))
+    .WillOnce(Return(&mock_req));
+  EXPECT_CALL(*_cache, send(_, &mock_req))
+    .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
+  handler->run();
+
+  Cache::Transaction* t = mock_req.get_trx();
+  ASSERT_FALSE(t == NULL);
+  EXPECT_CALL(mock_req, get_result(_))
+    .WillRepeatedly(SetArgReferee<0>(IMPUS));
+
+  MockCache::MockDeletePublicIDs mock_req2;
+  EXPECT_CALL(*_cache, create_DeletePublicIDs(IMPUS, _))
+    .WillOnce(Return(&mock_req2));
+  EXPECT_CALL(*_cache, send(_, &mock_req2))
+    .WillOnce(WithArgs<0>(Invoke(&mock_req2, &Cache::Request::set_trx)));
+  MockCache::MockDeletePrivateIDs mock_req3;
+  EXPECT_CALL(*_cache, create_DeletePrivateIDs(associated_identities, _))
+    .WillOnce(Return(&mock_req3));
+  EXPECT_CALL(*_cache, send(_, &mock_req3))
+    .WillOnce(WithArgs<0>(Invoke(&mock_req3, &Cache::Request::set_trx)));
+
+  EXPECT_CALL(*_mock_stack, send(_))
+    .Times(1)
+    .WillOnce(WithArgs<0>(Invoke(store_msg)));
+
+  t->on_success(&mock_req);
+
+  t = mock_req2.get_trx();
+  ASSERT_FALSE(t == NULL);
+  t = mock_req3.get_trx();
+  ASSERT_FALSE(t == NULL);
+
+  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
+  Cx::RegistrationTerminationAnswer rta(msg);
+  EXPECT_TRUE(rta.result_code(test_i32));
+  EXPECT_EQ(DIAMETER_SUCCESS, test_i32);
+  EXPECT_EQ(associated_identities, rta.associated_identities());
+  EXPECT_EQ(AUTH_SESSION_STATE, rta.auth_session_state());
+
+  _caught_fd_msg = NULL;
+}
+
+TEST_F(HandlersTest, RegistrationTermination)
+{
+  Cx::RegistrationTerminationRequest rtr(_cx_dict,
+                                         _mock_stack,
+                                         IMPI,
+                                         ASSOCIATED_IDENTITIES,
+                                         IMPUS,
+                                         AUTH_SESSION_STATE);
+  RegistrationTerminationHandler::Config cfg(_cache, _cx_dict, 0);
+  RegistrationTerminationHandler* handler = new RegistrationTerminationHandler(rtr, &cfg);
+
+  std::vector<std::string> associated_identities;
+  associated_identities.push_back(IMPI);
+  associated_identities.insert(associated_identities.end(), ASSOCIATED_IDENTITIES.begin(), ASSOCIATED_IDENTITIES.end());
+  MockCache::MockDeletePublicIDs mock_req;
+  EXPECT_CALL(*_cache, create_DeletePublicIDs(IMPUS, _))
+    .WillOnce(Return(&mock_req));
+  EXPECT_CALL(*_cache, send(_, &mock_req))
+    .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
+  MockCache::MockDeletePrivateIDs mock_req2;
+  EXPECT_CALL(*_cache, create_DeletePrivateIDs(associated_identities, _))
+    .WillOnce(Return(&mock_req2));
+  EXPECT_CALL(*_cache, send(_, &mock_req2))
+    .WillOnce(WithArgs<0>(Invoke(&mock_req2, &Cache::Request::set_trx)));
+
+  EXPECT_CALL(*_mock_stack, send(_))
+    .Times(1)
+    .WillOnce(WithArgs<0>(Invoke(store_msg)));
+
+  handler->run();
+
+  Cache::Transaction* t = mock_req.get_trx();
+  ASSERT_FALSE(t == NULL);
+  t = mock_req2.get_trx();
+  ASSERT_FALSE(t == NULL);
+
+  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
+  Cx::RegistrationTerminationAnswer rta(msg);
+  EXPECT_TRUE(rta.result_code(test_i32));
+  EXPECT_EQ(DIAMETER_SUCCESS, test_i32);
+  EXPECT_EQ(associated_identities, rta.associated_identities());
+  EXPECT_EQ(AUTH_SESSION_STATE, rta.auth_session_state());
+
+  _caught_fd_msg = NULL;
+}
+
+//
 // Push Profile tests
 //
 
@@ -706,13 +945,15 @@ TEST_F(HandlersTest, PushProfile)
   PushProfileHandler::Config cfg(_cache, _cx_dict, 0, 3600);
   PushProfileHandler* handler = new PushProfileHandler(ppr, &cfg);
 
-  MockCache::MockPutAuthVector mock_req1;
-  EXPECT_CALL(*_cache, create_PutAuthVector(IMPI, digest_av, _, 0))
-    .WillOnce(Return(&mock_req1));
-  EXPECT_CALL(*_cache, send(_, &mock_req1))
-    .WillOnce(WithArgs<0>(Invoke(&mock_req1, &Cache::Request::set_trx)));
+  MockCache::MockPutAuthVector mock_req;
+  EXPECT_CALL(*_cache, create_PutAuthVector(IMPI, _, _, 0))
+    .WillOnce(Return(&mock_req));
+  EXPECT_CALL(*_cache, send(_, &mock_req))
+    .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
   MockCache::MockPutIMSSubscription mock_req2;
-  EXPECT_CALL(*_cache, create_PutIMSSubscription("", IMS_SUBSCRIPTION, _, 3600))
+  std::vector<std::string> impus;
+  impus.push_back(IMPU);
+  EXPECT_CALL(*_cache, create_PutIMSSubscription(impus, IMS_SUBSCRIPTION, _, 3600))
     .WillOnce(Return(&mock_req2));
   EXPECT_CALL(*_cache, send(_, &mock_req2))
     .WillOnce(WithArgs<0>(Invoke(&mock_req2, &Cache::Request::set_trx)));
@@ -723,7 +964,7 @@ TEST_F(HandlersTest, PushProfile)
 
   handler->run();
 
-  Cache::Transaction* t = mock_req1.get_trx();
+  Cache::Transaction* t = mock_req.get_trx();
   ASSERT_FALSE(t == NULL);
   t = mock_req2.get_trx();
   ASSERT_FALSE(t == NULL);
@@ -736,46 +977,3 @@ TEST_F(HandlersTest, PushProfile)
 
   _caught_fd_msg = NULL;
 }
-
-#if 0
-
-// Transaction that would be implemented in the handlers.
-class ExampleTransaction : public Cache::Transaction
-{
-  void on_success(Cache::Request* req)
-  {
-    std::string xml;
-    dynamic_cast<Cache::GetIMSSubscription*>(req)->get_result(xml);
-    std::cout << "GOT RESULT: " << xml << std::endl;
-  }
-
-  void on_failure(Cache::Request* req, Cache::ResultCode rc, std::string& text)
-  {
-    std::cout << "FAILED:" << std::endl << text << std::endl;
-  }
-};
-
-// Start of the test code.
-TEST(HandlersTest, ExampleTransaction)
-{
-  MockCache cache;
-  MockCache::MockGetIMSSubscription mock_req;
-
-  EXPECT_CALL(cache, create_GetIMSSubscription("kermit"))
-    .WillOnce(Return(&mock_req));
-  EXPECT_CALL(cache, send(_, &mock_req))
-    .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
-  EXPECT_CALL(mock_req, get_result(_))
-    .WillRepeatedly(SetArgReferee<0>("<some boring xml>"));
-
-  // This would be in the code-under-test.
-  ExampleTransaction* tsx = new ExampleTransaction;
-  Cache::Request* req = cache.create_GetIMSSubscription("kermit");
-  cache.send(tsx, req);
-
-  // Back to the test code.
-  Cache::Transaction* t = mock_req.get_trx();
-  ASSERT_FALSE(t == NULL);
-  t->on_success(&mock_req);
-}
-#endif

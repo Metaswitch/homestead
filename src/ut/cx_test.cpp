@@ -66,6 +66,7 @@ public:
   static const int RESULT_CODE;
   static const int AUTH_SESSION_STATE;
   static const std::vector<std::string> IMPIS;
+  static const ServerCapabilities CAPABILITIES;
 
   static Diameter::Stack* _real_stack;
   static MockDiameterStack* _mock_stack;
@@ -183,6 +184,9 @@ const std::string CxTest::EMPTY_STRING = "";
 const int CxTest::RESULT_CODE = 2001;
 const int CxTest::AUTH_SESSION_STATE = 1;
 const std::vector<std::string> CxTest::IMPIS {"private_id1", "private_id2"};
+const std::vector<int32_t> mandatory_capabilities = {1, 3};
+const std::vector<int32_t> optional_capabilities = {2, 4};
+const ServerCapabilities CxTest::CAPABILITIES(mandatory_capabilities, optional_capabilities);
 
 Diameter::Stack* CxTest::_real_stack = NULL;
 MockDiameterStack* CxTest::_mock_stack = NULL;
@@ -414,4 +418,19 @@ TEST_F(CxTest, LIRNoOptionalParamsTest)
   EXPECT_FALSE(lir.originating(test_i32));
   EXPECT_EQ(IMPU, lir.impu());
   EXPECT_FALSE(lir.auth_type(test_i32));
+}
+
+TEST_F(CxTest, LIATest)
+{
+  Cx::LocationInfoAnswer lia(_cx_dict,
+                             _mock_stack,
+                             RESULT_CODE,
+                             0,
+                             SERVER_NAME,
+                             CAPABILITIES);
+  Diameter::Message msg = launder_message(lia);
+  lia = Cx::LocationInfoAnswer(msg);
+  EXPECT_TRUE(lia.server_name(test_str));
+  EXPECT_EQ(SERVER_NAME, test_str);
+  EXPECT_EQ(CAPABILITIES, lia.server_capabilities());
 }
