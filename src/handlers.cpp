@@ -643,14 +643,35 @@ void ImpuIMSSubscriptionHandler::run()
 
   _impu = path.substr(prefix.length());
   _impi = _req.param("private_id");
-  LOG_DEBUG("Parsed HTTP request: private ID %s, public ID %s",
-            _impi.c_str(), _impu.c_str());
+  std::string type = _req.param("type");
+  LOG_DEBUG("Parsed HTTP request: private ID %s, public ID %s, type %s",
+            _impi.c_str(), _impu.c_str(), type.c_str());
 
-  Cache::Request* get_ims_sub = _cache->create_GetIMSSubscription(_impu);
-  CacheTransaction* tsx = new CacheTransaction(this);
-  tsx->set_success_clbk(&ImpuIMSSubscriptionHandler::on_get_ims_subscription_success);
-  tsx->set_failure_clbk(&ImpuIMSSubscriptionHandler::on_get_ims_subscription_failure);
-  _cache->send(tsx, get_ims_sub);
+  // Map the type parameter from the HTTP request to its corresponding
+  // ServerAssignmentType object and save it off. We should always get a match,
+  // but if not _type was initialised to default values by the constructor.
+  std::map<std::string, ServerAssignmentType>::const_iterator it = SERVER_ASSIGNMENT_TYPES.find(type);
+  if (it != SERVER_ASSIGNMENT_TYPES.end())
+  {
+    _type = it->second;
+  }
+
+  // The ServerAssignmentType object has a cache_lookup field which
+  // determines whether we should look for IMS subscription in the cache.
+  if(_type.cache_lookup())
+  {
+    LOG_DEBUG("Try to find IMS Subscription information in the cache");
+    Cache::Request* get_ims_sub = _cache->create_GetIMSSubscription(_impu);
+    CacheTransaction* tsx = new CacheTransaction(this);
+    tsx->set_success_clbk(&ImpuIMSSubscriptionHandler::on_get_ims_subscription_success);
+    tsx->set_failure_clbk(&ImpuIMSSubscriptionHandler::on_get_ims_subscription_failure);
+    _cache->send(tsx, get_ims_sub);
+  }
+  else
+  {
+    LOG_DEBUG("First time register or deregistration - go to the HSS");
+    send_server_assignment_request();
+  }
 }
 
 void ImpuIMSSubscriptionHandler::on_get_ims_subscription_success(Cache::Request* request)
@@ -669,18 +690,7 @@ void ImpuIMSSubscriptionHandler::on_get_ims_subscription_failure(Cache::Request*
   if ((error == Cache::NOT_FOUND) && (_cfg->hss_configured))
   {
     LOG_DEBUG("No cached IMS subscription found, and HSS configured - query it");
-    Cx::ServerAssignmentRequest* sar =
-      new Cx::ServerAssignmentRequest(_dict,
-                                      _diameter_stack,
-                                      _dest_host,
-                                      _dest_realm,
-                                      _impi,
-                                      _impu,
-                                      _server_name);
-    DiameterTransaction* tsx =
-      new DiameterTransaction(_dict, this, SUBSCRIPTION_STATS);
-    tsx->set_response_clbk(&ImpuIMSSubscriptionHandler::on_sar_response);
-    sar->send(tsx, 200);
+    send_server_assignment_request();
   }
   else
   {
@@ -688,6 +698,23 @@ void ImpuIMSSubscriptionHandler::on_get_ims_subscription_failure(Cache::Request*
     _req.send_reply(502);
     delete this;
   }
+}
+
+void ImpuIMSSubscriptionHandler::send_server_assignment_request()
+{
+  Cx::ServerAssignmentRequest* sar =
+    new Cx::ServerAssignmentRequest(_dict,
+                                    _diameter_stack,
+                                    _dest_host,
+                                    _dest_realm,
+                                    _impi,
+                                    _impu,
+                                    _server_name,
+                                    _type.type());
+  DiameterTransaction* tsx =
+    new DiameterTransaction(_dict, this, SUBSCRIPTION_STATS);
+  tsx->set_response_clbk(&ImpuIMSSubscriptionHandler::on_sar_response);
+  sar->send(tsx, 200);
 }
 
 void ImpuIMSSubscriptionHandler::on_sar_response(Diameter::Message& rsp)
@@ -700,27 +727,38 @@ void ImpuIMSSubscriptionHandler::on_sar_response(Diameter::Message& rsp)
   {
     case 2001:
       {
-        std::string user_data;
-        saa.user_data(user_data);
-        _req.add_content(user_data);
-        _req.send_reply(200);
-
-        if (_cfg->ims_sub_cache_ttl != 0)
+        if (_type.cache_subscriptions())
         {
-          LOG_DEBUG("Attempting to cache IMS subscription for public IDs");
-          std::vector<std::string> public_ids = XmlUtils::get_public_ids(user_data);
-          if (!public_ids.empty())
+          std::string user_data;
+          saa.user_data(user_data);
+          _req.add_content(user_data);
+
+          if (_cfg->ims_sub_cache_ttl != 0)
           {
-            LOG_DEBUG("Got public IDs to cache against - doing it");
-            Cache::Request* put_ims_sub =
-              _cache->create_PutIMSSubscription(public_ids,
-                                                user_data,
-                                                Cache::generate_timestamp(),
-                                                _cfg->ims_sub_cache_ttl);
-            CacheTransaction* tsx = new CacheTransaction(NULL);
-            _cache->send(tsx, put_ims_sub);
+            LOG_DEBUG("Attempting to cache IMS subscription for public IDs");
+            std::vector<std::string> public_ids = XmlUtils::get_public_ids(user_data);
+            if (!public_ids.empty())
+            {
+              LOG_DEBUG("Got public IDs to cache against - doing it");
+              Cache::Request* put_ims_sub =
+                _cache->create_PutIMSSubscription(public_ids,
+                                                  user_data,
+                                                  Cache::generate_timestamp(),
+                                                  _cfg->ims_sub_cache_ttl);
+              CacheTransaction* tsx = new CacheTransaction(NULL);
+              _cache->send(tsx, put_ims_sub);
+            }
           }
         }
+        else
+        {
+          LOG_INFO("Delete IMS subscription for %s", _impu.c_str());
+          Cache::Request* delete_public_id = 
+            _cache->create_DeletePublicIDs(_impu, Cache::generate_timestamp());
+          CacheTransaction* tsx = new CacheTransaction(NULL);
+          _cache->send(tsx, delete_public_id);
+        }
+        _req.send_reply(200);
       }
       break;
     case 5001:

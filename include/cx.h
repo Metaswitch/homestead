@@ -241,7 +241,8 @@ public:
                           const std::string& dest_realm,
                           const std::string& impi,
                           const std::string& impu,
-                          const std::string& server_name);
+                          const std::string& server_name,
+                          const int32_t& type);
   inline ServerAssignmentRequest(Diameter::Message& msg) : Diameter::Message(msg) {};
 
   inline std::string impu() const

@@ -44,6 +44,7 @@
 #include "cache.h"
 #include "httpstack.h"
 #include "statisticsmanager.h"
+#include "serverassignmenttype.h"
 
 // Result-Code AVP constants
 const int DIAMETER_SUCCESS = 2001;
@@ -67,6 +68,26 @@ const std::string DIAMETER_REQ_FAILURE = "DIAMETER_UNABLE_TO_COMPLY";
 // JSON string constants
 const std::string JSON_RC = "result-code";
 const std::string JSON_SCSCF = "scscf";
+
+// Server Assignment Types
+const ServerAssignmentType REG(false, 1, true);
+const ServerAssignmentType REREG(true, 2, true);
+const ServerAssignmentType DEREG_USER(false, 5, false);
+const ServerAssignmentType DEREG_TIMEOUT(false, 4, false);
+const ServerAssignmentType DEREG_AUTH_FAIL(false, 9, false);
+const ServerAssignmentType DEREG_AUTH_TIMEOUT(false, 10, false);
+const ServerAssignmentType DEREG_ADMIN(false, 8, false);
+const ServerAssignmentType CALL_REG(true, 0, true);
+const ServerAssignmentType CALL_UNREG(true, 3, true);
+const std::map<std::string, ServerAssignmentType> SERVER_ASSIGNMENT_TYPES = {{"reg", REG},
+                                                                             {"rereg", REREG},
+                                                                             {"dereg-user", DEREG_USER},
+                                                                             {"dereg-timeout", DEREG_TIMEOUT},
+                                                                             {"dereg-auth-fail", DEREG_AUTH_FAIL},
+                                                                             {"dereg-auth-timeout", DEREG_AUTH_TIMEOUT},
+                                                                             {"dereg-admin", DEREG_ADMIN},
+                                                                             {"call-reg", CALL_REG},
+                                                                             {"call-unreg", CALL_UNREG}};
 
 class PingHandler : public HttpStack::Handler
 {
@@ -399,12 +420,13 @@ public:
   };
 
   ImpuIMSSubscriptionHandler(HttpStack::Request& req, const Config* cfg) :
-    HssCacheHandler(req), _cfg(cfg), _impi(), _impu()
+    HssCacheHandler(req), _cfg(cfg), _impi(), _impu(), _type(true, 1, true)
   {}
 
   void run();
   void on_get_ims_subscription_success(Cache::Request* request);
   void on_get_ims_subscription_failure(Cache::Request* request, Cache::ResultCode error, std::string& text);
+  void send_server_assignment_request();
   void on_sar_response(Diameter::Message& rsp);
 
   typedef HssCacheHandler::CacheTransaction<ImpuIMSSubscriptionHandler> CacheTransaction;
@@ -414,6 +436,7 @@ private:
   const Config* _cfg;
   std::string _impi;
   std::string _impu;
+  ServerAssignmentType _type;
 };
 
 class RegistrationTerminationHandler : public Diameter::Stack::Handler

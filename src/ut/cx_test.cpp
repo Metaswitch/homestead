@@ -63,10 +63,12 @@ public:
   static const std::string ORIGINATING_TRUE;
   static const std::string ORIGINATING_FALSE;
   static const std::string EMPTY_STRING;
-  static const int RESULT_CODE;
-  static const int AUTH_SESSION_STATE;
+  static const int32_t RESULT_CODE;
+  static const int32_t AUTH_SESSION_STATE;
   static const std::vector<std::string> IMPIS;
   static const ServerCapabilities CAPABILITIES;
+  static const int32_t SERVER_ASSIGNMENT_TYPE4;
+  static const int32_t SERVER_ASSIGNMENT_TYPE7;
 
   static Diameter::Stack* _real_stack;
   static MockDiameterStack* _mock_stack;
@@ -181,12 +183,14 @@ const std::string CxTest::AUTHORIZATION_TYPE_CAPAB = "CAPAB";
 const std::string CxTest::ORIGINATING_TRUE = "true";
 const std::string CxTest::ORIGINATING_FALSE = "false";
 const std::string CxTest::EMPTY_STRING = "";
-const int CxTest::RESULT_CODE = 2001;
-const int CxTest::AUTH_SESSION_STATE = 1;
+const int32_t CxTest::RESULT_CODE = 2001;
+const int32_t CxTest::AUTH_SESSION_STATE = 1;
 const std::vector<std::string> CxTest::IMPIS {"private_id1", "private_id2"};
 const std::vector<int32_t> mandatory_capabilities = {1, 3};
 const std::vector<int32_t> optional_capabilities = {2, 4};
 const ServerCapabilities CxTest::CAPABILITIES(mandatory_capabilities, optional_capabilities);
+const int32_t CxTest::SERVER_ASSIGNMENT_TYPE4 = 4;
+const int32_t CxTest::SERVER_ASSIGNMENT_TYPE7 = 7;
 
 Diameter::Stack* CxTest::_real_stack = NULL;
 MockDiameterStack* CxTest::_mock_stack = NULL;
@@ -247,7 +251,8 @@ TEST_F(CxTest, SARTest)
                                   DEST_REALM,
                                   IMPI,
                                   IMPU,
-                                  SERVER_NAME);
+                                  SERVER_NAME,
+                                  SERVER_ASSIGNMENT_TYPE4);
   Diameter::Message msg = launder_message(sar);
   sar = Cx::ServerAssignmentRequest(msg);
   check_common_request_fields(sar);
@@ -256,7 +261,7 @@ TEST_F(CxTest, SARTest)
   EXPECT_TRUE(sar.server_name(test_str));
   EXPECT_EQ(SERVER_NAME, test_str);
   EXPECT_TRUE(sar.server_assignment_type(test_i32));
-  EXPECT_EQ(1, test_i32);
+  EXPECT_EQ(SERVER_ASSIGNMENT_TYPE4, test_i32);
   EXPECT_TRUE(sar.user_data_already_available(test_i32));
   EXPECT_EQ(0, test_i32);
 }
@@ -269,7 +274,8 @@ TEST_F(CxTest, SARNoImpiTest)
                                   DEST_REALM,
                                   EMPTY_STRING,
                                   IMPU,
-                                  SERVER_NAME);
+                                  SERVER_NAME,
+                                  SERVER_ASSIGNMENT_TYPE7);
   Diameter::Message msg = launder_message(sar);
   sar = Cx::ServerAssignmentRequest(msg);
   check_common_request_fields(sar);
@@ -278,7 +284,7 @@ TEST_F(CxTest, SARNoImpiTest)
   EXPECT_TRUE(sar.server_name(test_str));
   EXPECT_EQ(SERVER_NAME, test_str);
   EXPECT_TRUE(sar.server_assignment_type(test_i32));
-  EXPECT_EQ(3, test_i32);
+  EXPECT_EQ(SERVER_ASSIGNMENT_TYPE7, test_i32);
   EXPECT_TRUE(sar.user_data_already_available(test_i32));
   EXPECT_EQ(0, test_i32);
 }
