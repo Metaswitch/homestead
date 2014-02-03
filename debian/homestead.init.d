@@ -84,6 +84,7 @@ get_settings()
         sas_server=0.0.0.0
         hss_hostname=0.0.0.0
         hss_port=3868
+        scscf=5054
         . /etc/clearwater/config
 
         # Set up defaults for user settings then pull in any overrides.
@@ -130,8 +131,8 @@ do_start()
                      --http-threads $num_http_threads
                      --dest-realm $home_domain
                      --dest-host $hss_hostname
-                     --server-name sip:$sprout_hostname:5054
-                     --impu-cache-ttl $impu_cache_ttl 
+                     --server-name sip:$sprout_hostname:$scscf
+                     --impu-cache-ttl $impu_cache_ttl
                      --ims-sub-cache-ttl $ims_sub_cache_ttl
                      $scheme_unknown_arg
                      -a $log_directory
