@@ -254,7 +254,7 @@ TEST_F(CxTest, SARTest)
   EXPECT_TRUE(sar.server_name(test_str));
   EXPECT_EQ(SERVER_NAME, test_str);
   EXPECT_TRUE(sar.server_assignment_type(test_i32));
-  EXPECT_EQ(4, test_i32);
+  EXPECT_EQ(SERVER_ASSIGNMENT_TYPE4, test_i32);
   EXPECT_TRUE(sar.user_data_already_available(test_i32));
   EXPECT_EQ(0, test_i32);
 }
@@ -276,7 +276,7 @@ TEST_F(CxTest, SARNoImpiTest)
   EXPECT_TRUE(sar.server_name(test_str));
   EXPECT_EQ(SERVER_NAME, test_str);
   EXPECT_TRUE(sar.server_assignment_type(test_i32));
-  EXPECT_EQ(7, test_i32);
+  EXPECT_EQ(SERVER_ASSIGNMENT_TYPE7, test_i32);
   EXPECT_TRUE(sar.user_data_already_available(test_i32));
   EXPECT_EQ(0, test_i32);
 }
