@@ -727,7 +727,7 @@ void ImpuIMSSubscriptionHandler::on_sar_response(Diameter::Message& rsp)
   {
     case 2001:
       {
-        if (_type.cache_subscriptions())
+        if (!_type.deregistration())
         {
           std::string user_data;
           saa.user_data(user_data);
@@ -750,14 +750,6 @@ void ImpuIMSSubscriptionHandler::on_sar_response(Diameter::Message& rsp)
             }
           }
         }
-        else
-        {
-          LOG_INFO("Delete IMS subscription for %s", _impu.c_str());
-          Cache::Request* delete_public_id = 
-            _cache->create_DeletePublicIDs(_impu, Cache::generate_timestamp());
-          CacheTransaction* tsx = new CacheTransaction(NULL);
-          _cache->send(tsx, delete_public_id);
-        }
         _req.send_reply(200);
       }
       break;
@@ -769,6 +761,17 @@ void ImpuIMSSubscriptionHandler::on_sar_response(Diameter::Message& rsp)
       LOG_INFO("Server-Assignment answer with result code %d - reject", result_code);
       _req.send_reply(500);
       break;
+
+    // Finally, regardless of the result_code from the HSS, if we are doing a
+    // deregistration, we should delete the IMS subscription relating to our public_id.
+    if (_type.deregistration())
+    {
+      LOG_INFO("Delete IMS subscription for %s", _impu.c_str());
+      Cache::Request* delete_public_id =
+        _cache->create_DeletePublicIDs(_impu, Cache::generate_timestamp());
+      CacheTransaction* tsx = new CacheTransaction(NULL);
+      _cache->send(tsx, delete_public_id);
+    }
   }
   delete this;
 }

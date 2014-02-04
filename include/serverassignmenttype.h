@@ -40,18 +40,18 @@
 struct ServerAssignmentType
 {
 public:
-  ServerAssignmentType(const bool& lookup, const int32_t& type, const bool& cache) :
-    _cache_lookup(lookup), _server_assignment_type(type), _cache_subscriptions(cache)
+  ServerAssignmentType(const bool& lookup, const int32_t& type, const bool& dereg) :
+    _cache_lookup(lookup), _server_assignment_type(type), _deregistration(dereg)
   {}
 
   inline bool cache_lookup() const {return _cache_lookup;}
   inline int32_t type() const {return _server_assignment_type;}
-  inline bool cache_subscriptions() const {return _cache_subscriptions;}
+  inline bool deregistration() const {return _deregistration;}
 
 private:
   bool _cache_lookup;
   int32_t _server_assignment_type;
-  bool _cache_subscriptions;
+  bool _deregistration;
 };
 
 #endif
