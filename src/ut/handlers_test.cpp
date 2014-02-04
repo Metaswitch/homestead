@@ -496,12 +496,12 @@ TEST_F(HandlersTest, IMSSubscriptionDereg)
   _caught_fd_msg = NULL;
 }
 
-TEST_F(HandlersTest, IMSSubscriptionNoCacheNoHss)
+TEST_F(HandlersTest, IMSSubscriptionCacheFailureNoHss)
 {
   MockHttpStack::Request req(_httpstack,
                              "/impu/" + IMPU,
                              "",
-                             "?private_id=" + IMPI);
+                             "?private_id=" + IMPI + "&type=rereg");
   ImpuIMSSubscriptionHandler::Config cfg(false, 3600);
   ImpuIMSSubscriptionHandler* handler = new ImpuIMSSubscriptionHandler(req, &cfg);
 
@@ -523,6 +523,22 @@ TEST_F(HandlersTest, IMSSubscriptionNoCacheNoHss)
   _caught_fd_msg = NULL;
 }
 
+TEST_F(HandlersTest, IMSSubscriptionNoCacheNoHss)
+{
+  MockHttpStack::Request req(_httpstack,
+                             "/impu/" + IMPU,
+                             "",
+                             "?private_id=" + IMPI + "&type=reg");
+  ImpuIMSSubscriptionHandler::Config cfg(false, 3600);
+  ImpuIMSSubscriptionHandler* handler = new ImpuIMSSubscriptionHandler(req, &cfg);
+
+  EXPECT_CALL(*_httpstack, send_reply(_, 502));
+  std::string error_text = "error";
+  handler->run();
+
+  _caught_diam_tsx = NULL;
+  _caught_fd_msg = NULL;
+}
 
 TEST_F(HandlersTest, IMSSubscriptionUserUnknownDereg)
 {
