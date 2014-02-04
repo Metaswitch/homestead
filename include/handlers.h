@@ -419,6 +419,11 @@ public:
     int ims_sub_cache_ttl;
   };
 
+  // Initialise the type field to reflect default behaviour if no type is specified.
+  // That is, look for IMS subscription information in the cache. If we don't find
+  // any, assume we have a first registration and query the cache with
+  // Server-Assignment-Type set to REGISTRATION (1) and cache any IMS subscription
+  // information that gets returned.
   ImpuIMSSubscriptionHandler(HttpStack::Request& req, const Config* cfg) :
     HssCacheHandler(req), _cfg(cfg), _impi(), _impu(), _type(true, 1, false)
   {}
