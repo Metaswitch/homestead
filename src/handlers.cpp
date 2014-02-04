@@ -655,10 +655,14 @@ void ImpuIMSSubscriptionHandler::run()
   {
     _type = it->second;
   }
+  else if (!type.empty())
+  {
+    LOG_WARNING("HTTP request contains invalid value %s for type parameter", type.c_str());
+  }
 
   // The ServerAssignmentType object has a cache_lookup field which
   // determines whether we should look for IMS subscription in the cache.
-  if(_type.cache_lookup())
+  if((_type.cache_lookup()) || !(_cfg->hss_configured))
   {
     LOG_DEBUG("Try to find IMS Subscription information in the cache");
     Cache::Request* get_ims_sub = _cache->create_GetIMSSubscription(_impu);
@@ -667,16 +671,10 @@ void ImpuIMSSubscriptionHandler::run()
     tsx->set_failure_clbk(&ImpuIMSSubscriptionHandler::on_get_ims_subscription_failure);
     _cache->send(tsx, get_ims_sub);
   }
-  else if (_cfg->hss_configured)
+  else
   {
     LOG_DEBUG("First time register or deregistration - go to the HSS");
     send_server_assignment_request();
-  }
-  else
-  {
-    LOG_DEBUG("First time register or deregistration, but no HSS configured");
-    _req.send_reply(502);
-    delete this;
   }
 }
 

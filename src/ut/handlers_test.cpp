@@ -496,12 +496,42 @@ TEST_F(HandlersTest, IMSSubscriptionDereg)
   _caught_fd_msg = NULL;
 }
 
-TEST_F(HandlersTest, IMSSubscriptionCacheFailureNoHss)
+TEST_F(HandlersTest, IMSSubscriptionNoHSS)
 {
   MockHttpStack::Request req(_httpstack,
                              "/impu/" + IMPU,
                              "",
-                             "?private_id=" + IMPI + "&type=rereg");
+                             "?private_id=" + IMPI + "&type=reg");
+  ImpuIMSSubscriptionHandler::Config cfg(false, 3600);
+  ImpuIMSSubscriptionHandler* handler = new ImpuIMSSubscriptionHandler(req, &cfg);
+
+  MockCache::MockGetIMSSubscription mock_req;
+  EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU))
+    .WillOnce(Return(&mock_req));
+  EXPECT_CALL(*_cache, send(_, &mock_req))
+    .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
+  handler->run();
+
+  Cache::Transaction* t = mock_req.get_trx();
+  ASSERT_FALSE(t == NULL);
+  EXPECT_CALL(mock_req, get_result(_))
+    .WillRepeatedly(SetArgReferee<0>(IMS_SUBSCRIPTION));
+  EXPECT_CALL(*_httpstack, send_reply(_, 200));
+  t->on_success(&mock_req);
+
+  // Build the expected response and check it's correct
+  EXPECT_EQ(IMS_SUBSCRIPTION, req.content());
+
+  _caught_diam_tsx = NULL;
+  _caught_fd_msg = NULL;
+}
+
+TEST_F(HandlersTest, IMSSubscriptionCacheFailureNoHSSInvalidType)
+{
+  MockHttpStack::Request req(_httpstack,
+                             "/impu/" + IMPU,
+                             "",
+                             "?private_id=" + IMPI + "&type=invalid");
   ImpuIMSSubscriptionHandler::Config cfg(false, 3600);
   ImpuIMSSubscriptionHandler* handler = new ImpuIMSSubscriptionHandler(req, &cfg);
 
@@ -518,23 +548,6 @@ TEST_F(HandlersTest, IMSSubscriptionCacheFailureNoHss)
   EXPECT_CALL(*_httpstack, send_reply(_, 502));
   std::string error_text = "error";
   t->on_failure(&mock_req, Cache::NOT_FOUND, error_text);
-
-  _caught_diam_tsx = NULL;
-  _caught_fd_msg = NULL;
-}
-
-TEST_F(HandlersTest, IMSSubscriptionNoCacheNoHss)
-{
-  MockHttpStack::Request req(_httpstack,
-                             "/impu/" + IMPU,
-                             "",
-                             "?private_id=" + IMPI + "&type=reg");
-  ImpuIMSSubscriptionHandler::Config cfg(false, 3600);
-  ImpuIMSSubscriptionHandler* handler = new ImpuIMSSubscriptionHandler(req, &cfg);
-
-  EXPECT_CALL(*_httpstack, send_reply(_, 502));
-  std::string error_text = "error";
-  handler->run();
 
   _caught_diam_tsx = NULL;
   _caught_fd_msg = NULL;
