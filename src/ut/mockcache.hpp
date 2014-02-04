@@ -89,6 +89,8 @@ public:
                GetIMSSubscription*(const std::string& public_id));
   MOCK_METHOD1(create_GetAssociatedPublicIDs,
                GetAssociatedPublicIDs*(const std::string& private_id));
+  MOCK_METHOD1(create_GetAssociatedPublicIDs,
+               GetAssociatedPublicIDs*(const std::vector<std::string>& private_ids));
   MOCK_METHOD1(create_GetAuthVector,
                GetAuthVector*(const std::string& private_id));
   MOCK_METHOD2(create_GetAuthVector,

@@ -70,15 +70,15 @@ const std::string JSON_RC = "result-code";
 const std::string JSON_SCSCF = "scscf";
 
 // Server Assignment Types
-const ServerAssignmentType REG(false, 1, true);
-const ServerAssignmentType REREG(true, 2, true);
-const ServerAssignmentType DEREG_USER(false, 5, false);
-const ServerAssignmentType DEREG_TIMEOUT(false, 4, false);
-const ServerAssignmentType DEREG_AUTH_FAIL(false, 9, false);
-const ServerAssignmentType DEREG_AUTH_TIMEOUT(false, 10, false);
-const ServerAssignmentType DEREG_ADMIN(false, 8, false);
-const ServerAssignmentType CALL_REG(true, 0, true);
-const ServerAssignmentType CALL_UNREG(true, 3, true);
+const ServerAssignmentType REG(false, 1, false);
+const ServerAssignmentType REREG(true, 2, false);
+const ServerAssignmentType DEREG_USER(false, 5, true);
+const ServerAssignmentType DEREG_TIMEOUT(false, 4, true);
+const ServerAssignmentType DEREG_AUTH_FAIL(false, 9, true);
+const ServerAssignmentType DEREG_AUTH_TIMEOUT(false, 10, true);
+const ServerAssignmentType DEREG_ADMIN(false, 8, true);
+const ServerAssignmentType CALL_REG(true, 0, false);
+const ServerAssignmentType CALL_UNREG(true, 3, false);
 const std::map<std::string, ServerAssignmentType> SERVER_ASSIGNMENT_TYPES = {{"reg", REG},
                                                                              {"rereg", REREG},
                                                                              {"dereg-user", DEREG_USER},
@@ -420,7 +420,7 @@ public:
   };
 
   ImpuIMSSubscriptionHandler(HttpStack::Request& req, const Config* cfg) :
-    HssCacheHandler(req), _cfg(cfg), _impi(), _impu(), _type(true, 1, true)
+    HssCacheHandler(req), _cfg(cfg), _impi(), _impu(), _type(true, 1, false)
   {}
 
   void run();

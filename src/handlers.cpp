@@ -667,10 +667,16 @@ void ImpuIMSSubscriptionHandler::run()
     tsx->set_failure_clbk(&ImpuIMSSubscriptionHandler::on_get_ims_subscription_failure);
     _cache->send(tsx, get_ims_sub);
   }
-  else
+  else if (_cfg->hss_configured)
   {
     LOG_DEBUG("First time register or deregistration - go to the HSS");
     send_server_assignment_request();
+  }
+  else
+  {
+    LOG_DEBUG("First time register or deregistration, but no HSS configured");
+    _req.send_reply(502);
+    delete this;
   }
 }
 
@@ -761,17 +767,17 @@ void ImpuIMSSubscriptionHandler::on_sar_response(Diameter::Message& rsp)
       LOG_INFO("Server-Assignment answer with result code %d - reject", result_code);
       _req.send_reply(500);
       break;
+  }
 
-    // Finally, regardless of the result_code from the HSS, if we are doing a
-    // deregistration, we should delete the IMS subscription relating to our public_id.
-    if (_type.deregistration())
-    {
-      LOG_INFO("Delete IMS subscription for %s", _impu.c_str());
-      Cache::Request* delete_public_id =
-        _cache->create_DeletePublicIDs(_impu, Cache::generate_timestamp());
-      CacheTransaction* tsx = new CacheTransaction(NULL);
-      _cache->send(tsx, delete_public_id);
-    }
+  // Finally, regardless of the result_code from the HSS, if we are doing a
+  // deregistration, we should delete the IMS subscription relating to our public_id.
+  if (_type.deregistration())
+  {
+    LOG_INFO("Delete IMS subscription for %s", _impu.c_str());
+    Cache::Request* delete_public_id =
+      _cache->create_DeletePublicIDs(_impu, Cache::generate_timestamp());
+    CacheTransaction* tsx = new CacheTransaction(NULL);
+    _cache->send(tsx, delete_public_id);
   }
   delete this;
 }

@@ -298,12 +298,12 @@ TEST_F(HandlersTest, SimpleMainline)
 // IMS Subscription tests
 //
 
-TEST_F(HandlersTest, IMSSubscriptionCache)
+TEST_F(HandlersTest, IMSSubscriptionRereg)
 {
   MockHttpStack::Request req(_httpstack,
                              "/impu/" + IMPU,
                              "",
-                             "?private_id=" + IMPI);
+                             "?private_id=" + IMPI + "&type=rereg");
   ImpuIMSSubscriptionHandler::Config cfg(true, 3600);
   ImpuIMSSubscriptionHandler* handler = new ImpuIMSSubscriptionHandler(req, &cfg);
 
@@ -321,16 +321,16 @@ TEST_F(HandlersTest, IMSSubscriptionCache)
   EXPECT_CALL(*_httpstack, send_reply(_, 200));
   t->on_success(&mock_req);
 
-  // Build the expected JSON response and check it's correct
+  // Build the expected response and check it's correct
   EXPECT_EQ(IMS_SUBSCRIPTION, req.content());
 }
 
-TEST_F(HandlersTest, IMSSubscriptionHSS)
+TEST_F(HandlersTest, IMSSubscriptionReregHSS)
 {
   MockHttpStack::Request req(_httpstack,
                              "/impu/" + IMPU,
                              "",
-                             "?private_id=" + IMPI);
+                             "?private_id=" + IMPI + "&type=rereg");
   ImpuIMSSubscriptionHandler::Config cfg(true, 3600);
   ImpuIMSSubscriptionHandler* handler = new ImpuIMSSubscriptionHandler(req, &cfg);
 
@@ -361,6 +361,8 @@ TEST_F(HandlersTest, IMSSubscriptionHSS)
   EXPECT_EQ(IMPU, sar.impu());
   EXPECT_TRUE(sar.server_name(test_str));
   EXPECT_EQ(DEFAULT_SERVER_NAME, test_str);
+  EXPECT_TRUE(sar.server_assignment_type(test_i32));
+  EXPECT_EQ(2, test_i32);
 
   Cx::ServerAssignmentAnswer saa(_cx_dict,
                                  _mock_stack,
@@ -381,13 +383,118 @@ TEST_F(HandlersTest, IMSSubscriptionHSS)
   t = mock_req2.get_trx();
   ASSERT_FALSE(t == NULL);
 
-  // Build the expected JSON response and check it's correct
+  // Build the expected response and check it's correct
   EXPECT_EQ(IMS_SUBSCRIPTION, req.content());
 
   _caught_diam_tsx = NULL;
   _caught_fd_msg = NULL;
 }
 
+TEST_F(HandlersTest, IMSSubscriptionReg)
+{
+  MockHttpStack::Request req(_httpstack,
+                             "/impu/" + IMPU,
+                             "",
+                             "?private_id=" + IMPI + "&type=reg");
+  ImpuIMSSubscriptionHandler::Config cfg(true, 3600);
+  ImpuIMSSubscriptionHandler* handler = new ImpuIMSSubscriptionHandler(req, &cfg);
+
+  EXPECT_CALL(*_mock_stack, send(_, _, 200))
+    .Times(1)
+    .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
+  handler->run();
+
+  ASSERT_FALSE(_caught_diam_tsx == NULL);
+  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
+  Cx::ServerAssignmentRequest sar(msg);
+  EXPECT_TRUE(sar.get_str_from_avp(_cx_dict->DESTINATION_REALM, test_str));
+  EXPECT_EQ(DEST_REALM, test_str);
+  EXPECT_TRUE(sar.get_str_from_avp(_cx_dict->DESTINATION_HOST, test_str));
+  EXPECT_EQ(DEST_HOST, test_str);
+  EXPECT_EQ(IMPI, sar.impi());
+  EXPECT_EQ(IMPU, sar.impu());
+  EXPECT_TRUE(sar.server_name(test_str));
+  EXPECT_EQ(DEFAULT_SERVER_NAME, test_str);
+  EXPECT_TRUE(sar.server_assignment_type(test_i32));
+  EXPECT_EQ(1, test_i32);
+
+  Cx::ServerAssignmentAnswer saa(_cx_dict,
+                                 _mock_stack,
+                                 DIAMETER_SUCCESS,
+                                 IMS_SUBSCRIPTION);
+
+  MockCache::MockPutIMSSubscription mock_req;
+  std::vector<std::string> impus;
+  impus.push_back(IMPU);
+  EXPECT_CALL(*_cache, create_PutIMSSubscription(impus, IMS_SUBSCRIPTION, _, 3600))
+    .WillOnce(Return(&mock_req));
+  EXPECT_CALL(*_cache, send(_, &mock_req))
+    .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
+
+  EXPECT_CALL(*_httpstack, send_reply(_, 200));
+  _caught_diam_tsx->on_response(saa);
+
+  Cache::Transaction* t = mock_req.get_trx();
+  ASSERT_FALSE(t == NULL);
+
+  // Build the expected response and check it's correct
+  EXPECT_EQ(IMS_SUBSCRIPTION, req.content());
+
+  _caught_diam_tsx = NULL;
+  _caught_fd_msg = NULL;
+}
+
+TEST_F(HandlersTest, IMSSubscriptionDereg)
+{
+  MockHttpStack::Request req(_httpstack,
+                             "/impu/" + IMPU,
+                             "",
+                             "?private_id=" + IMPI + "&type=dereg-user");
+  ImpuIMSSubscriptionHandler::Config cfg(true, 3600);
+  ImpuIMSSubscriptionHandler* handler = new ImpuIMSSubscriptionHandler(req, &cfg);
+
+  EXPECT_CALL(*_mock_stack, send(_, _, 200))
+    .Times(1)
+    .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
+  handler->run();
+
+  ASSERT_FALSE(_caught_diam_tsx == NULL);
+  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
+  Cx::ServerAssignmentRequest sar(msg);
+  EXPECT_TRUE(sar.get_str_from_avp(_cx_dict->DESTINATION_REALM, test_str));
+  EXPECT_EQ(DEST_REALM, test_str);
+  EXPECT_TRUE(sar.get_str_from_avp(_cx_dict->DESTINATION_HOST, test_str));
+  EXPECT_EQ(DEST_HOST, test_str);
+  EXPECT_EQ(IMPI, sar.impi());
+  EXPECT_EQ(IMPU, sar.impu());
+  EXPECT_TRUE(sar.server_name(test_str));
+  EXPECT_EQ(DEFAULT_SERVER_NAME, test_str);
+  EXPECT_TRUE(sar.server_assignment_type(test_i32));
+  EXPECT_EQ(5, test_i32);
+
+  Cx::ServerAssignmentAnswer saa(_cx_dict,
+                                 _mock_stack,
+                                 DIAMETER_SUCCESS,
+                                 IMS_SUBSCRIPTION);
+
+  MockCache::MockDeletePublicIDs mock_req;
+  EXPECT_CALL(*_cache, create_DeletePublicIDs(IMPU, _))
+    .WillOnce(Return(&mock_req));
+  EXPECT_CALL(*_cache, send(_, &mock_req))
+    .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
+
+  EXPECT_CALL(*_httpstack, send_reply(_, 200));
+  _caught_diam_tsx->on_response(saa);
+
+  Cache::Transaction* t = mock_req.get_trx();
+  ASSERT_FALSE(t == NULL);
+
+  // Build the expected empty response and check it's correct
+  EXPECT_EQ("", req.content());
+
+  _caught_diam_tsx = NULL;
+  _caught_fd_msg = NULL;
+}
 
 TEST_F(HandlersTest, IMSSubscriptionNoCacheNoHss)
 {
@@ -417,30 +524,20 @@ TEST_F(HandlersTest, IMSSubscriptionNoCacheNoHss)
 }
 
 
-TEST_F(HandlersTest, IMSSubscriptionUserUnknown)
+TEST_F(HandlersTest, IMSSubscriptionUserUnknownDereg)
 {
   MockHttpStack::Request req(_httpstack,
                              "/impu/" + IMPU,
                              "",
-                             "?private_id=" + IMPI);
+                             "?private_id=" + IMPI + "&type=dereg-timeout");
   ImpuIMSSubscriptionHandler::Config cfg(true, 3600);
   ImpuIMSSubscriptionHandler* handler = new ImpuIMSSubscriptionHandler(req, &cfg);
-
-  MockCache::MockGetIMSSubscription mock_req;
-  EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU))
-    .WillOnce(Return(&mock_req));
-  EXPECT_CALL(*_cache, send(_, &mock_req))
-    .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
-  handler->run();
-
-  Cache::Transaction* t = mock_req.get_trx();
-  ASSERT_FALSE(t == NULL);
 
   EXPECT_CALL(*_mock_stack, send(_, _, 200))
     .Times(1)
     .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
   std::string error_text = "error";
-  t->on_failure(&mock_req, Cache::NOT_FOUND, error_text);
+  handler->run();
 
   ASSERT_FALSE(_caught_diam_tsx == NULL);
   Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
@@ -451,20 +548,29 @@ TEST_F(HandlersTest, IMSSubscriptionUserUnknown)
                                  DIAMETER_ERROR_USER_UNKNOWN,
                                  "");
 
+  MockCache::MockDeletePublicIDs mock_req;
+  EXPECT_CALL(*_cache, create_DeletePublicIDs(IMPU, _))
+    .WillOnce(Return(&mock_req));
+  EXPECT_CALL(*_cache, send(_, &mock_req))
+    .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
+
   EXPECT_CALL(*_httpstack, send_reply(_, 404));
   _caught_diam_tsx->on_response(saa);
+
+  Cache::Transaction* t = mock_req.get_trx();
+  ASSERT_FALSE(t == NULL);
 
   _caught_diam_tsx = NULL;
   _caught_fd_msg = NULL;
 }
 
 
-TEST_F(HandlersTest, IMSSubscriptionOtherError)
+TEST_F(HandlersTest, IMSSubscriptionOtherErrorCallReg)
 {
   MockHttpStack::Request req(_httpstack,
                              "/impu/" + IMPU,
                              "",
-                             "?private_id=" + IMPI);
+                             "?private_id=" + IMPI + "&type=call-reg");
   ImpuIMSSubscriptionHandler::Config cfg(true, 3600);
   ImpuIMSSubscriptionHandler* handler = new ImpuIMSSubscriptionHandler(req, &cfg);
 
@@ -837,7 +943,7 @@ TEST_F(HandlersTest, RegistrationTerminationNoImpus)
   associated_identities.push_back(IMPI);
   associated_identities.insert(associated_identities.end(), ASSOCIATED_IDENTITIES.begin(), ASSOCIATED_IDENTITIES.end());
   MockCache::MockGetAssociatedPublicIDs mock_req;
-  EXPECT_CALL(*_cache, create_GetAssociatedPublicIDs(_))
+  EXPECT_CALL(*_cache, create_GetAssociatedPublicIDs(associated_identities))
     .WillOnce(Return(&mock_req));
   EXPECT_CALL(*_cache, send(_, &mock_req))
     .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
@@ -871,6 +977,9 @@ TEST_F(HandlersTest, RegistrationTerminationNoImpus)
   ASSERT_FALSE(t == NULL);
 
   Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
+  // Change the _free_on_delete flag to false, or we will try and
+  // free this message twice. 
+  msg._free_on_delete = false;
   Cx::RegistrationTerminationAnswer rta(msg);
   EXPECT_TRUE(rta.result_code(test_i32));
   EXPECT_EQ(DIAMETER_SUCCESS, test_i32);
@@ -917,6 +1026,9 @@ TEST_F(HandlersTest, RegistrationTermination)
   ASSERT_FALSE(t == NULL);
 
   Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
+  // Change the _free_on_delete flag to false, or we will try and
+  // free this message twice. 
+  msg._free_on_delete = false;
   Cx::RegistrationTerminationAnswer rta(msg);
   EXPECT_TRUE(rta.result_code(test_i32));
   EXPECT_EQ(DIAMETER_SUCCESS, test_i32);
@@ -970,6 +1082,9 @@ TEST_F(HandlersTest, PushProfile)
   ASSERT_FALSE(t == NULL);
 
   Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
+  // Change the _free_on_delete flag to false, or we will try and
+  // free this message twice. 
+  msg._free_on_delete = false;
   Cx::PushProfileAnswer ppa(msg);
   EXPECT_TRUE(ppa.result_code(test_i32));
   EXPECT_EQ(DIAMETER_SUCCESS, test_i32);
