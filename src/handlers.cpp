@@ -691,7 +691,8 @@ void ImpuIMSSubscriptionHandler::on_get_ims_subscription_success(Cache::Request*
   LOG_DEBUG("Got IMS subscription from cache");
   Cache::GetIMSSubscription* get_ims_sub = (Cache::GetIMSSubscription*)request;
   std::string xml;
-  get_ims_sub->get_result(xml);
+  int32_t ttl;
+  get_ims_sub->get_xml(xml, ttl);
   _req.add_content(xml);
   _req.send_reply(200);
   delete this;
@@ -741,6 +742,7 @@ void ImpuIMSSubscriptionHandler::on_sar_response(Diameter::Message& rsp)
         if (!_type.deregistration())
         {
           std::string user_data;
+          RegistrationState state = RegistrationState::REGISTERED;
           saa.user_data(user_data);
           _req.add_content(user_data);
 
@@ -754,8 +756,10 @@ void ImpuIMSSubscriptionHandler::on_sar_response(Diameter::Message& rsp)
               Cache::Request* put_ims_sub =
                 _cache->create_PutIMSSubscription(public_ids,
                                                   user_data,
+                                                  state,
                                                   Cache::generate_timestamp(),
-                                                  _cfg->ims_sub_cache_ttl);
+                                                  _cfg->ims_sub_cache_ttl,
+                                                  (2 * _cfg->ims_sub_cache_ttl));
               CacheTransaction* tsx = new CacheTransaction(NULL);
               _cache->send(tsx, put_ims_sub);
             }
@@ -897,7 +901,8 @@ void PushProfileHandler::run()
   {
     LOG_INFO("Updating IMS subscription from PPR");
     std::vector<std::string> impus = XmlUtils::get_public_ids(user_data);
-    Cache::Request* put_ims_subscription = _cfg->cache->create_PutIMSSubscription(impus, user_data, Cache::generate_timestamp(), _cfg->ims_sub_cache_ttl);
+    RegistrationState state = RegistrationState::UNCHANGED;
+    Cache::Request* put_ims_subscription = _cfg->cache->create_PutIMSSubscription(impus, user_data, state, Cache::generate_timestamp(), _cfg->ims_sub_cache_ttl, (2 * _cfg->ims_sub_cache_ttl));
     HssCacheHandler::CacheTransaction<PushProfileHandler>* tsx = new HssCacheHandler::CacheTransaction<PushProfileHandler>(NULL);
     _cfg->cache->send(tsx, put_ims_subscription);
   }

@@ -61,7 +61,6 @@
 #undef htonll
 #endif
 
-
 #include "thrift/Thrift.h"
 #include "thrift/transport/TSocket.h"
 #include "thrift/transport/TTransport.h"
@@ -73,6 +72,7 @@
 #include "authvector.h"
 #include "threadpool.h"
 #include "utils.h"
+#include "reg_state.h"
 
 namespace cass = org::apache::cassandra;
 
@@ -433,6 +433,16 @@ public:
                      const std::map<std::string, std::string>& columns,
                      int64_t timestamp,
                      int32_t ttl);
+
+    /// Write columns to a row/rows, with per-column TTLs.
+    ///
+    /// If multiple rows are specified the same columns are written to all rows.
+    ///
+    /// @param keys the row keys
+    /// @param columns the columns to write. Specified as a map {name => value}
+    void put_columns(const std::vector<std::string>& keys,
+                     const std::map<std::string, std::pair<std::string, int32_t> >& columns,
+                     int64_t timestamp);
   };
 
   /// @class GetRequest a request to read data from the cache.
@@ -549,8 +559,10 @@ public:
     /// @param xml the subscription XML.
     PutIMSSubscription(const std::string& public_id,
                        const std::string& xml,
+                       const RegistrationState reg_state,
                        const int64_t timestamp,
-                       const int32_t ttl = 0);
+                       const int32_t xml_ttl = 0,
+                       const int32_t reg_state_ttl = 0);
 
     /// Constructor that sets the same  IMS subscription XML for multiple public
     /// IDs.
@@ -559,13 +571,18 @@ public:
     /// @param xml the subscription XML.
     PutIMSSubscription(const std::vector<std::string>& public_ids,
                        const std::string& xml,
+                       const RegistrationState reg_state,
                        const int64_t timestamp,
-                       const int32_t ttl = 0);
+                       const int32_t xml_ttl = 0,
+                       const int32_t reg_state_ttl = 0);
     virtual ~PutIMSSubscription();
 
   protected:
     std::vector<std::string> _public_ids;
     std::string _xml;
+    RegistrationState _reg_state;
+    int32_t _xml_ttl;
+    int32_t _reg_state_ttl;
 
     void perform();
   };
@@ -573,19 +590,23 @@ public:
   virtual PutIMSSubscription*
     create_PutIMSSubscription(const std::string& public_id,
                               const std::string& xml,
+                              const RegistrationState reg_state,
                               const int64_t timestamp,
-                              const int32_t ttl = 0)
+                              const int32_t xml_ttl = 0,
+                              const int32_t reg_state_ttl = 0)
   {
-    return new PutIMSSubscription(public_id, xml, timestamp, ttl);
+    return new PutIMSSubscription(public_id, xml, reg_state, timestamp, xml_ttl, reg_state_ttl);
   }
 
   virtual PutIMSSubscription*
     create_PutIMSSubscription(std::vector<std::string>& public_ids,
                               const std::string& xml,
+                              const RegistrationState reg_state,
                               const int64_t timestamp,
-                              const int32_t ttl = 0)
+                              const int32_t xml_ttl = 0,
+                              const int32_t reg_state_ttl = 0)
   {
-    return new PutIMSSubscription(public_ids, xml, timestamp, ttl);
+    return new PutIMSSubscription(public_ids, xml, reg_state, timestamp, xml_ttl, reg_state_ttl);
   }
 
   class PutAssociatedPublicID : public PutRequest
@@ -661,7 +682,14 @@ public:
     /// Access the result of the request.
     ///
     /// @param xml the IMS subscription XML document.
-    virtual void get_result(std::string& xml);
+    /// @param ttl the column's time-to-live.
+    virtual void get_xml(std::string& xml, int32_t& ttl);
+
+    /// Access the result of the request.
+    ///
+    /// @param reg_state the registration state value.
+    /// @param ttl the column's time-to-live.
+    virtual void get_registration_state(RegistrationState& reg_state, int32_t& ttl);
 
   protected:
     // Request parameters.
@@ -669,6 +697,9 @@ public:
 
     // Result.
     std::string _xml;
+    RegistrationState _reg_state;
+    int32_t _xml_ttl;
+    int32_t _reg_state_ttl;
 
     void perform();
   };

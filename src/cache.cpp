@@ -34,7 +34,7 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#include <cache.h>
+#include "cache.h"
 
 #include <boost/format.hpp>
 #include <time.h>
@@ -55,6 +55,7 @@ std::string IMPU = "impu";
 
 // Column names in the IMPU column family.
 std::string IMS_SUB_XML_COLUMN_NAME = "ims_subscription_xml";
+std::string REG_STATE_COLUMN_NAME = "is_registered";
 
 // Column names in the IMPI column family.
 std::string ASSOC_PUBLIC_ID_COLUMN_PREFIX = "public_id_";
@@ -397,6 +398,24 @@ put_columns(const std::vector<std::string>& keys,
             int64_t timestamp,
             int32_t ttl)
 {
+  std::map<std::string, std::pair<std::string, int32_t> > columns_with_ttl;
+  for (std::map<std::string, std::string>::const_iterator it = columns.begin();
+       it != columns.end();
+       ++it)
+  {
+    std::string column_name = it->first;
+    std::string column_value = it->second;
+    columns_with_ttl[column_name].first = column_value;
+    columns_with_ttl[column_name].second = ttl;
+  }
+  put_columns(keys, columns_with_ttl, timestamp);
+}
+
+void Cache::PutRequest::
+put_columns(const std::vector<std::string>& keys,
+            const std::map<std::string, std::pair<std::string, int32_t> >& columns,
+            int64_t timestamp)
+{
   // Vector of mutations (one per column being modified).
   std::vector<Mutation> mutations;
 
@@ -404,17 +423,18 @@ put_columns(const std::vector<std::string>& keys,
   std::map<std::string, std::map<std::string, std::vector<Mutation> > > mutmap;
 
   // Populate the mutations vector.
-  LOG_DEBUG("Constructing cache put request with timestamp %lld and TTL %d", timestamp, ttl);
-  for (std::map<std::string, std::string>::const_iterator it = columns.begin();
+  LOG_DEBUG("Constructing cache put request with timestamp %lld and per-column TTLs", timestamp);
+  for (std::map<std::string, std::pair<std::string, int32_t> >::const_iterator it = columns.begin();
        it != columns.end();
        ++it)
   {
-    LOG_DEBUG("  %s => %s", it->first.c_str(), it->second.c_str());
     Mutation mutation;
     Column* column = &mutation.column_or_supercolumn.column;
 
+    int32_t ttl = it->second.second;
     column->name = it->first;
-    column->value = it->second;
+    column->value = it->second.first;
+    LOG_DEBUG("  %s => %s (TTL %d)", column->name.c_str(), column->value.c_str(), ttl);
     column->__isset.value = true;
     column->timestamp = timestamp;
     column->__isset.timestamp = true;
@@ -642,22 +662,30 @@ delete_row(const std::string& key,
 Cache::PutIMSSubscription::
 PutIMSSubscription(const std::string& public_id,
                    const std::string& xml,
+                   const RegistrationState reg_state,
                    const int64_t timestamp,
-                   const int32_t ttl) :
-  PutRequest(IMPU, timestamp, ttl),
+                   const int32_t xml_ttl,
+                   const int32_t reg_state_ttl) :
+  PutRequest(IMPU, timestamp, 0),
   _public_ids(1, public_id),
-  _xml(xml)
+  _xml(xml),
+  _reg_state(reg_state),
+  _xml_ttl(xml_ttl),
+  _reg_state_ttl(reg_state_ttl)
 {}
-
-
 Cache::PutIMSSubscription::
 PutIMSSubscription(const std::vector<std::string>& public_ids,
                    const std::string& xml,
+                   const RegistrationState reg_state,
                    const int64_t timestamp,
-                   const int32_t ttl) :
-  PutRequest(IMPU, timestamp, ttl),
+                   const int32_t xml_ttl,
+                   const int32_t reg_state_ttl) :
+  PutRequest(IMPU, timestamp, 0),
   _public_ids(public_ids),
-  _xml(xml)
+  _xml(xml),
+  _reg_state(reg_state),
+  _xml_ttl(xml_ttl),
+  _reg_state_ttl(reg_state_ttl)
 {}
 
 
@@ -668,10 +696,19 @@ Cache::PutIMSSubscription::
 
 void Cache::PutIMSSubscription::perform()
 {
-  std::map<std::string, std::string> columns;
-  columns[IMS_SUB_XML_COLUMN_NAME] = _xml;
+  std::map<std::string, std::pair<std::string, int32_t> > columns;
+  columns[IMS_SUB_XML_COLUMN_NAME].first = _xml;
+  columns[IMS_SUB_XML_COLUMN_NAME].second = _xml_ttl;
 
-  put_columns(_public_ids, columns, _timestamp, _ttl);
+  if (_reg_state == RegistrationState::REGISTERED) {
+    columns[REG_STATE_COLUMN_NAME].first = "\x01";
+    columns[REG_STATE_COLUMN_NAME].second = _reg_state_ttl;
+  } else if (_reg_state == RegistrationState::UNREGISTERED) {
+    columns[REG_STATE_COLUMN_NAME].first = "\x00";
+    columns[REG_STATE_COLUMN_NAME].second = _reg_state_ttl;
+  };
+
+  put_columns(_public_ids, columns, _timestamp);
   _trx->on_success(this);
 }
 
@@ -747,7 +784,8 @@ Cache::GetIMSSubscription::
 GetIMSSubscription(const std::string& public_id) :
   GetRequest(IMPU),
   _public_id(public_id),
-  _xml()
+  _xml(),
+  _reg_state(RegistrationState::NOT_REGISTERED)
 {}
 
 
@@ -761,18 +799,49 @@ void Cache::GetIMSSubscription::perform()
   LOG_DEBUG("Issuing get for column %s for key %s",
             IMS_SUB_XML_COLUMN_NAME.c_str(), _public_id.c_str());
   std::vector<ColumnOrSuperColumn> results;
-  std::vector<std::string> requested_columns(1, IMS_SUB_XML_COLUMN_NAME);
+  std::vector<std::string> requested_columns;
+  requested_columns.push_back(IMS_SUB_XML_COLUMN_NAME);
+  requested_columns.push_back(REG_STATE_COLUMN_NAME);
 
-  ha_get_columns(_public_id, requested_columns, results);
+  try {
+    ha_get_columns(_public_id, requested_columns, results);
 
-  // We must have a result, ha_get_columns raises NoResultsException if not.
-  _xml = results[0].column.value;
+    for(std::vector<ColumnOrSuperColumn>::iterator it = results.begin(); it != results.end(); ++it) {
+      if (it->column.name.compare(IMS_SUB_XML_COLUMN_NAME) == 0) {
+        _xml = it->column.value;
+        _xml_ttl = it->column.ttl;
+        } else if (it->column.name.compare(REG_STATE_COLUMN_NAME) == 0) {
+        if (it->column.value.compare("\x01") == 0) {
+          _reg_state = RegistrationState::REGISTERED;
+        } else if (it->column.value.compare("\x00") == 0) {
+          _reg_state = RegistrationState::UNREGISTERED;
+        }
+      };
+  }
+
+  }
+  catch(Cache::NoResultsException& nre)
+  {
+    // This is a valid state rather than an exceptional one, so we
+    // catch the exception, set state appropriately and return success.
+    _reg_state = RegistrationState::NOT_REGISTERED;
+    _xml = "";
+  }
+
+
   _trx->on_success(this);
 }
 
-void Cache::GetIMSSubscription::get_result(std::string& xml)
+void Cache::GetIMSSubscription::get_xml(std::string& xml, int32_t& ttl)
 {
   xml = _xml;
+  ttl = _xml_ttl;
+}
+
+void Cache::GetIMSSubscription::get_registration_state(RegistrationState& reg_state, int32_t& ttl)
+{
+  reg_state = _reg_state;
+  ttl = _reg_state_ttl;
 }
 
 //
