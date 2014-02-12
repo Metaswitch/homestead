@@ -1,5 +1,5 @@
 /**
- * @file cx.h class definition wrapping Cx
+ * @file httpstack_test.cpp UT for HttpStack module.
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2013  Metaswitch Networks Ltd
@@ -34,16 +34,28 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#ifndef XMLUTILS_H__
-#define XMLUTILS_H__
+#define GTEST_HAS_POSIX_RE 0
+#include "test_utils.hpp"
 
-#include <string>
-#include <vector>
+#include "xmlutils.h"
 #include "reg_state.h"
 
-namespace XmlUtils
+/// Fixture for HttpStackTest.
+class XmlUtilsTest : public testing::Test
 {
-  std::vector<std::string> get_public_ids(const std::string& user_data);
-  std::string compose_xml(RegistrationState state, std::string user_data);
+public:
+  XmlUtilsTest()
+  {
+  }
+
+  ~XmlUtilsTest()
+  {
+  }
+};
+
+TEST_F(XmlUtilsTest, SimpleMainline)
+{
+  std::string result = XmlUtils::compose_xml(RegistrationState::REGISTERED, "<?xml?><IMSSubscription>test</IMSSubscription>");
+  ASSERT_EQ("<ClearwaterRegData>\n\t<RegistrationState>REGISTERED</RegistrationState>\n\t<IMSSubscription>test</IMSSubscription>\n</ClearwaterRegData>\n\n", result);
 }
-#endif
+

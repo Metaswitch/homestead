@@ -39,9 +39,52 @@
 #include "log.h"
 
 #include "rapidxml/rapidxml.hpp"
+#include "rapidxml/rapidxml_print.hpp"
 
 namespace XmlUtils
 {
+  std::string compose_xml(RegistrationState state, std::string xml)
+  {
+    // Parse the XML document, saving off the passed-in string first (as parsing
+    // is destructive).
+    rapidxml::xml_document<> doc;
+    rapidxml::xml_document<> prev_doc;
+    char* user_data_str = prev_doc.allocate_string(xml.c_str());
+    rapidxml::xml_node<>* is = NULL;
+
+    try
+    {
+      prev_doc.parse<rapidxml::parse_strip_xml_namespaces>(user_data_str);
+      is = doc.clone_node(prev_doc.first_node("IMSSubscription"));
+    }
+    catch (rapidxml::parse_error err)
+    {
+      LOG_ERROR("Parse error in IMS Subscription document: %s\n\n%s", err.what(), xml.c_str());
+      prev_doc.clear();
+    }
+    rapidxml::xml_node<>* root = doc.allocate_node(rapidxml::node_type::node_element, "ClearwaterRegData");
+    rapidxml::xml_node<>* reg;
+    if (state == RegistrationState::REGISTERED)
+    {
+      reg = doc.allocate_node(rapidxml::node_type::node_element, "RegistrationState", "REGISTERED");
+    }
+    else if (state == RegistrationState::REGISTERED)
+    {
+      reg = doc.allocate_node(rapidxml::node_type::node_element, "RegistrationState", "UNREGISTERED");
+    }
+    else if (state == RegistrationState::NOT_REGISTERED) {
+      reg = doc.allocate_node(rapidxml::node_type::node_element, "RegistrationState", "NOT_REGISTERED");
+    }
+    root->append_node(reg);
+    if (is != NULL) {
+      root->append_node(is);
+    }
+    doc.append_node(root);
+    std::string out;
+    rapidxml::print(std::back_inserter(out), doc, 0);
+    return out;
+  }
+
 std::vector<std::string> get_public_ids(const std::string& user_data)
 {
   std::vector<std::string> public_ids;

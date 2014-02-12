@@ -353,14 +353,16 @@ int main(int argc, char**argv)
                                           options.scheme_aka);
   ImpiRegistrationStatusHandler::Config registration_status_handler_config(hss_configured);
   ImpuLocationInfoHandler::Config location_info_handler_config(hss_configured);
-  ImpuIMSSubscriptionHandler::Config impu_handler_config(hss_configured, options.ims_sub_cache_ttl);
+  ImpuRegDataHandler::Config impu_handler_config(hss_configured, options.ims_sub_cache_ttl);
+  ImpuIMSSubscriptionHandler::Config impu_handler_config_old(hss_configured, options.ims_sub_cache_ttl);
 
   HttpStack::HandlerFactory<PingHandler> ping_handler_factory;
   HttpStack::ConfiguredHandlerFactory<ImpiDigestHandler, ImpiHandler::Config> impi_digest_handler_factory(&impi_handler_config);
   HttpStack::ConfiguredHandlerFactory<ImpiAvHandler, ImpiHandler::Config> impi_av_handler_factory(&impi_handler_config);
   HttpStack::ConfiguredHandlerFactory<ImpiRegistrationStatusHandler, ImpiRegistrationStatusHandler::Config> impi_reg_status_handler_factory(&registration_status_handler_config);
   HttpStack::ConfiguredHandlerFactory<ImpuLocationInfoHandler, ImpuLocationInfoHandler::Config> impu_loc_info_handler_factory(&location_info_handler_config);
-  HttpStack::ConfiguredHandlerFactory<ImpuIMSSubscriptionHandler, ImpuIMSSubscriptionHandler::Config> impu_ims_sub_handler_factory(&impu_handler_config);
+  HttpStack::ConfiguredHandlerFactory<ImpuRegDataHandler, ImpuRegDataHandler::Config> impu_reg_data_handler_factory(&impu_handler_config);
+  HttpStack::ConfiguredHandlerFactory<ImpuIMSSubscriptionHandler, ImpuIMSSubscriptionHandler::Config> impu_ims_sub_handler_factory(&impu_handler_config_old);
 
   try
   {
@@ -381,6 +383,8 @@ int main(int argc, char**argv)
                                  &impi_reg_status_handler_factory);
     http_stack->register_handler("^/impu/[^/]*/location$",
                                  &impu_loc_info_handler_factory);
+    http_stack->register_handler("^/impu/[^/]*/registration-data$",
+                                 &impu_reg_data_handler_factory);
     http_stack->register_handler("^/impu/",
                                  &impu_ims_sub_handler_factory);
     http_stack->start();

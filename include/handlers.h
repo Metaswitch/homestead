@@ -409,6 +409,46 @@ private:
   std::string _authorization_type;
 };
 
+class ImpuRegDataHandler : public HssCacheHandler
+{
+public:
+  struct Config
+  {
+    Config(bool _hss_configured = true, int _ims_sub_cache_ttl = 3600) : hss_configured(_hss_configured), ims_sub_cache_ttl(_ims_sub_cache_ttl) {}
+    bool hss_configured;
+    int ims_sub_cache_ttl;
+  };
+
+  // Initialise the type field to reflect default behaviour if no type is specified.
+  // That is, look for IMS subscription information in the cache. If we don't find
+  // any, assume we have a first registration and query the cache with
+  // Server-Assignment-Type set to REGISTRATION (1) and cache any IMS subscription
+  // information that gets returned.
+  ImpuRegDataHandler(HttpStack::Request& req, const Config* cfg) :
+    HssCacheHandler(req), _cfg(cfg), _impi(), _impu(), _type(true, ServerAssignmentType::REGISTRATION, false)
+  {}
+
+  void run();
+  void on_get_ims_subscription_success(Cache::Request* request);
+  void on_get_ims_subscription_failure(Cache::Request* request, Cache::ResultCode error, std::string& text);
+  void send_server_assignment_request(ServerAssignmentType type);
+  void on_sar_response(Diameter::Message& rsp);
+
+  typedef HssCacheHandler::CacheTransaction<ImpuRegDataHandler> CacheTransaction;
+  typedef HssCacheHandler::DiameterTransaction<ImpuRegDataHandler> DiameterTransaction;
+
+private:
+  void send_reply();
+  void put_in_cache();
+
+  const Config* _cfg;
+  std::string _impi;
+  std::string _impu;
+  ServerAssignmentType _type;
+  std::string _xml;
+  RegistrationState _new_state;
+};
+
 class ImpuIMSSubscriptionHandler : public HssCacheHandler
 {
 public:

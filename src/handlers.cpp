@@ -630,7 +630,191 @@ void ImpuLocationInfoHandler::on_lir_response(Diameter::Message& rsp)
 }
 
 //
-// IMPU IMS Subscription handling
+// IMPU IMS Subscription handling - new
+//
+
+void ImpuRegDataHandler::run()
+{
+  const std::string prefix = "/impu/";
+  std::string path = _req.full_path();
+
+  _impu = path.substr(prefix.length(), path.find_first_of("/", prefix.length()) - prefix.length());
+  _impi = _req.param("private_id");
+  std::string type = _req.param("type");
+  LOG_DEBUG("Parsed HTTP request: private ID %s, public ID %s, type %s",
+            _impi.c_str(), _impu.c_str(), type.c_str());
+
+  // Map the type parameter from the HTTP request to its corresponding
+  // ServerAssignmentType object and save it off. We should always get a match,
+  // but if not _type was initialised to default values by the constructor.
+  std::map<std::string, ServerAssignmentType>::const_iterator it = SERVER_ASSIGNMENT_TYPES.find(type);
+  if (it != SERVER_ASSIGNMENT_TYPES.end())
+  {
+    _type = it->second;
+  }
+  else
+  {
+    LOG_ERROR("HTTP request contains invalid value %s for type parameter", type.c_str());
+    _req.send_reply(400);
+    delete this;
+    return;
+  }
+
+  LOG_DEBUG("Try to find IMS Subscription information in the cache");
+  Cache::Request* get_ims_sub = _cache->create_GetIMSSubscription(_impu);
+  CacheTransaction* tsx = new CacheTransaction(this);
+  tsx->set_success_clbk(&ImpuRegDataHandler::on_get_ims_subscription_success);
+  tsx->set_failure_clbk(&ImpuRegDataHandler::on_get_ims_subscription_failure);
+  _cache->send(tsx, get_ims_sub);
+}
+
+void ImpuRegDataHandler::on_get_ims_subscription_success(Cache::Request* request)
+{
+  LOG_DEBUG("Got IMS subscription from cache");
+  Cache::GetIMSSubscription* get_ims_sub = (Cache::GetIMSSubscription*)request;
+  RegistrationState old_state;
+  int32_t unused;
+  get_ims_sub->get_xml(_xml, unused);
+  get_ims_sub->get_registration_state(old_state, unused);
+  _new_state = old_state;
+
+  if (_type.type() == ServerAssignmentType::Type::REGISTRATION)
+  {
+    _new_state = RegistrationState::REGISTERED;
+    if (old_state == RegistrationState::REGISTERED) {
+      if ((_xml == "") && _cfg->hss_configured) {
+        send_server_assignment_request(REREG);
+      } else {
+        send_reply();
+      }
+    } else {
+      send_server_assignment_request(REG);
+    }
+  } else if (_type.type() == ServerAssignmentType::Type::NO_ASSIGNMENT) {
+    if ((old_state == RegistrationState::NOT_REGISTERED) || (_xml == ""))
+    {
+      _new_state = RegistrationState::UNREGISTERED;
+      if (_cfg->hss_configured)
+      {
+        send_server_assignment_request(CALL_UNREG);
+      }
+    } else {
+      send_reply();
+    }
+  } else if (_type.deregistration()) {
+    if (old_state == RegistrationState::REGISTERED) {
+      if (_cfg->hss_configured)
+      {
+        _new_state = RegistrationState::NOT_REGISTERED;
+        send_server_assignment_request(_type);
+      } else {
+        _new_state = RegistrationState::UNREGISTERED;
+        put_in_cache();
+        send_reply();
+      }
+    } else {
+      _req.send_reply(400);
+    }
+  }
+
+}
+
+void ImpuRegDataHandler::send_reply()
+{
+  _req.add_content(XmlUtils::compose_xml(_new_state, _xml));
+  _req.send_reply(200);
+  delete this;
+}
+
+void ImpuRegDataHandler::on_get_ims_subscription_failure(Cache::Request* request, Cache::ResultCode error, std::string& text)
+{
+  LOG_DEBUG("IMS subscription cache query failed: %u, %s", error, text.c_str());
+  _req.send_reply(502);
+  delete this;
+}
+
+void ImpuRegDataHandler::send_server_assignment_request(ServerAssignmentType type)
+{
+  Cx::ServerAssignmentRequest* sar =
+    new Cx::ServerAssignmentRequest(_dict,
+                                    _dest_host,
+                                    _dest_realm,
+                                    _impi,
+                                    _impu,
+                                    _server_name,
+                                    type.type());
+  DiameterTransaction* tsx =
+    new DiameterTransaction(_dict, this, SUBSCRIPTION_STATS);
+  tsx->set_response_clbk(&ImpuRegDataHandler::on_sar_response);
+  sar->send(tsx, 200);
+}
+
+void ImpuRegDataHandler::put_in_cache()
+{
+  LOG_DEBUG("Attempting to cache IMS subscription for public IDs");
+  std::vector<std::string> public_ids = XmlUtils::get_public_ids(_xml);
+  if (!public_ids.empty())
+  {
+    LOG_DEBUG("Got public IDs to cache against - doing it");
+    Cache::Request* put_ims_sub =
+      _cache->create_PutIMSSubscription(public_ids,
+                                        _xml,
+                                        _new_state,
+                                        Cache::generate_timestamp(),
+                                        _cfg->ims_sub_cache_ttl,
+                                        (2 * _cfg->ims_sub_cache_ttl));
+    CacheTransaction* tsx = new CacheTransaction(NULL);
+    _cache->send(tsx, put_ims_sub);
+  }
+}
+
+void ImpuRegDataHandler::on_sar_response(Diameter::Message& rsp)
+{
+  Cx::ServerAssignmentAnswer saa(rsp);
+  int32_t result_code = 0;
+  saa.result_code(result_code);
+  LOG_DEBUG("Received Server-Assignment answer with result code %d", result_code);
+  switch (result_code)
+  {
+    case 2001:
+      {
+        if (!_type.deregistration())
+        {
+          saa.user_data(_xml);
+
+          if (_cfg->ims_sub_cache_ttl != 0)
+          {
+            put_in_cache();
+          }
+        }
+        send_reply();
+      }
+      break;
+    case 5001:
+      LOG_INFO("Server-Assignment answer with result code %d - reject", result_code);
+      _req.send_reply(404);
+      break;
+    default:
+      LOG_INFO("Server-Assignment answer with result code %d - reject", result_code);
+      _req.send_reply(500);
+      break;
+  }
+
+  // Finally, regardless of the result_code from the HSS, if we are doing a
+  // deregistration, we should delete the IMS subscription relating to our public_id.
+  if (_type.deregistration())
+  {
+    LOG_INFO("Delete IMS subscription for %s", _impu.c_str());
+    Cache::Request* delete_public_id =
+      _cache->create_DeletePublicIDs(_impu, Cache::generate_timestamp());
+    CacheTransaction* tsx = new CacheTransaction(NULL);
+    _cache->send(tsx, delete_public_id);
+  }
+  delete this;
+}
+
+//
+// IMPU IMS Subscription handling - old
 //
 
 void ImpuIMSSubscriptionHandler::run()
