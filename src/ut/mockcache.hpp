@@ -134,7 +134,7 @@ public:
   // code and the UTs easier to write.
   class MockPutIMSSubscription : public PutIMSSubscription
   {
-    MockPutIMSSubscription() : PutIMSSubscription("", "", 0) {}
+    MockPutIMSSubscription() : PutIMSSubscription("", "", RegistrationState::REGISTERED, 0) {}
     virtual ~MockPutIMSSubscription() {}
   };
 

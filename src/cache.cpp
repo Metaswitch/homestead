@@ -838,6 +838,20 @@ void Cache::GetIMSSubscription::get_xml(std::string& xml, int32_t& ttl)
   ttl = _xml_ttl;
 }
 
+void Cache::GetIMSSubscription::get_result(std::pair<RegistrationState, std::string>& result)
+{
+  RegistrationState state;
+  int32_t reg_ttl;
+  std::string xml;
+  int32_t xml_ttl;
+
+  get_registration_state(state, reg_ttl);
+  get_xml(xml, xml_ttl);
+  result.first = state;
+  result.second = xml;
+}
+
+
 void Cache::GetIMSSubscription::get_registration_state(RegistrationState& reg_state, int32_t& ttl)
 {
   reg_state = _reg_state;

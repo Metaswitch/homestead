@@ -678,6 +678,7 @@ public:
     /// @param public_id the public identity.
     GetIMSSubscription(const std::string& public_id);
     virtual ~GetIMSSubscription();
+    virtual void get_result(std::pair<RegistrationState, std::string>& result);
 
     /// Access the result of the request.
     ///
