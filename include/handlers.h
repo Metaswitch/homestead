@@ -70,15 +70,15 @@ const std::string JSON_RC = "result-code";
 const std::string JSON_SCSCF = "scscf";
 
 // Server Assignment Types
-const ServerAssignmentType REG(false, REGISTRATION, false);
-const ServerAssignmentType REREG(true, RE_REGISTRATION, false);
-const ServerAssignmentType DEREG_USER(false, USER_DEREGISTRATION, true);
-const ServerAssignmentType DEREG_TIMEOUT(false, TIMEOUT_DEREGISTRATION, true);
-const ServerAssignmentType DEREG_AUTH_FAIL(false, AUTHENTICATION_FAILURE, true);
-const ServerAssignmentType DEREG_AUTH_TIMEOUT(false, AUTHENTICATION_TIMEOUT, true);
-const ServerAssignmentType DEREG_ADMIN(false, ADMINISTRATIVE_DEREGISTRATION, true);
-const ServerAssignmentType CALL_REG(true, NO_ASSIGNMENT, false);
-const ServerAssignmentType CALL_UNREG(true, UNREGISTERED_USER, false);
+const ServerAssignmentType REG(false, ServerAssignmentType::REGISTRATION, false);
+const ServerAssignmentType REREG(true, ServerAssignmentType::RE_REGISTRATION, false);
+const ServerAssignmentType DEREG_USER(false, ServerAssignmentType::USER_DEREGISTRATION, true);
+const ServerAssignmentType DEREG_TIMEOUT(false, ServerAssignmentType::TIMEOUT_DEREGISTRATION, true);
+const ServerAssignmentType DEREG_AUTH_FAIL(false, ServerAssignmentType::AUTHENTICATION_FAILURE, true);
+const ServerAssignmentType DEREG_AUTH_TIMEOUT(false, ServerAssignmentType::AUTHENTICATION_TIMEOUT, true);
+const ServerAssignmentType DEREG_ADMIN(false, ServerAssignmentType::ADMINISTRATIVE_DEREGISTRATION, true);
+const ServerAssignmentType CALL_REG(true, ServerAssignmentType::NO_ASSIGNMENT, false);
+const ServerAssignmentType CALL_UNREG(true, ServerAssignmentType::UNREGISTERED_USER, false);
 const std::map<std::string, ServerAssignmentType> SERVER_ASSIGNMENT_TYPES = {{"reg", REG},
                                                                              {"rereg", REREG},
                                                                              {"dereg-user", DEREG_USER},
@@ -425,7 +425,7 @@ public:
   // Server-Assignment-Type set to REGISTRATION (1) and cache any IMS subscription
   // information that gets returned.
   ImpuIMSSubscriptionHandler(HttpStack::Request& req, const Config* cfg) :
-    HssCacheHandler(req), _cfg(cfg), _impi(), _impu(), _type(true, REGISTRATION, false)
+    HssCacheHandler(req), _cfg(cfg), _impi(), _impu(), _type(true, ServerAssignmentType::REGISTRATION, false)
   {}
 
   void run();
