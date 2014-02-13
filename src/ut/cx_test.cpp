@@ -67,8 +67,8 @@ public:
   static const int32_t AUTH_SESSION_STATE;
   static const std::vector<std::string> IMPIS;
   static const ServerCapabilities CAPABILITIES;
-  static const int32_t TIMEOUT_DEREGISTRATION;
-  static const int32_t UNREGISTERED_USER;
+  static const ServerAssignmentType::Type TIMEOUT_DEREGISTRATION;
+  static const ServerAssignmentType::Type UNREGISTERED_USER;
 
   static Diameter::Stack* _real_stack;
   static MockDiameterStack* _mock_stack;
@@ -189,8 +189,8 @@ const std::vector<std::string> CxTest::IMPIS {"private_id1", "private_id2"};
 const std::vector<int32_t> mandatory_capabilities = {1, 3};
 const std::vector<int32_t> optional_capabilities = {2, 4};
 const ServerCapabilities CxTest::CAPABILITIES(mandatory_capabilities, optional_capabilities);
-const int32_t CxTest::TIMEOUT_DEREGISTRATION = 4;
-const int32_t CxTest::UNREGISTERED_USER = 3;
+const ServerAssignmentType::Type CxTest::TIMEOUT_DEREGISTRATION = TIMEOUT_DEREGISTRATION;
+const ServerAssignmentType::Type CxTest::UNREGISTERED_USER = UNREGISTERED_USER;
 
 Diameter::Stack* CxTest::_real_stack = NULL;
 MockDiameterStack* CxTest::_mock_stack = NULL;

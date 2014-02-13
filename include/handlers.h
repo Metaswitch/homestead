@@ -70,15 +70,15 @@ const std::string JSON_RC = "result-code";
 const std::string JSON_SCSCF = "scscf";
 
 // Server Assignment Types
-const ServerAssignmentType REG(false, 1, false);
-const ServerAssignmentType REREG(true, 2, false);
-const ServerAssignmentType DEREG_USER(false, 5, true);
-const ServerAssignmentType DEREG_TIMEOUT(false, 4, true);
-const ServerAssignmentType DEREG_AUTH_FAIL(false, 9, true);
-const ServerAssignmentType DEREG_AUTH_TIMEOUT(false, 10, true);
-const ServerAssignmentType DEREG_ADMIN(false, 8, true);
-const ServerAssignmentType CALL_REG(true, 0, false);
-const ServerAssignmentType CALL_UNREG(true, 3, false);
+const ServerAssignmentType REG(false, ServerAssignmentType::REGISTRATION, false);
+const ServerAssignmentType REREG(true, ServerAssignmentType::RE_REGISTRATION, false);
+const ServerAssignmentType DEREG_USER(false, ServerAssignmentType::USER_DEREGISTRATION, true);
+const ServerAssignmentType DEREG_TIMEOUT(false, ServerAssignmentType::TIMEOUT_DEREGISTRATION, true);
+const ServerAssignmentType DEREG_AUTH_FAIL(false, ServerAssignmentType::AUTHENTICATION_FAILURE, true);
+const ServerAssignmentType DEREG_AUTH_TIMEOUT(false, ServerAssignmentType::AUTHENTICATION_TIMEOUT, true);
+const ServerAssignmentType DEREG_ADMIN(false, ServerAssignmentType::ADMINISTRATIVE_DEREGISTRATION, true);
+const ServerAssignmentType CALL_REG(true, ServerAssignmentType::NO_ASSIGNMENT, false);
+const ServerAssignmentType CALL_UNREG(true, ServerAssignmentType::UNREGISTERED_USER, false);
 const std::map<std::string, ServerAssignmentType> SERVER_ASSIGNMENT_TYPES = {{"reg", REG},
                                                                              {"rereg", REREG},
                                                                              {"dereg-user", DEREG_USER},
@@ -425,7 +425,7 @@ public:
   // Server-Assignment-Type set to REGISTRATION (1) and cache any IMS subscription
   // information that gets returned.
   ImpuIMSSubscriptionHandler(HttpStack::Request& req, const Config* cfg) :
-    HssCacheHandler(req), _cfg(cfg), _impi(), _impu(), _type(true, 1, false)
+    HssCacheHandler(req), _cfg(cfg), _impi(), _impu(), _type(true, ServerAssignmentType::REGISTRATION, false)
   {}
 
   void run();

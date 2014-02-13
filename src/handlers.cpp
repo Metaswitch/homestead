@@ -655,9 +655,20 @@ void ImpuIMSSubscriptionHandler::run()
   {
     _type = it->second;
   }
-  else if (!type.empty())
+  else
   {
-    LOG_WARNING("HTTP request contains invalid value %s for type parameter", type.c_str());
+    // The default _type value assumed we had an IMPI, and therefore that this
+    // was a REGISTRATION. If we don't have an IMPI, change the default
+    // Server-Assignment-Type to UNREGISTERED_USER.
+    if (_impi.empty())
+    {
+      _type.unregistered_user_default();
+    }
+
+    if (!type.empty())
+    {
+      LOG_WARNING("HTTP request contains invalid value %s for type parameter", type.c_str());
+    }
   }
 
   // The ServerAssignmentType object has a cache_lookup field which

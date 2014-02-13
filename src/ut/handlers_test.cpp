@@ -531,7 +531,7 @@ TEST_F(HandlersTest, IMSSubscriptionCacheFailureNoHSSInvalidType)
   MockHttpStack::Request req(_httpstack,
                              "/impu/" + IMPU,
                              "",
-                             "?private_id=" + IMPI + "&type=invalid");
+                             "?&type=invalid");
   ImpuIMSSubscriptionHandler::Config cfg(false, 3600);
   ImpuIMSSubscriptionHandler* handler = new ImpuIMSSubscriptionHandler(req, &cfg);
 
