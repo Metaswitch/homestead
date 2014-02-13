@@ -40,6 +40,7 @@
 #include "diameterstack.h"
 #include "authvector.h"
 #include "servercapabilities.h"
+#include "serverassignmenttype.h"
 
 namespace Cx
 {
@@ -226,7 +227,8 @@ public:
                           const std::string& dest_realm,
                           const std::string& impi,
                           const std::string& impu,
-                          const std::string& server_name);
+                          const std::string& server_name,
+                          const ServerAssignmentType::Type& type);
   inline ServerAssignmentRequest(Diameter::Message& msg) : Diameter::Message(msg) {};
 
   inline std::string impu() const

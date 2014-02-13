@@ -451,7 +451,8 @@ ServerAssignmentRequest::ServerAssignmentRequest(const Dictionary* dict,
                                                  const std::string& dest_realm,
                                                  const std::string& impi,
                                                  const std::string& impu,
-                                                 const std::string& server_name) :
+                                                 const std::string& server_name,
+                                                 const ServerAssignmentType::Type& type) :
                                                  Diameter::Message(dict, dict->SERVER_ASSIGNMENT_REQUEST)
 {
   LOG_DEBUG("Building Server-Assignment request for %s/%s", impi.c_str(), impu.c_str());
@@ -468,18 +469,7 @@ ServerAssignmentRequest::ServerAssignmentRequest(const Dictionary* dict,
   }
   add(Diameter::AVP(dict->PUBLIC_IDENTITY).val_str(impu));
   add(Diameter::AVP(dict->SERVER_NAME).val_str(server_name));
-
-  // The SERVER_ASSIGNMENT_TYPE AVP is an enumeration. 1 corresponds to REGISTRATION.
-  // 3 corresponds to UNREGISTERED_USER. Add the correct value depending on whether
-  // or not we have a private identity.
-  if (!impi.empty())
-  {
-    add(Diameter::AVP(dict->SERVER_ASSIGNMENT_TYPE).val_i32(1));
-  }
-  else
-  {
-    add(Diameter::AVP(dict->SERVER_ASSIGNMENT_TYPE).val_i32(3));
-  }
+  add(Diameter::AVP(dict->SERVER_ASSIGNMENT_TYPE).val_i32(type));
   add(Diameter::AVP(dict->USER_DATA_ALREADY_AVAILABLE).val_i32(0));
 }
 
