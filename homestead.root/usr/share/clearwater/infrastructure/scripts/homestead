@@ -40,22 +40,25 @@ hss_port=3868
 # Check whether the local IP address is IPv6.  If it is override some of the
 # configuration so that FreeDiameter will start.
 
-/usr/share/clearwater/bin/is_address_ipv6.py $local_ip
-is_ipv6_address=$?
-
-if [ $is_ipv6_address = 1 ]
+identity=$public_hostname
+# Note that is_address_ipv6.py is backwards in that it returns 0 for false - hence the '!'.
+if ! /usr/share/clearwater/bin/is_address_ipv6.py $identity
 then
-  # An AIO node does not use a real HSS.  Set up the local Diameter to the unique
-  # IPv6 arpa hostname.
-  public_hostname=$(/usr/share/clearwater/bin/ipv6_to_hostname.py $local_ip)
-  hs_hostname=$public_hostname
+  identity=$(/usr/share/clearwater/bin/ipv6_to_hostname.py $identity)
+fi
+
+realm=$(echo $hs_hostname | sed -e 's/:[^:]*$//g' | sed -e 's/^\[//g' | sed -e 's/\]$//g')
+# Note that is_address_ipv6.py is backwards in that it returns 0 for false - hence the '!'.
+if ! /usr/share/clearwater/bin/is_address_ipv6.py $realm
+then
+  realm=$(/usr/share/clearwater/bin/ipv6_to_hostname.py $realm)
 fi
 
 # If the certficates are present, check that they have the correct common name.
 if [ -f /var/lib/homestead/cert.pem ]
 then
   current_name=$(certtool --certificate-info --infile /var/lib/homestead/ca.pem | egrep -e 'Subject: CN=' | sed 's/.*Subject: CN=//g')
-  if [ $current_name != $public_hostname ]
+  if [ $current_name != $identity ]
   then 
     # The current certificate do not have the required common name.  Remove them so that 
     # they are regenerated below.
@@ -72,7 +75,7 @@ then
 
   # Build up the configuration file for GnuTLS
   cat > /tmp/cert.cfg.$$ <<EOF
-cn = "$public_hostname"
+cn = "$identity"
 expiration_days = 3650
 EOF
 
@@ -91,8 +94,8 @@ fi
 cat > /var/lib/homestead/homestead.conf <<EOF
 # -------- Local ---------
 
-Identity = "$public_hostname";
-Realm = "$(echo $hs_hostname | sed -e 's/:[^:]*$//g')";
+Identity = "$identity";
+Realm = "$realm";
 
 Port = $hss_port;
 

@@ -316,7 +316,7 @@ int main(int argc, char**argv)
     diameter_stack->initialize();
     diameter_stack->configure(options.diameter_conf);
     dict = new Cx::Dictionary();
-    diameter_stack->advertize_application(dict->CX);
+    diameter_stack->advertize_application(dict->TGPP, dict->CX);
     rt_handler_config = RegistrationTerminationHandler::Config(cache, dict, options.ims_sub_cache_ttl);
     pp_handler_config = PushProfileHandler::Config(cache, dict, options.impu_cache_ttl, options.ims_sub_cache_ttl);
     rtr_handler_factory = Diameter::Stack::ConfiguredHandlerFactory<RegistrationTerminationHandler, RegistrationTerminationHandler::Config>(dict, &rt_handler_config);
