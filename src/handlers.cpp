@@ -749,16 +749,17 @@ void ImpuRegDataHandler::on_get_ims_subscription_success(Cache::Request* request
   LOG_DEBUG("Got IMS subscription from cache");
   Cache::GetIMSSubscription* get_ims_sub = (Cache::GetIMSSubscription*)request;
   RegistrationState old_state;
-  int32_t unused;
-  get_ims_sub->get_xml(_xml, unused);
-  get_ims_sub->get_registration_state(old_state, unused);
+  int32_t ttl;
+  get_ims_sub->get_xml(_xml, ttl);
+  get_ims_sub->get_registration_state(old_state, ttl);
   _new_state = old_state;
+  LOG_DEBUG("TTL for this database record is %d", ttl);
 
   if (_type == RequestType::REG)
   {
     _new_state = RegistrationState::REGISTERED;
     if (old_state == _new_state) {
-      if ((_xml == "") && _cfg->hss_configured) {
+      if ((ttl < _cfg->ims_sub_cache_ttl) && _cfg->hss_configured) {
         send_server_assignment_request(ServerAssignmentType::Type::RE_REGISTRATION);
       } else {
         send_reply();
@@ -839,7 +840,7 @@ void ImpuRegDataHandler::put_in_cache()
                                         _xml,
                                         _new_state,
                                         Cache::generate_timestamp(),
-                                        _cfg->ims_sub_cache_ttl,
+                                        (2 * _cfg->ims_sub_cache_ttl),
                                         (2 * _cfg->ims_sub_cache_ttl));
     CacheTransaction* tsx = new CacheTransaction(NULL);
     _cache->send(tsx, put_ims_sub);
