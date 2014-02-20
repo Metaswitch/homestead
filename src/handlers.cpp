@@ -633,6 +633,73 @@ void ImpuLocationInfoHandler::on_lir_response(Diameter::Message& rsp)
 // IMPU IMS Subscription handling - new
 //
 
+// Utility methods
+bool ImpuRegDataHandler::is_deregistration_request(RequestType type)
+{
+  switch (type) {
+  case RequestType::DEREG_USER:
+  case RequestType::DEREG_ADMIN:
+  case RequestType::DEREG_TIMEOUT:
+  case RequestType::DEREG_AUTH_FAIL:
+  case RequestType::DEREG_AUTH_TIMEOUT:
+    return true;
+  default:
+    return false;
+  }
+}
+
+ServerAssignmentType::Type ImpuRegDataHandler::sar_type_for_deregistration_request(RequestType type) {
+  switch (type) {
+  case RequestType::DEREG_USER:
+    return ServerAssignmentType::Type::USER_DEREGISTRATION;
+  case RequestType::DEREG_ADMIN:
+    return ServerAssignmentType::Type::ADMINISTRATIVE_DEREGISTRATION;
+  case RequestType::DEREG_TIMEOUT:
+    return ServerAssignmentType::Type::TIMEOUT_DEREGISTRATION;
+  case RequestType::DEREG_AUTH_FAIL:
+    return ServerAssignmentType::Type::AUTHENTICATION_FAILURE;
+  case RequestType::DEREG_AUTH_TIMEOUT:
+    return ServerAssignmentType::Type::AUTHENTICATION_TIMEOUT;
+  default:
+    LOG_ERROR("Couldn't produce an appropiate SAR - programming error'");
+    return ServerAssignmentType::Type::ADMINISTRATIVE_DEREGISTRATION;
+  }
+}
+
+ImpuRegDataHandler::RequestType ImpuRegDataHandler::request_type_from_body(std::string body)
+{
+  RequestType ret = RequestType::UNKNOWN;
+  if (body.compare("reg") == 0)
+  {
+    ret = RequestType::REG;
+  }
+  else if (body.compare("call") == 0)
+  {
+    ret = RequestType::CALL;
+  }
+  else if (body.compare("dereg-user") == 0)
+  {
+    ret = RequestType::DEREG_USER;
+  }
+  else if (body.compare("dereg-admin") == 0)
+  {
+    ret = RequestType::DEREG_ADMIN;
+  }
+  else if (body.compare("dereg-timeout") == 0)
+  {
+    ret = RequestType::DEREG_TIMEOUT;
+  }
+  else if (body.compare("dereg-auth-fail") == 0)
+  {
+    ret = RequestType::DEREG_AUTH_FAIL;
+  }
+  else if (body.compare("dereg-auth-timeout") == 0)
+  {
+    ret = RequestType::DEREG_AUTH_TIMEOUT;
+  }
+  return ret;
+}
+
 void ImpuRegDataHandler::run()
 {
   const std::string prefix = "/impu/";
@@ -640,21 +707,30 @@ void ImpuRegDataHandler::run()
 
   _impu = path.substr(prefix.length(), path.find_first_of("/", prefix.length()) - prefix.length());
   _impi = _req.param("private_id");
-  std::string type = _req.param("type");
-  LOG_DEBUG("Parsed HTTP request: private ID %s, public ID %s, type %s",
-            _impi.c_str(), _impu.c_str(), type.c_str());
+  LOG_DEBUG("Parsed HTTP request: private ID %s, public ID %s",
+            _impi.c_str(), _impu.c_str());
 
-  // Map the type parameter from the HTTP request to its corresponding
-  // ServerAssignmentType object and save it off. We should always get a match,
-  // but if not _type was initialised to default values by the constructor.
-  std::map<std::string, ServerAssignmentType>::const_iterator it = SERVER_ASSIGNMENT_TYPES.find(type);
-  if (it != SERVER_ASSIGNMENT_TYPES.end())
+  htp_method method = _req.method();
+
+  /* Police preconditions:
+
+     - Method must either be GET or PUT
+     - PUT requests must have a body of "reg", "call", "dereg-user"
+       "dereg-admin", "dereg-timeout", "dereg-auth-fail" or
+       "dereg-auth-timeout"
+  */
+
+  if ((method != htp_method_PUT) && (method != htp_method_GET))
   {
-    _type = it->second;
+    _req.send_reply(405);
+    delete this;
+    return;
   }
-  else
+
+  RequestType _type = request_type_from_body(_req.param("type"));
+  if ((method == htp_method_PUT) && (_type == RequestType::UNKNOWN))
   {
-    LOG_ERROR("HTTP request contains invalid value %s for type parameter", type.c_str());
+    LOG_ERROR("HTTP request contains invalid value %s for type", _req.param("type").c_str());
     _req.send_reply(400);
     delete this;
     return;
@@ -678,35 +754,35 @@ void ImpuRegDataHandler::on_get_ims_subscription_success(Cache::Request* request
   get_ims_sub->get_registration_state(old_state, unused);
   _new_state = old_state;
 
-  if (_type.type() == ServerAssignmentType::Type::REGISTRATION)
+  if (_type == RequestType::REG)
   {
     _new_state = RegistrationState::REGISTERED;
-    if (old_state == RegistrationState::REGISTERED) {
+    if (old_state == _new_state) {
       if ((_xml == "") && _cfg->hss_configured) {
-        send_server_assignment_request(REREG);
+        send_server_assignment_request(ServerAssignmentType::Type::RE_REGISTRATION);
       } else {
         send_reply();
       }
     } else {
-      send_server_assignment_request(REG);
+      send_server_assignment_request(ServerAssignmentType::Type::REGISTRATION);
     }
-  } else if (_type.type() == ServerAssignmentType::Type::NO_ASSIGNMENT) {
+  } else if (_type == RequestType::CALL) {
     if ((old_state == RegistrationState::NOT_REGISTERED) || (_xml == ""))
     {
       _new_state = RegistrationState::UNREGISTERED;
       if (_cfg->hss_configured)
       {
-        send_server_assignment_request(CALL_UNREG);
+        send_server_assignment_request(ServerAssignmentType::Type::UNREGISTERED_USER);
       }
     } else {
       send_reply();
     }
-  } else if (_type.deregistration()) {
+  } else if (is_deregistration_request(_type)) {
     if (old_state == RegistrationState::REGISTERED) {
       if (_cfg->hss_configured)
       {
         _new_state = RegistrationState::NOT_REGISTERED;
-        send_server_assignment_request(_type);
+        send_server_assignment_request(sar_type_for_deregistration_request(_type));
       } else {
         _new_state = RegistrationState::UNREGISTERED;
         put_in_cache();
@@ -714,6 +790,8 @@ void ImpuRegDataHandler::on_get_ims_subscription_success(Cache::Request* request
       }
     } else {
       _req.send_reply(400);
+      delete this;
+      return;
     }
   }
 
@@ -733,7 +811,7 @@ void ImpuRegDataHandler::on_get_ims_subscription_failure(Cache::Request* request
   delete this;
 }
 
-void ImpuRegDataHandler::send_server_assignment_request(ServerAssignmentType type)
+void ImpuRegDataHandler::send_server_assignment_request(ServerAssignmentType::Type type)
 {
   Cx::ServerAssignmentRequest* sar =
     new Cx::ServerAssignmentRequest(_dict,
@@ -742,7 +820,7 @@ void ImpuRegDataHandler::send_server_assignment_request(ServerAssignmentType typ
                                     _impi,
                                     _impu,
                                     _server_name,
-                                    type.type());
+                                    type);
   DiameterTransaction* tsx =
     new DiameterTransaction(_dict, this, SUBSCRIPTION_STATS);
   tsx->set_response_clbk(&ImpuRegDataHandler::on_sar_response);
@@ -774,35 +852,8 @@ void ImpuRegDataHandler::on_sar_response(Diameter::Message& rsp)
   int32_t result_code = 0;
   saa.result_code(result_code);
   LOG_DEBUG("Received Server-Assignment answer with result code %d", result_code);
-  switch (result_code)
-  {
-    case 2001:
-      {
-        if (!_type.deregistration())
-        {
-          saa.user_data(_xml);
 
-          if (_cfg->ims_sub_cache_ttl != 0)
-          {
-            put_in_cache();
-          }
-        }
-        send_reply();
-      }
-      break;
-    case 5001:
-      LOG_INFO("Server-Assignment answer with result code %d - reject", result_code);
-      _req.send_reply(404);
-      break;
-    default:
-      LOG_INFO("Server-Assignment answer with result code %d - reject", result_code);
-      _req.send_reply(500);
-      break;
-  }
-
-  // Finally, regardless of the result_code from the HSS, if we are doing a
-  // deregistration, we should delete the IMS subscription relating to our public_id.
-  if (_type.deregistration())
+  if (is_deregistration_request(_type))
   {
     LOG_INFO("Delete IMS subscription for %s", _impu.c_str());
     Cache::Request* delete_public_id =
@@ -810,7 +861,32 @@ void ImpuRegDataHandler::on_sar_response(Diameter::Message& rsp)
     CacheTransaction* tsx = new CacheTransaction(NULL);
     _cache->send(tsx, delete_public_id);
   }
-  delete this;
+
+
+  switch (result_code)
+  {
+    case 2001:
+      {
+        if (!is_deregistration_request(_type))
+        {
+          saa.user_data(_xml);
+          put_in_cache();
+        }
+        send_reply();
+      }
+      break;
+    case 5001:
+      LOG_INFO("Server-Assignment answer with result code %d - reject", result_code);
+      _req.send_reply(404);
+      delete this;
+      return;
+    default:
+      LOG_INFO("Server-Assignment answer with result code %d - reject", result_code);
+      _req.send_reply(500);
+      delete this;
+      return;
+  }
+
 }
 
 //

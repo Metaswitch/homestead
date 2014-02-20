@@ -425,26 +425,36 @@ public:
   // Server-Assignment-Type set to REGISTRATION (1) and cache any IMS subscription
   // information that gets returned.
   ImpuRegDataHandler(HttpStack::Request& req, const Config* cfg) :
-    HssCacheHandler(req), _cfg(cfg), _impi(), _impu(), _type(true, ServerAssignmentType::REGISTRATION, false)
+    HssCacheHandler(req), _cfg(cfg), _impi(), _impu()
   {}
 
   void run();
   void on_get_ims_subscription_success(Cache::Request* request);
   void on_get_ims_subscription_failure(Cache::Request* request, Cache::ResultCode error, std::string& text);
-  void send_server_assignment_request(ServerAssignmentType type);
+  void send_server_assignment_request(ServerAssignmentType::Type type);
   void on_sar_response(Diameter::Message& rsp);
 
   typedef HssCacheHandler::CacheTransaction<ImpuRegDataHandler> CacheTransaction;
   typedef HssCacheHandler::DiameterTransaction<ImpuRegDataHandler> DiameterTransaction;
 
 private:
+
+  enum RequestType {
+    UNKNOWN, REG, CALL, DEREG_USER, DEREG_ADMIN, DEREG_TIMEOUT, DEREG_AUTH_FAIL, DEREG_AUTH_TIMEOUT
+  };
+
   void send_reply();
   void put_in_cache();
+  bool is_deregistration_request(RequestType type);
+  ServerAssignmentType::Type sar_type_for_deregistration_request(RequestType type);
+  RequestType request_type_from_body(std::string body);
+
 
   const Config* _cfg;
   std::string _impi;
   std::string _impu;
-  ServerAssignmentType _type;
+  std::string _type_param;
+  RequestType _type;
   std::string _xml;
   RegistrationState _new_state;
 };

@@ -63,7 +63,7 @@ namespace XmlUtils
       prev_doc.clear();
     }
     rapidxml::xml_node<>* root = doc.allocate_node(rapidxml::node_type::node_element, "ClearwaterRegData");
-    rapidxml::xml_node<>* reg;
+    rapidxml::xml_node<>* reg = NULL;
     if (state == RegistrationState::REGISTERED)
     {
       reg = doc.allocate_node(rapidxml::node_type::node_element, "RegistrationState", "REGISTERED");
@@ -72,7 +72,8 @@ namespace XmlUtils
     {
       reg = doc.allocate_node(rapidxml::node_type::node_element, "RegistrationState", "UNREGISTERED");
     }
-    else if (state == RegistrationState::NOT_REGISTERED) {
+    else
+    {
       reg = doc.allocate_node(rapidxml::node_type::node_element, "RegistrationState", "NOT_REGISTERED");
     }
     root->append_node(reg);
