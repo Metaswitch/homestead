@@ -44,6 +44,8 @@
 #include "rapidjson/stringbuffer.h"
 #include "rapidxml/rapidxml.hpp"
 
+#include <cassert>
+
 void PingHandler::run()
 {
   _req.add_content("OK");
@@ -669,6 +671,8 @@ ServerAssignmentType::Type ImpuRegDataHandler::sar_type_for_deregistration_reque
 ImpuRegDataHandler::RequestType ImpuRegDataHandler::request_type_from_body(std::string body)
 {
   RequestType ret = RequestType::UNKNOWN;
+  LOG_DEBUG("Determining request type from '%s'", body.c_str());
+  LOG_DEBUG("result of body.compare(\"reg\") %d", body.compare("reg"));
   if (body.compare("reg") == 0)
   {
     ret = RequestType::REG;
@@ -689,7 +693,7 @@ ImpuRegDataHandler::RequestType ImpuRegDataHandler::request_type_from_body(std::
   {
     ret = RequestType::DEREG_TIMEOUT;
   }
-  else if (body.compare("dereg-auth-fail") == 0)
+  else if (body.compare("dereg-auth-failed") == 0)
   {
     ret = RequestType::DEREG_AUTH_FAIL;
   }
@@ -697,6 +701,7 @@ ImpuRegDataHandler::RequestType ImpuRegDataHandler::request_type_from_body(std::
   {
     ret = RequestType::DEREG_AUTH_TIMEOUT;
   }
+  LOG_DEBUG("New value of _type is %d", ret);
   return ret;
 }
 
@@ -716,7 +721,7 @@ void ImpuRegDataHandler::run()
 
      - Method must either be GET or PUT
      - PUT requests must have a body of "reg", "call", "dereg-user"
-       "dereg-admin", "dereg-timeout", "dereg-auth-fail" or
+       "dereg-admin", "dereg-timeout", "dereg-auth-failed" or
        "dereg-auth-timeout"
   */
 
@@ -727,7 +732,7 @@ void ImpuRegDataHandler::run()
     return;
   }
 
-  RequestType _type = request_type_from_body(_req.param("type"));
+  _type = request_type_from_body(_req.param("type"));
   if ((method == htp_method_PUT) && (_type == RequestType::UNKNOWN))
   {
     LOG_ERROR("HTTP request contains invalid value %s for type", _req.param("type").c_str());
@@ -754,32 +759,49 @@ void ImpuRegDataHandler::on_get_ims_subscription_success(Cache::Request* request
   get_ims_sub->get_registration_state(old_state, ttl);
   _new_state = old_state;
   LOG_DEBUG("TTL for this database record is %d", ttl);
+  LOG_DEBUG("Value of _type is %d", _type);
+
+  if (_impi.empty())
+  {
+    _impi = XmlUtils::get_private_id(_xml);
+  }
 
   if (_type == RequestType::REG)
   {
     _new_state = RegistrationState::REGISTERED;
     if (old_state == _new_state) {
+      LOG_DEBUG("Handling re-registration");
       if ((ttl < _cfg->ims_sub_cache_ttl) && _cfg->hss_configured) {
+        LOG_DEBUG("Sending re-registration to HSS as %d seconds have passed", _cfg->ims_sub_cache_ttl);
         send_server_assignment_request(ServerAssignmentType::Type::RE_REGISTRATION);
       } else {
         send_reply();
       }
     } else {
+      LOG_DEBUG("Handling initial registration");
       send_server_assignment_request(ServerAssignmentType::Type::REGISTRATION);
     }
   } else if (_type == RequestType::CALL) {
+    LOG_DEBUG("Handling call");
     if ((old_state == RegistrationState::NOT_REGISTERED) || (_xml == ""))
     {
-      _new_state = RegistrationState::UNREGISTERED;
       if (_cfg->hss_configured)
       {
+        LOG_DEBUG("Moving to unregistered state");
+        _new_state = RegistrationState::UNREGISTERED;
         send_server_assignment_request(ServerAssignmentType::Type::UNREGISTERED_USER);
+      } else {
+        _req.send_reply(404);
+        delete this;
+        return;
       }
     } else {
       send_reply();
     }
-  } else if (is_deregistration_request(_type)) {
+  } else {
+    assert(is_deregistration_request(_type));
     if (old_state == RegistrationState::REGISTERED) {
+      LOG_DEBUG("Handling deregistration");
       if (_cfg->hss_configured)
       {
         _new_state = RegistrationState::NOT_REGISTERED;
@@ -790,6 +812,7 @@ void ImpuRegDataHandler::on_get_ims_subscription_success(Cache::Request* request
         send_reply();
       }
     } else {
+      LOG_DEBUG("Rejecting deregistration for user who was not registered");
       _req.send_reply(400);
       delete this;
       return;
@@ -835,6 +858,11 @@ void ImpuRegDataHandler::put_in_cache()
   if (!public_ids.empty())
   {
     LOG_DEBUG("Got public IDs to cache against - doing it");
+    for (auto i = public_ids.begin();
+         i != public_ids.end();
+         i++) {
+      LOG_DEBUG("Public ID %s", i->c_str());
+    }
     Cache::Request* put_ims_sub =
       _cache->create_PutIMSSubscription(public_ids,
                                         _xml,

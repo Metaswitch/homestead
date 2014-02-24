@@ -811,6 +811,7 @@ void Cache::GetIMSSubscription::perform()
         _xml = it->column.value;
         _xml_ttl = it->column.ttl;
         } else if (it->column.name.compare(REG_STATE_COLUMN_NAME) == 0) {
+        _reg_state_ttl = it->column.ttl;
         if (it->column.value.compare("\x01") == 0) {
           _reg_state = RegistrationState::REGISTERED;
         } else if (it->column.value.compare("\x00") == 0) {

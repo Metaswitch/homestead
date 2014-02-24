@@ -383,7 +383,7 @@ int main(int argc, char**argv)
                                  &impi_reg_status_handler_factory);
     http_stack->register_handler("^/impu/[^/]*/location$",
                                  &impu_loc_info_handler_factory);
-    http_stack->register_handler("^/impu/[^/]*/registration-data$",
+    http_stack->register_handler("^/impu/[^/]*/reg-data$",
                                  &impu_reg_data_handler_factory);
     http_stack->register_handler("^/impu/",
                                  &impu_ims_sub_handler_factory);

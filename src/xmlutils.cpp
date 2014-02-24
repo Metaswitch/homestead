@@ -105,24 +105,29 @@ std::vector<std::string> get_public_ids(const std::string& user_data)
     doc.clear();
   }
 
-  // Walk through all nodes in the hierarchy IMSSubscription->ServiceProfile->PublicIdentity
+  // Walk through all nodes in the hierarchy ClearwaterRegData->IMSSubscription->ServiceProfile->PublicIdentity
   // ->Identity.
   rapidxml::xml_node<>* is = doc.first_node("IMSSubscription");
   if (is)
   {
     for (rapidxml::xml_node<>* sp = is->first_node("ServiceProfile");
          sp;
-         sp = is->next_sibling("ServiceProfile"))
+         sp = sp->next_sibling("ServiceProfile"))
     {
+      LOG_DEBUG("New ServiceProfile");
       for (rapidxml::xml_node<>* pi = sp->first_node("PublicIdentity");
            pi;
-           pi = sp->next_sibling("PublicIdentity"))
+           pi = pi->next_sibling("PublicIdentity"))
       {
-        for (rapidxml::xml_node<>* id = pi->first_node("Identity");
-             id;
-             id = pi->next_sibling("Identity"))
+        LOG_DEBUG("New PublicIdentity");
+        rapidxml::xml_node<>* id = pi->first_node("Identity");
+        if (id)
         {
           public_ids.push_back((std::string)id->value());
+        }
+        else
+        {
+          LOG_WARNING("PublicIdentity node was missing Identity child");
         }
       }
     }
@@ -130,4 +135,41 @@ std::vector<std::string> get_public_ids(const std::string& user_data)
 
   return public_ids;
 }
+
+std::string get_private_id(const std::string& user_data)
+{
+  std::string impi;
+
+  // Parse the XML document, saving off the passed-in string first (as parsing
+  // is destructive).
+  rapidxml::xml_document<> doc;
+  char* user_data_str = doc.allocate_string(user_data.c_str());
+
+  try
+  {
+    doc.parse<rapidxml::parse_strip_xml_namespaces>(user_data_str);
+  }
+  catch (rapidxml::parse_error err)
+  {
+    LOG_ERROR("Parse error in IMS Subscription document: %s\n\n%s", err.what(), user_data.c_str());
+    doc.clear();
+  }
+
+  // Walk through all nodes in the hierarchy IMSSubscription->ServiceProfile->PublicIdentity
+  // ->Identity.
+  rapidxml::xml_node<>* is = doc.first_node("IMSSubscription");
+  if (is)
+  {
+    rapidxml::xml_node<>* id = is->first_node("PrivateID");
+    impi = id->value();
+  }
+
+  if (impi.compare("null") == 0)
+  {
+    impi = "";
+  }
+
+  return impi;
+}
+
 }
