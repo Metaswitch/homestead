@@ -48,38 +48,44 @@ namespace XmlUtils
     // Parse the XML document, saving off the passed-in string first (as parsing
     // is destructive).
     rapidxml::xml_document<> doc;
-    rapidxml::xml_document<> prev_doc;
-    char* user_data_str = prev_doc.allocate_string(xml.c_str());
-    rapidxml::xml_node<>* is = NULL;
 
-    try
-    {
-      prev_doc.parse<rapidxml::parse_strip_xml_namespaces>(user_data_str);
-      is = doc.clone_node(prev_doc.first_node("IMSSubscription"));
-    }
-    catch (rapidxml::parse_error err)
-    {
-      LOG_ERROR("Parse error in IMS Subscription document: %s\n\n%s", err.what(), xml.c_str());
-      prev_doc.clear();
-    }
     rapidxml::xml_node<>* root = doc.allocate_node(rapidxml::node_type::node_element, "ClearwaterRegData");
     rapidxml::xml_node<>* reg = NULL;
     if (state == RegistrationState::REGISTERED)
     {
       reg = doc.allocate_node(rapidxml::node_type::node_element, "RegistrationState", "REGISTERED");
     }
-    else if (state == RegistrationState::REGISTERED)
+    else if (state == RegistrationState::UNREGISTERED)
     {
       reg = doc.allocate_node(rapidxml::node_type::node_element, "RegistrationState", "UNREGISTERED");
     }
     else
     {
+      assert(state == RegistrationState::NOT_REGISTERED);
       reg = doc.allocate_node(rapidxml::node_type::node_element, "RegistrationState", "NOT_REGISTERED");
     }
     root->append_node(reg);
-    if (is != NULL) {
-      root->append_node(is);
+
+    if (xml != "") {
+      rapidxml::xml_document<> prev_doc;
+      char* user_data_str = prev_doc.allocate_string(xml.c_str());
+      rapidxml::xml_node<>* is = NULL;
+
+      try
+      {
+        prev_doc.parse<rapidxml::parse_strip_xml_namespaces>(user_data_str);
+        is = doc.clone_node(prev_doc.first_node("IMSSubscription"));
+      }
+      catch (rapidxml::parse_error err)
+      {
+        LOG_ERROR("Parse error in IMS Subscription document: %s\n\n%s", err.what(), xml.c_str());
+        prev_doc.clear();
+      }
+      if (is != NULL) {
+        root->append_node(is);
+      }
     }
+
     doc.append_node(root);
     std::string out;
     rapidxml::print(std::back_inserter(out), doc, 0);
