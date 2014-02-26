@@ -674,8 +674,10 @@ ServerAssignmentType ImpuRegDataHandler::sar_type_for_deregistration_request(Req
   case RequestType::DEREG_AUTH_TIMEOUT:
     return ServerAssignmentType::AUTHENTICATION_TIMEOUT;
   default:
+    // LCOV_EXCL_START
     LOG_ERROR("Couldn't produce an appropiate SAR - programming error'");
     return ServerAssignmentType::ADMINISTRATIVE_DEREGISTRATION;
+    // LCOV_EXCL_STOP
   }
 }
 
@@ -728,13 +730,11 @@ void ImpuRegDataHandler::run()
 
   htp_method method = _req.method();
 
-  /* Police preconditions:
-
-     - Method must either be GET or PUT
-     - PUT requests must have a body of "reg", "call", "dereg-user"
-       "dereg-admin", "dereg-timeout", "dereg-auth-failed" or
-       "dereg-auth-timeout"
-  */
+  // Police preconditions:
+  //    - Method must either be GET or PUT
+  //    - PUT requests must have a body of "reg", "call", "dereg-user"
+  //   "dereg-admin", "dereg-timeout", "dereg-auth-failed" or
+  //   "dereg-auth-timeout"
 
   if ((method != htp_method_PUT) && (method != htp_method_GET))
   {
@@ -746,7 +746,7 @@ void ImpuRegDataHandler::run()
   _type = request_type_from_body(_req.body());
   if ((method == htp_method_PUT) && (_type == RequestType::UNKNOWN))
   {
-    LOG_ERROR("HTTP request contains invalid value %s for type", _req.param("type").c_str());
+    LOG_ERROR("HTTP request contains invalid value %s for type", _req.body().c_str());
     _req.send_reply(400);
     delete this;
     return;
@@ -779,8 +779,8 @@ void ImpuRegDataHandler::on_get_ims_subscription_success(Cache::Request* request
 
   if (_type == RequestType::REG)
   {
-    _new_state = RegistrationState::REGISTERED;
-    if (old_state == _new_state) {
+    if (old_state == RegistrationState::REGISTERED) {
+      _new_state = RegistrationState::REGISTERED;
       LOG_DEBUG("Handling re-registration");
       if ((ttl < _cfg->hss_reregistration_time) && _cfg->hss_configured) {
         LOG_DEBUG("Sending re-registration to HSS as %d seconds have passed", _cfg->hss_reregistration_time);
@@ -790,7 +790,20 @@ void ImpuRegDataHandler::on_get_ims_subscription_success(Cache::Request* request
       }
     } else {
       LOG_DEBUG("Handling initial registration");
-      send_server_assignment_request(ServerAssignmentType::REGISTRATION);
+      if (_cfg->hss_configured)
+      {
+        _new_state = RegistrationState::REGISTERED;
+        send_server_assignment_request(ServerAssignmentType::REGISTRATION);
+      }
+      else if (old_state == RegistrationState::UNREGISTERED) {
+        _new_state = RegistrationState::REGISTERED;
+        put_in_cache();
+        send_reply();
+      } else {
+        _req.send_reply(404);
+        delete this;
+        return;
+      }
     }
   } else if (_type == RequestType::CALL) {
     LOG_DEBUG("Handling call");
