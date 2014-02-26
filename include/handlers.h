@@ -402,8 +402,8 @@ public:
   ImpuRegDataHandler(HttpStack::Request& req, const Config* cfg) :
     HssCacheHandler(req), _cfg(cfg), _impi(), _impu()
   {}
-
-  void run();
+  virtual ~ImpuRegDataHandler() {};
+  virtual void run();
   void on_get_ims_subscription_success(Cache::Request* request);
   void on_get_ims_subscription_failure(Cache::Request* request, Cache::ResultCode error, std::string& text);
   void send_server_assignment_request(ServerAssignmentType type);
@@ -418,7 +418,7 @@ protected:
     UNKNOWN, REG, CALL, DEREG_USER, DEREG_ADMIN, DEREG_TIMEOUT, DEREG_AUTH_FAIL, DEREG_AUTH_TIMEOUT
   };
 
-  void send_reply();
+  virtual void send_reply();
   void put_in_cache();
   bool is_deregistration_request(RequestType type);
   bool is_auth_failure_request(RequestType type);
