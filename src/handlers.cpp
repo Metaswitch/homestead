@@ -315,7 +315,7 @@ void ImpiDigestHandler::send_reply(const DigestAuthVector& av)
   rapidjson::StringBuffer sb;
   rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
   writer.StartObject();
-  writer.String("digest_ha1");
+  writer.String(JSON_DIGEST_HA1.c_str());
   writer.String(av.ha1.c_str());
   writer.EndObject();
   _req.add_content(sb.GetString());
@@ -346,7 +346,7 @@ bool ImpiAvHandler::parse_request()
   }
   else if (scheme == "digest")
   {
-    _scheme = _cfg->scheme_digest;
+    _scheme = _cfg->scheme_digest; // LCOV_EXCL_LINE - digests are handled by the ImpiDigestHandler so we can't get here.
   }
   else if (scheme == "aka")
   {
@@ -370,14 +370,14 @@ void ImpiAvHandler::send_reply(const DigestAuthVector& av)
 
   writer.StartObject();
   {
-    writer.String("digest");
+    writer.String(JSON_DIGEST.c_str());
     writer.StartObject();
     {
-      writer.String("ha1");
+      writer.String(JSON_HA1.c_str());
       writer.String(av.ha1.c_str());
-      writer.String("realm");
+      writer.String(JSON_REALM.c_str());
       writer.String(av.realm.c_str());
-      writer.String("qop");
+      writer.String(JSON_QOP.c_str());
       writer.String(av.qop.c_str());
     }
     writer.EndObject();
@@ -395,16 +395,16 @@ void ImpiAvHandler::send_reply(const AKAAuthVector& av)
 
   writer.StartObject();
   {
-    writer.String("aka");
+    writer.String(JSON_AKA.c_str());
     writer.StartObject();
     {
-      writer.String("challenge");
+      writer.String(JSON_CHALLENGE.c_str());
       writer.String(av.challenge.c_str());
-      writer.String("response");
+      writer.String(JSON_RESPONSE.c_str());
       writer.String(av.response.c_str());
-      writer.String("cryptkey");
+      writer.String(JSON_CRYPTKEY.c_str());
       writer.String(av.crypt_key.c_str());
-      writer.String("integritykey");
+      writer.String(JSON_INTEGRITYKEY.c_str());
       writer.String(av.integrity_key.c_str());
     }
     writer.EndObject();

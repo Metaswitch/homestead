@@ -136,6 +136,9 @@ UserAuthorizationAnswer::UserAuthorizationAnswer(const Dictionary* dict,
                                                  Diameter::Message(dict, dict->USER_AUTHORIZATION_ANSWER, stack)
 {
   LOG_DEBUG("Building User-Authorization answer");
+
+  // This method creates a UAA which is unrealistic for various reasons, but is useful for
+  // testing our handlers code, which is currently all it is used for.
   if (result_code)
   {
     add(Diameter::AVP(dict->RESULT_CODE).val_i32(result_code));
@@ -245,6 +248,8 @@ LocationInfoAnswer::LocationInfoAnswer(const Dictionary* dict,
 {
   LOG_DEBUG("Building Location-Info answer");
 
+  // This method creates an LIA which is unrealistic for various reasons, but is useful for
+  // testing our handlers code, which is currently all it is used for.
   if (result_code)
   {
     add(Diameter::AVP(dict->RESULT_CODE).val_i32(result_code));
@@ -377,10 +382,29 @@ std::string MultimediaAuthRequest::sip_authorization() const
 
 MultimediaAuthAnswer::MultimediaAuthAnswer(const Dictionary* dict,
                                            Diameter::Stack* stack,
-                                           int32_t result_code) :
+                                           const int32_t& result_code,
+                                           const std::string& scheme,
+                                           const DigestAuthVector& digest_av,
+                                           const AKAAuthVector& aka_av) :
                                            Diameter::Message(dict, dict->MULTIMEDIA_AUTH_ANSWER, stack)
 {
+  LOG_DEBUG("Building Multimedia-Authorization answer");
+
+  // This method creates an MAA which is unrealistic for various reasons, but is useful for
+  // testing our handlers code, which is currently all it is used for.
   add(Diameter::AVP(dict->RESULT_CODE).val_i32(result_code));
+  Diameter::AVP sip_auth_data_item(dict->SIP_AUTH_DATA_ITEM);
+  sip_auth_data_item.add(Diameter::AVP(dict->SIP_AUTH_SCHEME).val_str(scheme));
+  Diameter::AVP sip_digest_authenticate(dict->SIP_DIGEST_AUTHENTICATE);
+  sip_digest_authenticate.add(Diameter::AVP(dict->CX_DIGEST_HA1).val_str(digest_av.ha1));
+  sip_digest_authenticate.add(Diameter::AVP(dict->CX_DIGEST_REALM).val_str(digest_av.realm));
+  sip_digest_authenticate.add(Diameter::AVP(dict->CX_DIGEST_QOP).val_str(digest_av.qop));
+  sip_auth_data_item.add(sip_digest_authenticate);
+  sip_auth_data_item.add(Diameter::AVP(dict->SIP_AUTHENTICATE).val_str(aka_av.challenge));
+  sip_auth_data_item.add(Diameter::AVP(dict->SIP_AUTHORIZATION).val_str(aka_av.response));
+  sip_auth_data_item.add(Diameter::AVP(dict->CONFIDENTIALITY_KEY).val_str(aka_av.crypt_key));
+  sip_auth_data_item.add(Diameter::AVP(dict->INTEGRITY_KEY).val_str(aka_av.integrity_key));
+  add(sip_auth_data_item);
 }
 
 std::string MultimediaAuthAnswer::sip_auth_scheme() const
@@ -570,6 +594,9 @@ ServerAssignmentAnswer::ServerAssignmentAnswer(const Dictionary* dict,
                                                Diameter::Message(dict, dict->SERVER_ASSIGNMENT_ANSWER, stack)
 {
   LOG_DEBUG("Building Server-Assignment answer");
+
+  // This method creates an SAA which is unrealistic for various reasons, but is useful for
+  // testing our handlers code, which is currently all it is used for.
   add(Diameter::AVP(dict->RESULT_CODE).val_i32(result_code));
   add(Diameter::AVP(dict->USER_DATA).val_str(ims_subscription));
 }

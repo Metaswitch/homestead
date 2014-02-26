@@ -66,6 +66,16 @@ const std::string DIAMETER_REQ_SUCCESS = "DIAMETER_SUCCESS";
 const std::string DIAMETER_REQ_FAILURE = "DIAMETER_UNABLE_TO_COMPLY";
 
 // JSON string constants
+const std::string JSON_DIGEST_HA1 = "digest_ha1";
+const std::string JSON_DIGEST = "digest";
+const std::string JSON_HA1 = "ha1";
+const std::string JSON_REALM = "realm";
+const std::string JSON_QOP = "qop";
+const std::string JSON_AKA = "aka";
+const std::string JSON_CHALLENGE = "challenge";
+const std::string JSON_RESPONSE = "response";
+const std::string JSON_CRYPTKEY = "cryptkey";
+const std::string JSON_INTEGRITYKEY = "integritykey";
 const std::string JSON_RC = "result-code";
 const std::string JSON_SCSCF = "scscf";
 

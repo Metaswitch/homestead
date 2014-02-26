@@ -221,7 +221,10 @@ class MultimediaAuthAnswer : public Diameter::Message
 public:
   MultimediaAuthAnswer(const Dictionary* dict,
                        Diameter::Stack* stack,
-                       int32_t result_code);
+                       const int32_t& result_code,
+                       const std::string& scheme,
+                       const DigestAuthVector& digest_av,
+                       const AKAAuthVector& aka_av);
   inline MultimediaAuthAnswer(Diameter::Message& msg) : Diameter::Message(msg) {};
 
   std::string sip_auth_scheme() const;
