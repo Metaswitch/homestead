@@ -38,8 +38,26 @@
 
 . /etc/clearwater/config
 
-PORT=8888
+# In case homestead has only just restarted, give it a few seconds to come up.
+sleep 5
 
-# Not currently implemented, just return success.
+# Grab our configuration - we just use the local IP address.
+. /etc/clearwater/config
 
-exit 0
+# For HTTP, we need to wrap IPv6 addresses in square brackets.
+http_ip=$(/usr/share/clearwater/bin/bracket_ipv6_address.py $local_ip)
+
+# Send HTTP request and check that the response is "OK".
+http_url=http://$http_ip:8888/ping
+curl -f -g -m 2 -s $http_url 2> /tmp/poll-homestead.sh.stderr.$$ | tee /tmp/poll-homestead.sh.stdout.$$ | head -1 | egrep -q "^OK$"
+rc=$?
+
+# Check the return code and log if appropriate.
+if [ $rc != 0 ] ; then
+  echo HTTP failed to $http_url        >&2
+  cat /tmp/poll-homestead.sh.stderr.$$ >&2
+  cat /tmp/poll-homestead.sh.stdout.$$ >&2
+fi
+rm -f /tmp/poll-homestead.sh.stderr.$$ /tmp/poll-homestead.sh.stdout.$$
+
+exit $rc

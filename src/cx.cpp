@@ -48,6 +48,7 @@ using namespace Cx;
 
 Dictionary::Dictionary() :
   TGPP("3GPP"),
+  TGPP2("3GPP2"),
   CX("Cx"),
   USER_AUTHORIZATION_REQUEST("3GPP/User-Authorization-Request"),
   USER_AUTHORIZATION_ANSWER("3GPP/User-Authorization-Answer"),

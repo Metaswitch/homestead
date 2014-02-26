@@ -76,8 +76,8 @@ setup_user() {
 setup_logging() {
     if [ ! -d "$log_directory" ]; then
         mkdir -p $log_directory
-        chown $NAME $log_directory
     fi
+    chown $NAME $log_directory
 }
 
 case "$1" in

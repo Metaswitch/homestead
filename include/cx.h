@@ -49,6 +49,7 @@ class Dictionary : public Diameter::Dictionary
 public:
   Dictionary();
   const Diameter::Dictionary::Vendor TGPP;
+  const Diameter::Dictionary::Vendor TGPP2;
   const Diameter::Dictionary::Application CX;
   const Diameter::Dictionary::Message USER_AUTHORIZATION_REQUEST;
   const Diameter::Dictionary::Message USER_AUTHORIZATION_ANSWER;
