@@ -642,6 +642,16 @@ bool ImpuRegDataHandler::is_deregistration_request(RequestType type)
   case RequestType::DEREG_USER:
   case RequestType::DEREG_ADMIN:
   case RequestType::DEREG_TIMEOUT:
+    return true;
+  default:
+    return false;
+  }
+}
+
+// Utility methods
+bool ImpuRegDataHandler::is_auth_failure_request(RequestType type)
+{
+  switch (type) {
   case RequestType::DEREG_AUTH_FAIL:
   case RequestType::DEREG_AUTH_TIMEOUT:
     return true;
@@ -649,6 +659,7 @@ bool ImpuRegDataHandler::is_deregistration_request(RequestType type)
     return false;
   }
 }
+
 
 ServerAssignmentType::Type ImpuRegDataHandler::sar_type_for_deregistration_request(RequestType type) {
   switch (type) {
@@ -798,8 +809,9 @@ void ImpuRegDataHandler::on_get_ims_subscription_success(Cache::Request* request
     } else {
       send_reply();
     }
-  } else {
-    assert(is_deregistration_request(_type));
+  }
+  else if (is_deregistration_request(_type))
+  {
     if (old_state == RegistrationState::REGISTERED) {
       LOG_DEBUG("Handling deregistration");
       if (_cfg->hss_configured)
@@ -817,12 +829,19 @@ void ImpuRegDataHandler::on_get_ims_subscription_success(Cache::Request* request
       delete this;
       return;
     }
+  } else {
+    assert(is_auth_failure_request(_type));
+    LOG_DEBUG("Handling authentication failure/timeout");
+    if (_cfg->hss_configured)
+    {
+      send_server_assignment_request(sar_type_for_deregistration_request(_type));
+    }
   }
-
 }
 
 void ImpuRegDataHandler::send_reply()
 {
+  LOG_DEBUG("Building 200 OK response to send");
   _req.add_content(XmlUtils::compose_xml(_new_state, _xml));
   _req.send_reply(200);
   delete this;
@@ -884,11 +903,21 @@ void ImpuRegDataHandler::on_sar_response(Diameter::Message& rsp)
 
   if (is_deregistration_request(_type))
   {
-    LOG_INFO("Delete IMS subscription for %s", _impu.c_str());
-    Cache::Request* delete_public_id =
-      _cache->create_DeletePublicIDs(_impu, Cache::generate_timestamp());
-    CacheTransaction* tsx = new CacheTransaction(NULL);
-    _cache->send(tsx, delete_public_id);
+    std::vector<std::string> public_ids = XmlUtils::get_public_ids(_xml);
+    if (!public_ids.empty())
+    {
+      LOG_DEBUG("Got public IDs to delete from cache - doing it");
+      for (auto i = public_ids.begin();
+         i != public_ids.end();
+         i++) {
+      LOG_DEBUG("Public ID %s", i->c_str());
+    }
+
+      Cache::Request* delete_public_id =
+        _cache->create_DeletePublicIDs(public_ids, Cache::generate_timestamp());
+      CacheTransaction* tsx = new CacheTransaction(NULL);
+      _cache->send(tsx, delete_public_id);
+    }
   }
 
 
@@ -896,8 +925,9 @@ void ImpuRegDataHandler::on_sar_response(Diameter::Message& rsp)
   {
     case 2001:
       {
-        if (!is_deregistration_request(_type))
+        if (!is_deregistration_request(_type) && !is_auth_failure_request(_type))
         {
+          LOG_DEBUG("Getting User-Data from SAA for cache");
           saa.user_data(_xml);
           put_in_cache();
         }
