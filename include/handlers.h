@@ -414,9 +414,9 @@ class ImpuRegDataHandler : public HssCacheHandler
 public:
   struct Config
   {
-    Config(bool _hss_configured = true, int _ims_sub_cache_ttl = 3600) : hss_configured(_hss_configured), ims_sub_cache_ttl(_ims_sub_cache_ttl) {}
+    Config(bool _hss_configured = true, int _hss_reregistration_time = 3600) : hss_configured(_hss_configured), hss_reregistration_time(_hss_reregistration_time) {}
     bool hss_configured;
-    int ims_sub_cache_ttl;
+    int hss_reregistration_time;
   };
 
   // Initialise the type field to reflect default behaviour if no type is specified.
@@ -465,9 +465,9 @@ class ImpuIMSSubscriptionHandler : public HssCacheHandler
 public:
   struct Config
   {
-    Config(bool _hss_configured = true, int _ims_sub_cache_ttl = 3600) : hss_configured(_hss_configured), ims_sub_cache_ttl(_ims_sub_cache_ttl) {}
+    Config(bool _hss_configured = true, int _hss_reregistration_time = 3600) : hss_configured(_hss_configured), hss_reregistration_time(_hss_reregistration_time) {}
     bool hss_configured;
-    int ims_sub_cache_ttl;
+    int hss_reregistration_time;
   };
 
   // Initialise the type field to reflect default behaviour if no type is specified.
@@ -502,14 +502,14 @@ public:
   {
     Config(Cache* _cache,
            Cx::Dictionary* _dict,
-           int _ims_sub_cache_ttl = 3600) :
+           int _hss_reregistration_time = 3600) :
            cache(_cache),
            dict(_dict),
-           ims_sub_cache_ttl(_ims_sub_cache_ttl) {}
+           hss_reregistration_time(_hss_reregistration_time) {}
 
     Cache* cache;
     Cx::Dictionary* dict;
-    int ims_sub_cache_ttl;
+    int hss_reregistration_time;
   };
 
   RegistrationTerminationHandler(Diameter::Message& msg, const Config* cfg) :
@@ -537,15 +537,15 @@ public:
   {
     Config(Cache* _cache, Cx::Dictionary* _dict,
            int _impu_cache_ttl = 0,
-           int _ims_sub_cache_ttl = 3600) :
+           int _hss_reregistration_time = 3600) :
            cache(_cache),
            dict(_dict),
-           ims_sub_cache_ttl(_ims_sub_cache_ttl) {}
+           hss_reregistration_time(_hss_reregistration_time) {}
 
     Cache* cache;
     Cx::Dictionary* dict;
     int impu_cache_ttl;
-    int ims_sub_cache_ttl;
+    int hss_reregistration_time;
   };
 
   PushProfileHandler(Diameter::Message& msg, const Config* cfg) :

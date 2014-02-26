@@ -703,16 +703,20 @@ void Cache::PutIMSSubscription::perform()
   columns[IMS_SUB_XML_COLUMN_NAME].first = _xml;
   columns[IMS_SUB_XML_COLUMN_NAME].second = _xml_ttl;
 
-  columns[REG_STATE_COLUMN_NAME].second = _reg_state_ttl;
   if (_reg_state == RegistrationState::REGISTERED)
   {
     columns[REG_STATE_COLUMN_NAME].first = BOOLEAN_TRUE;
+    columns[REG_STATE_COLUMN_NAME].second = _reg_state_ttl;
+  }
+  else if (_reg_state == RegistrationState::UNREGISTERED)
+  {
+    columns[REG_STATE_COLUMN_NAME].first = BOOLEAN_FALSE;
+    columns[REG_STATE_COLUMN_NAME].second = _reg_state_ttl;
   }
   else
   {
-    assert(_reg_state == RegistrationState::UNREGISTERED);
-    columns[REG_STATE_COLUMN_NAME].first = BOOLEAN_FALSE;
-  };
+    assert(_reg_state == RegistrationState::UNCHANGED);
+  }
 
   put_columns(_public_ids, columns, _timestamp);
   _trx->on_success(this);

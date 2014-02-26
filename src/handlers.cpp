@@ -743,7 +743,7 @@ void ImpuRegDataHandler::run()
     return;
   }
 
-  _type = request_type_from_body(_req.param("type"));
+  _type = request_type_from_body(_req.body());
   if ((method == htp_method_PUT) && (_type == RequestType::UNKNOWN))
   {
     LOG_ERROR("HTTP request contains invalid value %s for type", _req.param("type").c_str());
@@ -782,8 +782,8 @@ void ImpuRegDataHandler::on_get_ims_subscription_success(Cache::Request* request
     _new_state = RegistrationState::REGISTERED;
     if (old_state == _new_state) {
       LOG_DEBUG("Handling re-registration");
-      if ((ttl < _cfg->ims_sub_cache_ttl) && _cfg->hss_configured) {
-        LOG_DEBUG("Sending re-registration to HSS as %d seconds have passed", _cfg->ims_sub_cache_ttl);
+      if ((ttl < _cfg->hss_reregistration_time) && _cfg->hss_configured) {
+        LOG_DEBUG("Sending re-registration to HSS as %d seconds have passed", _cfg->hss_reregistration_time);
         send_server_assignment_request(ServerAssignmentType::Type::RE_REGISTRATION);
       } else {
         send_reply();
@@ -841,7 +841,7 @@ void ImpuRegDataHandler::on_get_ims_subscription_success(Cache::Request* request
 
 void ImpuRegDataHandler::send_reply()
 {
-  LOG_DEBUG("Building 200 OK response to send");
+  LOG_DEBUG("Building 200 OK response to send (body was %s)", _req.body().c_str());
   _req.add_content(XmlUtils::compose_xml(_new_state, _xml));
   _req.send_reply(200);
   delete this;
@@ -887,8 +887,8 @@ void ImpuRegDataHandler::put_in_cache()
                                         _xml,
                                         _new_state,
                                         Cache::generate_timestamp(),
-                                        (2 * _cfg->ims_sub_cache_ttl),
-                                        (2 * _cfg->ims_sub_cache_ttl));
+                                        (2 * _cfg->hss_reregistration_time),
+                                        (2 * _cfg->hss_reregistration_time));
     CacheTransaction* tsx = new CacheTransaction(NULL);
     _cache->send(tsx, put_ims_sub);
   }
@@ -1065,7 +1065,7 @@ void ImpuIMSSubscriptionHandler::on_sar_response(Diameter::Message& rsp)
           saa.user_data(user_data);
           _req.add_content(user_data);
 
-          if (_cfg->ims_sub_cache_ttl != 0)
+          if (_cfg->hss_reregistration_time != 0)
           {
             LOG_DEBUG("Attempting to cache IMS subscription for public IDs");
             std::vector<std::string> public_ids = XmlUtils::get_public_ids(user_data);
@@ -1077,8 +1077,8 @@ void ImpuIMSSubscriptionHandler::on_sar_response(Diameter::Message& rsp)
                                                   user_data,
                                                   state,
                                                   Cache::generate_timestamp(),
-                                                  _cfg->ims_sub_cache_ttl,
-                                                  (2 * _cfg->ims_sub_cache_ttl));
+                                                  _cfg->hss_reregistration_time,
+                                                  (2 * _cfg->hss_reregistration_time));
               CacheTransaction* tsx = new CacheTransaction(NULL);
               _cache->send(tsx, put_ims_sub);
             }
@@ -1221,7 +1221,7 @@ void PushProfileHandler::run()
     LOG_INFO("Updating IMS subscription from PPR");
     std::vector<std::string> impus = XmlUtils::get_public_ids(user_data);
     RegistrationState state = RegistrationState::UNCHANGED;
-    Cache::Request* put_ims_subscription = _cfg->cache->create_PutIMSSubscription(impus, user_data, state, Cache::generate_timestamp(), _cfg->ims_sub_cache_ttl, (2 * _cfg->ims_sub_cache_ttl));
+    Cache::Request* put_ims_subscription = _cfg->cache->create_PutIMSSubscription(impus, user_data, state, Cache::generate_timestamp(), _cfg->hss_reregistration_time, (2 * _cfg->hss_reregistration_time));
     HssCacheHandler::CacheTransaction<PushProfileHandler>* tsx = new HssCacheHandler::CacheTransaction<PushProfileHandler>(NULL);
     _cfg->cache->send(tsx, put_ims_subscription);
   }

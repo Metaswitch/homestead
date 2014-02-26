@@ -701,12 +701,12 @@ TEST_F(CacheRequestTest, PutIMSSubscriptionUnregistered)
   std::map<std::string, std::pair<std::string, int32_t> > columns;
   columns["ims_subscription_xml"].first = "<xml>";
   columns["ims_subscription_xml"].second = 300;
-  columns["is_registered"].first = "\x00";
+  columns["is_registered"].first = std::string("\x00", 1);
   columns["is_registered"].second = 600;
 
   EXPECT_CALL(_client,
               batch_mutate(
-                MutationMap("impu", "kermit", columns, 100), _));
+                MutationMap("impu", "kermit", columns, 1000), _));
 
   do_successful_trx(trx, req);
 }
@@ -723,7 +723,7 @@ TEST_F(CacheRequestTest, PutIMSSubscriptionUnchanged)
 
   EXPECT_CALL(_client,
               batch_mutate(
-                MutationMap("impu", "kermit", columns, 100), _));
+                MutationMap("impu", "kermit", columns, 1000), _));
 
   do_successful_trx(trx, req);
 }
@@ -1049,7 +1049,7 @@ TEST_F(CacheRequestTest, GetIMSSubscriptionUnregistered)
 
   std::map<std::string, std::string> columns;
   columns["ims_subscription_xml"] = "<howdy>";
-  columns["is_registered"] = "\x00";
+  columns["is_registered"] = std::string("\x00", 1);
 
   std::vector<cass::ColumnOrSuperColumn> slice;
   make_slice(slice, columns);

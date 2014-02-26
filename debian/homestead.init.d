@@ -90,7 +90,7 @@ get_settings()
         num_http_threads=$(($(grep processor /proc/cpuinfo | wc -l) * 50))
         log_level=2
         impu_cache_ttl=0
-        ims_sub_cache_ttl=$((24 * 60 * 60))
+        hss_reregistration_time=1800
         [ -r /etc/clearwater/user_settings ] && . /etc/clearwater/user_settings
 
         # Work out which features are enabled.
@@ -131,8 +131,8 @@ do_start()
                      --dest-realm $home_domain
                      --dest-host $hss_hostname
                      --server-name sip:$sprout_hostname:5054
-                     --impu-cache-ttl $impu_cache_ttl 
-                     --ims-sub-cache-ttl $ims_sub_cache_ttl
+                     --impu-cache-ttl $impu_cache_ttl
+                     --hss_reregistration_time $hss_reregistration_time
                      $scheme_unknown_arg
                      -a $log_directory
                      -F $log_directory
