@@ -1099,7 +1099,7 @@ void PushProfileHandler::run()
     LOG_INFO("Updating IMS subscription from PPR");
     std::vector<std::string> impus = XmlUtils::get_public_ids(user_data);
     RegistrationState state = RegistrationState::UNCHANGED;
-    Cache::Request* put_ims_subscription = _cfg->cache->create_PutIMSSubscription(impus, user_data, state, Cache::generate_timestamp(), _cfg->hss_reregistration_time, (2 * _cfg->hss_reregistration_time));
+    Cache::Request* put_ims_subscription = _cfg->cache->create_PutIMSSubscription(impus, user_data, state, Cache::generate_timestamp(),(2 * _cfg->hss_reregistration_time), (2 * _cfg->hss_reregistration_time));
     HssCacheHandler::CacheTransaction<PushProfileHandler>* tsx = new HssCacheHandler::CacheTransaction<PushProfileHandler>(NULL);
     _cfg->cache->send(tsx, put_ims_subscription);
   }
