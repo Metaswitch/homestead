@@ -69,26 +69,6 @@ const std::string DIAMETER_REQ_FAILURE = "DIAMETER_UNABLE_TO_COMPLY";
 const std::string JSON_RC = "result-code";
 const std::string JSON_SCSCF = "scscf";
 
-// Server Assignment Types
-const ServerAssignmentType REG(false, ServerAssignmentType::REGISTRATION, false);
-const ServerAssignmentType REREG(true, ServerAssignmentType::RE_REGISTRATION, false);
-const ServerAssignmentType DEREG_USER(false, ServerAssignmentType::USER_DEREGISTRATION, true);
-const ServerAssignmentType DEREG_TIMEOUT(false, ServerAssignmentType::TIMEOUT_DEREGISTRATION, true);
-const ServerAssignmentType DEREG_AUTH_FAIL(false, ServerAssignmentType::AUTHENTICATION_FAILURE, true);
-const ServerAssignmentType DEREG_AUTH_TIMEOUT(false, ServerAssignmentType::AUTHENTICATION_TIMEOUT, true);
-const ServerAssignmentType DEREG_ADMIN(false, ServerAssignmentType::ADMINISTRATIVE_DEREGISTRATION, true);
-const ServerAssignmentType CALL_REG(true, ServerAssignmentType::NO_ASSIGNMENT, false);
-const ServerAssignmentType CALL_UNREG(true, ServerAssignmentType::UNREGISTERED_USER, false);
-const std::map<std::string, ServerAssignmentType> SERVER_ASSIGNMENT_TYPES = {{"reg", REG},
-                                                                             {"rereg", REREG},
-                                                                             {"dereg-user", DEREG_USER},
-                                                                             {"dereg-timeout", DEREG_TIMEOUT},
-                                                                             {"dereg-auth-fail", DEREG_AUTH_FAIL},
-                                                                             {"dereg-auth-timeout", DEREG_AUTH_TIMEOUT},
-                                                                             {"dereg-admin", DEREG_ADMIN},
-                                                                             {"call-reg", CALL_REG},
-                                                                             {"call-unreg", CALL_UNREG}};
-
 class PingHandler : public HttpStack::Handler
 {
 public:
@@ -419,11 +399,6 @@ public:
     int hss_reregistration_time;
   };
 
-  // Initialise the type field to reflect default behaviour if no type is specified.
-  // That is, look for IMS subscription information in the cache. If we don't find
-  // any, assume we have a first registration and query the cache with
-  // Server-Assignment-Type set to REGISTRATION (1) and cache any IMS subscription
-  // information that gets returned.
   ImpuRegDataHandler(HttpStack::Request& req, const Config* cfg) :
     HssCacheHandler(req), _cfg(cfg), _impi(), _impu()
   {}
@@ -431,13 +406,13 @@ public:
   void run();
   void on_get_ims_subscription_success(Cache::Request* request);
   void on_get_ims_subscription_failure(Cache::Request* request, Cache::ResultCode error, std::string& text);
-  void send_server_assignment_request(ServerAssignmentType::Type type);
+  void send_server_assignment_request(ServerAssignmentType type);
   void on_sar_response(Diameter::Message& rsp);
 
   typedef HssCacheHandler::CacheTransaction<ImpuRegDataHandler> CacheTransaction;
   typedef HssCacheHandler::DiameterTransaction<ImpuRegDataHandler> DiameterTransaction;
 
-private:
+protected:
 
   enum RequestType {
     UNKNOWN, REG, CALL, DEREG_USER, DEREG_ADMIN, DEREG_TIMEOUT, DEREG_AUTH_FAIL, DEREG_AUTH_TIMEOUT
@@ -447,7 +422,7 @@ private:
   void put_in_cache();
   bool is_deregistration_request(RequestType type);
   bool is_auth_failure_request(RequestType type);
-  ServerAssignmentType::Type sar_type_for_deregistration_request(RequestType type);
+  ServerAssignmentType sar_type_for_deregistration_request(RequestType type);
   RequestType request_type_from_body(std::string body);
 
 
@@ -460,39 +435,16 @@ private:
   RegistrationState _new_state;
 };
 
-class ImpuIMSSubscriptionHandler : public HssCacheHandler
+class ImpuIMSSubscriptionHandler : public ImpuRegDataHandler
 {
 public:
-  struct Config
-  {
-    Config(bool _hss_configured = true, int _hss_reregistration_time = 3600) : hss_configured(_hss_configured), hss_reregistration_time(_hss_reregistration_time) {}
-    bool hss_configured;
-    int hss_reregistration_time;
-  };
-
-  // Initialise the type field to reflect default behaviour if no type is specified.
-  // That is, look for IMS subscription information in the cache. If we don't find
-  // any, assume we have a first registration and query the cache with
-  // Server-Assignment-Type set to REGISTRATION (1) and cache any IMS subscription
-  // information that gets returned.
-  ImpuIMSSubscriptionHandler(HttpStack::Request& req, const Config* cfg) :
-    HssCacheHandler(req), _cfg(cfg), _impi(), _impu(), _type(true, ServerAssignmentType::REGISTRATION, false)
-  {}
+ImpuIMSSubscriptionHandler(HttpStack::Request& req, const Config* cfg) :
+  ImpuRegDataHandler(req, cfg)
+  {};
 
   void run();
-  void on_get_ims_subscription_success(Cache::Request* request);
-  void on_get_ims_subscription_failure(Cache::Request* request, Cache::ResultCode error, std::string& text);
-  void send_server_assignment_request();
-  void on_sar_response(Diameter::Message& rsp);
-
-  typedef HssCacheHandler::CacheTransaction<ImpuIMSSubscriptionHandler> CacheTransaction;
-  typedef HssCacheHandler::DiameterTransaction<ImpuIMSSubscriptionHandler> DiameterTransaction;
-
 private:
-  const Config* _cfg;
-  std::string _impi;
-  std::string _impu;
-  ServerAssignmentType _type;
+    void send_reply();
 };
 
 class RegistrationTerminationHandler : public Diameter::Stack::Handler

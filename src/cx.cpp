@@ -102,7 +102,7 @@ UserAuthorizationRequest::UserAuthorizationRequest(const Dictionary* dict,
 {
   LOG_DEBUG("Building User-Authorization request for %s/%s", impi.c_str(), impu.c_str());
   add_new_session_id();
-  add_vendor_spec_app_id();  
+  add_vendor_spec_app_id();
   add(Diameter::AVP(dict->AUTH_SESSION_STATE).val_i32(1));
   add_origin();
   add(Diameter::AVP(dict->DESTINATION_HOST).val_str(dest_host));
@@ -453,7 +453,7 @@ ServerAssignmentRequest::ServerAssignmentRequest(const Dictionary* dict,
                                                  const std::string& impi,
                                                  const std::string& impu,
                                                  const std::string& server_name,
-                                                 const ServerAssignmentType::Type& type) :
+                                                 const ServerAssignmentType type) :
                                                  Diameter::Message(dict, dict->SERVER_ASSIGNMENT_REQUEST)
 {
   LOG_DEBUG("Building Server-Assignment request for %s/%s", impi.c_str(), impu.c_str());

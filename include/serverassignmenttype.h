@@ -37,11 +37,8 @@
 #ifndef SERVERASSIGNMENTTYPE_H__
 #define SERVERASSIGNMENTTYPE_H__
 
-struct ServerAssignmentType
+enum ServerAssignmentType
 {
-public:
-  enum Type
-  {
     NO_ASSIGNMENT = 0,
     REGISTRATION = 1,
     RE_REGISTRATION = 2,
@@ -53,22 +50,6 @@ public:
     ADMINISTRATIVE_DEREGISTRATION = 8,
     AUTHENTICATION_FAILURE = 9,
     AUTHENTICATION_TIMEOUT = 10
-  };
-
-  ServerAssignmentType(const bool& lookup, const Type& type, const bool& dereg) :
-    _cache_lookup(lookup), _server_assignment_type(type), _deregistration(dereg)
-  {}
-
-  inline bool cache_lookup() const {return _cache_lookup;}
-  inline Type type() const {return _server_assignment_type;}
-  inline bool deregistration() const {return _deregistration;}
-
-  inline void unregistered_user_default() {_server_assignment_type = UNREGISTERED_USER;}
-
-private:
-  bool _cache_lookup;
-  Type _server_assignment_type;
-  bool _deregistration;
 };
 
 #endif
