@@ -64,6 +64,9 @@ std::string DIGEST_REALM_COLUMN_NAME    = "digest_realm";
 std::string DIGEST_QOP_COLUMN_NAME      = "digest_qop";
 std::string KNOWN_PREFERRED_COLUMN_NAME = "known_preferred";
 
+const std::string BOOLEAN_FALSE = std::string("\0", 1);
+const std::string BOOLEAN_TRUE = std::string("\x01", 1);
+
 //
 // Cache methods
 //
@@ -700,12 +703,15 @@ void Cache::PutIMSSubscription::perform()
   columns[IMS_SUB_XML_COLUMN_NAME].first = _xml;
   columns[IMS_SUB_XML_COLUMN_NAME].second = _xml_ttl;
 
-  if (_reg_state == RegistrationState::REGISTERED) {
-    columns[REG_STATE_COLUMN_NAME].first = "\x01";
-    columns[REG_STATE_COLUMN_NAME].second = _reg_state_ttl;
-  } else if (_reg_state == RegistrationState::UNREGISTERED) {
-    columns[REG_STATE_COLUMN_NAME].first = "\x00";
-    columns[REG_STATE_COLUMN_NAME].second = _reg_state_ttl;
+  columns[REG_STATE_COLUMN_NAME].second = _reg_state_ttl;
+  if (_reg_state == RegistrationState::REGISTERED)
+  {
+    columns[REG_STATE_COLUMN_NAME].first = BOOLEAN_TRUE;
+  }
+  else
+  {
+    assert(_reg_state == RegistrationState::UNREGISTERED);
+    columns[REG_STATE_COLUMN_NAME].first = BOOLEAN_FALSE;
   };
 
   put_columns(_public_ids, columns, _timestamp);
@@ -769,7 +775,7 @@ void Cache::PutAuthVector::perform()
   columns[DIGEST_HA1_COLUMN_NAME]      = _auth_vector.ha1;
   columns[DIGEST_REALM_COLUMN_NAME]    = _auth_vector.realm;
   columns[DIGEST_QOP_COLUMN_NAME]      = _auth_vector.qop;
-  columns[KNOWN_PREFERRED_COLUMN_NAME] = _auth_vector.preferred ? "\x01" : "\x00";
+  columns[KNOWN_PREFERRED_COLUMN_NAME] = _auth_vector.preferred ? BOOLEAN_TRUE : BOOLEAN_FALSE;
 
   put_columns(_private_ids, columns, _timestamp, _ttl);
   _trx->on_success(this);
@@ -812,11 +818,13 @@ void Cache::GetIMSSubscription::perform()
         _xml_ttl = it->column.ttl;
         } else if (it->column.name.compare(REG_STATE_COLUMN_NAME) == 0) {
         _reg_state_ttl = it->column.ttl;
-        if (it->column.value.compare("\x01") == 0) {
+        if (it->column.value.compare(BOOLEAN_TRUE) == 0) {
           _reg_state = RegistrationState::REGISTERED;
-        } else if (it->column.value.compare("\x00") == 0) {
+        } else if (it->column.value.compare(BOOLEAN_FALSE) == 0) {
           _reg_state = RegistrationState::UNREGISTERED;
-        }
+        } else {
+          LOG_WARNING("Registration state column has invalid value %d %s", it->column.value.c_str()[0], it->column.value.c_str());
+        };
       };
   }
 
