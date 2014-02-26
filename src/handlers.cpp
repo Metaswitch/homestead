@@ -253,34 +253,34 @@ void ImpiHandler::on_mar_response(Diameter::Message& rsp)
   switch (result_code)
   {
     case 2001:
+    {
+      std::string sip_auth_scheme = maa.sip_auth_scheme();
+      if (sip_auth_scheme == _cfg->scheme_digest)
       {
-        std::string sip_auth_scheme = maa.sip_auth_scheme();
-        if (sip_auth_scheme == _cfg->scheme_digest)
+        send_reply(maa.digest_auth_vector());
+        if (_cfg->impu_cache_ttl != 0)
         {
-          send_reply(maa.digest_auth_vector());
-          if (_cfg->impu_cache_ttl != 0)
-          {
-            LOG_DEBUG("Caching that private ID %s includes public ID %s",
-                      _impi.c_str(), _impu.c_str());
-            Cache::Request* put_public_id =
-              _cache->create_PutAssociatedPublicID(_impi,
-                                                   _impu,
-                                                   Cache::generate_timestamp(),
-                                                   _cfg->impu_cache_ttl);
-            CacheTransaction* tsx = new CacheTransaction(NULL);
-            _cache->send(tsx, put_public_id);
-          }
-        }
-        else if (sip_auth_scheme == _cfg->scheme_aka)
-        {
-          send_reply(maa.aka_auth_vector());
-        }
-        else
-        {
-          _req.send_reply(404);
+          LOG_DEBUG("Caching that private ID %s includes public ID %s",
+                    _impi.c_str(), _impu.c_str());
+          Cache::Request* put_public_id =
+            _cache->create_PutAssociatedPublicID(_impi,
+                                                 _impu,
+                                                 Cache::generate_timestamp(),
+                                                 _cfg->impu_cache_ttl);
+          CacheTransaction* tsx = new CacheTransaction(NULL);
+          _cache->send(tsx, put_public_id);
         }
       }
-      break;
+      else if (sip_auth_scheme == _cfg->scheme_aka)
+      {
+        send_reply(maa.aka_auth_vector());
+      }
+      else
+      {
+        _req.send_reply(404);
+      }
+    }
+    break;
     case 5001:
       LOG_INFO("Multimedia-Auth answer with result code %d - reject", result_code);
       _req.send_reply(404);
@@ -638,46 +638,50 @@ void ImpuLocationInfoHandler::on_lir_response(Diameter::Message& rsp)
 // Utility methods
 bool ImpuRegDataHandler::is_deregistration_request(RequestType type)
 {
-  switch (type) {
-  case RequestType::DEREG_USER:
-  case RequestType::DEREG_ADMIN:
-  case RequestType::DEREG_TIMEOUT:
-    return true;
-  default:
-    return false;
+  switch (type)
+  {
+    case RequestType::DEREG_USER:
+    case RequestType::DEREG_ADMIN:
+    case RequestType::DEREG_TIMEOUT:
+      return true;
+    default:
+      return false;
   }
 }
 
 // Utility methods
 bool ImpuRegDataHandler::is_auth_failure_request(RequestType type)
 {
-  switch (type) {
-  case RequestType::DEREG_AUTH_FAIL:
-  case RequestType::DEREG_AUTH_TIMEOUT:
-    return true;
-  default:
-    return false;
+  switch (type)
+  {
+    case RequestType::DEREG_AUTH_FAIL:
+    case RequestType::DEREG_AUTH_TIMEOUT:
+      return true;
+    default:
+      return false;
   }
 }
 
 
-ServerAssignmentType ImpuRegDataHandler::sar_type_for_deregistration_request(RequestType type) {
-  switch (type) {
-  case RequestType::DEREG_USER:
-    return ServerAssignmentType::USER_DEREGISTRATION;
-  case RequestType::DEREG_ADMIN:
-    return ServerAssignmentType::ADMINISTRATIVE_DEREGISTRATION;
-  case RequestType::DEREG_TIMEOUT:
-    return ServerAssignmentType::TIMEOUT_DEREGISTRATION;
-  case RequestType::DEREG_AUTH_FAIL:
-    return ServerAssignmentType::AUTHENTICATION_FAILURE;
-  case RequestType::DEREG_AUTH_TIMEOUT:
-    return ServerAssignmentType::AUTHENTICATION_TIMEOUT;
-  default:
-    // LCOV_EXCL_START
-    LOG_ERROR("Couldn't produce an appropiate SAR - programming error'");
-    return ServerAssignmentType::ADMINISTRATIVE_DEREGISTRATION;
-    // LCOV_EXCL_STOP
+ServerAssignmentType ImpuRegDataHandler::sar_type_for_deregistration_request(RequestType type)
+{
+  switch (type)
+  {
+    case RequestType::DEREG_USER:
+      return ServerAssignmentType::USER_DEREGISTRATION;
+    case RequestType::DEREG_ADMIN:
+      return ServerAssignmentType::ADMINISTRATIVE_DEREGISTRATION;
+    case RequestType::DEREG_TIMEOUT:
+      return ServerAssignmentType::TIMEOUT_DEREGISTRATION;
+    case RequestType::DEREG_AUTH_FAIL:
+      return ServerAssignmentType::AUTHENTICATION_FAILURE;
+    case RequestType::DEREG_AUTH_TIMEOUT:
+      return ServerAssignmentType::AUTHENTICATION_TIMEOUT;
+    default:
+      // LCOV_EXCL_START
+      LOG_ERROR("Couldn't produce an appropiate SAR - programming error'");
+      return ServerAssignmentType::ADMINISTRATIVE_DEREGISTRATION;
+      // LCOV_EXCL_STOP
   }
 }
 
@@ -779,33 +783,44 @@ void ImpuRegDataHandler::on_get_ims_subscription_success(Cache::Request* request
 
   if (_type == RequestType::REG)
   {
-    if (old_state == RegistrationState::REGISTERED) {
+    if (old_state == RegistrationState::REGISTERED)
+    {
       _new_state = RegistrationState::REGISTERED;
       LOG_DEBUG("Handling re-registration");
-      if ((ttl < _cfg->hss_reregistration_time) && _cfg->hss_configured) {
+      if ((ttl < _cfg->hss_reregistration_time) && _cfg->hss_configured)
+      {
         LOG_DEBUG("Sending re-registration to HSS as %d seconds have passed", _cfg->hss_reregistration_time);
         send_server_assignment_request(ServerAssignmentType::RE_REGISTRATION);
-      } else {
+      }
+      else
+      {
         send_reply();
       }
-    } else {
+    }
+    else
+    {
       LOG_DEBUG("Handling initial registration");
       if (_cfg->hss_configured)
       {
         _new_state = RegistrationState::REGISTERED;
         send_server_assignment_request(ServerAssignmentType::REGISTRATION);
       }
-      else if (old_state == RegistrationState::UNREGISTERED) {
+      else if (old_state == RegistrationState::UNREGISTERED)
+      {
         _new_state = RegistrationState::REGISTERED;
         put_in_cache();
         send_reply();
-      } else {
+      }
+      else
+      {
         _req.send_reply(404);
         delete this;
         return;
       }
     }
-  } else if (_type == RequestType::CALL) {
+  }
+  else if (_type == RequestType::CALL)
+  {
     LOG_DEBUG("Handling call");
     if ((old_state == RegistrationState::NOT_REGISTERED) || (_xml == ""))
     {
@@ -814,35 +829,46 @@ void ImpuRegDataHandler::on_get_ims_subscription_success(Cache::Request* request
         LOG_DEBUG("Moving to unregistered state");
         _new_state = RegistrationState::UNREGISTERED;
         send_server_assignment_request(ServerAssignmentType::UNREGISTERED_USER);
-      } else {
+      }
+      else
+      {
         _req.send_reply(404);
         delete this;
         return;
       }
-    } else {
+    }
+    else
+    {
       send_reply();
     }
   }
   else if (is_deregistration_request(_type))
   {
-    if (old_state == RegistrationState::REGISTERED) {
+    if (old_state == RegistrationState::REGISTERED)
+    {
       LOG_DEBUG("Handling deregistration");
       if (_cfg->hss_configured)
       {
         _new_state = RegistrationState::NOT_REGISTERED;
         send_server_assignment_request(sar_type_for_deregistration_request(_type));
-      } else {
+      }
+      else
+      {
         _new_state = RegistrationState::UNREGISTERED;
         put_in_cache();
         send_reply();
       }
-    } else {
+    }
+    else
+    {
       LOG_DEBUG("Rejecting deregistration for user who was not registered");
       _req.send_reply(400);
       delete this;
       return;
     }
-  } else {
+  }
+  else
+  {
     assert(is_auth_failure_request(_type));
     LOG_DEBUG("Handling authentication failure/timeout");
     if (_cfg->hss_configured)
@@ -892,7 +918,8 @@ void ImpuRegDataHandler::put_in_cache()
     LOG_DEBUG("Got public IDs to cache against - doing it");
     for (auto i = public_ids.begin();
          i != public_ids.end();
-         i++) {
+         i++)
+    {
       LOG_DEBUG("Public ID %s", i->c_str());
     }
     Cache::Request* put_ims_sub =
@@ -921,10 +948,11 @@ void ImpuRegDataHandler::on_sar_response(Diameter::Message& rsp)
     {
       LOG_DEBUG("Got public IDs to delete from cache - doing it");
       for (auto i = public_ids.begin();
-         i != public_ids.end();
-         i++) {
-      LOG_DEBUG("Public ID %s", i->c_str());
-    }
+           i != public_ids.end();
+           i++)
+      {
+        LOG_DEBUG("Public ID %s", i->c_str());
+      }
 
       Cache::Request* delete_public_id =
         _cache->create_DeletePublicIDs(public_ids, Cache::generate_timestamp());
@@ -937,16 +965,16 @@ void ImpuRegDataHandler::on_sar_response(Diameter::Message& rsp)
   switch (result_code)
   {
     case 2001:
+    {
+      if (!is_deregistration_request(_type) && !is_auth_failure_request(_type))
       {
-        if (!is_deregistration_request(_type) && !is_auth_failure_request(_type))
-        {
-          LOG_DEBUG("Getting User-Data from SAA for cache");
-          saa.user_data(_xml);
-          put_in_cache();
-        }
-        send_reply();
+        LOG_DEBUG("Getting User-Data from SAA for cache");
+        saa.user_data(_xml);
+        put_in_cache();
       }
-      break;
+      send_reply();
+    }
+    break;
     case 5001:
       LOG_INFO("Server-Assignment answer with result code %d - reject", result_code);
       _req.send_reply(404);
