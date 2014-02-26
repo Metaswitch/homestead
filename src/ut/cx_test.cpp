@@ -66,6 +66,7 @@ public:
   static const int32_t RESULT_CODE;
   static const int32_t AUTH_SESSION_STATE;
   static const std::vector<std::string> IMPIS;
+  static const ServerCapabilities CAPABILITIES;
   static const ServerAssignmentType::Type TIMEOUT_DEREGISTRATION;
   static const ServerAssignmentType::Type UNREGISTERED_USER;
 
@@ -129,7 +130,7 @@ public:
       throw new std::runtime_error(ss.str());
     }
 
-    return Diameter::Message(_cx_dict, parsed_msg);
+    return Diameter::Message(_cx_dict, parsed_msg, _mock_stack);
   }
 
   void check_common_request_fields(const Diameter::Message& msg)
@@ -185,6 +186,9 @@ const std::string CxTest::EMPTY_STRING = "";
 const int32_t CxTest::RESULT_CODE = 2001;
 const int32_t CxTest::AUTH_SESSION_STATE = 1;
 const std::vector<std::string> CxTest::IMPIS {"private_id1", "private_id2"};
+const std::vector<int32_t> mandatory_capabilities = {1, 3};
+const std::vector<int32_t> optional_capabilities = {2, 4};
+const ServerCapabilities CxTest::CAPABILITIES(mandatory_capabilities, optional_capabilities);
 const ServerAssignmentType::Type CxTest::TIMEOUT_DEREGISTRATION = TIMEOUT_DEREGISTRATION;
 const ServerAssignmentType::Type CxTest::UNREGISTERED_USER = UNREGISTERED_USER;
 
@@ -195,6 +199,7 @@ Cx::Dictionary* CxTest::_cx_dict = NULL;
 TEST_F(CxTest, MARTest)
 {
   Cx::MultimediaAuthRequest mar(_cx_dict,
+                                _mock_stack,
                                 DEST_REALM,
                                 DEST_HOST,
                                 IMPI,
@@ -217,6 +222,7 @@ TEST_F(CxTest, MARTest)
 TEST_F(CxTest, MARAuthorizationTest)
 {
   Cx::MultimediaAuthRequest mar(_cx_dict,
+                                _mock_stack,
                                 DEST_REALM,
                                 DEST_HOST,
                                 IMPI,
@@ -240,6 +246,7 @@ TEST_F(CxTest, MARAuthorizationTest)
 TEST_F(CxTest, SARTest)
 {
   Cx::ServerAssignmentRequest sar(_cx_dict,
+                                  _mock_stack,
                                   DEST_HOST,
                                   DEST_REALM,
                                   IMPI,
@@ -262,6 +269,7 @@ TEST_F(CxTest, SARTest)
 TEST_F(CxTest, SARNoImpiTest)
 {
   Cx::ServerAssignmentRequest sar(_cx_dict,
+                                  _mock_stack,
                                   DEST_HOST,
                                   DEST_REALM,
                                   EMPTY_STRING,
@@ -284,6 +292,7 @@ TEST_F(CxTest, SARNoImpiTest)
 TEST_F(CxTest, UARTest)
 {
   Cx::UserAuthorizationRequest uar(_cx_dict,
+                                   _mock_stack,
                                    DEST_HOST,
                                    DEST_REALM,
                                    IMPI,
@@ -304,6 +313,7 @@ TEST_F(CxTest, UARTest)
 TEST_F(CxTest, UARAuthTypeDeregTest)
 {
   Cx::UserAuthorizationRequest uar(_cx_dict,
+                                   _mock_stack,
                                    DEST_HOST,
                                    DEST_REALM,
                                    IMPI,
@@ -324,6 +334,7 @@ TEST_F(CxTest, UARAuthTypeDeregTest)
 TEST_F(CxTest, UARAuthTypeCapabTest)
 {
   Cx::UserAuthorizationRequest uar(_cx_dict,
+                                   _mock_stack,
                                    DEST_HOST,
                                    DEST_REALM,
                                    IMPI,
@@ -344,6 +355,7 @@ TEST_F(CxTest, UARAuthTypeCapabTest)
 TEST_F(CxTest, UARNoAuthTypeTest)
 {
   Cx::UserAuthorizationRequest uar(_cx_dict,
+                                   _mock_stack,
                                    DEST_HOST,
                                    DEST_REALM,
                                    IMPI,
@@ -364,6 +376,7 @@ TEST_F(CxTest, UARNoAuthTypeTest)
 TEST_F(CxTest, LIRTest)
 {
   Cx::LocationInfoRequest lir(_cx_dict,
+                              _mock_stack,
                               DEST_HOST,
                               DEST_REALM,
                               ORIGINATING_TRUE,
@@ -382,6 +395,7 @@ TEST_F(CxTest, LIRTest)
 TEST_F(CxTest, LIRWrongOptionalParamsTest)
 {
   Cx::LocationInfoRequest lir(_cx_dict,
+                              _mock_stack,
                               DEST_HOST,
                               DEST_REALM,
                               ORIGINATING_FALSE,
@@ -398,6 +412,7 @@ TEST_F(CxTest, LIRWrongOptionalParamsTest)
 TEST_F(CxTest, LIRNoOptionalParamsTest)
 {
   Cx::LocationInfoRequest lir(_cx_dict,
+                              _mock_stack,
                               DEST_HOST,
                               DEST_REALM,
                               EMPTY_STRING,
@@ -409,4 +424,19 @@ TEST_F(CxTest, LIRNoOptionalParamsTest)
   EXPECT_FALSE(lir.originating(test_i32));
   EXPECT_EQ(IMPU, lir.impu());
   EXPECT_FALSE(lir.auth_type(test_i32));
+}
+
+TEST_F(CxTest, LIATest)
+{
+  Cx::LocationInfoAnswer lia(_cx_dict,
+                             _mock_stack,
+                             RESULT_CODE,
+                             0,
+                             SERVER_NAME,
+                             CAPABILITIES);
+  Diameter::Message msg = launder_message(lia);
+  lia = Cx::LocationInfoAnswer(msg);
+  EXPECT_TRUE(lia.server_name(test_str));
+  EXPECT_EQ(SERVER_NAME, test_str);
+  //EXPECT_EQ(CAPABILITIES, lia.server_capabilities());
 }

@@ -50,8 +50,11 @@ const std::string JSON_OPT_CAP = "optional-capabilities";
 
 struct ServerCapabilities
 {
-  std::vector<int> mandatory_capabilities;
-  std::vector<int> optional_capabilities;
+  inline ServerCapabilities(std::vector<int32_t> man_caps,
+                            std::vector<int32_t> opt_caps) : mandatory_capabilities(man_caps), optional_capabilities(opt_caps) {}
+
+  std::vector<int32_t> mandatory_capabilities;
+  std::vector<int32_t> optional_capabilities;
 
   // Write the server capabilities contained in this structure into a JSON object.
   // The 2 sets of capabilities are added in 2 arrays. If either set of capabilities
@@ -63,7 +66,7 @@ struct ServerCapabilities
     (*writer).StartArray();
     if (!mandatory_capabilities.empty())
     {
-      for (std::vector<int>::const_iterator it = mandatory_capabilities.begin();
+      for (std::vector<int32_t>::const_iterator it = mandatory_capabilities.begin();
            it != mandatory_capabilities.end();
            ++it)
       {
@@ -77,7 +80,7 @@ struct ServerCapabilities
     (*writer).StartArray();
     if (!optional_capabilities.empty())
     {
-      for (std::vector<int>::const_iterator it = optional_capabilities.begin();
+      for (std::vector<int32_t>::const_iterator it = optional_capabilities.begin();
            it != optional_capabilities.end();
            ++it)
       {

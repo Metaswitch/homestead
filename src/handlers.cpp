@@ -228,6 +228,7 @@ void ImpiHandler::send_mar()
 {
   Cx::MultimediaAuthRequest* mar =
     new Cx::MultimediaAuthRequest(_dict,
+                                  _diameter_stack,
                                   _dest_realm,
                                   _dest_host,
                                   _impi,
@@ -314,7 +315,7 @@ void ImpiDigestHandler::send_reply(const DigestAuthVector& av)
   rapidjson::StringBuffer sb;
   rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
   writer.StartObject();
-  writer.String("digest_ha1");
+  writer.String(JSON_DIGEST_HA1.c_str());
   writer.String(av.ha1.c_str());
   writer.EndObject();
   _req.add_content(sb.GetString());
@@ -345,7 +346,7 @@ bool ImpiAvHandler::parse_request()
   }
   else if (scheme == "digest")
   {
-    _scheme = _cfg->scheme_digest;
+    _scheme = _cfg->scheme_digest; // LCOV_EXCL_LINE - digests are handled by the ImpiDigestHandler so we can't get here.
   }
   else if (scheme == "aka")
   {
@@ -369,14 +370,14 @@ void ImpiAvHandler::send_reply(const DigestAuthVector& av)
 
   writer.StartObject();
   {
-    writer.String("digest");
+    writer.String(JSON_DIGEST.c_str());
     writer.StartObject();
     {
-      writer.String("ha1");
+      writer.String(JSON_HA1.c_str());
       writer.String(av.ha1.c_str());
-      writer.String("realm");
+      writer.String(JSON_REALM.c_str());
       writer.String(av.realm.c_str());
-      writer.String("qop");
+      writer.String(JSON_QOP.c_str());
       writer.String(av.qop.c_str());
     }
     writer.EndObject();
@@ -394,16 +395,16 @@ void ImpiAvHandler::send_reply(const AKAAuthVector& av)
 
   writer.StartObject();
   {
-    writer.String("aka");
+    writer.String(JSON_AKA.c_str());
     writer.StartObject();
     {
-      writer.String("challenge");
+      writer.String(JSON_CHALLENGE.c_str());
       writer.String(av.challenge.c_str());
-      writer.String("response");
+      writer.String(JSON_RESPONSE.c_str());
       writer.String(av.response.c_str());
-      writer.String("cryptkey");
+      writer.String(JSON_CRYPTKEY.c_str());
       writer.String(av.crypt_key.c_str());
-      writer.String("integritykey");
+      writer.String(JSON_INTEGRITYKEY.c_str());
       writer.String(av.integrity_key.c_str());
     }
     writer.EndObject();
@@ -437,6 +438,7 @@ void ImpiRegistrationStatusHandler::run()
 
     Cx::UserAuthorizationRequest* uar =
       new Cx::UserAuthorizationRequest(_dict,
+                                       _diameter_stack,
                                        _dest_host,
                                        _dest_realm,
                                        _impi,
@@ -546,6 +548,7 @@ void ImpuLocationInfoHandler::run()
 
     Cx::LocationInfoRequest* lir =
       new Cx::LocationInfoRequest(_dict,
+                                  _diameter_stack,
                                   _dest_host,
                                   _dest_realm,
                                   _originating,
@@ -716,6 +719,7 @@ void ImpuIMSSubscriptionHandler::send_server_assignment_request()
 {
   Cx::ServerAssignmentRequest* sar =
     new Cx::ServerAssignmentRequest(_dict,
+                                    _diameter_stack,
                                     _dest_host,
                                     _dest_realm,
                                     _impi,
@@ -819,23 +823,6 @@ void RegistrationTerminationHandler::run()
   {
     delete_identities();
   }
-
-  // Get the Auth-Session-State. RTRs are required to have an Auth-Session-State, so
-  // this AVP will be present.
-  int32_t auth_session_state = rtr.auth_session_state();
-
-  // Use our Cx layer to create a RTA object and add the correct AVPs. The RTA is
-  // created from the RTR. We currently always return DIAMETER_SUCCESS. We may want
-  // to return DIAMETER_UNABLE_TO_COMPLY for failures in future.
-  Cx::RegistrationTerminationAnswer rta(_msg,
-                                        _cfg->dict,
-                                        DIAMETER_REQ_SUCCESS,
-                                        auth_session_state,
-                                        _impis);
-
-  // Send the RTA back to the HSS.
-  LOG_INFO("Ready to send RTA");
-  rta.send();
 }
 
 void RegistrationTerminationHandler::on_get_public_ids_success(Cache::Request* request)
@@ -870,6 +857,23 @@ void RegistrationTerminationHandler::delete_identities()
   Cache::Request* delete_private_ids = _cfg->cache->create_DeletePrivateIDs(_impis, Cache::generate_timestamp());
   HssCacheHandler::CacheTransaction<RegistrationTerminationHandler>* private_ids_tsx = new HssCacheHandler::CacheTransaction<RegistrationTerminationHandler>(this);
   _cfg->cache->send(private_ids_tsx, delete_private_ids);
+
+  // Get the Auth-Session-State. RTRs are required to have an Auth-Session-State, so
+  // this AVP will be present.
+  int32_t auth_session_state = _msg.auth_session_state();
+
+  // Use our Cx layer to create a RTA object and add the correct AVPs. The RTA is
+  // created from the RTR. We currently always return DIAMETER_SUCCESS. We may want
+  // to return DIAMETER_UNABLE_TO_COMPLY for failures in future.
+  Cx::RegistrationTerminationAnswer rta(_msg,
+                                        _cfg->dict,
+                                        DIAMETER_REQ_SUCCESS,
+                                        auth_session_state,
+                                        _impis);
+
+  // Send the RTA back to the HSS.
+  LOG_INFO("Ready to send RTA");
+  rta.send();
 }
 
 void PushProfileHandler::run()
