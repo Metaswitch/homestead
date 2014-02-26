@@ -92,6 +92,7 @@ get_settings()
         log_level=2
         impu_cache_ttl=0
         hss_reregistration_time=1800
+        server_name=sip:$(python /usr/share/clearwater/bin/bracket_ipv6_address.py $sprout_hostname):$scscf
         [ -r /etc/clearwater/user_settings ] && . /etc/clearwater/user_settings
 
         # Work out which features are enabled.
@@ -131,11 +132,9 @@ do_start()
                      --http-threads $num_http_threads
                      --dest-realm $home_domain
                      --dest-host $hss_hostname
-                     --server-name sip:$sprout_hostname:$scscf
+                     --server-name $server_name
                      --impu-cache-ttl $impu_cache_ttl
                      --hss_reregistration_time $hss_reregistration_time
-                     --ims-sub-cache-ttl $ims_sub_cache_ttl
->>>>>>> origin/dev
                      $scheme_unknown_arg
                      -a $log_directory
                      -F $log_directory
