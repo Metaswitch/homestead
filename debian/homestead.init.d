@@ -84,6 +84,7 @@ get_settings()
         sas_server=0.0.0.0
         hss_hostname=0.0.0.0
         hss_port=3868
+        scscf=5054
         . /etc/clearwater/config
 
         # Set up defaults for user settings then pull in any overrides.
@@ -130,9 +131,11 @@ do_start()
                      --http-threads $num_http_threads
                      --dest-realm $home_domain
                      --dest-host $hss_hostname
-                     --server-name sip:$sprout_hostname:5054
+                     --server-name sip:$sprout_hostname:$scscf
                      --impu-cache-ttl $impu_cache_ttl
                      --hss_reregistration_time $hss_reregistration_time
+                     --ims-sub-cache-ttl $ims_sub_cache_ttl
+>>>>>>> origin/dev
                      $scheme_unknown_arg
                      -a $log_directory
                      -F $log_directory
@@ -268,6 +271,10 @@ case "$1" in
                 ;;
         esac
         ;;
+  abort)
+	log_daemon_msg "Aborting $DESC" "$NAME"
+	do_abort
+	;;
   abort-restart)
         log_daemon_msg "Abort-Restarting $DESC" "$NAME"
         do_abort
