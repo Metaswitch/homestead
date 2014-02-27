@@ -226,21 +226,20 @@ void ImpiHandler::on_get_impu_failure(Cache::Request* request, Cache::ResultCode
 
 void ImpiHandler::send_mar()
 {
-  Cx::MultimediaAuthRequest* mar =
-    new Cx::MultimediaAuthRequest(_dict,
-                                  _diameter_stack,
-                                  _dest_realm,
-                                  _dest_host,
-                                  _impi,
-                                  _impu,
-                                  _server_name,
-                                  _scheme,
-                                  _authorization);
+  Cx::MultimediaAuthRequest mar(_dict,
+                                _diameter_stack,
+                                _dest_realm,
+                                _dest_host,
+                                _impi,
+                                _impu,
+                                _server_name,
+                                _scheme,
+                                _authorization);
   DiameterTransaction* tsx =
     new DiameterTransaction(_dict, this, DIGEST_STATS);
 
   tsx->set_response_clbk(&ImpiHandler::on_mar_response);
-  mar->send(tsx, 200);
+  mar.send(tsx, 200);
 }
 
 void ImpiHandler::on_mar_response(Diameter::Message& rsp)
@@ -436,19 +435,18 @@ void ImpiRegistrationStatusHandler::run()
     LOG_DEBUG("Parsed HTTP request: private ID %s, public ID %s, visited network %s, authorization type %s",
               _impi.c_str(), _impu.c_str(), _visited_network.c_str(), _authorization_type.c_str());
 
-    Cx::UserAuthorizationRequest* uar =
-      new Cx::UserAuthorizationRequest(_dict,
-                                       _diameter_stack,
-                                       _dest_host,
-                                       _dest_realm,
-                                       _impi,
-                                       _impu,
-                                       _visited_network,
-                                       _authorization_type);
+    Cx::UserAuthorizationRequest uar(_dict,
+                                     _diameter_stack,
+                                     _dest_host,
+                                     _dest_realm,
+                                     _impi,
+                                     _impu,
+                                     _visited_network,
+                                     _authorization_type);
     DiameterTransaction* tsx =
       new DiameterTransaction(_dict, this, SUBSCRIPTION_STATS);
     tsx->set_response_clbk(&ImpiRegistrationStatusHandler::on_uar_response);
-    uar->send(tsx, 200);
+    uar.send(tsx, 200);
   }
   else
   {
@@ -546,18 +544,17 @@ void ImpuLocationInfoHandler::run()
     LOG_DEBUG("Parsed HTTP request: public ID %s, originating %s, authorization type %s",
               _impu.c_str(), _originating.c_str(), _authorization_type.c_str());
 
-    Cx::LocationInfoRequest* lir =
-      new Cx::LocationInfoRequest(_dict,
-                                  _diameter_stack,
-                                  _dest_host,
-                                  _dest_realm,
-                                  _originating,
-                                  _impu,
-                                  _authorization_type);
+    Cx::LocationInfoRequest lir(_dict,
+                                _diameter_stack,
+                                _dest_host,
+                                _dest_realm,
+                                _originating,
+                                _impu,
+                                _authorization_type);
     DiameterTransaction* tsx =
       new DiameterTransaction(_dict, this, SUBSCRIPTION_STATS);
     tsx->set_response_clbk(&ImpuLocationInfoHandler::on_lir_response);
-    lir->send(tsx, 200);
+    lir.send(tsx, 200);
   }
   else
   {
@@ -717,19 +714,18 @@ void ImpuIMSSubscriptionHandler::on_get_ims_subscription_failure(Cache::Request*
 
 void ImpuIMSSubscriptionHandler::send_server_assignment_request()
 {
-  Cx::ServerAssignmentRequest* sar =
-    new Cx::ServerAssignmentRequest(_dict,
-                                    _diameter_stack,
-                                    _dest_host,
-                                    _dest_realm,
-                                    _impi,
-                                    _impu,
-                                    _server_name,
-                                    _type.type());
+  Cx::ServerAssignmentRequest sar(_dict,
+                                  _diameter_stack,
+                                  _dest_host,
+                                  _dest_realm,
+                                  _impi,
+                                  _impu,
+                                  _server_name,
+                                  _type.type());
   DiameterTransaction* tsx =
     new DiameterTransaction(_dict, this, SUBSCRIPTION_STATS);
   tsx->set_response_clbk(&ImpuIMSSubscriptionHandler::on_sar_response);
-  sar->send(tsx, 200);
+  sar.send(tsx, 200);
 }
 
 void ImpuIMSSubscriptionHandler::on_sar_response(Diameter::Message& rsp)
@@ -874,6 +870,8 @@ void RegistrationTerminationHandler::delete_identities()
   // Send the RTA back to the HSS.
   LOG_INFO("Ready to send RTA");
   rta.send();
+
+  delete this;
 }
 
 void PushProfileHandler::run()
@@ -921,4 +919,6 @@ void PushProfileHandler::run()
   // Send the PPA back to the HSS.
   LOG_INFO("Ready to send PPA");
   ppa.send();
+
+  delete this;
 }
