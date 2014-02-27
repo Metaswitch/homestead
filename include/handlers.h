@@ -428,7 +428,7 @@ protected:
   void put_in_cache();
   bool is_deregistration_request(RequestType type);
   bool is_auth_failure_request(RequestType type);
-  Cx::ServerAssignmentType sar_type_for_deregistration_request(RequestType type);
+  Cx::ServerAssignmentType sar_type_for_request(RequestType type);
   RequestType request_type_from_body(std::string body);
 
 

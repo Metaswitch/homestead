@@ -43,32 +43,45 @@
 
 namespace XmlUtils
 {
-std::string compose_xml(RegistrationState state, std::string xml)
+
+// Builds a ClearwaterRegData XML document for passing to Sprout,
+// based on the given registration state and User-Data XML from the HSS.
+std::string build_ClearwaterRegData_xml(RegistrationState state, std::string xml)
 {
-  // Parse the XML document, saving off the passed-in string first (as parsing
-  // is destructive).
   rapidxml::xml_document<> doc;
 
   rapidxml::xml_node<>* root = doc.allocate_node(rapidxml::node_type::node_element, "ClearwaterRegData");
-  rapidxml::xml_node<>* reg = NULL;
+  std::string regtype;
   if (state == RegistrationState::REGISTERED)
   {
-    reg = doc.allocate_node(rapidxml::node_type::node_element, "RegistrationState", "REGISTERED");
+    regtype = "REGISTERED";
   }
   else if (state == RegistrationState::UNREGISTERED)
   {
-    reg = doc.allocate_node(rapidxml::node_type::node_element, "RegistrationState", "UNREGISTERED");
+    regtype = "UNREGISTERED";
   }
   else
   {
-    assert(state == RegistrationState::NOT_REGISTERED);
-    reg = doc.allocate_node(rapidxml::node_type::node_element, "RegistrationState", "NOT_REGISTERED");
+    if (state != RegistrationState::NOT_REGISTERED)
+    {
+      LOG_ERROR("Invalid registration state %d", state);
+    }
+    regtype = "NOT_REGISTERED";
   }
+
+  rapidxml::xml_node<>* reg = doc.allocate_node(rapidxml::node_type::node_element, "RegistrationState", regtype.c_str());
+
   root->append_node(reg);
 
   if (xml != "")
   {
+    // Parse the XML document, saving off the passed-in string first (as parsing
+    // is destructive).
+
     rapidxml::xml_document<> prev_doc;
+
+    // This doesn't need freeing - prev_doc is on the stack, and this
+    // uses its memory pool.
     char* user_data_str = prev_doc.allocate_string(xml.c_str());
     rapidxml::xml_node<>* is = NULL;
 
@@ -94,6 +107,7 @@ std::string compose_xml(RegistrationState state, std::string xml)
   return out;
 }
 
+// Parses the given User-Data XML to retrieve a list of all the public IDs.
 std::vector<std::string> get_public_ids(const std::string& user_data)
 {
   std::vector<std::string> public_ids;
@@ -101,6 +115,9 @@ std::vector<std::string> get_public_ids(const std::string& user_data)
   // Parse the XML document, saving off the passed-in string first (as parsing
   // is destructive).
   rapidxml::xml_document<> doc;
+
+  // This doesn't need freeing - doc is on the stack, and this
+  // uses its memory pool.
   char* user_data_str = doc.allocate_string(user_data.c_str());
 
   try
@@ -113,7 +130,7 @@ std::vector<std::string> get_public_ids(const std::string& user_data)
     doc.clear();
   }
 
-  // Walk through all nodes in the hierarchy ClearwaterRegData->IMSSubscription->ServiceProfile->PublicIdentity
+  // Walk through all nodes in the hierarchy IMSSubscription->ServiceProfile->PublicIdentity
   // ->Identity.
   rapidxml::xml_node<>* is = doc.first_node("IMSSubscription");
   if (is)
@@ -122,12 +139,10 @@ std::vector<std::string> get_public_ids(const std::string& user_data)
          sp;
          sp = sp->next_sibling("ServiceProfile"))
     {
-      LOG_DEBUG("New ServiceProfile");
       for (rapidxml::xml_node<>* pi = sp->first_node("PublicIdentity");
            pi;
            pi = pi->next_sibling("PublicIdentity"))
       {
-        LOG_DEBUG("New PublicIdentity");
         rapidxml::xml_node<>* id = pi->first_node("Identity");
         if (id)
         {
@@ -135,15 +150,20 @@ std::vector<std::string> get_public_ids(const std::string& user_data)
         }
         else
         {
-          LOG_WARNING("PublicIdentity node was missing Identity child");
+          LOG_WARNING("PublicIdentity node was missing Identity child: %s", user_data.c_str());
         }
       }
     }
   }
 
+  if (public_ids.size() == 0)
+  {
+    LOG_ERROR("Failed to extract any ServiceProfile/PublicIdentity/Identity nodes from %s", user_data.c_str());
+  }
   return public_ids;
 }
 
+// Parses the given User-Data XML to retrieve the single PrivateID element.
 std::string get_private_id(const std::string& user_data)
 {
   std::string impi;
@@ -163,8 +183,6 @@ std::string get_private_id(const std::string& user_data)
     doc.clear();
   }
 
-  // Walk through all nodes in the hierarchy IMSSubscription->ServiceProfile->PublicIdentity
-  // ->Identity.
   rapidxml::xml_node<>* is = doc.first_node("IMSSubscription");
   if (is)
   {

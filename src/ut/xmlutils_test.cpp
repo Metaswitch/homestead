@@ -55,7 +55,7 @@ public:
 
 TEST_F(XmlUtilsTest, SimpleMainline)
 {
-  std::string result = XmlUtils::compose_xml(RegistrationState::REGISTERED, "<?xml?><IMSSubscription>test</IMSSubscription>");
+  std::string result = XmlUtils::build_ClearwaterRegData_xml(RegistrationState::REGISTERED, "<?xml?><IMSSubscription>test</IMSSubscription>");
   ASSERT_EQ("<ClearwaterRegData>\n\t<RegistrationState>REGISTERED</RegistrationState>\n\t<IMSSubscription>test</IMSSubscription>\n</ClearwaterRegData>\n\n", result);
 }
 
