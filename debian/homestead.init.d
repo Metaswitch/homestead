@@ -134,7 +134,7 @@ do_start()
                      --dest-host $hss_hostname
                      --server-name $server_name
                      --impu-cache-ttl $impu_cache_ttl
-                     --hss_reregistration_time $hss_reregistration_time
+                     --hss-reregistration-time $hss_reregistration_time
                      $scheme_unknown_arg
                      -a $log_directory
                      -F $log_directory

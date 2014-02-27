@@ -663,24 +663,24 @@ bool ImpuRegDataHandler::is_auth_failure_request(RequestType type)
 }
 
 
-ServerAssignmentType ImpuRegDataHandler::sar_type_for_deregistration_request(RequestType type)
+Cx::ServerAssignmentType ImpuRegDataHandler::sar_type_for_deregistration_request(RequestType type)
 {
   switch (type)
   {
     case RequestType::DEREG_USER:
-      return ServerAssignmentType::USER_DEREGISTRATION;
+      return Cx::ServerAssignmentType::USER_DEREGISTRATION;
     case RequestType::DEREG_ADMIN:
-      return ServerAssignmentType::ADMINISTRATIVE_DEREGISTRATION;
+      return Cx::ServerAssignmentType::ADMINISTRATIVE_DEREGISTRATION;
     case RequestType::DEREG_TIMEOUT:
-      return ServerAssignmentType::TIMEOUT_DEREGISTRATION;
+      return Cx::ServerAssignmentType::TIMEOUT_DEREGISTRATION;
     case RequestType::DEREG_AUTH_FAIL:
-      return ServerAssignmentType::AUTHENTICATION_FAILURE;
+      return Cx::ServerAssignmentType::AUTHENTICATION_FAILURE;
     case RequestType::DEREG_AUTH_TIMEOUT:
-      return ServerAssignmentType::AUTHENTICATION_TIMEOUT;
+      return Cx::ServerAssignmentType::AUTHENTICATION_TIMEOUT;
     default:
       // LCOV_EXCL_START
       LOG_ERROR("Couldn't produce an appropiate SAR - programming error'");
-      return ServerAssignmentType::ADMINISTRATIVE_DEREGISTRATION;
+      return Cx::ServerAssignmentType::ADMINISTRATIVE_DEREGISTRATION;
       // LCOV_EXCL_STOP
   }
 }
@@ -790,7 +790,7 @@ void ImpuRegDataHandler::on_get_ims_subscription_success(Cache::Request* request
       if ((ttl < _cfg->hss_reregistration_time) && _cfg->hss_configured)
       {
         LOG_DEBUG("Sending re-registration to HSS as %d seconds have passed", _cfg->hss_reregistration_time);
-        send_server_assignment_request(ServerAssignmentType::RE_REGISTRATION);
+        send_server_assignment_request(Cx::ServerAssignmentType::RE_REGISTRATION);
       }
       else
       {
@@ -803,7 +803,7 @@ void ImpuRegDataHandler::on_get_ims_subscription_success(Cache::Request* request
       if (_cfg->hss_configured)
       {
         _new_state = RegistrationState::REGISTERED;
-        send_server_assignment_request(ServerAssignmentType::REGISTRATION);
+        send_server_assignment_request(Cx::ServerAssignmentType::REGISTRATION);
       }
       else if (old_state == RegistrationState::UNREGISTERED)
       {
@@ -828,7 +828,7 @@ void ImpuRegDataHandler::on_get_ims_subscription_success(Cache::Request* request
       {
         LOG_DEBUG("Moving to unregistered state");
         _new_state = RegistrationState::UNREGISTERED;
-        send_server_assignment_request(ServerAssignmentType::UNREGISTERED_USER);
+        send_server_assignment_request(Cx::ServerAssignmentType::UNREGISTERED_USER);
       }
       else
       {
@@ -893,7 +893,7 @@ void ImpuRegDataHandler::on_get_ims_subscription_failure(Cache::Request* request
   delete this;
 }
 
-void ImpuRegDataHandler::send_server_assignment_request(ServerAssignmentType type)
+void ImpuRegDataHandler::send_server_assignment_request(Cx::ServerAssignmentType type)
 {
   Cx::ServerAssignmentRequest* sar =
     new Cx::ServerAssignmentRequest(_dict,

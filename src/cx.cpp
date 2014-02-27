@@ -453,7 +453,7 @@ ServerAssignmentRequest::ServerAssignmentRequest(const Dictionary* dict,
                                                  const std::string& impi,
                                                  const std::string& impu,
                                                  const std::string& server_name,
-                                                 const ServerAssignmentType type) :
+                                                 const Cx::ServerAssignmentType type) :
                                                  Diameter::Message(dict, dict->SERVER_ASSIGNMENT_REQUEST)
 {
   LOG_DEBUG("Building Server-Assignment request for %s/%s", impi.c_str(), impu.c_str());

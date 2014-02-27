@@ -66,8 +66,8 @@ public:
   static const int32_t RESULT_CODE;
   static const int32_t AUTH_SESSION_STATE;
   static const std::vector<std::string> IMPIS;
-  static const ServerAssignmentType TIMEOUT_DEREGISTRATION;
-  static const ServerAssignmentType UNREGISTERED_USER;
+  static const Cx::ServerAssignmentType TIMEOUT_DEREGISTRATION;
+  static const Cx::ServerAssignmentType UNREGISTERED_USER;
 
   static Diameter::Stack* _real_stack;
   static MockDiameterStack* _mock_stack;
@@ -185,8 +185,8 @@ const std::string CxTest::EMPTY_STRING = "";
 const int32_t CxTest::RESULT_CODE = 2001;
 const int32_t CxTest::AUTH_SESSION_STATE = 1;
 const std::vector<std::string> CxTest::IMPIS {"private_id1", "private_id2"};
-const ServerAssignmentType CxTest::TIMEOUT_DEREGISTRATION = TIMEOUT_DEREGISTRATION;
-const ServerAssignmentType CxTest::UNREGISTERED_USER = UNREGISTERED_USER;
+const Cx::ServerAssignmentType CxTest::TIMEOUT_DEREGISTRATION = Cx::TIMEOUT_DEREGISTRATION;
+const Cx::ServerAssignmentType CxTest::UNREGISTERED_USER = Cx::UNREGISTERED_USER;
 
 Diameter::Stack* CxTest::_real_stack = NULL;
 MockDiameterStack* CxTest::_mock_stack = NULL;

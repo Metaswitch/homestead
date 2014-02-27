@@ -44,7 +44,6 @@
 #include "cache.h"
 #include "httpstack.h"
 #include "statisticsmanager.h"
-#include "serverassignmenttype.h"
 
 // Result-Code AVP constants
 const int DIAMETER_SUCCESS = 2001;
@@ -394,7 +393,9 @@ class ImpuRegDataHandler : public HssCacheHandler
 public:
   struct Config
   {
-    Config(bool _hss_configured = true, int _hss_reregistration_time = 3600) : hss_configured(_hss_configured), hss_reregistration_time(_hss_reregistration_time) {}
+  Config(bool _hss_configured = true, int _hss_reregistration_time = 3600) :
+    hss_configured(_hss_configured),
+      hss_reregistration_time(_hss_reregistration_time) {}
     bool hss_configured;
     int hss_reregistration_time;
   };
@@ -406,7 +407,7 @@ public:
   virtual void run();
   void on_get_ims_subscription_success(Cache::Request* request);
   void on_get_ims_subscription_failure(Cache::Request* request, Cache::ResultCode error, std::string& text);
-  void send_server_assignment_request(ServerAssignmentType type);
+  void send_server_assignment_request(Cx::ServerAssignmentType type);
   void on_sar_response(Diameter::Message& rsp);
 
   typedef HssCacheHandler::CacheTransaction<ImpuRegDataHandler> CacheTransaction;
@@ -422,7 +423,7 @@ protected:
   void put_in_cache();
   bool is_deregistration_request(RequestType type);
   bool is_auth_failure_request(RequestType type);
-  ServerAssignmentType sar_type_for_deregistration_request(RequestType type);
+  Cx::ServerAssignmentType sar_type_for_deregistration_request(RequestType type);
   RequestType request_type_from_body(std::string body);
 
 

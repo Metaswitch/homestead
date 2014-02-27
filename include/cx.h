@@ -40,7 +40,6 @@
 #include "diameterstack.h"
 #include "authvector.h"
 #include "servercapabilities.h"
-#include "serverassignmenttype.h"
 
 namespace Cx
 {
@@ -220,6 +219,21 @@ private:
   static std::string base64(const uint8_t* data, size_t len);
 };
 
+enum ServerAssignmentType
+{
+    NO_ASSIGNMENT = 0,
+    REGISTRATION = 1,
+    RE_REGISTRATION = 2,
+    UNREGISTERED_USER = 3,
+    TIMEOUT_DEREGISTRATION = 4,
+    USER_DEREGISTRATION = 5,
+    TIMEOUT_DEREGISTRATION_STORE_SERVER_NAME = 6, // Currently not used
+    USER_DEREGISTRATION_STORE_SERVER_NAME = 7, // Currently not used
+    ADMINISTRATIVE_DEREGISTRATION = 8,
+    AUTHENTICATION_FAILURE = 9,
+    AUTHENTICATION_TIMEOUT = 10
+};
+
 class ServerAssignmentRequest : public Diameter::Message
 {
 public:
@@ -229,7 +243,7 @@ public:
                           const std::string& impi,
                           const std::string& impu,
                           const std::string& server_name,
-                          const ServerAssignmentType type);
+                          const Cx::ServerAssignmentType type);
   inline ServerAssignmentRequest(Diameter::Message& msg) : Diameter::Message(msg) {};
 
   inline std::string impu() const
@@ -309,6 +323,7 @@ public:
                     int32_t auth_session_state);
   inline PushProfileAnswer(Diameter::Message& msg) : Diameter::Message(msg) {};
 };
+
 };
 
 #endif

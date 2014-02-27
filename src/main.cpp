@@ -84,7 +84,7 @@ void usage(void)
        " -s, --server-name <name>   Set Server-Name on Cx messages\n"
        " -i, --impu-cache-ttl <secs>\n"
        "                            IMPU cache time-to-live in seconds (default: 0)\n"
-       " -I, --hss_reregistration_time <secs>\n"
+       " -I, --hss-reregistration-time <secs>\n"
        "                            How often a RE_REGISTRATION SAR should be sent to the HSS in seconds (default: 1800)\n"
        "     --scheme-unknown <string>\n"
        "                            String to use to specify unknown SIP-Auth-Scheme (default: Unknown)\n"
