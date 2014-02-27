@@ -52,6 +52,7 @@ using ::testing::Invoke;
 using ::testing::WithArgs;
 using ::testing::NiceMock;
 using ::testing::StrictMock;
+using ::testing::Mock;
 
 /// Fixture for HandlersTest.
 class HandlersTest : public testing::Test
@@ -105,6 +106,8 @@ public:
     _cx_dict = new Cx::Dictionary();
     _cache = new MockCache();
     _httpstack = new MockHttpStack();
+
+    _stats = new StrictMock<MockStatisticsManager>;
     _nice_stats = new NiceMock<MockStatisticsManager>;
 
     HssCacheHandler::configure_diameter(_mock_stack,
@@ -328,6 +331,7 @@ public:
   {
     if (ignore)
     {
+      Mock::VerifyAndClear(_stats);
       HssCacheHandler::configure_stats(_nice_stats);
     }
     else
@@ -394,6 +398,8 @@ TEST_F(HandlersTest, SimpleMainline)
 
 TEST_F(HandlersTest, DigestCache)
 {
+  ignore_stats(false);
+
   // This test tests an Impi Digest handler case where no HSS is configured.
   // Start by building the HTTP request which will invoke a cache lookup.
   MockHttpStack::Request req(_httpstack,
@@ -424,18 +430,30 @@ TEST_F(HandlersTest, DigestCache)
   // We also expect a successful HTTP response.
   Cache::Transaction* t = mock_req.get_trx();
   ASSERT_FALSE(t == NULL);
+
+  // The cache request takes some time.
+  t->start_timer();
+  cwtest_advance_time_ms(12);
+  t->stop_timer();
+
+  // When the cache result returns the handler updates latency stats, gets the
+  // digest result, and sends an HTTP reply.
+  EXPECT_CALL(*_stats, update_H_cache_latency_us(12000));
   EXPECT_CALL(mock_req, get_result(_))
     .WillRepeatedly(SetArgReferee<0>(digest));
   EXPECT_CALL(*_httpstack, send_reply(_, 200));
-
   t->on_success(&mock_req);
 
   // Build the expected response and check it's correct.
   EXPECT_EQ(build_digest_json(digest), req.content());
+
+  ignore_stats(true);
 }
 
 TEST_F(HandlersTest, DigestCacheFailure)
 {
+  ignore_stats(false);
+
   // This test tests an Impi Digest handler case where no HSS is configured, and
   // the cache request fails. Start by building the HTTP request which will
   // invoke a cache lookup.
@@ -461,11 +479,20 @@ TEST_F(HandlersTest, DigestCacheFailure)
   Cache::Transaction* t = mock_req.get_trx();
   ASSERT_FALSE(t == NULL);
 
+  // The cache request takes some time.
+  t->start_timer();
+  cwtest_advance_time_ms(12);
+  t->stop_timer();
+
   // Expect a 502 HTTP response once the cache returns an error to the handler.
+  // The handler also updates the cache latency.
   EXPECT_CALL(*_httpstack, send_reply(_, 502));
+  EXPECT_CALL(*_stats, update_H_cache_latency_us(12000));
 
   std::string error_text = "error";
   t->on_failure(&mock_req, Cache::NOT_FOUND, error_text);
+
+  ignore_stats(true);
 }
 
 TEST_F(HandlersTest, DigestHSS)
@@ -1320,7 +1347,7 @@ TEST_F(HandlersTest, IMSSubscriptionCacheFailureNoHSSInvalidType)
 {
   // This test tests an IMS Subscription handler case for an invalid
   // registration type where no HSS is configured, and where the cache doesn't
-  // return a result. Start by building the HTTP request which will 
+  // return a result. Start by building the HTTP request which will
   // invoke a cache lookup.
   MockHttpStack::Request req(_httpstack,
                              "/impu/" + IMPU,
@@ -1665,7 +1692,7 @@ TEST_F(HandlersTest, RegistrationStatusNoHSS)
 
   ImpiRegistrationStatusHandler::Config cfg(false);
   ImpiRegistrationStatusHandler* handler = new ImpiRegistrationStatusHandler(req, &cfg);
- 
+
   // Once the handler's run function is called, expect a successful HTTP response.
   EXPECT_CALL(*_httpstack, send_reply(_, 200));
   handler->run();
