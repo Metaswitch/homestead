@@ -434,9 +434,11 @@ put_columns(const std::vector<std::string>& keys,
     Mutation mutation;
     Column* column = &mutation.column_or_supercolumn.column;
 
+    std::string value = it->second.first;
     int32_t ttl = it->second.second;
+
     column->name = it->first;
-    column->value = it->second.first;
+    column->value = value;
     LOG_DEBUG("  %s => %s (TTL %d)", column->name.c_str(), column->value.c_str(), ttl);
     column->__isset.value = true;
     column->timestamp = timestamp;
@@ -715,7 +717,10 @@ void Cache::PutIMSSubscription::perform()
   }
   else
   {
-    assert(_reg_state == RegistrationState::UNCHANGED);
+    if (_reg_state != RegistrationState::UNCHANGED)
+    {
+      LOG_ERROR("Invalid registration state %d", _reg_state);
+    }
   }
 
   put_columns(_public_ids, columns, _timestamp);
@@ -820,14 +825,21 @@ void Cache::GetIMSSubscription::perform()
       if (it->column.name.compare(IMS_SUB_XML_COLUMN_NAME) == 0) {
         _xml = it->column.value;
         _xml_ttl = it->column.ttl;
+        LOG_DEBUG("Retrieved XML column with TTL %d", _xml_ttl);
         } else if (it->column.name.compare(REG_STATE_COLUMN_NAME) == 0) {
         _reg_state_ttl = it->column.ttl;
         if (it->column.value.compare(BOOLEAN_TRUE) == 0) {
           _reg_state = RegistrationState::REGISTERED;
+          LOG_DEBUG("Retrieved is_registered column with value True and TTL %d",
+                    _reg_state_ttl);
         } else if (it->column.value.compare(BOOLEAN_FALSE) == 0) {
           _reg_state = RegistrationState::UNREGISTERED;
+          LOG_DEBUG("Retrieved is_registered column with value True and TTL %d",
+                    _reg_state_ttl);
         } else {
-          LOG_WARNING("Registration state column has invalid value %d %s", it->column.value.c_str()[0], it->column.value.c_str());
+          LOG_WARNING("Registration state column has invalid value %d %s",
+                      it->column.value.c_str()[0],
+                      it->column.value.c_str());
         };
       };
   }
@@ -836,9 +848,8 @@ void Cache::GetIMSSubscription::perform()
   catch(Cache::NoResultsException& nre)
   {
     // This is a valid state rather than an exceptional one, so we
-    // catch the exception, set state appropriately and return success.
-    _reg_state = RegistrationState::NOT_REGISTERED;
-    _xml = "";
+    // catch the exception and return success. Values ae left in the
+    // default state (NOT_REGISTERED and empty XML).
   }
 
 

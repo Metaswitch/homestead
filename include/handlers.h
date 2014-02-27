@@ -415,6 +415,11 @@ public:
 
 protected:
 
+  // Represents the possible types of request that can be made in the
+  // body of a PUT. Homestead determines what action to take (e.g.
+  // what to set in the database, what to send to the HSS) based on a
+  // combination of this type and the user's registration state in the
+  // Cassandra database.
   enum RequestType {
     UNKNOWN, REG, CALL, DEREG_USER, DEREG_ADMIN, DEREG_TIMEOUT, DEREG_AUTH_FAIL, DEREG_AUTH_TIMEOUT
   };

@@ -1,5 +1,5 @@
 /**
- * @file cx.h class definition wrapping Cx
+ * @file reg_state.h A definition of possible registration states.
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2013  Metaswitch Networks Ltd
@@ -34,8 +34,8 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#ifndef REGSTATE_H__
-#define REGSTATE_H__
+#ifndef REG_STATE_H__
+#define REG_STATE_H__
 
 enum RegistrationState {REGISTERED, UNREGISTERED, NOT_REGISTERED, UNCHANGED};
 
