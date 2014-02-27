@@ -712,7 +712,7 @@ ImpuRegDataHandler::RequestType ImpuRegDataHandler::request_type_from_body(std::
   {
     ret = RequestType::REG;
   }
-  else if (reqtype == "reg")
+  else if (reqtype == "call")
   {
     ret = RequestType::CALL;
   }
@@ -793,11 +793,18 @@ void ImpuRegDataHandler::on_get_ims_subscription_success(Cache::Request* request
   LOG_DEBUG("Got IMS subscription from cache");
   Cache::GetIMSSubscription* get_ims_sub = (Cache::GetIMSSubscription*)request;
   RegistrationState old_state;
-  int32_t ttl;
+  int32_t ttl = 0;
   get_ims_sub->get_xml(_xml, ttl);
   get_ims_sub->get_registration_state(old_state, ttl);
   _new_state = old_state;
   LOG_DEBUG("TTL for this database record is %d and value of _type is %d", ttl, _type);
+
+  if (_req.method() == htp_method_GET)
+  {
+    send_reply();
+    delete this;
+    return;
+  }
 
   if (_impi.empty())
   {
@@ -936,17 +943,18 @@ void ImpuRegDataHandler::on_get_ims_subscription_failure(Cache::Request* request
 
 void ImpuRegDataHandler::send_server_assignment_request(Cx::ServerAssignmentType type)
 {
-  Cx::ServerAssignmentRequest* sar =
-    new Cx::ServerAssignmentRequest(_dict,
-                                    _diameter_stack,
-                                    _dest_host,
-                                    _dest_realm,
-                                    _impi,
-                                    _impu,
-                                    _server_name,
-                                    type);
+  Cx::ServerAssignmentRequest sar(_dict,
+                                  _diameter_stack,
+                                  _dest_host,
+                                  _dest_realm,
+                                  _impi,
+                                  _impu,
+                                  _server_name,
+                                  type);
   DiameterTransaction* tsx =
     new DiameterTransaction(_dict, this, SUBSCRIPTION_STATS);
+  tsx->set_response_clbk(&ImpuRegDataHandler::on_sar_response);
+  sar.send(tsx, 200);
 }
 
 void ImpuRegDataHandler::put_in_cache()
@@ -1025,6 +1033,7 @@ void ImpuRegDataHandler::on_sar_response(Diameter::Message& rsp)
     case 5001:
       LOG_INFO("Server-Assignment answer with result code %d - reject", result_code);
       _req.send_reply(404);
+      break;
     default:
       LOG_INFO("Server-Assignment answer with result code %d - reject", result_code);
       _req.send_reply(500);
@@ -1067,9 +1076,17 @@ void ImpuIMSSubscriptionHandler::run()
 
 void ImpuIMSSubscriptionHandler::send_reply()
 {
-  LOG_DEBUG("Building 200 OK response to send");
-  _req.add_content(_xml);
-  _req.send_reply(200);
+  if (_xml != "")
+  {
+    LOG_DEBUG("Building 200 OK response to send");
+    _req.add_content(_xml);
+    _req.send_reply(200);
+  }
+  else
+  {
+    LOG_DEBUG("No XML User-Data available, returning 404");
+    _req.send_reply(404);
+  }
 }
 
 
