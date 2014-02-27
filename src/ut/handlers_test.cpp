@@ -2103,8 +2103,8 @@ public:
 
 TEST_F(HandlerStatsTest, DigestCache)
 {
-  // This test tests an Impi Digest handler case where no HSS is configured.
-  // Start by building the HTTP request which will invoke a cache lookup.
+  // Test that successful cache requests result in the latency stats being
+  // updated. Drive this with an HTTP request for digest. 
   MockHttpStack::Request req(_httpstack,
                              "/impi/" + IMPI,
                              "digest",
@@ -2113,47 +2113,40 @@ TEST_F(HandlerStatsTest, DigestCache)
   ImpiHandler::Config cfg(false);
   ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg);
 
-  // Once the handler's run function is called, expect to lookup an auth
-  // vector for the specified public and private IDs.
+  // Handler does a cache digest lookup. 
   MockCache::MockGetAuthVector mock_req;
   EXPECT_CALL(*_cache, create_GetAuthVector(IMPI, IMPU))
     .WillOnce(Return(&mock_req));
   EXPECT_CALL(*_cache, send(_, &mock_req))
     .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
-
   handler->run();
 
+  // The cache request takes some time.
+  Cache::Transaction* t = mock_req.get_trx();
+  ASSERT_FALSE(t == NULL);
+
+  t->start_timer();
+  cwtest_advance_time_ms(12);
+  t->stop_timer();
+
+  // The cache stats get updated when the transaction complete. 
   DigestAuthVector digest;
   digest.ha1 = "ha1";
   digest.realm = "realm";
   digest.qop = "qop";
 
-  // Confirm the cache transaction is not NULL, and specify an auth vector
-  // to be returned on the expected call for the cache request's results.
-  // We also expect a successful HTTP response.
-  Cache::Transaction* t = mock_req.get_trx();
-  ASSERT_FALSE(t == NULL);
-
-  // The cache request takes some time.
-  t->start_timer();
-  cwtest_advance_time_ms(12);
-  t->stop_timer();
-
-  // When the cache result returns the handler updates latency stats, gets the
-  // digest result, and sends an HTTP reply.
   EXPECT_CALL(*_stats, update_H_cache_latency_us(12000));
   EXPECT_CALL(mock_req, get_result(_))
     .WillRepeatedly(SetArgReferee<0>(digest));
-  EXPECT_CALL(*_httpstack, send_reply(_, 200));
+  EXPECT_CALL(*_httpstack, send_reply(_, _));
   t->on_success(&mock_req);
 }
 
 
 TEST_F(HandlerStatsTest, DigestCacheFailure)
 {
-  // This test tests an Impi Digest handler case where no HSS is configured, and
-  // the cache request fails. Start by building the HTTP request which will
-  // invoke a cache lookup.
+  // Test that UNsuccessful cache requests result in the latency stats being
+  // updated. Drive this with an HTTP request for digest. 
   MockHttpStack::Request req(_httpstack,
                              "/impi/" + IMPI,
                              "digest",
@@ -2162,28 +2155,24 @@ TEST_F(HandlerStatsTest, DigestCacheFailure)
   ImpiHandler::Config cfg(false);
   ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg);
 
-  // Once the handler's run function is called, expect to lookup an auth
-  // vector for the specified public and private IDs.
+  // Handler does a cache digest lookup. 
   MockCache::MockGetAuthVector mock_req;
   EXPECT_CALL(*_cache, create_GetAuthVector(IMPI, IMPU))
     .WillOnce(Return(&mock_req));
   EXPECT_CALL(*_cache, send(_, &mock_req))
     .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
-
   handler->run();
 
-  // Confirm that the cache transaction is not NULL.
+  // The cache request takes some time.
   Cache::Transaction* t = mock_req.get_trx();
   ASSERT_FALSE(t == NULL);
 
-  // The cache request takes some time.
   t->start_timer();
   cwtest_advance_time_ms(12);
   t->stop_timer();
 
-  // Expect a 502 HTTP response once the cache returns an error to the handler.
-  // The handler also updates the cache latency.
-  EXPECT_CALL(*_httpstack, send_reply(_, 502));
+  // Cache latency stats are updated when the transaction fails. 
+  EXPECT_CALL(*_httpstack, send_reply(_, _));
   EXPECT_CALL(*_stats, update_H_cache_latency_us(12000));
 
   std::string error_text = "error";
