@@ -212,11 +212,11 @@ Cache::CacheClientInterface* Cache::get_client()
   {
     LOG_DEBUG("No thread-local CacheClientInterface - creating one");
     boost::shared_ptr<TTransport> socket =
-        boost::shared_ptr<TSocket>(new TSocket(_cass_hostname, _cass_port));
+      boost::shared_ptr<TSocket>(new TSocket(_cass_hostname, _cass_port));
     boost::shared_ptr<TFramedTransport> transport =
-        boost::shared_ptr<TFramedTransport>(new TFramedTransport(socket));
+      boost::shared_ptr<TFramedTransport>(new TFramedTransport(socket));
     boost::shared_ptr<TProtocol> protocol =
-        boost::shared_ptr<TBinaryProtocol>(new TBinaryProtocol(transport));
+      boost::shared_ptr<TBinaryProtocol>(new TBinaryProtocol(transport));
     client = new Cache::CacheClient(protocol, transport);
     client->set_keyspace(KEYSPACE);
     pthread_setspecific(_thread_local, client);
@@ -236,15 +236,17 @@ void Cache::release_client()
   if (client != NULL)
   {
     LOG_DEBUG("Found thread-local CacheClientInterface - destroying");
-    delete_client(client); client = NULL;
+    delete_client(client);
+    client = NULL;
     pthread_setspecific(_thread_local, NULL);
   }
 }
 
 
-void Cache::delete_client(void *client)
+void Cache::delete_client(void* client)
 {
-  delete (Cache::CacheClientInterface *)client; client = NULL;
+  delete (Cache::CacheClientInterface*)client;
+  client = NULL;
 }
 // LCOV_EXCL_STOP
 
@@ -252,7 +254,8 @@ void Cache::delete_client(void *client)
 void Cache::send(Cache::Transaction* trx, Cache::Request* req)
 {
   req->set_trx(trx);
-  _thread_pool->add_work(req); req = NULL;
+  _thread_pool->add_work(req);
+  req = NULL;
 }
 
 
@@ -260,10 +263,10 @@ void Cache::send(Cache::Transaction* trx, Cache::Request* req)
 // CacheThreadPool methods
 //
 
-Cache::CacheThreadPool::CacheThreadPool(Cache *cache,
+Cache::CacheThreadPool::CacheThreadPool(Cache* cache,
                                         unsigned int num_threads,
                                         unsigned int max_queue) :
-  ThreadPool<Cache::Request *>(num_threads, max_queue),
+  ThreadPool<Cache::Request*>(num_threads, max_queue),
   _cache(cache)
 {}
 
@@ -289,7 +292,8 @@ void Cache::CacheThreadPool::process_work(Request* &req)
   // LCOV_EXCL_STOP
 
   // We own the request so we have to free it.
-  delete req; req = NULL;
+  delete req;
+  req = NULL;
 }
 
 //
@@ -304,11 +308,12 @@ Cache::Request::Request(const std::string& column_family) :
 
 Cache::Request::~Request()
 {
-  delete _trx; _trx = NULL;
+  delete _trx;
+  _trx = NULL;
 }
 
 
-void Cache::Request::run(Cache::CacheClientInterface *client)
+void Cache::Request::run(Cache::CacheClientInterface* client)
 {
   ResultCode rc = OK;
   std::string error_text = "";
@@ -818,31 +823,41 @@ void Cache::GetIMSSubscription::perform()
   requested_columns.push_back(IMS_SUB_XML_COLUMN_NAME);
   requested_columns.push_back(REG_STATE_COLUMN_NAME);
 
-  try {
+  try
+  {
     ha_get_columns(_public_id, requested_columns, results);
 
-    for(std::vector<ColumnOrSuperColumn>::iterator it = results.begin(); it != results.end(); ++it) {
-      if (it->column.name.compare(IMS_SUB_XML_COLUMN_NAME) == 0) {
+    for(std::vector<ColumnOrSuperColumn>::iterator it = results.begin(); it != results.end(); ++it)
+    {
+      if (it->column.name.compare(IMS_SUB_XML_COLUMN_NAME) == 0)
+      {
         _xml = it->column.value;
         _xml_ttl = it->column.ttl;
         LOG_DEBUG("Retrieved XML column with TTL %d", _xml_ttl);
-        } else if (it->column.name.compare(REG_STATE_COLUMN_NAME) == 0) {
+      }
+      else if (it->column.name.compare(REG_STATE_COLUMN_NAME) == 0)
+      {
         _reg_state_ttl = it->column.ttl;
-        if (it->column.value.compare(BOOLEAN_TRUE) == 0) {
+        if (it->column.value.compare(BOOLEAN_TRUE) == 0)
+        {
           _reg_state = RegistrationState::REGISTERED;
           LOG_DEBUG("Retrieved is_registered column with value True and TTL %d",
                     _reg_state_ttl);
-        } else if (it->column.value.compare(BOOLEAN_FALSE) == 0) {
+        }
+        else if (it->column.value.compare(BOOLEAN_FALSE) == 0)
+        {
           _reg_state = RegistrationState::UNREGISTERED;
           LOG_DEBUG("Retrieved is_registered column with value True and TTL %d",
                     _reg_state_ttl);
-        } else {
+        }
+        else
+        {
           LOG_WARNING("Registration state column has invalid value %d %s",
                       it->column.value.c_str()[0],
                       it->column.value.c_str());
         };
       };
-  }
+    }
 
   }
   catch(Cache::NoResultsException& nre)
@@ -1014,7 +1029,7 @@ void Cache::GetAuthVector::perform()
        it != results.end();
        ++it)
   {
-    const Column *col = &it->column;
+    const Column* col = &it->column;
 
     if (col->name == DIGEST_HA1_COLUMN_NAME)
     {
@@ -1045,8 +1060,8 @@ void Cache::GetAuthVector::perform()
     // We were asked to verify a public ID, but that public ID that was not
     // found.  This is a failure.
     std::string error_text = (boost::format(
-        "Private ID '%s' exists but does not have associated public ID '%s'")
-        % _private_id % _public_id).str();
+                                "Private ID '%s' exists but does not have associated public ID '%s'")
+                              % _private_id % _public_id).str();
     LOG_DEBUG("Cache query failed: %s", error_text.c_str());
     _trx->on_failure(this, NOT_FOUND, error_text);
   }
