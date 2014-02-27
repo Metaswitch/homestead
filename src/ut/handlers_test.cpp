@@ -2182,8 +2182,7 @@ TEST_F(HandlerStatsTest, DigestCacheFailure)
 
 TEST_F(HandlerStatsTest, DigestHSS)
 {
-  // This test tests an Impi Digest handler case with an HSS configured.
-  // Start by building the HTTP request which will invoke an HSS lookup.
+  // Check that a diameter MultimediaAuthRequest updates the right stats. 
   MockHttpStack::Request req(_httpstack,
                              "/impi/" + IMPI,
                              "digest",
@@ -2197,20 +2196,20 @@ TEST_F(HandlerStatsTest, DigestHSS)
     .Times(1)
     .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
   handler->run();
-  ASSERT_FALSE(_caught_diam_tsx == NULL);
 
+  // The transaction takes some time.
+  ASSERT_FALSE(_caught_diam_tsx == NULL);
+  _caught_diam_tsx->start_timer();
+  cwtest_advance_time_ms(13);
+  _caught_diam_tsx->stop_timer();
+
+  // Build an MAA.
   DigestAuthVector digest;
   digest.ha1 = "ha1";
   digest.realm = "realm";
   digest.qop = "qop";
   AKAAuthVector aka;
 
-  // The transaction takes some time.
-  _caught_diam_tsx->start_timer();
-  cwtest_advance_time_ms(13);
-  _caught_diam_tsx->stop_timer();
-
-  // Build an MAA.
   Cx::MultimediaAuthAnswer maa(_cx_dict,
                                _mock_stack,
                                DIAMETER_SUCCESS,
@@ -2218,24 +2217,18 @@ TEST_F(HandlerStatsTest, DigestHSS)
                                digest,
                                aka);
 
-  // Once it receives the MAA, check that the handler tries to add the public
-  // ID to the database, that a successful HTTP response is sent, and that it
-  // records the request latency.
+  // The HSS and digest stats are updated. 
+  EXPECT_CALL(*_stats, update_H_hss_latency_us(13000));
+  EXPECT_CALL(*_stats, update_H_hss_digest_latency_us(13000));
+
   MockCache::MockPutAssociatedPublicID mock_req;
-  EXPECT_CALL(*_cache, create_PutAssociatedPublicID(IMPI, IMPU,  _, 300))
+  EXPECT_CALL(*_cache, create_PutAssociatedPublicID(IMPI, IMPU,  _, _))
     .WillOnce(Return(&mock_req));
   EXPECT_CALL(*_cache, send(_, &mock_req))
     .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
 
-  EXPECT_CALL(*_stats, update_H_hss_latency_us(13000));
-  EXPECT_CALL(*_stats, update_H_hss_digest_latency_us(13000));
-
-  EXPECT_CALL(*_httpstack, send_reply(_, 200));
+  EXPECT_CALL(*_httpstack, send_reply(_, _));
   _caught_diam_tsx->on_response(maa);
-
-  // Confirm the cache transaction is not NULL.
-  Cache::Transaction* t = mock_req.get_trx();
-  ASSERT_FALSE(t == NULL);
 }
 
 
