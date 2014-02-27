@@ -34,6 +34,26 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
+// IMPORTANT for developers.
+//
+// The test cases in this file use both a real Diameter::Stack and a
+// MockDiameterStack. We use the mock stack to catch diameter messages
+// as the handlers send them out, and we use the real stack for
+// everything else. This makes it difficult to keep track of who owns the
+// underlying fd_msg structures and therefore who is responsible for freeing them.
+//
+// For tests where the handlers initiate the session by sending a request, we have
+// to be careful that the request is freed after we catch it. This is sometimes done
+// by simply calling fd_msg_free. However sometimes we want to look at the message and
+// so we turn it back into a Cx message. This will trigger the caught fd_msg to be
+// freed when we are finished with the Cx message.
+//
+// For tests where we initiate the session by sending in a request, we have to be
+// careful that the request is only freed once. This can be an issue because the
+// handlers build an answer from the request which references the request, and
+// freeDiameter will then try to free the request when it frees the answer. We need
+// to make sure that the request has not already been freed.
+
 #define GTEST_HAS_POSIX_RE 0
 #include "test_utils.hpp"
 #include "test_interposer.hpp"
@@ -53,7 +73,7 @@ using ::testing::WithArgs;
 using ::testing::NiceMock;
 using ::testing::StrictMock;
 
-/// Fixture for HandlersTest.
+// Fixture for HandlersTest.
 class HandlersTest : public testing::Test
 {
 public:
@@ -131,8 +151,6 @@ public:
     _real_stack->stop();
     _real_stack->wait_stopped();
     _real_stack = NULL;
-    delete _caught_fd_msg; _caught_fd_msg = NULL;
-    delete _caught_diam_tsx; _caught_diam_tsx = NULL;
   }
 
   // We frequently invoke the following two methods on the send method of our
@@ -284,6 +302,8 @@ public:
                                     NO_CAPABILITIES);
     EXPECT_CALL(*_httpstack, send_reply(_, http_rc));
     _caught_diam_tsx->on_response(uaa);
+    fd_msg_free(_caught_fd_msg); _caught_fd_msg = NULL;
+    delete _caught_diam_tsx; _caught_diam_tsx = NULL;
 
     // Ensure that the HTTP body on the response is empty.
     EXPECT_EQ("", req.content());
@@ -319,6 +339,8 @@ public:
                                NO_CAPABILITIES);
     EXPECT_CALL(*_httpstack, send_reply(_, http_rc));
     _caught_diam_tsx->on_response(lia);
+    fd_msg_free(_caught_fd_msg); _caught_fd_msg = NULL;
+    delete _caught_diam_tsx; _caught_diam_tsx = NULL;
 
     // Ensure that the HTTP body on the response is empty.
     EXPECT_EQ("", req.content());
@@ -525,6 +547,8 @@ TEST_F(HandlersTest, DigestHSS)
 
   EXPECT_CALL(*_httpstack, send_reply(_, 200));
   _caught_diam_tsx->on_response(maa);
+  _caught_fd_msg = NULL;
+  delete _caught_diam_tsx; _caught_diam_tsx = NULL;
 
   // Confirm the cache transaction is not NULL.
   Cache::Transaction* t = mock_req.get_trx();
@@ -611,6 +635,8 @@ TEST_F(HandlersTest, DigestHSSNoIMPU)
 
   EXPECT_CALL(*_httpstack, send_reply(_, 200));
   _caught_diam_tsx->on_response(maa);
+  _caught_fd_msg = NULL;
+  delete _caught_diam_tsx; _caught_diam_tsx = NULL;
 
   // Confirm the cache transaction is not NULL.
   t = mock_req2.get_trx();
@@ -659,6 +685,8 @@ TEST_F(HandlersTest, DigestHSSUserUnknown)
   // Once the handler recieves the MAA, expect a 404 HTTP response.
   EXPECT_CALL(*_httpstack, send_reply(_, 404));
   _caught_diam_tsx->on_response(maa);
+  fd_msg_free(_caught_fd_msg); _caught_fd_msg = NULL;
+  delete _caught_diam_tsx; _caught_diam_tsx = NULL;
 }
 
 TEST_F(HandlersTest, DigestHSSOtherError)
@@ -700,6 +728,8 @@ TEST_F(HandlersTest, DigestHSSOtherError)
   // Once the handler recieves the MAA, expect a 500 HTTP response.
   EXPECT_CALL(*_httpstack, send_reply(_, 500));
   _caught_diam_tsx->on_response(maa);
+  fd_msg_free(_caught_fd_msg); _caught_fd_msg = NULL;
+  delete _caught_diam_tsx; _caught_diam_tsx = NULL;
 }
 
 TEST_F(HandlersTest, DigestHSSUnkownScheme)
@@ -741,6 +771,8 @@ TEST_F(HandlersTest, DigestHSSUnkownScheme)
   // Once the handler recieves the MAA, expect a 404 HTTP response.
   EXPECT_CALL(*_httpstack, send_reply(_, 404));
   _caught_diam_tsx->on_response(maa);
+  fd_msg_free(_caught_fd_msg); _caught_fd_msg = NULL;
+  delete _caught_diam_tsx; _caught_diam_tsx = NULL;
 }
 
 TEST_F(HandlersTest, DigestHSSAKAReturned)
@@ -782,6 +814,8 @@ TEST_F(HandlersTest, DigestHSSAKAReturned)
   // Once the handler recieves the MAA, expect a 404 HTTP response.
   EXPECT_CALL(*_httpstack, send_reply(_, 404));
   _caught_diam_tsx->on_response(maa);
+  fd_msg_free(_caught_fd_msg); _caught_fd_msg = NULL;
+  delete _caught_diam_tsx; _caught_diam_tsx = NULL;
 }
 
 TEST_F(HandlersTest, DigestNoCachedIMPUs)
@@ -999,6 +1033,8 @@ TEST_F(HandlersTest, AvNoPublicIDHSSAKA)
   // Once it receives the MAA, check that a successful HTTP response is sent.
   EXPECT_CALL(*_httpstack, send_reply(_, 200));
   _caught_diam_tsx->on_response(maa);
+  _caught_fd_msg = NULL;
+  delete _caught_diam_tsx; _caught_diam_tsx = NULL;
 
   // Build the expected response and check it's correct. We need to first
   // encode the values we sent earlier into base64 or hex. This is hardcoded.
@@ -1152,6 +1188,8 @@ TEST_F(HandlersTest, IMSSubscriptionReregHSS)
 
   EXPECT_CALL(*_httpstack, send_reply(_, 200));
   _caught_diam_tsx->on_response(saa);
+  _caught_fd_msg = NULL;
+  delete _caught_diam_tsx; _caught_diam_tsx = NULL;
 
   // Confirm the cache transaction is not NULL.
   t = mock_req2.get_trx();
@@ -1211,6 +1249,8 @@ TEST_F(HandlersTest, IMSSubscriptionReg)
 
   EXPECT_CALL(*_httpstack, send_reply(_, 200));
   _caught_diam_tsx->on_response(saa);
+  _caught_fd_msg = NULL;
+  delete _caught_diam_tsx; _caught_diam_tsx = NULL;
 
   // Confirm the cache transaction is not NULL.
   Cache::Transaction* t = mock_req.get_trx();
@@ -1269,6 +1309,8 @@ TEST_F(HandlersTest, IMSSubscriptionDereg)
 
   EXPECT_CALL(*_httpstack, send_reply(_, 200));
   _caught_diam_tsx->on_response(saa);
+  _caught_fd_msg = NULL;
+  delete _caught_diam_tsx; _caught_diam_tsx = NULL;
 
   // Confirm the cache transaction is not NULL.
   Cache::Transaction* t = mock_req.get_trx();
@@ -1388,6 +1430,8 @@ TEST_F(HandlersTest, IMSSubscriptionUserUnknownDereg)
 
   EXPECT_CALL(*_httpstack, send_reply(_, 404));
   _caught_diam_tsx->on_response(saa);
+  fd_msg_free(_caught_fd_msg); _caught_fd_msg = NULL;
+  delete _caught_diam_tsx; _caught_diam_tsx = NULL;
 
   // Confirm the cache transaction isn't NULL.
   Cache::Transaction* t = mock_req.get_trx();
@@ -1441,6 +1485,8 @@ TEST_F(HandlersTest, IMSSubscriptionOtherErrorCallReg)
   // Expect a 500 HTTP response.
   EXPECT_CALL(*_httpstack, send_reply(_, 500));
   _caught_diam_tsx->on_response(saa);
+  fd_msg_free(_caught_fd_msg); _caught_fd_msg = NULL;
+  delete _caught_diam_tsx; _caught_diam_tsx = NULL;
 }
 
 //
@@ -1471,6 +1517,8 @@ TEST_F(HandlersTest, RegistrationStatusHSSTimeout)
   // Expect a 503 response once we notify the handler about the timeout error.
   EXPECT_CALL(*_httpstack, send_reply(_, 503));
   _caught_diam_tsx->on_timeout();
+  fd_msg_free(_caught_fd_msg); _caught_fd_msg = NULL;
+  delete _caught_diam_tsx; _caught_diam_tsx = NULL;
 }
 
 TEST_F(HandlersTest, RegistrationStatus)
@@ -1516,6 +1564,8 @@ TEST_F(HandlersTest, RegistrationStatus)
                                   CAPABILITIES);
   EXPECT_CALL(*_httpstack, send_reply(_, 200));
   _caught_diam_tsx->on_response(uaa);
+  _caught_fd_msg = NULL;
+  delete _caught_diam_tsx; _caught_diam_tsx = NULL;
 
   // Build the expected JSON response and check it's correct.
   EXPECT_EQ(build_icscf_json(DIAMETER_SUCCESS, SERVER_NAME, CAPABILITIES), req.content());
@@ -1567,6 +1617,8 @@ TEST_F(HandlersTest, RegistrationStatusOptParamsSubseqRegCapabs)
                                   CAPABILITIES);
   EXPECT_CALL(*_httpstack, send_reply(_, 200));
   _caught_diam_tsx->on_response(uaa);
+  _caught_fd_msg = NULL;
+  delete _caught_diam_tsx; _caught_diam_tsx = NULL;
 
   // Build the expected JSON response and check it's correct.
   EXPECT_EQ(build_icscf_json(DIAMETER_SUBSEQUENT_REGISTRATION, "", CAPABILITIES), req.content());
@@ -1618,6 +1670,8 @@ TEST_F(HandlersTest, RegistrationStatusFirstRegNoCapabs)
                                   NO_CAPABILITIES);
   EXPECT_CALL(*_httpstack, send_reply(_, 200));
   _caught_diam_tsx->on_response(uaa);
+  _caught_fd_msg = NULL;
+  delete _caught_diam_tsx; _caught_diam_tsx = NULL;
 
   // Build the expected JSON response and check it's correct.
   EXPECT_EQ(build_icscf_json(DIAMETER_FIRST_REGISTRATION, "", NO_CAPABILITIES), req.content());
@@ -1718,6 +1772,8 @@ TEST_F(HandlersTest, LocationInfo)
                              CAPABILITIES);
   EXPECT_CALL(*_httpstack, send_reply(_, 200));
   _caught_diam_tsx->on_response(lia);
+  _caught_fd_msg = NULL;
+  delete _caught_diam_tsx; _caught_diam_tsx = NULL;
 
   // Build the expected JSON response and check it's correct.
   EXPECT_EQ(build_icscf_json(DIAMETER_SUCCESS, SERVER_NAME, CAPABILITIES), req.content());
@@ -1769,6 +1825,8 @@ TEST_F(HandlersTest, LocationInfoOptParamsUnregisteredService)
                              CAPABILITIES);
   EXPECT_CALL(*_httpstack, send_reply(_, 200));
   _caught_diam_tsx->on_response(lia);
+  _caught_fd_msg = NULL;
+  delete _caught_diam_tsx; _caught_diam_tsx = NULL;
 
   // Build the expected JSON response and check it's correct.
   EXPECT_EQ(build_icscf_json(DIAMETER_UNREGISTERED_SERVICE, "", CAPABILITIES), req.content());
@@ -1831,6 +1889,12 @@ TEST_F(HandlersTest, RegistrationTerminationNoImpus)
                                          no_impus,
                                          AUTH_SESSION_STATE);
 
+  // The free_on_delete flag controls whether we want to free the underlying
+  // fd_msg structure when we delete this RTR. We don't, since this will be
+  // freed when the answer is freed later in the test. If we leave this flag set
+  // then the request will be freed twice.
+  rtr._free_on_delete = false;
+
   RegistrationTerminationHandler::Config cfg(_cache, _cx_dict, 0);
   RegistrationTerminationHandler* handler = new RegistrationTerminationHandler(rtr, &cfg);
 
@@ -1887,7 +1951,6 @@ TEST_F(HandlersTest, RegistrationTerminationNoImpus)
   // Change the _free_on_delete flag to false, or we will try and
   // free this message twice.
   Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
-  msg._free_on_delete = false;
   Cx::RegistrationTerminationAnswer rta(msg);
   EXPECT_TRUE(rta.result_code(test_i32));
   EXPECT_EQ(DIAMETER_SUCCESS, test_i32);
@@ -1905,6 +1968,12 @@ TEST_F(HandlersTest, RegistrationTermination)
                                          ASSOCIATED_IDENTITIES,
                                          IMPUS,
                                          AUTH_SESSION_STATE);
+
+  // The free_on_delete flag controls whether we want to free the underlying
+  // fd_msg structure when we delete this RTR. We don't, since this will be
+  // freed when the answer is freed later in the test. If we leave this flag set
+  // then the request will be freed twice.
+  rtr._free_on_delete = false;
 
   RegistrationTerminationHandler::Config cfg(_cache, _cx_dict, 0);
   RegistrationTerminationHandler* handler = new RegistrationTerminationHandler(rtr, &cfg);
@@ -1943,7 +2012,6 @@ TEST_F(HandlersTest, RegistrationTermination)
   // Change the _free_on_delete flag to false, or we will try and
   // free this message twice.
   Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
-  msg._free_on_delete = false;
   Cx::RegistrationTerminationAnswer rta(msg);
   EXPECT_TRUE(rta.result_code(test_i32));
   EXPECT_EQ(DIAMETER_SUCCESS, test_i32);
@@ -1970,6 +2038,12 @@ TEST_F(HandlersTest, PushProfile)
                              digest_av,
                              IMS_SUBSCRIPTION,
                              AUTH_SESSION_STATE);
+
+  // The free_on_delete flag controls whether we want to free the underlying
+  // fd_msg structure when we delete this PPR. We don't, since this will be
+  // freed when the answer is freed later in the test. If we leave this flag set
+  // then the request will be freed twice.
+  ppr._free_on_delete = false;
 
   PushProfileHandler::Config cfg(_cache, _cx_dict, 0, 3600);
   PushProfileHandler* handler = new PushProfileHandler(ppr, &cfg);
@@ -2006,7 +2080,6 @@ TEST_F(HandlersTest, PushProfile)
   // Change the _free_on_delete flag to false, or we will try and
   // free this message twice.
   Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
-  msg._free_on_delete = false;
   Cx::PushProfileAnswer ppa(msg);
   EXPECT_TRUE(ppa.result_code(test_i32));
   EXPECT_EQ(DIAMETER_SUCCESS, test_i32);
