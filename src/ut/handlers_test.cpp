@@ -333,7 +333,7 @@ public:
     EXPECT_EQ("", req.content());
   }
 
-  void ignore_stats(bool ignore)
+  static void ignore_stats(bool ignore)
   {
     if (ignore)
     {
@@ -2070,3 +2070,22 @@ TEST_F(HandlersTest, PushProfile)
   EXPECT_EQ(DIAMETER_SUCCESS, test_i32);
   EXPECT_EQ(AUTH_SESSION_STATE, ppa.auth_session_state());
 }
+
+class HandlerStatsTest : public HandlersTest
+{
+public:
+  HandlerStatsTest() : HandlersTest() {}
+  virtual ~HandlerStatsTest() {}
+
+  static void SetUpTestCase()
+  {
+    HandlersTest::SetUpTestCase();
+    ignore_stats(false);
+  }
+
+  static void TearDownTestCase()
+  {
+    ignore_stats(true);
+    HandlersTest::TearDownTestCase();
+  }
+};
