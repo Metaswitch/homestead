@@ -2074,6 +2074,13 @@ TEST_F(HandlersTest, PushProfile)
   EXPECT_EQ(AUTH_SESSION_STATE, ppa.auth_session_state());
 }
 
+//
+// Stats tests
+//
+// These onlt test stats function - they only check diameter/cache/HTTP flows to
+// the extent that is required to drive the necessary flows. 
+//
+
 class HandlerStatsTest : public HandlersTest
 {
 public:
@@ -2139,9 +2146,6 @@ TEST_F(HandlerStatsTest, DigestCache)
     .WillRepeatedly(SetArgReferee<0>(digest));
   EXPECT_CALL(*_httpstack, send_reply(_, 200));
   t->on_success(&mock_req);
-
-  // Build the expected response and check it's correct.
-  EXPECT_EQ(build_digest_json(digest), req.content());
 }
 
 
@@ -2206,20 +2210,6 @@ TEST_F(HandlerStatsTest, DigestHSS)
   handler->run();
   ASSERT_FALSE(_caught_diam_tsx == NULL);
 
-  // Turn the caught Diameter msg structure into a MAR and check its contents.
-  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
-  Cx::MultimediaAuthRequest mar(msg);
-  EXPECT_TRUE(mar.get_str_from_avp(_cx_dict->DESTINATION_REALM, test_str));
-  EXPECT_EQ(DEST_REALM, test_str);
-  EXPECT_TRUE(mar.get_str_from_avp(_cx_dict->DESTINATION_HOST, test_str));
-  EXPECT_EQ(DEST_HOST, test_str);
-  EXPECT_EQ(IMPI, mar.impi());
-  EXPECT_EQ(IMPU, mar.impu());
-  EXPECT_EQ(SCHEME_DIGEST, mar.sip_auth_scheme());
-  EXPECT_EQ("", mar.sip_authorization());
-  EXPECT_TRUE(mar.server_name(test_str));
-  EXPECT_EQ(DEFAULT_SERVER_NAME, test_str);
-
   DigestAuthVector digest;
   digest.ha1 = "ha1";
   digest.realm = "realm";
@@ -2257,9 +2247,6 @@ TEST_F(HandlerStatsTest, DigestHSS)
   // Confirm the cache transaction is not NULL.
   Cache::Transaction* t = mock_req.get_trx();
   ASSERT_FALSE(t == NULL);
-
-  // Build the expected response and check it's correct.
-  EXPECT_EQ(build_digest_json(digest), req.content());
 }
 
 
@@ -2281,26 +2268,6 @@ TEST_F(HandlerStatsTest, DigestHSSTimeout)
     .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
   handler->run();
   ASSERT_FALSE(_caught_diam_tsx == NULL);
-
-  // Turn the caught Diameter msg structure into a MAR and check its contents.
-  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
-  Cx::MultimediaAuthRequest mar(msg);
-  EXPECT_TRUE(mar.get_str_from_avp(_cx_dict->DESTINATION_REALM, test_str));
-  EXPECT_EQ(DEST_REALM, test_str);
-  EXPECT_TRUE(mar.get_str_from_avp(_cx_dict->DESTINATION_HOST, test_str));
-  EXPECT_EQ(DEST_HOST, test_str);
-  EXPECT_EQ(IMPI, mar.impi());
-  EXPECT_EQ(IMPU, mar.impu());
-  EXPECT_EQ(SCHEME_DIGEST, mar.sip_auth_scheme());
-  EXPECT_EQ("", mar.sip_authorization());
-  EXPECT_TRUE(mar.server_name(test_str));
-  EXPECT_EQ(DEFAULT_SERVER_NAME, test_str);
-
-  DigestAuthVector digest;
-  digest.ha1 = "ha1";
-  digest.realm = "realm";
-  digest.qop = "qop";
-  AKAAuthVector aka;
 
   // The transaction takes some time.
   _caught_diam_tsx->start_timer();
@@ -2359,20 +2326,6 @@ TEST_F(HandlerStatsTest, IMSSubscriptionReregHSS)
   t->on_failure(&mock_req, Cache::NOT_FOUND, error_text);
   ASSERT_FALSE(_caught_diam_tsx == NULL);
 
-  // Turn the caught Diameter msg structure into a SAR and check its contents.
-  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
-  Cx::ServerAssignmentRequest sar(msg);
-  EXPECT_TRUE(sar.get_str_from_avp(_cx_dict->DESTINATION_REALM, test_str));
-  EXPECT_EQ(DEST_REALM, test_str);
-  EXPECT_TRUE(sar.get_str_from_avp(_cx_dict->DESTINATION_HOST, test_str));
-  EXPECT_EQ(DEST_HOST, test_str);
-  EXPECT_EQ(IMPI, sar.impi());
-  EXPECT_EQ(IMPU, sar.impu());
-  EXPECT_TRUE(sar.server_name(test_str));
-  EXPECT_EQ(DEFAULT_SERVER_NAME, test_str);
-  EXPECT_TRUE(sar.server_assignment_type(test_i32));
-  EXPECT_EQ(2, test_i32);
-
   // The diameter requests takes some time to process.
   _caught_diam_tsx->start_timer();
   cwtest_advance_time_ms(20);
@@ -2411,9 +2364,6 @@ TEST_F(HandlerStatsTest, IMSSubscriptionReregHSS)
   EXPECT_CALL(*_stats, update_H_cache_latency_us(11000));
   t->on_success(&mock_req2);
 
-  // Build the expected response and check it's correct.
-  EXPECT_EQ(IMS_SUBSCRIPTION, req.content());
-
   _caught_diam_tsx = NULL;
   _caught_fd_msg = NULL;
 }
@@ -2439,20 +2389,6 @@ TEST_F(HandlerStatsTest, RegistrationStatus)
   handler->run();
   ASSERT_FALSE(_caught_diam_tsx == NULL);
 
-  // Turn the caught Diameter msg structure into a UAR and check its contents.
-  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
-  Cx::UserAuthorizationRequest uar(msg);
-  EXPECT_TRUE(uar.get_str_from_avp(_cx_dict->DESTINATION_REALM, test_str));
-  EXPECT_EQ(DEST_REALM, test_str);
-  EXPECT_TRUE(uar.get_str_from_avp(_cx_dict->DESTINATION_HOST, test_str));
-  EXPECT_EQ(DEST_HOST, test_str);
-  EXPECT_EQ(IMPI, uar.impi());
-  EXPECT_EQ(IMPU, uar.impu());
-  EXPECT_TRUE(uar.visited_network(test_str));
-  EXPECT_EQ(DEST_REALM, test_str);
-  EXPECT_TRUE(uar.auth_type(test_i32));
-  EXPECT_EQ(0, test_i32);
-
   _caught_diam_tsx->start_timer();
   cwtest_advance_time_ms(13);
   _caught_diam_tsx->stop_timer();
@@ -2468,9 +2404,6 @@ TEST_F(HandlerStatsTest, RegistrationStatus)
   EXPECT_CALL(*_stats, update_H_hss_latency_us(13000));
   EXPECT_CALL(*_stats, update_H_hss_subscription_latency_us(13000));
   _caught_diam_tsx->on_response(uaa);
-
-  // Build the expected JSON response and check it's correct.
-  EXPECT_EQ(build_icscf_json(DIAMETER_SUCCESS, SERVER_NAME, CAPABILITIES), req.content());
 
   _caught_diam_tsx = NULL;
   _caught_fd_msg = NULL;
@@ -2497,17 +2430,6 @@ TEST_F(HandlerStatsTest, LocationInfo)
   handler->run();
   ASSERT_FALSE(_caught_diam_tsx == NULL);
 
-  // Turn the caught Diameter msg structure into a LIR and check its contents.
-  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
-  Cx::LocationInfoRequest lir(msg);
-  EXPECT_TRUE(lir.get_str_from_avp(_cx_dict->DESTINATION_REALM, test_str));
-  EXPECT_EQ(DEST_REALM, test_str);
-  EXPECT_TRUE(lir.get_str_from_avp(_cx_dict->DESTINATION_HOST, test_str));
-  EXPECT_EQ(DEST_HOST, test_str);
-  EXPECT_EQ(IMPU, lir.impu());
-  EXPECT_FALSE(lir.originating(test_i32));
-  EXPECT_FALSE(lir.auth_type(test_i32));
-
   _caught_diam_tsx->start_timer();
   cwtest_advance_time_ms(16);
   _caught_diam_tsx->stop_timer();
@@ -2524,9 +2446,6 @@ TEST_F(HandlerStatsTest, LocationInfo)
   EXPECT_CALL(*_stats, update_H_hss_subscription_latency_us(16000));
 
   _caught_diam_tsx->on_response(lia);
-
-  // Build the expected JSON response and check it's correct.
-  EXPECT_EQ(build_icscf_json(DIAMETER_SUCCESS, SERVER_NAME, CAPABILITIES), req.content());
 
   _caught_diam_tsx = NULL;
   _caught_fd_msg = NULL;
@@ -2552,17 +2471,6 @@ TEST_F(HandlerStatsTest, LocationInfoOverload)
     .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
   handler->run();
   ASSERT_FALSE(_caught_diam_tsx == NULL);
-
-  // Turn the caught Diameter msg structure into a LIR and check its contents.
-  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
-  Cx::LocationInfoRequest lir(msg);
-  EXPECT_TRUE(lir.get_str_from_avp(_cx_dict->DESTINATION_REALM, test_str));
-  EXPECT_EQ(DEST_REALM, test_str);
-  EXPECT_TRUE(lir.get_str_from_avp(_cx_dict->DESTINATION_HOST, test_str));
-  EXPECT_EQ(DEST_HOST, test_str);
-  EXPECT_EQ(IMPU, lir.impu());
-  EXPECT_FALSE(lir.originating(test_i32));
-  EXPECT_FALSE(lir.auth_type(test_i32));
 
   _caught_diam_tsx->start_timer();
   cwtest_advance_time_ms(17);
