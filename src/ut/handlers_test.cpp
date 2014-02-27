@@ -96,6 +96,12 @@ public:
   std::string test_str;
   int32_t test_i32;
 
+  HandlersTest() {}
+  virtual ~HandlersTest()
+  {
+    Mock::VerifyAndClear(_httpstack);
+  }
+
   static void SetUpTestCase()
   {
     _real_stack = Diameter::Stack::get_instance();
@@ -339,9 +345,6 @@ public:
       HssCacheHandler::configure_stats(_stats);
     }
   }
-
-  HandlersTest() {}
-  ~HandlersTest() {}
 };
 
 const std::string HandlersTest::DEST_REALM = "dest-realm";
@@ -1960,6 +1963,59 @@ TEST_F(HandlersTest, LocationInfoNoHSS)
   EXPECT_EQ(build_icscf_json(DIAMETER_SUCCESS, DEFAULT_SERVER_NAME, NO_CAPABILITIES), req.content());
 }
 
+TEST_F(HandlersTest, LocationInfoOverload)
+{
+  ignore_stats(false);
+
+  // This test tests a mainline Location Info handler case. Build the HTTP request
+  // which will invoke an LIR to be sent to the HSS.
+  MockHttpStack::Request req(_httpstack,
+                             "/impu/" + IMPU + "/",
+                             "location",
+                             "");
+
+  ImpuLocationInfoHandler::Config cfg(true);
+  ImpuLocationInfoHandler* handler = new ImpuLocationInfoHandler(req, &cfg);
+
+  // Once the handler's run function is called, expect a diameter message to be
+  // sent.
+  EXPECT_CALL(*_mock_stack, send(_, _, 200))
+    .Times(1)
+    .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
+  handler->run();
+  ASSERT_FALSE(_caught_diam_tsx == NULL);
+
+  // Turn the caught Diameter msg structure into a LIR and check its contents.
+  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
+  Cx::LocationInfoRequest lir(msg);
+  EXPECT_TRUE(lir.get_str_from_avp(_cx_dict->DESTINATION_REALM, test_str));
+  EXPECT_EQ(DEST_REALM, test_str);
+  EXPECT_TRUE(lir.get_str_from_avp(_cx_dict->DESTINATION_HOST, test_str));
+  EXPECT_EQ(DEST_HOST, test_str);
+  EXPECT_EQ(IMPU, lir.impu());
+  EXPECT_FALSE(lir.originating(test_i32));
+  EXPECT_FALSE(lir.auth_type(test_i32));
+
+  _caught_diam_tsx->start_timer();
+  cwtest_advance_time_ms(17);
+  _caught_diam_tsx->stop_timer();
+
+  // Build an LIA and expect a successful HTTP response.
+  Cx::LocationInfoAnswer lia(_cx_dict,
+                             _mock_stack,
+                             DIAMETER_TOO_BUSY,
+                             0,
+                             SERVER_NAME,
+                             CAPABILITIES);
+  EXPECT_CALL(*_httpstack, record_penalty());
+  EXPECT_CALL(*_httpstack, send_reply(_, 503));
+  EXPECT_CALL(*_stats, update_H_hss_latency_us(17000));
+  EXPECT_CALL(*_stats, update_H_hss_subscription_latency_us(17000));
+
+  _caught_diam_tsx->on_response(lia);
+
+  ignore_stats(true);
+}
 //
 // Registration Termination tests
 //
