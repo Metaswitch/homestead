@@ -94,6 +94,7 @@ class UserAuthorizationRequest : public Diameter::Message
 {
 public:
   UserAuthorizationRequest(const Dictionary* dict,
+                           Diameter::Stack* stack,
                            const std::string& dest_host,
                            const std::string& dest_realm,
                            const std::string& impi,
@@ -121,7 +122,12 @@ public:
 class UserAuthorizationAnswer : public Diameter::Message
 {
 public:
-  UserAuthorizationAnswer(const Dictionary* dict);
+  UserAuthorizationAnswer(const Dictionary* dict,
+                          Diameter::Stack* stack,
+                          const int32_t& result_code,
+                          const int32_t& experimental_result_code,
+                          const std::string& scscf,
+                          const ServerCapabilities& capabs);
   inline UserAuthorizationAnswer(Diameter::Message& msg) : Diameter::Message(msg) {};
 
   inline bool server_name(std::string& str) const
@@ -136,6 +142,7 @@ class LocationInfoRequest : public Diameter::Message
 {
 public:
   LocationInfoRequest(const Dictionary* dict,
+                      Diameter::Stack* stack,
                       const std::string& dest_host,
                       const std::string& dest_realm,
                       const std::string& originating_request,
@@ -162,7 +169,12 @@ public:
 class LocationInfoAnswer : public Diameter::Message
 {
 public:
-  LocationInfoAnswer(const Dictionary* dict);
+  LocationInfoAnswer(const Dictionary* dict,
+                     Diameter::Stack* stack,
+                     const int32_t& result_code,
+                     const int32_t& experimental_result_code,
+                     const std::string& scscf,
+                     const ServerCapabilities& capabs);
   inline LocationInfoAnswer(Diameter::Message& msg) : Diameter::Message(msg) {};
 
   inline bool server_name(std::string& str) const
@@ -176,6 +188,7 @@ class MultimediaAuthRequest : public Diameter::Message
 {
 public:
   MultimediaAuthRequest(const Dictionary* dict,
+                        Diameter::Stack* stack,
                         const std::string& dest_realm,
                         const std::string& dest_host,
                         const std::string& impi,
@@ -207,7 +220,11 @@ class MultimediaAuthAnswer : public Diameter::Message
 {
 public:
   MultimediaAuthAnswer(const Dictionary* dict,
-                       int32_t result_code);
+                       Diameter::Stack* stack,
+                       const int32_t& result_code,
+                       const std::string& scheme,
+                       const DigestAuthVector& digest_av,
+                       const AKAAuthVector& aka_av);
   inline MultimediaAuthAnswer(Diameter::Message& msg) : Diameter::Message(msg) {};
 
   std::string sip_auth_scheme() const;
@@ -238,6 +255,7 @@ class ServerAssignmentRequest : public Diameter::Message
 {
 public:
   ServerAssignmentRequest(const Dictionary* dict,
+                          Diameter::Stack* stack,
                           const std::string& dest_host,
                           const std::string& dest_realm,
                           const std::string& impi,
@@ -269,7 +287,10 @@ public:
 class ServerAssignmentAnswer : public Diameter::Message
 {
 public:
-  ServerAssignmentAnswer(const Dictionary* dict);
+  ServerAssignmentAnswer(const Dictionary* dict,
+                         Diameter::Stack* stack,
+                         const int32_t& result_code,
+                         const std::string& ims_subscription);
   inline ServerAssignmentAnswer(Diameter::Message& msg) : Diameter::Message(msg) {};
 
   inline bool user_data(std::string& str) const
@@ -281,7 +302,12 @@ public:
 class RegistrationTerminationRequest : public Diameter::Message
 {
 public:
-  RegistrationTerminationRequest(const Dictionary* dict);
+  RegistrationTerminationRequest(const Dictionary* dict,
+                                 Diameter::Stack* stack,
+                                 const std::string& impi,
+                                 std::vector<std::string>& associated_identities,
+                                 std::vector<std::string>& impus,
+                                 const int32_t& auth_session_state);
   inline RegistrationTerminationRequest(Diameter::Message& msg) : Diameter::Message(msg) {};
 
   std::vector<std::string> associated_identities() const;
@@ -304,7 +330,12 @@ public:
 class PushProfileRequest : public Diameter::Message
 {
 public:
-  PushProfileRequest(const Dictionary* dict);
+  PushProfileRequest(const Dictionary* dict,
+                     Diameter::Stack* stack,
+                     const std::string& impi,
+                     const DigestAuthVector& digest_av,
+                     const std::string& ims_subscription,
+                     const int32_t& auth_session_state);
   inline PushProfileRequest(Diameter::Message& msg) : Diameter::Message(msg) {};
 
   DigestAuthVector digest_auth_vector() const;

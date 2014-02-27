@@ -156,7 +156,7 @@ ACTION_P2(CheckLatency, trx, ms) { trx->check_latency(ms * 1000); }
 
 TEST_F(DiameterRequestTest, NormalRequestTimesLatency)
 {
-  Diameter::Message req(_dict, _dict->MULTIMEDIA_AUTH_REQUEST);
+  Diameter::Message req(_dict, _dict->MULTIMEDIA_AUTH_REQUEST, _stack);
   struct msg *fd_rsp = NULL;
   DiameterTestTransaction *trx = make_trx();
 
@@ -172,7 +172,7 @@ TEST_F(DiameterRequestTest, NormalRequestTimesLatency)
 
 TEST_F(DiameterRequestTest, TimedoutRequestTimesLatency)
 {
-  Diameter::Message req(_dict, _dict->MULTIMEDIA_AUTH_REQUEST);
+  Diameter::Message req(_dict, _dict->MULTIMEDIA_AUTH_REQUEST, _stack);
   struct msg *fd_rsp = NULL;
   DiameterTestTransaction *trx = make_trx();
 
