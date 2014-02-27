@@ -959,6 +959,24 @@ void ImpuRegDataHandler::send_server_assignment_request(Cx::ServerAssignmentType
 
 void ImpuRegDataHandler::put_in_cache()
 {
+  int ttl;
+  if (_cfg->hss_configured)
+  {
+    // Set twice the HSS registration time - code elsewhere will check
+    // whether the TTL has passed the halfway point and do a
+    // RE_REGISTRATION request to the HSS. This is better than just
+    // setting the TTL to be the registration time, as it means there
+    // are no gaps where the data has expired but we haven't received
+    // a REGISTER yet.
+    ttl = (2 * _cfg->hss_reregistration_time);
+  }
+  else
+  {
+    // No TTL if we don't have a HSS - we should never expire the
+    // data because we're the master.
+    ttl = 0;
+  }
+
   LOG_DEBUG("Attempting to cache IMS subscription for public IDs");
   std::vector<std::string> public_ids = XmlUtils::get_public_ids(_xml);
   if (!public_ids.empty())
@@ -975,14 +993,8 @@ void ImpuRegDataHandler::put_in_cache()
                                         _xml,
                                         _new_state,
                                         Cache::generate_timestamp(),
-                                        (2 * _cfg->hss_reregistration_time),
-                                        (2 * _cfg->hss_reregistration_time));
-    // Set twice the HSS registration time - code elsewhere will check
-    // whether the TTL has passed the halfway point and do a
-    // RE_REGISTRATION request to the HSS. This is better than just
-    // setting the TTL to be the registration time, as it means there
-    // are no gaps where the data has expired but we haven't received
-    // a REGISTER yet.
+                                        ttl,
+                                        ttl);
 
     CacheTransaction* tsx = new CacheTransaction(NULL);
     _cache->send(tsx, put_ims_sub);
