@@ -117,6 +117,7 @@ int init_options(int argc, char**argv, struct options& options)
     {"diameter-conf",     required_argument, NULL, 'c'},
     {"http",              required_argument, NULL, 'H'},
     {"http-threads",      required_argument, NULL, 't'},
+    {"cache-threads",     required_argument, NULL, 'u'},
     {"cassandra",         required_argument, NULL, 'S'},
     {"dest-realm",        required_argument, NULL, 'D'},
     {"dest-host",         required_argument, NULL, 'd'},
