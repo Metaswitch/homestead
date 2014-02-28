@@ -816,6 +816,7 @@ Cache::GetIMSSubscription::
 
 void Cache::GetIMSSubscription::perform()
 {
+  int64_t now = generate_timestamp();
   LOG_DEBUG("Issuing get for column %s for key %s",
             IMS_SUB_XML_COLUMN_NAME.c_str(), _public_id.c_str());
   std::vector<ColumnOrSuperColumn> results;
@@ -832,12 +833,16 @@ void Cache::GetIMSSubscription::perform()
       if (it->column.name.compare(IMS_SUB_XML_COLUMN_NAME) == 0)
       {
         _xml = it->column.value;
-        _xml_ttl = it->column.ttl;
+
+        // Cassandra timestamps are in microseconds (see
+        // generate_timestamp) but TTLs are in seconds, so divide the
+        // timestamps by a million.
+        _xml_ttl = ((it->column.timestamp/1000000) + it->column.ttl) - (now / 1000000);
         LOG_DEBUG("Retrieved XML column with TTL %d", _xml_ttl);
       }
       else if (it->column.name.compare(REG_STATE_COLUMN_NAME) == 0)
       {
-        _reg_state_ttl = it->column.ttl;
+        _reg_state_ttl = ((it->column.timestamp/1000000) + it->column.ttl) - (now / 1000000);
         if (it->column.value.compare(BOOLEAN_TRUE) == 0)
         {
           _reg_state = RegistrationState::REGISTERED;
