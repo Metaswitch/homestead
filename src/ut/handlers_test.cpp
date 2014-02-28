@@ -2234,8 +2234,8 @@ TEST_F(HandlerStatsTest, DigestHSS)
 
 TEST_F(HandlerStatsTest, DigestHSSTimeout)
 {
-  // This test tests an Impi Digest handler case with an HSS configured.
-  // Start by building the HTTP request which will invoke an HSS lookup.
+  // Check that a timed-out MultimediaAuthRequest updates the HSS and digest
+  // stats. 
   MockHttpStack::Request req(_httpstack,
                              "/impi/" + IMPI,
                              "digest",
@@ -2259,7 +2259,7 @@ TEST_F(HandlerStatsTest, DigestHSSTimeout)
   EXPECT_CALL(*_stats, update_H_hss_latency_us(13000));
   EXPECT_CALL(*_stats, update_H_hss_digest_latency_us(13000));
 
-  EXPECT_CALL(*_httpstack, send_reply(_, 503));
+  EXPECT_CALL(*_httpstack, send_reply(_, _));
   _caught_diam_tsx->on_timeout();
 
   _caught_diam_tsx = NULL;
@@ -2269,9 +2269,7 @@ TEST_F(HandlerStatsTest, DigestHSSTimeout)
 
 TEST_F(HandlerStatsTest, IMSSubscriptionReregHSS)
 {
-  // This test tests an IMS Subscription handler case for a reregistration where
-  // the IMS subscription information is not found in the cache.
-  // Start by building the HTTP request which will invoke a cache lookup.
+  // Check a ServerAssignmentRequest updates the HSS and subscription stats. 
   MockHttpStack::Request req(_httpstack,
                              "/impu/" + IMPU,
                              "",
@@ -2289,12 +2287,10 @@ TEST_F(HandlerStatsTest, IMSSubscriptionReregHSS)
     .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
   handler->run();
 
-  // Confirm the cache transaction is not NULL. When we tell the handler the cache
-  // request failed, we expect to receive a Diameter message.
+  // Check the cache get latency is recorded.
   Cache::Transaction* t = mock_req.get_trx();
   ASSERT_FALSE(t == NULL);
 
-  // The cache request takes some time.
   t->start_timer();
   cwtest_advance_time_ms(10);
   t->stop_timer();
@@ -2308,7 +2304,7 @@ TEST_F(HandlerStatsTest, IMSSubscriptionReregHSS)
   t->on_failure(&mock_req, Cache::NOT_FOUND, error_text);
   ASSERT_FALSE(_caught_diam_tsx == NULL);
 
-  // The diameter requests takes some time to process.
+  // The diameter SAR takes some time to process.
   _caught_diam_tsx->start_timer();
   cwtest_advance_time_ms(20);
   _caught_diam_tsx->stop_timer();
@@ -2319,26 +2315,24 @@ TEST_F(HandlerStatsTest, IMSSubscriptionReregHSS)
                                  DIAMETER_SUCCESS,
                                  IMS_SUBSCRIPTION);
 
-  // Once it receives the SAA, check that the handler tries to put the IMS
-  // subscription in the database, that a successful HTTP response is sent, and
-  // that the handler updates the latency stats.
   MockCache::MockPutIMSSubscription mock_req2;
   std::vector<std::string> impus{IMPU};
   EXPECT_CALL(*_cache, create_PutIMSSubscription(impus, IMS_SUBSCRIPTION, _, 3600))
     .WillOnce(Return(&mock_req2));
   EXPECT_CALL(*_cache, send(_, &mock_req2))
     .WillOnce(WithArgs<0>(Invoke(&mock_req2, &Cache::Request::set_trx)));
+
+  // Expect the stats to get updated. 
   EXPECT_CALL(*_stats, update_H_hss_latency_us(20000));
   EXPECT_CALL(*_stats, update_H_hss_subscription_latency_us(20000));
 
-  EXPECT_CALL(*_httpstack, send_reply(_, 200));
+  EXPECT_CALL(*_httpstack, send_reply(_, _));
   _caught_diam_tsx->on_response(saa);
 
-  // Confirm the cache transaction is not NULL.
+  // Check the cache put latency is recorded. 
   t = mock_req2.get_trx();
   ASSERT_FALSE(t == NULL);
 
-  // The cache request takes some time.
   t->start_timer();
   cwtest_advance_time_ms(11);
   t->stop_timer();
@@ -2353,8 +2347,7 @@ TEST_F(HandlerStatsTest, IMSSubscriptionReregHSS)
 
 TEST_F(HandlerStatsTest, RegistrationStatus)
 {
-  // This test tests a mainline Registration Status handler case. Build the HTTP request
-  // which will invoke a UAR to be sent to the HSS.
+  // Check a UAR request updated the HSS and subscription stats. 
   MockHttpStack::Request req(_httpstack,
                              "/impi/" + IMPI + "/",
                              "registration-status",
@@ -2369,20 +2362,21 @@ TEST_F(HandlerStatsTest, RegistrationStatus)
     .Times(1)
     .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
   handler->run();
-  ASSERT_FALSE(_caught_diam_tsx == NULL);
 
+  // The diameter message takes some time. 
+  ASSERT_FALSE(_caught_diam_tsx == NULL);
   _caught_diam_tsx->start_timer();
   cwtest_advance_time_ms(13);
   _caught_diam_tsx->stop_timer();
 
-  // Build a UAA and expect a successful HTTP response.
+  // Expect the stats to be updated when the answer is handled. 
   Cx::UserAuthorizationAnswer uaa(_cx_dict,
                                   _mock_stack,
                                   DIAMETER_SUCCESS,
                                   0,
                                   SERVER_NAME,
                                   CAPABILITIES);
-  EXPECT_CALL(*_httpstack, send_reply(_, 200));
+  EXPECT_CALL(*_httpstack, send_reply(_, _));
   EXPECT_CALL(*_stats, update_H_hss_latency_us(13000));
   EXPECT_CALL(*_stats, update_H_hss_subscription_latency_us(13000));
   _caught_diam_tsx->on_response(uaa);
@@ -2394,8 +2388,7 @@ TEST_F(HandlerStatsTest, RegistrationStatus)
 
 TEST_F(HandlerStatsTest, LocationInfo)
 {
-  // This test tests a mainline Location Info handler case. Build the HTTP request
-  // which will invoke an LIR to be sent to the HSS.
+  // Check an LIR request updates the HSS and subsbcription latency stats. 
   MockHttpStack::Request req(_httpstack,
                              "/impu/" + IMPU + "/",
                              "location",
@@ -2416,14 +2409,14 @@ TEST_F(HandlerStatsTest, LocationInfo)
   cwtest_advance_time_ms(16);
   _caught_diam_tsx->stop_timer();
 
-  // Build an LIA and expect a successful HTTP response.
+  // Expect the stats to be updated when the answer is handled. 
   Cx::LocationInfoAnswer lia(_cx_dict,
                              _mock_stack,
                              DIAMETER_SUCCESS,
                              0,
                              SERVER_NAME,
                              CAPABILITIES);
-  EXPECT_CALL(*_httpstack, send_reply(_, 200));
+  EXPECT_CALL(*_httpstack, send_reply(_, _));
   EXPECT_CALL(*_stats, update_H_hss_latency_us(16000));
   EXPECT_CALL(*_stats, update_H_hss_subscription_latency_us(16000));
 
@@ -2436,8 +2429,8 @@ TEST_F(HandlerStatsTest, LocationInfo)
 
 TEST_F(HandlerStatsTest, LocationInfoOverload)
 {
-  // This test tests a mainline Location Info handler case. Build the HTTP request
-  // which will invoke an LIR to be sent to the HSS.
+  // Check that an HSS overload repsonse causes the handlers to record a latency
+  // penalty in the HTTP stack. 
   MockHttpStack::Request req(_httpstack,
                              "/impu/" + IMPU + "/",
                              "location",
@@ -2458,7 +2451,8 @@ TEST_F(HandlerStatsTest, LocationInfoOverload)
   cwtest_advance_time_ms(17);
   _caught_diam_tsx->stop_timer();
 
-  // Build an LIA and expect a successful HTTP response.
+  // Expect a latency penalty to be recorded when the "too busy" answer is
+  // handled.
   Cx::LocationInfoAnswer lia(_cx_dict,
                              _mock_stack,
                              DIAMETER_TOO_BUSY,
@@ -2466,7 +2460,7 @@ TEST_F(HandlerStatsTest, LocationInfoOverload)
                              SERVER_NAME,
                              CAPABILITIES);
   EXPECT_CALL(*_httpstack, record_penalty());
-  EXPECT_CALL(*_httpstack, send_reply(_, 503));
+  EXPECT_CALL(*_httpstack, send_reply(_, _));
   EXPECT_CALL(*_stats, update_H_hss_latency_us(17000));
   EXPECT_CALL(*_stats, update_H_hss_subscription_latency_us(17000));
 
