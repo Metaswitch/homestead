@@ -36,8 +36,6 @@
 #ifndef CACHE_H__
 #define CACHE_H__
 
-// TODO sort this out properly.
-//
 // Well this is fun.  Free diameter uses cmake to define some compile time
 // options.  Thrift also defines these options.  So an app that uses both won't
 // compile because of the multiple definition.

@@ -68,6 +68,7 @@ struct options
   bool log_to_file;
   std::string log_directory;
   int log_level;
+  int cache_threads;
 };
 
 void usage(void)
@@ -75,9 +76,9 @@ void usage(void)
   puts("Options:\n"
        "\n"
        " -c, --diameter-conf <file> File name for Diameter configuration\n"
-       " -H, --http <address>[:<port>]\n"
-       "                            Set HTTP bind address and port (default: 0.0.0.0:8888)\n"
+       " -H, --http <address>       Set HTTP bind address (default: 0.0.0.0)\n"
        " -t, --http-threads N       Number of HTTP threads (default: 1)\n"
+       " -u, --cache-threads N      Number of cache threads (default: 10)\n"
        " -S, --cassandra <address>  Set the IP address or FQDN of the Cassandra database (default: localhost)"
        " -D, --dest-realm <name>    Set Destination-Realm on Cx messages\n"
        " -d, --dest-host <name>     Set Destination-Host on Cx messages\n"
@@ -144,11 +145,14 @@ int init_options(int argc, char**argv, struct options& options)
 
     case 'H':
       options.http_address = std::string(optarg);
-      // TODO: Parse optional HTTP port.
       break;
 
     case 't':
       options.http_threads = atoi(optarg);
+      break;
+
+    case 'u':
+      options.cache_threads = atoi(optarg);
       break;
 
     case 'S':
@@ -250,6 +254,7 @@ int main(int argc, char**argv)
   options.http_address = "0.0.0.0";
   options.http_port = 8888;
   options.http_threads = 1;
+  options.cache_threads = 10;
   options.cassandra = "localhost";
   options.dest_realm = "dest-realm.unknown";
   options.dest_host = "dest-host.unknown";
@@ -298,8 +303,7 @@ int main(int argc, char**argv)
 
   Cache* cache = Cache::get_instance();
   cache->initialize();
-  // TODO: Make number of threads configurable.
-  cache->configure(options.cassandra, 9160, 10);
+  cache->configure(options.cassandra, 9160, options.cache_threads);
   Cache::ResultCode rc = cache->start();
 
   if (rc != Cache::OK)
