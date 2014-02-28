@@ -1,5 +1,5 @@
 /**
- * @file servercapabilities.h defines the ServerCapabilities structure.
+ * @file serverassignmenttype.h defines the ServerAssignmentType structure.
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2013  Metaswitch Networks Ltd

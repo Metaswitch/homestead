@@ -1,5 +1,5 @@
 /**
- * @file handlers.cpp handlers for homestead
+ * @file handlers.h handlers for homestead
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2013  Metaswitch Networks Ltd

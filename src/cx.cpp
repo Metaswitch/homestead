@@ -1,5 +1,5 @@
 /**
- * @file cx.h class definition wrapping Cx
+ * @file cx.cpp class definition wrapping Cx
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2013  Metaswitch Networks Ltd
