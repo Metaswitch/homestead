@@ -44,6 +44,9 @@
 #include "rapidjson/stringbuffer.h"
 #include "rapidxml/rapidxml.hpp"
 
+
+// The poll_homestead script pings homestead to check it's still alive.
+// Handle the ping.
 void PingHandler::run()
 {
   _req.add_content("OK");

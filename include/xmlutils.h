@@ -1,5 +1,5 @@
 /**
- * @file cx.h class definition wrapping Cx
+ * @file xmlutils.h class for XML utilities
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2013  Metaswitch Networks Ltd

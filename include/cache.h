@@ -144,7 +144,7 @@ public:
   /// their current request has completed.
   virtual void stop();
 
-  /// Wait until the cache has completely stopped.  This method my block.
+  /// Wait until the cache has completely stopped.  This method may block.
   virtual void wait_stopped();
 
   /// Generate a timestamp suitable for supplying on cache modification
