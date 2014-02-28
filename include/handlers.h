@@ -129,7 +129,6 @@ public:
     STAT_HSS_LATENCY              = 0x1,
     STAT_HSS_DIGEST_LATENCY       = 0x2,
     STAT_HSS_SUBSCRIPTION_LATENCY = 0x4,
-    STAT_CACHE_LATENCY            = 0x8,
   };
 
   template <class H>

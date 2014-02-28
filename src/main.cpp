@@ -291,7 +291,10 @@ int main(int argc, char**argv)
   LOG_STATUS("Log level set to %d", options.log_level);
 
   StatisticsManager* stats_manager = new StatisticsManager();
-  LoadMonitor* load_monitor = new LoadMonitor(100000, 20, 10.0, 10.0);
+  LoadMonitor* load_monitor = new LoadMonitor(100000, // Initial target latency (us)
+                                              20,     // Maximum token bucket size.
+                                              10.0,   // Initial token fill rate (per sec).
+                                              10.0);  // Minimum token fill rate (pre sec). 
 
   Cache* cache = Cache::get_instance();
   cache->initialize();
