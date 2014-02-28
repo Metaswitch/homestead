@@ -608,9 +608,7 @@ TEST_F(HandlersTest, DigestHSSTimeout)
 
   EXPECT_CALL(*_httpstack, send_reply(_, 503));
   _caught_diam_tsx->on_timeout();
-
-  _caught_diam_tsx = NULL;
-  _caught_fd_msg = NULL;
+  delete _caught_diam_tsx; _caught_diam_tsx = NULL;
 }
 
 TEST_F(HandlersTest, DigestHSSNoIMPU)
@@ -2213,6 +2211,7 @@ TEST_F(HandlerStatsTest, DigestCache)
     .WillRepeatedly(SetArgReferee<0>(digest));
   EXPECT_CALL(*_httpstack, send_reply(_, _));
   t->on_success(&mock_req);
+  delete _caught_diam_tsx; _caught_diam_tsx = NULL;
 }
 
 
@@ -2250,6 +2249,7 @@ TEST_F(HandlerStatsTest, DigestCacheFailure)
 
   std::string error_text = "error";
   t->on_failure(&mock_req, Cache::NOT_FOUND, error_text);
+  delete _caught_diam_tsx; _caught_diam_tsx = NULL;
 }
 
 
@@ -2275,6 +2275,9 @@ TEST_F(HandlerStatsTest, DigestHSS)
   _caught_diam_tsx->start_timer();
   cwtest_advance_time_ms(13);
   _caught_diam_tsx->stop_timer();
+
+  // Free the underlying FD message. 
+  fd_msg_free(_caught_fd_msg); _caught_fd_msg = NULL;
 
   // Build an MAA.
   DigestAuthVector digest;
@@ -2302,6 +2305,7 @@ TEST_F(HandlerStatsTest, DigestHSS)
 
   EXPECT_CALL(*_httpstack, send_reply(_, _));
   _caught_diam_tsx->on_response(maa);
+  delete _caught_diam_tsx; _caught_diam_tsx = NULL;
 }
 
 
@@ -2329,14 +2333,15 @@ TEST_F(HandlerStatsTest, DigestHSSTimeout)
   cwtest_advance_time_ms(13);
   _caught_diam_tsx->stop_timer();
 
+  // Free the underlying FD message. 
+  fd_msg_free(_caught_fd_msg); _caught_fd_msg = NULL;
+
   EXPECT_CALL(*_stats, update_H_hss_latency_us(13000));
   EXPECT_CALL(*_stats, update_H_hss_digest_latency_us(13000));
 
   EXPECT_CALL(*_httpstack, send_reply(_, _));
   _caught_diam_tsx->on_timeout();
-
-  _caught_diam_tsx = NULL;
-  _caught_fd_msg = NULL;
+  delete _caught_diam_tsx; _caught_diam_tsx = NULL;
 }
 
 
@@ -2368,6 +2373,9 @@ TEST_F(HandlerStatsTest, IMSSubscriptionReregHSS)
   cwtest_advance_time_ms(10);
   t->stop_timer();
 
+  // Free the underlying FD message. 
+  fd_msg_free(_caught_fd_msg); _caught_fd_msg = NULL;
+
   EXPECT_CALL(*_mock_stack, send(_, _, 200))
     .Times(1)
     .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
@@ -2381,6 +2389,9 @@ TEST_F(HandlerStatsTest, IMSSubscriptionReregHSS)
   _caught_diam_tsx->start_timer();
   cwtest_advance_time_ms(20);
   _caught_diam_tsx->stop_timer();
+
+  // Free the underlying FD message. 
+  fd_msg_free(_caught_fd_msg); _caught_fd_msg = NULL;
 
   // Build an SAA.
   Cx::ServerAssignmentAnswer saa(_cx_dict,
@@ -2412,9 +2423,7 @@ TEST_F(HandlerStatsTest, IMSSubscriptionReregHSS)
 
   EXPECT_CALL(*_stats, update_H_cache_latency_us(11000));
   t->on_success(&mock_req2);
-
-  _caught_diam_tsx = NULL;
-  _caught_fd_msg = NULL;
+  delete _caught_diam_tsx; _caught_diam_tsx = NULL;
 }
 
 
@@ -2442,6 +2451,9 @@ TEST_F(HandlerStatsTest, RegistrationStatus)
   cwtest_advance_time_ms(13);
   _caught_diam_tsx->stop_timer();
 
+  // Free the underlying FD message. 
+  fd_msg_free(_caught_fd_msg); _caught_fd_msg = NULL;
+
   // Expect the stats to be updated when the answer is handled. 
   Cx::UserAuthorizationAnswer uaa(_cx_dict,
                                   _mock_stack,
@@ -2453,9 +2465,7 @@ TEST_F(HandlerStatsTest, RegistrationStatus)
   EXPECT_CALL(*_stats, update_H_hss_latency_us(13000));
   EXPECT_CALL(*_stats, update_H_hss_subscription_latency_us(13000));
   _caught_diam_tsx->on_response(uaa);
-
-  _caught_diam_tsx = NULL;
-  _caught_fd_msg = NULL;
+  delete _caught_diam_tsx; _caught_diam_tsx = NULL;
 }
 
 
@@ -2482,6 +2492,9 @@ TEST_F(HandlerStatsTest, LocationInfo)
   cwtest_advance_time_ms(16);
   _caught_diam_tsx->stop_timer();
 
+  // Free the underlying FD message. 
+  fd_msg_free(_caught_fd_msg); _caught_fd_msg = NULL;
+
   // Expect the stats to be updated when the answer is handled. 
   Cx::LocationInfoAnswer lia(_cx_dict,
                              _mock_stack,
@@ -2494,9 +2507,7 @@ TEST_F(HandlerStatsTest, LocationInfo)
   EXPECT_CALL(*_stats, update_H_hss_subscription_latency_us(16000));
 
   _caught_diam_tsx->on_response(lia);
-
-  _caught_diam_tsx = NULL;
-  _caught_fd_msg = NULL;
+  delete _caught_diam_tsx; _caught_diam_tsx = NULL;
 }
 
 
@@ -2524,6 +2535,9 @@ TEST_F(HandlerStatsTest, LocationInfoOverload)
   cwtest_advance_time_ms(17);
   _caught_diam_tsx->stop_timer();
 
+  // Free the underlying FD message. 
+  fd_msg_free(_caught_fd_msg); _caught_fd_msg = NULL;
+
   // Expect a latency penalty to be recorded when the "too busy" answer is
   // handled.
   Cx::LocationInfoAnswer lia(_cx_dict,
@@ -2538,7 +2552,5 @@ TEST_F(HandlerStatsTest, LocationInfoOverload)
   EXPECT_CALL(*_stats, update_H_hss_subscription_latency_us(17000));
 
   _caught_diam_tsx->on_response(lia);
-
-  _caught_diam_tsx = NULL;
-  _caught_fd_msg = NULL;
+  delete _caught_diam_tsx; _caught_diam_tsx = NULL;
 }
