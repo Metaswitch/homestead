@@ -680,111 +680,110 @@ TEST_F(CxTest, LIATestNoCapabilities)
             capabilities.optional_capabilities);
 }
 
-//
-// Registration Termination Requests and Answers
-//
-
-TEST_F(CxTest, RTTest)
-{
-  Cx::RegistrationTerminationRequest rtr(_cx_dict,
-                                         _mock_stack,
-                                         IMPI,
-                                         ASSOCIATED_IDENTITIES,
-                                         IMPUS,
-                                         AUTH_SESSION_STATE);
-  Diameter::Message msg = launder_message(rtr);
-  rtr = Cx::RegistrationTerminationRequest(msg);
-  EXPECT_TRUE(rtr.get_i32_from_avp(_cx_dict->AUTH_SESSION_STATE, test_i32));
-  EXPECT_EQ(AUTH_SESSION_STATE, test_i32);
-  EXPECT_EQ(IMPI, rtr.impi());
-  EXPECT_EQ(ASSOCIATED_IDENTITIES, rtr.associated_identities());
-  EXPECT_EQ(IMPUS, rtr.impus());
-
-  Cx::RegistrationTerminationAnswer rta(msg,
-                                        _cx_dict,
-                                        DIAMETER_REQ_SUCCESS,
-                                        AUTH_SESSION_STATE,
-                                        ASSOCIATED_IDENTITIES);
-  Diameter::Message msg2 = launder_message(rta);
-  rta = Cx::RegistrationTerminationAnswer(msg2);
-  EXPECT_EQ(10415, rta.vendor_id());
-  EXPECT_TRUE(rta.result_code(test_i32));
-  EXPECT_EQ(RESULT_CODE_SUCCESS, test_i32);
-  EXPECT_TRUE(rta.get_i32_from_avp(_cx_dict->AUTH_SESSION_STATE, test_i32));
-  EXPECT_EQ(AUTH_SESSION_STATE, test_i32);
-  EXPECT_EQ(ASSOCIATED_IDENTITIES, rta.associated_identities());
-}
-
-TEST_F(CxTest, RTTestNoIMPUsNoAssocatedIdentities)
-{
-  Cx::RegistrationTerminationRequest rtr(_cx_dict,
-                                         _mock_stack,
-                                         IMPI,
-                                         EMPTY_STRING_VECTOR,
-                                         EMPTY_STRING_VECTOR,
-                                         AUTH_SESSION_STATE);
-  Diameter::Message msg = launder_message(rtr);
-  rtr = Cx::RegistrationTerminationRequest(msg);
-  EXPECT_TRUE(rtr.get_i32_from_avp(_cx_dict->AUTH_SESSION_STATE, test_i32));
-  EXPECT_EQ(AUTH_SESSION_STATE, test_i32);
-  EXPECT_EQ(IMPI, rtr.impi());
-  EXPECT_EQ(EMPTY_STRING_VECTOR, rtr.associated_identities());
-  EXPECT_EQ(EMPTY_STRING_VECTOR, rtr.impus());
-
-  Cx::RegistrationTerminationAnswer rta(msg,
-                                        _cx_dict,
-                                        DIAMETER_REQ_SUCCESS,
-                                        AUTH_SESSION_STATE,
-                                        EMPTY_STRING_VECTOR);
-  Diameter::Message msg2 = launder_message(rta);
-  rta = Cx::RegistrationTerminationAnswer(msg2);
-  EXPECT_EQ(10415, rta.vendor_id());
-  EXPECT_TRUE(rta.result_code(test_i32));
-  EXPECT_EQ(RESULT_CODE_SUCCESS, test_i32);
-  EXPECT_TRUE(rta.get_i32_from_avp(_cx_dict->AUTH_SESSION_STATE, test_i32));
-  EXPECT_EQ(AUTH_SESSION_STATE, test_i32);
-  EXPECT_EQ(EMPTY_STRING_VECTOR, rta.associated_identities());
-}
-
-//
-// Push Profile Requests and Answers
-//
-
-TEST_F(CxTest, PPTest)
-{
-  DigestAuthVector digest;
-  digest.ha1 = "ha1";
-  digest.realm = "realm";
-  digest.qop = "qop";
-
-  Cx::PushProfileRequest ppr(_cx_dict,
-                             _mock_stack,
-                             IMPI,
-                             digest,
-                             IMS_SUBSCRIPTION,
-                             AUTH_SESSION_STATE);
-  Diameter::Message msg = launder_message(ppr);
-  ppr = Cx::PushProfileRequest(msg);
-  EXPECT_EQ(IMPI, ppr.impi());
-
-  DigestAuthVector ppr_digest = ppr.digest_auth_vector();
-  EXPECT_EQ(digest.ha1, ppr_digest.ha1);
-  EXPECT_EQ(digest.realm, ppr_digest.realm);
-  EXPECT_EQ(digest.qop, ppr_digest.qop);
-  EXPECT_TRUE(ppr.user_data(test_str));
-  EXPECT_EQ(IMS_SUBSCRIPTION, test_str);
-  EXPECT_TRUE(ppr.get_i32_from_avp(_cx_dict->AUTH_SESSION_STATE, test_i32));
-  EXPECT_EQ(AUTH_SESSION_STATE, test_i32);
-
-  Cx::PushProfileAnswer ppa(msg,
-                            _cx_dict,
-                            DIAMETER_REQ_SUCCESS,
-                            AUTH_SESSION_STATE);
-  Diameter::Message msg2 = launder_message(ppa);
-  ppa = Cx::PushProfileAnswer(msg2);
-  EXPECT_EQ(10415, ppa.vendor_id());
-  EXPECT_TRUE(ppa.result_code(test_i32));
-  EXPECT_EQ(RESULT_CODE_SUCCESS, test_i32);
-  EXPECT_TRUE(ppa.get_i32_from_avp(_cx_dict->AUTH_SESSION_STATE, test_i32));
-  EXPECT_EQ(AUTH_SESSION_STATE, test_i32);
-}
+// //
+// // Registration Termination Requests and Answers
+// //
+// 
+// TEST_F(CxTest, RTTest)
+// {
+//   Cx::RegistrationTerminationRequest rtr(_cx_dict,
+//                                          _mock_stack,
+//                                          IMPI,
+//                                          ASSOCIATED_IDENTITIES,
+//                                          IMPUS,
+//                                          AUTH_SESSION_STATE);
+//   Diameter::Message msg = launder_message(rtr);
+//   rtr = Cx::RegistrationTerminationRequest(msg);
+//   EXPECT_TRUE(rtr.get_i32_from_avp(_cx_dict->AUTH_SESSION_STATE, test_i32));
+//   EXPECT_EQ(AUTH_SESSION_STATE, test_i32);
+//   EXPECT_EQ(IMPI, rtr.impi());
+//   EXPECT_EQ(ASSOCIATED_IDENTITIES, rtr.associated_identities());
+//   EXPECT_EQ(IMPUS, rtr.impus());
+// 
+//   Cx::RegistrationTerminationAnswer rta(msg,
+//                                         _cx_dict,
+//                                         DIAMETER_REQ_SUCCESS,
+//                                         AUTH_SESSION_STATE,
+//                                         ASSOCIATED_IDENTITIES);
+//   Diameter::Message msg2 = launder_message(rta);
+//   rta = Cx::RegistrationTerminationAnswer(msg2);
+//   EXPECT_EQ(10415, rta.vendor_id());
+//   EXPECT_TRUE(rta.result_code(test_i32));
+//   EXPECT_EQ(RESULT_CODE_SUCCESS, test_i32);
+//   EXPECT_TRUE(rta.get_i32_from_avp(_cx_dict->AUTH_SESSION_STATE, test_i32));
+//   EXPECT_EQ(AUTH_SESSION_STATE, test_i32);
+//   EXPECT_EQ(ASSOCIATED_IDENTITIES, rta.associated_identities());
+// }
+// 
+// TEST_F(CxTest, RTTestNoIMPUsNoAssocatedIdentities)
+// {
+//   Cx::RegistrationTerminationRequest rtr(_cx_dict,
+//                                          _mock_stack,
+//                                          IMPI,
+//                                          EMPTY_STRING_VECTOR,
+//                                          EMPTY_STRING_VECTOR,
+//                                          AUTH_SESSION_STATE);
+//   Diameter::Message msg = launder_message(rtr);
+//   rtr = Cx::RegistrationTerminationRequest(msg);
+//   EXPECT_TRUE(rtr.get_i32_from_avp(_cx_dict->AUTH_SESSION_STATE, test_i32));
+//   EXPECT_EQ(AUTH_SESSION_STATE, test_i32);
+//   EXPECT_EQ(IMPI, rtr.impi());
+//   EXPECT_EQ(EMPTY_STRING_VECTOR, rtr.associated_identities());
+//   EXPECT_EQ(EMPTY_STRING_VECTOR, rtr.impus());
+// 
+//   Cx::RegistrationTerminationAnswer rta(msg,
+//                                         _cx_dict,
+//                                         DIAMETER_REQ_SUCCESS,
+//                                         AUTH_SESSION_STATE,
+//                                         EMPTY_STRING_VECTOR);
+//   Diameter::Message msg2 = launder_message(rta);
+//   rta = Cx::RegistrationTerminationAnswer(msg2);
+//   EXPECT_EQ(10415, rta.vendor_id());
+//   EXPECT_TRUE(rta.result_code(test_i32));
+//   EXPECT_EQ(RESULT_CODE_SUCCESS, test_i32);
+//   EXPECT_TRUE(rta.get_i32_from_avp(_cx_dict->AUTH_SESSION_STATE, test_i32));
+//   EXPECT_EQ(AUTH_SESSION_STATE, test_i32);
+//   EXPECT_EQ(EMPTY_STRING_VECTOR, rta.associated_identities());
+// }
+// 
+// //
+// // Push Profile Requests and Answers
+// //
+// 
+// TEST_F(CxTest, PPTest)
+// {
+//   DigestAuthVector digest;
+//   digest.ha1 = "ha1";
+//   digest.realm = "realm";
+//   digest.qop = "qop";
+// 
+//   Cx::PushProfileRequest ppr(_cx_dict,
+//                              _mock_stack,
+//                              IMPI,
+//                              digest,
+//                              IMS_SUBSCRIPTION,
+//                              AUTH_SESSION_STATE);
+//   Diameter::Message msg = launder_message(ppr);
+//   ppr = Cx::PushProfileRequest(msg);
+//   EXPECT_EQ(IMPI, ppr.impi());
+//   DigestAuthVector ppr_digest = ppr.digest_auth_vector();
+//   EXPECT_EQ(digest.ha1, ppr_digest.ha1);
+//   EXPECT_EQ(digest.realm, ppr_digest.realm);
+//   EXPECT_EQ(digest.qop, ppr_digest.qop);
+//   EXPECT_TRUE(ppr.user_data(test_str));
+//   EXPECT_EQ(IMS_SUBSCRIPTION, test_str);
+//   EXPECT_TRUE(ppr.get_i32_from_avp(_cx_dict->AUTH_SESSION_STATE, test_i32));
+//   EXPECT_EQ(AUTH_SESSION_STATE, test_i32);
+// 
+//   Cx::PushProfileAnswer ppa(msg,
+//                             _cx_dict,
+//                             DIAMETER_REQ_SUCCESS,
+//                             AUTH_SESSION_STATE);
+//   Diameter::Message msg2 = launder_message(ppa);
+//   ppa = Cx::PushProfileAnswer(msg2);
+//   EXPECT_EQ(10415, ppa.vendor_id());
+//   EXPECT_TRUE(ppa.result_code(test_i32));
+//   EXPECT_EQ(RESULT_CODE_SUCCESS, test_i32);
+//   EXPECT_TRUE(ppa.get_i32_from_avp(_cx_dict->AUTH_SESSION_STATE, test_i32));
+//   EXPECT_EQ(AUTH_SESSION_STATE, test_i32);
+// }

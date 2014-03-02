@@ -2007,8 +2007,6 @@ TEST_F(HandlersTest, RegistrationTerminationNoImpus)
   ASSERT_FALSE(t == NULL);
 
   // Turn the caught Diameter msg structure into a RTA and confirm it's contents.
-  // Change the _free_on_delete flag to false, or we will try and
-  // free this message twice.
   Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
   Cx::RegistrationTerminationAnswer rta(msg);
   EXPECT_TRUE(rta.result_code(test_i32));
@@ -2068,8 +2066,6 @@ TEST_F(HandlersTest, RegistrationTermination)
   ASSERT_FALSE(t == NULL);
 
   // Turn the caught Diameter msg structure into a RTA and confirm it's contents.
-  // Change the _free_on_delete flag to false, or we will try and
-  // free this message twice.
   Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
   Cx::RegistrationTerminationAnswer rta(msg);
   EXPECT_TRUE(rta.result_code(test_i32));
@@ -2136,8 +2132,6 @@ TEST_F(HandlersTest, PushProfile)
   ASSERT_FALSE(t == NULL);
 
   // Turn the caught Diameter msg structure into a PPA and confirm it's contents.
-  // Change the _free_on_delete flag to false, or we will try and
-  // free this message twice.
   Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
   Cx::PushProfileAnswer ppa(msg);
   EXPECT_TRUE(ppa.result_code(test_i32));
