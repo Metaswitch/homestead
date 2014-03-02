@@ -495,16 +495,6 @@ Cache::GetRequest::~GetRequest()
         }
 
 
-#if 0
-void Cache::GetRequest::
-ha_get_row(const std::string& key,
-           std::vector<ColumnOrSuperColumn>& columns)
-{
-  HA(get_row, key, columns);
-}
-#endif
-
-
 void Cache::GetRequest::
 ha_get_columns(const std::string& key,
                const std::vector<std::string>& names,
@@ -521,27 +511,6 @@ ha_get_columns_with_prefix(const std::string& key,
 {
   HA(get_columns_with_prefix, key, prefix, columns);
 }
-
-
-#if 0
-void Cache::GetRequest::
-get_row(const std::string& key,
-        std::vector<ColumnOrSuperColumn>& columns,
-        ConsistencyLevel::type consistency_level)
-{
-  // This slice range gets all columns (according to the example thrift code
-  // here http://wiki.apache.org/cassandra/ThriftExamples
-  SliceRange sr;
-  sr.start = "";
-  sr.finish = "";
-
-  SlicePredicate sp;
-  sp.slice_range = sr;
-  sp.__isset.slice_range = true;
-
-  issue_get_for_key(key, sp, columns, consistency_level);
-}
-#endif
 
 
 void Cache::GetRequest::

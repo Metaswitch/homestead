@@ -72,6 +72,7 @@ using ::testing::Invoke;
 using ::testing::WithArgs;
 using ::testing::NiceMock;
 using ::testing::StrictMock;
+using ::testing::Mock;
 
 // Fixture for HandlersTest.
 class HandlersTest : public testing::Test
@@ -115,6 +116,12 @@ public:
   std::string test_str;
   int32_t test_i32;
 
+  HandlersTest() {}
+  virtual ~HandlersTest()
+  {
+    Mock::VerifyAndClear(_httpstack);
+  }
+
   static void SetUpTestCase()
   {
     _real_stack = Diameter::Stack::get_instance();
@@ -125,6 +132,8 @@ public:
     _cx_dict = new Cx::Dictionary();
     _cache = new MockCache();
     _httpstack = new MockHttpStack();
+
+    _stats = new StrictMock<MockStatisticsManager>;
     _nice_stats = new NiceMock<MockStatisticsManager>;
 
     HssCacheHandler::configure_diameter(_mock_stack,
@@ -346,10 +355,11 @@ public:
     EXPECT_EQ("", req.content());
   }
 
-  void ignore_stats(bool ignore)
+  static void ignore_stats(bool ignore)
   {
     if (ignore)
     {
+      Mock::VerifyAndClear(_stats);
       HssCacheHandler::configure_stats(_nice_stats);
     }
     else
@@ -357,9 +367,6 @@ public:
       HssCacheHandler::configure_stats(_stats);
     }
   }
-
-  HandlersTest() {}
-  ~HandlersTest() {}
 };
 
 const std::string HandlersTest::DEST_REALM = "dest-realm";
@@ -446,10 +453,12 @@ TEST_F(HandlersTest, DigestCache)
   // We also expect a successful HTTP response.
   Cache::Transaction* t = mock_req.get_trx();
   ASSERT_FALSE(t == NULL);
+
+  // When the cache result returns the handler gets the digest result, and sends
+  // an HTTP reply.
   EXPECT_CALL(mock_req, get_result(_))
     .WillRepeatedly(SetArgReferee<0>(digest));
   EXPECT_CALL(*_httpstack, send_reply(_, 200));
-
   t->on_success(&mock_req);
 
   // Build the expected response and check it's correct.
@@ -537,8 +546,8 @@ TEST_F(HandlersTest, DigestHSS)
                                digest,
                                aka);
 
-  // Once it receives the MAA, check that the handler tries to add the public
-  // ID to the database, and that a successful HTTP response is sent.
+  // Once it receives the MAA, check that the handler tries to add the public ID
+  // to the database and that a successful HTTP response is sent. 
   MockCache::MockPutAssociatedPublicID mock_req;
   EXPECT_CALL(*_cache, create_PutAssociatedPublicID(IMPI, IMPU,  _, 300))
     .WillOnce(Return(&mock_req));
@@ -556,6 +565,50 @@ TEST_F(HandlersTest, DigestHSS)
 
   // Build the expected response and check it's correct.
   EXPECT_EQ(build_digest_json(digest), req.content());
+}
+
+TEST_F(HandlersTest, DigestHSSTimeout)
+{
+  // This test tests an Impi Digest handler case with an HSS configured.
+  // Start by building the HTTP request which will invoke an HSS lookup.
+  MockHttpStack::Request req(_httpstack,
+                             "/impi/" + IMPI,
+                             "digest",
+                             "?public_id=" + IMPU);
+
+  ImpiHandler::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
+  ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg);
+
+  // Once the handler's run function is called, expect a diameter message to be sent.
+  EXPECT_CALL(*_mock_stack, send(_, _, 200))
+    .Times(1)
+    .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
+  handler->run();
+  ASSERT_FALSE(_caught_diam_tsx == NULL);
+
+  // Turn the caught Diameter msg structure into a MAR and check its contents.
+  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
+  Cx::MultimediaAuthRequest mar(msg);
+  EXPECT_TRUE(mar.get_str_from_avp(_cx_dict->DESTINATION_REALM, test_str));
+  EXPECT_EQ(DEST_REALM, test_str);
+  EXPECT_TRUE(mar.get_str_from_avp(_cx_dict->DESTINATION_HOST, test_str));
+  EXPECT_EQ(DEST_HOST, test_str);
+  EXPECT_EQ(IMPI, mar.impi());
+  EXPECT_EQ(IMPU, mar.impu());
+  EXPECT_EQ(SCHEME_DIGEST, mar.sip_auth_scheme());
+  EXPECT_EQ("", mar.sip_authorization());
+  EXPECT_TRUE(mar.server_name(test_str));
+  EXPECT_EQ(DEFAULT_SERVER_NAME, test_str);
+
+  DigestAuthVector digest;
+  digest.ha1 = "ha1";
+  digest.realm = "realm";
+  digest.qop = "qop";
+  AKAAuthVector aka;
+
+  EXPECT_CALL(*_httpstack, send_reply(_, 503));
+  _caught_diam_tsx->on_timeout();
+  delete _caught_diam_tsx; _caught_diam_tsx = NULL;
 }
 
 TEST_F(HandlersTest, DigestHSSNoIMPU)
@@ -1178,7 +1231,8 @@ TEST_F(HandlersTest, IMSSubscriptionReregHSS)
                                  IMS_SUBSCRIPTION);
 
   // Once it receives the SAA, check that the handler tries to put the IMS
-  // subscription in the database, and that a successful HTTP response is sent.
+  // subscription in the database, that a successful HTTP response is sent, and
+  // that the handler updates the latency stats.
   MockCache::MockPutIMSSubscription mock_req2;
   std::vector<std::string> impus{IMPU};
   EXPECT_CALL(*_cache, create_PutIMSSubscription(impus, IMS_SUBSCRIPTION, _, 3600))
@@ -1194,9 +1248,13 @@ TEST_F(HandlersTest, IMSSubscriptionReregHSS)
   // Confirm the cache transaction is not NULL.
   t = mock_req2.get_trx();
   ASSERT_FALSE(t == NULL);
+  t->on_success(&mock_req2);
 
   // Build the expected response and check it's correct.
   EXPECT_EQ(IMS_SUBSCRIPTION, req.content());
+
+  _caught_diam_tsx = NULL;
+  _caught_fd_msg = NULL;
 }
 
 TEST_F(HandlersTest, IMSSubscriptionReg)
@@ -1362,7 +1420,7 @@ TEST_F(HandlersTest, IMSSubscriptionCacheFailureNoHSSInvalidType)
 {
   // This test tests an IMS Subscription handler case for an invalid
   // registration type where no HSS is configured, and where the cache doesn't
-  // return a result. Start by building the HTTP request which will 
+  // return a result. Start by building the HTTP request which will
   // invoke a cache lookup.
   MockHttpStack::Request req(_httpstack,
                              "/impu/" + IMPU,
@@ -1719,7 +1777,7 @@ TEST_F(HandlersTest, RegistrationStatusNoHSS)
 
   ImpiRegistrationStatusHandler::Config cfg(false);
   ImpiRegistrationStatusHandler* handler = new ImpiRegistrationStatusHandler(req, &cfg);
- 
+
   // Once the handler's run function is called, expect a successful HTTP response.
   EXPECT_CALL(*_httpstack, send_reply(_, 200));
   handler->run();
@@ -1771,6 +1829,7 @@ TEST_F(HandlersTest, LocationInfo)
                              SERVER_NAME,
                              CAPABILITIES);
   EXPECT_CALL(*_httpstack, send_reply(_, 200));
+
   _caught_diam_tsx->on_response(lia);
   _caught_fd_msg = NULL;
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
@@ -2084,4 +2143,414 @@ TEST_F(HandlersTest, PushProfile)
   EXPECT_TRUE(ppa.result_code(test_i32));
   EXPECT_EQ(DIAMETER_SUCCESS, test_i32);
   EXPECT_EQ(AUTH_SESSION_STATE, ppa.auth_session_state());
+}
+
+//
+// Stats tests
+//
+// These onlt test stats function - they only check diameter/cache/HTTP flows to
+// the extent that is required to drive the necessary flows. 
+//
+
+class HandlerStatsTest : public HandlersTest
+{
+public:
+  HandlerStatsTest() : HandlersTest() {}
+  virtual ~HandlerStatsTest() {}
+
+  static void SetUpTestCase()
+  {
+    HandlersTest::SetUpTestCase();
+    ignore_stats(false);
+  }
+
+  static void TearDownTestCase()
+  {
+    ignore_stats(true);
+    HandlersTest::TearDownTestCase();
+  }
+};
+
+
+TEST_F(HandlerStatsTest, DigestCache)
+{
+  // Test that successful cache requests result in the latency stats being
+  // updated. Drive this with an HTTP request for digest. 
+  MockHttpStack::Request req(_httpstack,
+                             "/impi/" + IMPI,
+                             "digest",
+                             "?public_id=" + IMPU);
+
+  ImpiHandler::Config cfg(false);
+  ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg);
+
+  // Handler does a cache digest lookup. 
+  MockCache::MockGetAuthVector mock_req;
+  EXPECT_CALL(*_cache, create_GetAuthVector(IMPI, IMPU))
+    .WillOnce(Return(&mock_req));
+  EXPECT_CALL(*_cache, send(_, &mock_req))
+    .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
+  handler->run();
+
+  // The cache request takes some time.
+  Cache::Transaction* t = mock_req.get_trx();
+  ASSERT_FALSE(t == NULL);
+
+  t->start_timer();
+  cwtest_advance_time_ms(12);
+  t->stop_timer();
+
+  // The cache stats get updated when the transaction complete. 
+  DigestAuthVector digest;
+  digest.ha1 = "ha1";
+  digest.realm = "realm";
+  digest.qop = "qop";
+
+  EXPECT_CALL(*_stats, update_H_cache_latency_us(12000));
+  EXPECT_CALL(mock_req, get_result(_))
+    .WillRepeatedly(SetArgReferee<0>(digest));
+  EXPECT_CALL(*_httpstack, send_reply(_, _));
+  t->on_success(&mock_req);
+  delete _caught_diam_tsx; _caught_diam_tsx = NULL;
+}
+
+
+TEST_F(HandlerStatsTest, DigestCacheFailure)
+{
+  // Test that UNsuccessful cache requests result in the latency stats being
+  // updated. Drive this with an HTTP request for digest. 
+  MockHttpStack::Request req(_httpstack,
+                             "/impi/" + IMPI,
+                             "digest",
+                             "?public_id=" + IMPU);
+
+  ImpiHandler::Config cfg(false);
+  ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg);
+
+  // Handler does a cache digest lookup. 
+  MockCache::MockGetAuthVector mock_req;
+  EXPECT_CALL(*_cache, create_GetAuthVector(IMPI, IMPU))
+    .WillOnce(Return(&mock_req));
+  EXPECT_CALL(*_cache, send(_, &mock_req))
+    .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
+  handler->run();
+
+  // The cache request takes some time.
+  Cache::Transaction* t = mock_req.get_trx();
+  ASSERT_FALSE(t == NULL);
+
+  t->start_timer();
+  cwtest_advance_time_ms(12);
+  t->stop_timer();
+
+  // Cache latency stats are updated when the transaction fails. 
+  EXPECT_CALL(*_httpstack, send_reply(_, _));
+  EXPECT_CALL(*_stats, update_H_cache_latency_us(12000));
+
+  std::string error_text = "error";
+  t->on_failure(&mock_req, Cache::NOT_FOUND, error_text);
+  delete _caught_diam_tsx; _caught_diam_tsx = NULL;
+}
+
+
+TEST_F(HandlerStatsTest, DigestHSS)
+{
+  // Check that a diameter MultimediaAuthRequest updates the right stats. 
+  MockHttpStack::Request req(_httpstack,
+                             "/impi/" + IMPI,
+                             "digest",
+                             "?public_id=" + IMPU);
+
+  ImpiHandler::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
+  ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg);
+
+  // Once the handler's run function is called, expect a diameter message to be sent.
+  EXPECT_CALL(*_mock_stack, send(_, _, 200))
+    .Times(1)
+    .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
+  handler->run();
+
+  // The transaction takes some time.
+  ASSERT_FALSE(_caught_diam_tsx == NULL);
+  _caught_diam_tsx->start_timer();
+  cwtest_advance_time_ms(13);
+  _caught_diam_tsx->stop_timer();
+
+  // Free the underlying FD message. 
+  fd_msg_free(_caught_fd_msg); _caught_fd_msg = NULL;
+
+  // Build an MAA.
+  DigestAuthVector digest;
+  digest.ha1 = "ha1";
+  digest.realm = "realm";
+  digest.qop = "qop";
+  AKAAuthVector aka;
+
+  Cx::MultimediaAuthAnswer maa(_cx_dict,
+                               _mock_stack,
+                               DIAMETER_SUCCESS,
+                               SCHEME_DIGEST,
+                               digest,
+                               aka);
+
+  // The HSS and digest stats are updated. 
+  EXPECT_CALL(*_stats, update_H_hss_latency_us(13000));
+  EXPECT_CALL(*_stats, update_H_hss_digest_latency_us(13000));
+
+  MockCache::MockPutAssociatedPublicID mock_req;
+  EXPECT_CALL(*_cache, create_PutAssociatedPublicID(IMPI, IMPU,  _, _))
+    .WillOnce(Return(&mock_req));
+  EXPECT_CALL(*_cache, send(_, &mock_req))
+    .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
+
+  EXPECT_CALL(*_httpstack, send_reply(_, _));
+  _caught_diam_tsx->on_response(maa);
+  delete _caught_diam_tsx; _caught_diam_tsx = NULL;
+}
+
+
+TEST_F(HandlerStatsTest, DigestHSSTimeout)
+{
+  // Check that a timed-out MultimediaAuthRequest updates the HSS and digest
+  // stats. 
+  MockHttpStack::Request req(_httpstack,
+                             "/impi/" + IMPI,
+                             "digest",
+                             "?public_id=" + IMPU);
+
+  ImpiHandler::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
+  ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg);
+
+  // Once the handler's run function is called, expect a diameter message to be sent.
+  EXPECT_CALL(*_mock_stack, send(_, _, 200))
+    .Times(1)
+    .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
+  handler->run();
+  ASSERT_FALSE(_caught_diam_tsx == NULL);
+
+  // The transaction takes some time.
+  _caught_diam_tsx->start_timer();
+  cwtest_advance_time_ms(13);
+  _caught_diam_tsx->stop_timer();
+
+  // Free the underlying FD message. 
+  fd_msg_free(_caught_fd_msg); _caught_fd_msg = NULL;
+
+  EXPECT_CALL(*_stats, update_H_hss_latency_us(13000));
+  EXPECT_CALL(*_stats, update_H_hss_digest_latency_us(13000));
+
+  EXPECT_CALL(*_httpstack, send_reply(_, _));
+  _caught_diam_tsx->on_timeout();
+  delete _caught_diam_tsx; _caught_diam_tsx = NULL;
+}
+
+
+TEST_F(HandlerStatsTest, IMSSubscriptionReregHSS)
+{
+  // Check a ServerAssignmentRequest updates the HSS and subscription stats. 
+  MockHttpStack::Request req(_httpstack,
+                             "/impu/" + IMPU,
+                             "",
+                             "?private_id=" + IMPI + "&type=rereg");
+
+  ImpuIMSSubscriptionHandler::Config cfg(true, 3600);
+  ImpuIMSSubscriptionHandler* handler = new ImpuIMSSubscriptionHandler(req, &cfg);
+
+  // Once the handler's run function is called, expect to lookup IMS
+  // subscription information for the specified public ID.
+  MockCache::MockGetIMSSubscription mock_req;
+  EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU))
+    .WillOnce(Return(&mock_req));
+  EXPECT_CALL(*_cache, send(_, &mock_req))
+    .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
+  handler->run();
+
+  // Check the cache get latency is recorded.
+  Cache::Transaction* t = mock_req.get_trx();
+  ASSERT_FALSE(t == NULL);
+
+  t->start_timer();
+  cwtest_advance_time_ms(10);
+  t->stop_timer();
+
+  // Free the underlying FD message. 
+  fd_msg_free(_caught_fd_msg); _caught_fd_msg = NULL;
+
+  EXPECT_CALL(*_mock_stack, send(_, _, 200))
+    .Times(1)
+    .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
+  EXPECT_CALL(*_stats, update_H_cache_latency_us(10000));
+
+  std::string error_text = "error";
+  t->on_failure(&mock_req, Cache::NOT_FOUND, error_text);
+  ASSERT_FALSE(_caught_diam_tsx == NULL);
+
+  // The diameter SAR takes some time to process.
+  _caught_diam_tsx->start_timer();
+  cwtest_advance_time_ms(20);
+  _caught_diam_tsx->stop_timer();
+
+  // Free the underlying FD message. 
+  fd_msg_free(_caught_fd_msg); _caught_fd_msg = NULL;
+
+  // Build an SAA.
+  Cx::ServerAssignmentAnswer saa(_cx_dict,
+                                 _mock_stack,
+                                 DIAMETER_SUCCESS,
+                                 IMS_SUBSCRIPTION);
+
+  MockCache::MockPutIMSSubscription mock_req2;
+  std::vector<std::string> impus{IMPU};
+  EXPECT_CALL(*_cache, create_PutIMSSubscription(impus, IMS_SUBSCRIPTION, _, 3600))
+    .WillOnce(Return(&mock_req2));
+  EXPECT_CALL(*_cache, send(_, &mock_req2))
+    .WillOnce(WithArgs<0>(Invoke(&mock_req2, &Cache::Request::set_trx)));
+
+  // Expect the stats to get updated. 
+  EXPECT_CALL(*_stats, update_H_hss_latency_us(20000));
+  EXPECT_CALL(*_stats, update_H_hss_subscription_latency_us(20000));
+
+  EXPECT_CALL(*_httpstack, send_reply(_, _));
+  _caught_diam_tsx->on_response(saa);
+
+  // Check the cache put latency is recorded. 
+  t = mock_req2.get_trx();
+  ASSERT_FALSE(t == NULL);
+
+  t->start_timer();
+  cwtest_advance_time_ms(11);
+  t->stop_timer();
+
+  EXPECT_CALL(*_stats, update_H_cache_latency_us(11000));
+  t->on_success(&mock_req2);
+  delete _caught_diam_tsx; _caught_diam_tsx = NULL;
+}
+
+
+TEST_F(HandlerStatsTest, RegistrationStatus)
+{
+  // Check a UAR request updated the HSS and subscription stats. 
+  MockHttpStack::Request req(_httpstack,
+                             "/impi/" + IMPI + "/",
+                             "registration-status",
+                             "?impu=" + IMPU);
+
+  ImpiRegistrationStatusHandler::Config cfg(true);
+  ImpiRegistrationStatusHandler* handler = new ImpiRegistrationStatusHandler(req, &cfg);
+
+  // Once the handler's run function is called, expect a diameter message to be
+  // sent.
+  EXPECT_CALL(*_mock_stack, send(_, _, 200))
+    .Times(1)
+    .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
+  handler->run();
+
+  // The diameter message takes some time. 
+  ASSERT_FALSE(_caught_diam_tsx == NULL);
+  _caught_diam_tsx->start_timer();
+  cwtest_advance_time_ms(13);
+  _caught_diam_tsx->stop_timer();
+
+  // Free the underlying FD message. 
+  fd_msg_free(_caught_fd_msg); _caught_fd_msg = NULL;
+
+  // Expect the stats to be updated when the answer is handled. 
+  Cx::UserAuthorizationAnswer uaa(_cx_dict,
+                                  _mock_stack,
+                                  DIAMETER_SUCCESS,
+                                  0,
+                                  SERVER_NAME,
+                                  CAPABILITIES);
+  EXPECT_CALL(*_httpstack, send_reply(_, _));
+  EXPECT_CALL(*_stats, update_H_hss_latency_us(13000));
+  EXPECT_CALL(*_stats, update_H_hss_subscription_latency_us(13000));
+  _caught_diam_tsx->on_response(uaa);
+  delete _caught_diam_tsx; _caught_diam_tsx = NULL;
+}
+
+
+TEST_F(HandlerStatsTest, LocationInfo)
+{
+  // Check an LIR request updates the HSS and subsbcription latency stats. 
+  MockHttpStack::Request req(_httpstack,
+                             "/impu/" + IMPU + "/",
+                             "location",
+                             "");
+
+  ImpuLocationInfoHandler::Config cfg(true);
+  ImpuLocationInfoHandler* handler = new ImpuLocationInfoHandler(req, &cfg);
+
+  // Once the handler's run function is called, expect a diameter message to be
+  // sent.
+  EXPECT_CALL(*_mock_stack, send(_, _, 200))
+    .Times(1)
+    .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
+  handler->run();
+  ASSERT_FALSE(_caught_diam_tsx == NULL);
+
+  _caught_diam_tsx->start_timer();
+  cwtest_advance_time_ms(16);
+  _caught_diam_tsx->stop_timer();
+
+  // Free the underlying FD message. 
+  fd_msg_free(_caught_fd_msg); _caught_fd_msg = NULL;
+
+  // Expect the stats to be updated when the answer is handled. 
+  Cx::LocationInfoAnswer lia(_cx_dict,
+                             _mock_stack,
+                             DIAMETER_SUCCESS,
+                             0,
+                             SERVER_NAME,
+                             CAPABILITIES);
+  EXPECT_CALL(*_httpstack, send_reply(_, _));
+  EXPECT_CALL(*_stats, update_H_hss_latency_us(16000));
+  EXPECT_CALL(*_stats, update_H_hss_subscription_latency_us(16000));
+
+  _caught_diam_tsx->on_response(lia);
+  delete _caught_diam_tsx; _caught_diam_tsx = NULL;
+}
+
+
+TEST_F(HandlerStatsTest, LocationInfoOverload)
+{
+  // Check that an HSS overload repsonse causes the handlers to record a latency
+  // penalty in the HTTP stack. 
+  MockHttpStack::Request req(_httpstack,
+                             "/impu/" + IMPU + "/",
+                             "location",
+                             "");
+
+  ImpuLocationInfoHandler::Config cfg(true);
+  ImpuLocationInfoHandler* handler = new ImpuLocationInfoHandler(req, &cfg);
+
+  // Once the handler's run function is called, expect a diameter message to be
+  // sent.
+  EXPECT_CALL(*_mock_stack, send(_, _, 200))
+    .Times(1)
+    .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
+  handler->run();
+  ASSERT_FALSE(_caught_diam_tsx == NULL);
+
+  _caught_diam_tsx->start_timer();
+  cwtest_advance_time_ms(17);
+  _caught_diam_tsx->stop_timer();
+
+  // Free the underlying FD message. 
+  fd_msg_free(_caught_fd_msg); _caught_fd_msg = NULL;
+
+  // Expect a latency penalty to be recorded when the "too busy" answer is
+  // handled.
+  Cx::LocationInfoAnswer lia(_cx_dict,
+                             _mock_stack,
+                             DIAMETER_TOO_BUSY,
+                             0,
+                             SERVER_NAME,
+                             CAPABILITIES);
+  EXPECT_CALL(*_httpstack, record_penalty());
+  EXPECT_CALL(*_httpstack, send_reply(_, _));
+  EXPECT_CALL(*_stats, update_H_hss_latency_us(17000));
+  EXPECT_CALL(*_stats, update_H_hss_subscription_latency_us(17000));
+
+  _caught_diam_tsx->on_response(lia);
+  delete _caught_diam_tsx; _caught_diam_tsx = NULL;
 }
