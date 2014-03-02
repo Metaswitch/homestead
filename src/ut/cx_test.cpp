@@ -43,6 +43,7 @@
 #include "diameterstack.h"
 #include "mockdiameterstack.hpp"
 #include "cx.h"
+#include "handlers.h"
 
 /// Fixture for CxTest.
 class CxTest : public testing::Test
@@ -65,8 +66,8 @@ public:
   static const std::string ORIGINATING_FALSE;
   static const std::string EMPTY_STRING;
   static std::vector<std::string> EMPTY_STRING_VECTOR;
-  static const int32_t RESULT_CODE;
-  static const int32_t EXPERIMENTAL_RESULT_CODE;
+  static const int32_t RESULT_CODE_SUCCESS;
+  static const int32_t EXPERIMENTAL_RESULT_CODE_SUCCESS;
   static const int32_t AUTH_SESSION_STATE;
   static const std::vector<std::string> IMPIS;
   static std::vector<std::string> IMPUS;
@@ -175,8 +176,8 @@ const std::string CxTest::ORIGINATING_TRUE = "true";
 const std::string CxTest::ORIGINATING_FALSE = "false";
 const std::string CxTest::EMPTY_STRING = "";
 std::vector<std::string> CxTest::EMPTY_STRING_VECTOR = {};
-const int32_t CxTest::RESULT_CODE = 2001;
-const int32_t CxTest::EXPERIMENTAL_RESULT_CODE = 5001;
+const int32_t CxTest::RESULT_CODE_SUCCESS = 2001;
+const int32_t CxTest::EXPERIMENTAL_RESULT_CODE_SUCCESS = 5001;
 const int32_t CxTest::AUTH_SESSION_STATE = 1;
 const std::vector<std::string> CxTest::IMPIS {"private_id1", "private_id2"};
 std::vector<std::string> CxTest::IMPUS {"public_id1", "public_id2"};
@@ -250,16 +251,40 @@ TEST_F(CxTest, MARAuthorizationTest)
 
 TEST_F(CxTest, MAATest)
 {
+  DigestAuthVector digest;
+  digest.ha1 = "ha1";
+  digest.realm = "realm";
+  digest.qop = "qop";
+
+  AKAAuthVector aka;
+  aka.challenge = "challenge";
+  aka.response = "response";
+  aka.crypt_key = "crypt_key";
+  aka.integrity_key = "integrity_key";
+
   Cx::MultimediaAuthAnswer maa(_cx_dict,
-                                _mock_stack,
-                                DEST_REALM,
-                                DEST_HOST,
-                                IMPI,
-                                IMPU,
-                                SERVER_NAME,
-                                SIP_AUTH_SCHEME_DIGEST);
+                               _mock_stack,
+                               RESULT_CODE_SUCCESS,
+                               SIP_AUTH_SCHEME_AKA,
+                               digest,
+                               aka);
   Diameter::Message msg = launder_message(maa);
   maa = Cx::MultimediaAuthAnswer(msg);
+  EXPECT_TRUE(maa.result_code(test_i32));
+  EXPECT_EQ(RESULT_CODE_SUCCESS, test_i32);
+  EXPECT_EQ(SIP_AUTH_SCHEME_AKA, maa.sip_auth_scheme());
+
+  DigestAuthVector maa_digest = maa.digest_auth_vector();
+  EXPECT_EQ(digest.ha1, maa_digest.ha1);
+  EXPECT_EQ(digest.realm, maa_digest.realm);
+  EXPECT_EQ(digest.qop, maa_digest.qop);
+
+  // The AKA values should be decoded from base64/hex.
+  AKAAuthVector maa_aka = maa.aka_auth_vector();
+  EXPECT_EQ("Y2hhbGxlbmdl", maa_aka.challenge);
+  EXPECT_EQ("726573706f6e7365", maa_aka.response);
+  EXPECT_EQ("63727970745f6b6579", maa_aka.crypt_key);
+  EXPECT_EQ("696e746567726974795f6b6579", maa_aka.integrity_key);
 }
 
 //
@@ -320,12 +345,12 @@ TEST_F(CxTest, SAATest)
 {
   Cx::ServerAssignmentAnswer saa(_cx_dict,
                                  _mock_stack,
-                                 RESULT_CODE,
+                                 RESULT_CODE_SUCCESS,
                                  IMS_SUBSCRIPTION);
   Diameter::Message msg = launder_message(saa);
   saa = Cx::ServerAssignmentAnswer(msg);
   EXPECT_TRUE(saa.result_code(test_i32));
-  EXPECT_EQ(RESULT_CODE, test_i32);
+  EXPECT_EQ(RESULT_CODE_SUCCESS, test_i32);
   EXPECT_TRUE(saa.user_data(test_str));
   EXPECT_EQ(IMS_SUBSCRIPTION, test_str);
 }
@@ -426,14 +451,14 @@ TEST_F(CxTest, UAATest)
 {
   Cx::UserAuthorizationAnswer uaa(_cx_dict,
                                   _mock_stack,
-                                  RESULT_CODE,
-                                  EXPERIMENTAL_RESULT_CODE,
+                                  RESULT_CODE_SUCCESS,
+                                  EXPERIMENTAL_RESULT_CODE_SUCCESS,
                                   SERVER_NAME,
                                   CAPABILITIES);
   Diameter::Message msg = launder_message(uaa);
   uaa = Cx::UserAuthorizationAnswer(msg);
   EXPECT_TRUE(uaa.result_code(test_i32));
-  EXPECT_EQ(RESULT_CODE, test_i32);
+  EXPECT_EQ(RESULT_CODE_SUCCESS, test_i32);
   EXPECT_FALSE(uaa.experimental_result_code());
   EXPECT_TRUE(uaa.server_name(test_str));
   EXPECT_EQ(SERVER_NAME, test_str);
@@ -449,13 +474,13 @@ TEST_F(CxTest, UAATestExperimentalResultCode)
   Cx::UserAuthorizationAnswer uaa(_cx_dict,
                                   _mock_stack,
                                   0,
-                                  EXPERIMENTAL_RESULT_CODE,
+                                  EXPERIMENTAL_RESULT_CODE_SUCCESS,
                                   SERVER_NAME,
                                   CAPABILITIES);
   Diameter::Message msg = launder_message(uaa);
   uaa = Cx::UserAuthorizationAnswer(msg);
   EXPECT_FALSE(uaa.result_code(test_i32));
-  EXPECT_EQ(EXPERIMENTAL_RESULT_CODE, uaa.experimental_result_code());
+  EXPECT_EQ(EXPERIMENTAL_RESULT_CODE_SUCCESS, uaa.experimental_result_code());
   EXPECT_TRUE(uaa.server_name(test_str));
   EXPECT_EQ(SERVER_NAME, test_str);
   ServerCapabilities capabilities = uaa.server_capabilities();
@@ -469,14 +494,14 @@ TEST_F(CxTest, UAATestNoServerName)
 {
   Cx::UserAuthorizationAnswer uaa(_cx_dict,
                                   _mock_stack,
-                                  RESULT_CODE,
+                                  RESULT_CODE_SUCCESS,
                                   0,
                                   EMPTY_STRING,
                                   CAPABILITIES);
   Diameter::Message msg = launder_message(uaa);
   uaa = Cx::UserAuthorizationAnswer(msg);
   EXPECT_TRUE(uaa.result_code(test_i32));
-  EXPECT_EQ(RESULT_CODE, test_i32);
+  EXPECT_EQ(RESULT_CODE_SUCCESS, test_i32);
   EXPECT_FALSE(uaa.experimental_result_code());
   EXPECT_FALSE(uaa.server_name(test_str));
   ServerCapabilities capabilities = uaa.server_capabilities();
@@ -490,14 +515,14 @@ TEST_F(CxTest, UAATestNoCapabilities)
 {
   Cx::UserAuthorizationAnswer uaa(_cx_dict,
                                   _mock_stack,
-                                  RESULT_CODE,
+                                  RESULT_CODE_SUCCESS,
                                   0,
                                   SERVER_NAME,
                                   NO_CAPABILITIES);
   Diameter::Message msg = launder_message(uaa);
   uaa = Cx::UserAuthorizationAnswer(msg);
   EXPECT_TRUE(uaa.result_code(test_i32));
-  EXPECT_EQ(RESULT_CODE, test_i32);
+  EXPECT_EQ(RESULT_CODE_SUCCESS, test_i32);
   EXPECT_FALSE(uaa.experimental_result_code());
   EXPECT_TRUE(uaa.server_name(test_str));
   EXPECT_EQ(SERVER_NAME, test_str);
@@ -573,14 +598,14 @@ TEST_F(CxTest, LIATest)
 {
   Cx::LocationInfoAnswer lia(_cx_dict,
                              _mock_stack,
-                             RESULT_CODE,
-                             EXPERIMENTAL_RESULT_CODE,
+                             RESULT_CODE_SUCCESS,
+                             EXPERIMENTAL_RESULT_CODE_SUCCESS,
                              SERVER_NAME,
                              CAPABILITIES);
   Diameter::Message msg = launder_message(lia);
   lia = Cx::LocationInfoAnswer(msg);
   EXPECT_TRUE(lia.result_code(test_i32));
-  EXPECT_EQ(RESULT_CODE, test_i32);
+  EXPECT_EQ(RESULT_CODE_SUCCESS, test_i32);
   EXPECT_FALSE(lia.experimental_result_code());
   EXPECT_TRUE(lia.server_name(test_str));
   EXPECT_EQ(SERVER_NAME, test_str);
@@ -596,13 +621,13 @@ TEST_F(CxTest, LIATestExperimentalResultCode)
   Cx::LocationInfoAnswer lia(_cx_dict,
                              _mock_stack,
                              0,
-                             EXPERIMENTAL_RESULT_CODE,
+                             EXPERIMENTAL_RESULT_CODE_SUCCESS,
                              SERVER_NAME,
                              CAPABILITIES);
   Diameter::Message msg = launder_message(lia);
   lia = Cx::LocationInfoAnswer(msg);
   EXPECT_FALSE(lia.result_code(test_i32));
-  EXPECT_EQ(EXPERIMENTAL_RESULT_CODE, lia.experimental_result_code());
+  EXPECT_EQ(EXPERIMENTAL_RESULT_CODE_SUCCESS, lia.experimental_result_code());
   EXPECT_TRUE(lia.server_name(test_str));
   EXPECT_EQ(SERVER_NAME, test_str);
   ServerCapabilities capabilities = lia.server_capabilities();
@@ -616,14 +641,14 @@ TEST_F(CxTest, LIATestNoServerName)
 {
   Cx::LocationInfoAnswer lia(_cx_dict,
                              _mock_stack,
-                             RESULT_CODE,
+                             RESULT_CODE_SUCCESS,
                              0,
                              EMPTY_STRING,
                              CAPABILITIES);
   Diameter::Message msg = launder_message(lia);
   lia = Cx::LocationInfoAnswer(msg);
   EXPECT_TRUE(lia.result_code(test_i32));
-  EXPECT_EQ(RESULT_CODE, test_i32);
+  EXPECT_EQ(RESULT_CODE_SUCCESS, test_i32);
   EXPECT_FALSE(lia.experimental_result_code());
   EXPECT_FALSE(lia.server_name(test_str));
   ServerCapabilities capabilities = lia.server_capabilities();
@@ -637,14 +662,14 @@ TEST_F(CxTest, LIATestNoCapabilities)
 {
   Cx::LocationInfoAnswer lia(_cx_dict,
                              _mock_stack,
-                             RESULT_CODE,
+                             RESULT_CODE_SUCCESS,
                              0,
                              SERVER_NAME,
                              NO_CAPABILITIES);
   Diameter::Message msg = launder_message(lia);
   lia = Cx::LocationInfoAnswer(msg);
   EXPECT_TRUE(lia.result_code(test_i32));
-  EXPECT_EQ(RESULT_CODE, test_i32);
+  EXPECT_EQ(RESULT_CODE_SUCCESS, test_i32);
   EXPECT_FALSE(lia.experimental_result_code());
   EXPECT_TRUE(lia.server_name(test_str));
   EXPECT_EQ(SERVER_NAME, test_str);
@@ -656,10 +681,10 @@ TEST_F(CxTest, LIATestNoCapabilities)
 }
 
 //
-// Registration Termination Requests
+// Registration Termination Requests and Answers
 //
 
-TEST_F(CxTest, RTRTest)
+TEST_F(CxTest, RTTest)
 {
   Cx::RegistrationTerminationRequest rtr(_cx_dict,
                                          _mock_stack,
@@ -674,9 +699,23 @@ TEST_F(CxTest, RTRTest)
   EXPECT_EQ(IMPI, rtr.impi());
   EXPECT_EQ(ASSOCIATED_IDENTITIES, rtr.associated_identities());
   EXPECT_EQ(IMPUS, rtr.impus());
+
+  Cx::RegistrationTerminationAnswer rta(msg,
+                                        _cx_dict,
+                                        DIAMETER_REQ_SUCCESS,
+                                        AUTH_SESSION_STATE,
+                                        ASSOCIATED_IDENTITIES);
+  Diameter::Message msg2 = launder_message(rta);
+  rta = Cx::RegistrationTerminationAnswer(msg2);
+  EXPECT_EQ(10415, rta.vendor_id());
+  EXPECT_TRUE(rta.result_code(test_i32));
+  EXPECT_EQ(RESULT_CODE_SUCCESS, test_i32);
+  EXPECT_TRUE(rta.get_i32_from_avp(_cx_dict->AUTH_SESSION_STATE, test_i32));
+  EXPECT_EQ(AUTH_SESSION_STATE, test_i32);
+  EXPECT_EQ(ASSOCIATED_IDENTITIES, rta.associated_identities());
 }
 
-TEST_F(CxTest, RTRTestNoIMPUsNoAssocatedIdentities)
+TEST_F(CxTest, RTTestNoIMPUsNoAssocatedIdentities)
 {
   Cx::RegistrationTerminationRequest rtr(_cx_dict,
                                          _mock_stack,
@@ -691,28 +730,61 @@ TEST_F(CxTest, RTRTestNoIMPUsNoAssocatedIdentities)
   EXPECT_EQ(IMPI, rtr.impi());
   EXPECT_EQ(EMPTY_STRING_VECTOR, rtr.associated_identities());
   EXPECT_EQ(EMPTY_STRING_VECTOR, rtr.impus());
+
+  Cx::RegistrationTerminationAnswer rta(msg,
+                                        _cx_dict,
+                                        DIAMETER_REQ_SUCCESS,
+                                        AUTH_SESSION_STATE,
+                                        EMPTY_STRING_VECTOR);
+  Diameter::Message msg2 = launder_message(rta);
+  rta = Cx::RegistrationTerminationAnswer(msg2);
+  EXPECT_EQ(10415, rta.vendor_id());
+  EXPECT_TRUE(rta.result_code(test_i32));
+  EXPECT_EQ(RESULT_CODE_SUCCESS, test_i32);
+  EXPECT_TRUE(rta.get_i32_from_avp(_cx_dict->AUTH_SESSION_STATE, test_i32));
+  EXPECT_EQ(AUTH_SESSION_STATE, test_i32);
+  EXPECT_EQ(EMPTY_STRING_VECTOR, rta.associated_identities());
 }
 
 //
-// Registration Termination Answers
+// Push Profile Requests and Answers
 //
 
-//
-// Push Profile Requests
-//
-// 
-// TEST_F(CxTest, PPRTest)
-// {
-//   Cx::PushProfileRequest ppr(_cx_dict,
-//                              _mock_stack,
-//                              IMPI,
-//                              DIGEST_AV,
-//                              IMS_SUBSCRIPTION,
-//                              AUTH_SESSION_STATE);
-//   Diameter::Message msg = launder_message(ppr);
-//   ppr = Cx::PushProfileRequest(msg);
-// }
-// 
-//
-// Push Profile Answers
-//
+TEST_F(CxTest, PPTest)
+{
+  DigestAuthVector digest;
+  digest.ha1 = "ha1";
+  digest.realm = "realm";
+  digest.qop = "qop";
+
+  Cx::PushProfileRequest ppr(_cx_dict,
+                             _mock_stack,
+                             IMPI,
+                             digest,
+                             IMS_SUBSCRIPTION,
+                             AUTH_SESSION_STATE);
+  Diameter::Message msg = launder_message(ppr);
+  ppr = Cx::PushProfileRequest(msg);
+  EXPECT_EQ(IMPI, ppr.impi());
+
+  DigestAuthVector ppr_digest = ppr.digest_auth_vector();
+  EXPECT_EQ(digest.ha1, ppr_digest.ha1);
+  EXPECT_EQ(digest.realm, ppr_digest.realm);
+  EXPECT_EQ(digest.qop, ppr_digest.qop);
+  EXPECT_TRUE(ppr.user_data(test_str));
+  EXPECT_EQ(IMS_SUBSCRIPTION, test_str);
+  EXPECT_TRUE(ppr.get_i32_from_avp(_cx_dict->AUTH_SESSION_STATE, test_i32));
+  EXPECT_EQ(AUTH_SESSION_STATE, test_i32);
+
+  Cx::PushProfileAnswer ppa(msg,
+                            _cx_dict,
+                            DIAMETER_REQ_SUCCESS,
+                            AUTH_SESSION_STATE);
+  Diameter::Message msg2 = launder_message(ppa);
+  ppa = Cx::PushProfileAnswer(msg2);
+  EXPECT_EQ(10415, ppa.vendor_id());
+  EXPECT_TRUE(ppa.result_code(test_i32));
+  EXPECT_EQ(RESULT_CODE_SUCCESS, test_i32);
+  EXPECT_TRUE(ppa.get_i32_from_avp(_cx_dict->AUTH_SESSION_STATE, test_i32));
+  EXPECT_EQ(AUTH_SESSION_STATE, test_i32);
+}
