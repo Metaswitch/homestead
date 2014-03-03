@@ -1700,10 +1700,6 @@ TEST_F(HandlersTest, IMSSubscriptionNoHSSUnknownCall)
 
   // Build the expected response and check it's correct
   EXPECT_EQ("", req.content());
-  t->on_success(&mock_req2);
-
-  // Build the expected response and check it's correct.
-  EXPECT_EQ(IMS_SUBSCRIPTION, req.content());
 
   _caught_diam_tsx = NULL;
   _caught_fd_msg = NULL;
@@ -2883,12 +2879,14 @@ TEST_F(HandlerStatsTest, IMSSubscriptionReregHSS)
 {
   // Check a ServerAssignmentRequest updates the HSS and subscription stats.
   MockHttpStack::Request req(_httpstack,
-                             "/impu/" + IMPU,
+                             "/impu/" + IMPU + "/reg-data",
                              "",
-                             "?private_id=" + IMPI + "&type=rereg");
+                             "?private_id=" + IMPI,
+                             "{\"reqtype\": \"reg\"}",
+                             htp_method_PUT);
 
-  ImpuIMSSubscriptionHandler::Config cfg(true, 3600);
-  ImpuIMSSubscriptionHandler* handler = new ImpuIMSSubscriptionHandler(req, &cfg);
+  ImpuRegDataHandler::Config cfg(true, 1800);
+  ImpuRegDataHandler* handler = new ImpuRegDataHandler(req, &cfg);
 
   // Once the handler's run function is called, expect to lookup IMS
   // subscription information for the specified public ID.
@@ -2902,6 +2900,10 @@ TEST_F(HandlerStatsTest, IMSSubscriptionReregHSS)
   // Check the cache get latency is recorded.
   Cache::Transaction* t = mock_req.get_trx();
   ASSERT_FALSE(t == NULL);
+    EXPECT_CALL(mock_req, get_xml(_, _))
+      .WillRepeatedly(DoAll(SetArgReferee<0>(""), SetArgReferee<1>(0)));
+    EXPECT_CALL(mock_req, get_registration_state(_, _))
+      .WillRepeatedly(DoAll(SetArgReferee<0>(RegistrationState::NOT_REGISTERED), SetArgReferee<1>(0)));
 
   t->start_timer();
   cwtest_advance_time_ms(10);
@@ -2915,8 +2917,7 @@ TEST_F(HandlerStatsTest, IMSSubscriptionReregHSS)
     .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
   EXPECT_CALL(*_stats, update_H_cache_latency_us(10000));
 
-  std::string error_text = "error";
-  t->on_failure(&mock_req, Cache::NOT_FOUND, error_text);
+  t->on_success(&mock_req);
   ASSERT_FALSE(_caught_diam_tsx == NULL);
 
   // The diameter SAR takes some time to process.
@@ -2935,7 +2936,7 @@ TEST_F(HandlerStatsTest, IMSSubscriptionReregHSS)
 
   MockCache::MockPutIMSSubscription mock_req2;
   std::vector<std::string> impus{IMPU};
-  EXPECT_CALL(*_cache, create_PutIMSSubscription(impus, IMS_SUBSCRIPTION, _, 3600))
+  EXPECT_CALL(*_cache, create_PutIMSSubscription(impus, IMS_SUBSCRIPTION, _, _, 3600, 3600))
     .WillOnce(Return(&mock_req2));
   EXPECT_CALL(*_cache, send(_, &mock_req2))
     .WillOnce(WithArgs<0>(Invoke(&mock_req2, &Cache::Request::set_trx)));
