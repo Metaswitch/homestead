@@ -36,8 +36,6 @@
 #ifndef CACHE_H__
 #define CACHE_H__
 
-// TODO sort this out properly.
-//
 // Well this is fun.  Free diameter uses cmake to define some compile time
 // options.  Thrift also defines these options.  So an app that uses both won't
 // compile because of the multiple definition.
@@ -144,7 +142,7 @@ public:
   /// their current request has completed.
   virtual void stop();
 
-  /// Wait until the cache has completely stopped.  This method my block.
+  /// Wait until the cache has completely stopped.  This method may block.
   virtual void wait_stopped();
 
   /// Generate a timestamp suitable for supplying on cache modification

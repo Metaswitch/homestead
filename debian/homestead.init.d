@@ -81,9 +81,7 @@ log_directory=/var/log/$NAME
 get_settings()
 {
         # Set up defaults and then pull in the settings for this node.
-        sas_server=0.0.0.0
         hss_hostname=0.0.0.0
-        hss_port=3868
         scscf=5054
         . /etc/clearwater/config
 

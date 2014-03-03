@@ -43,6 +43,7 @@
 #include "diameterstack.h"
 #include "mockdiameterstack.hpp"
 #include "cx.h"
+#include "handlers.h"
 
 /// Fixture for CxTest.
 class CxTest : public testing::Test
@@ -56,6 +57,7 @@ public:
   static const std::string SIP_AUTH_SCHEME_DIGEST;
   static const std::string SIP_AUTH_SCHEME_AKA;
   static const std::string SIP_AUTHORIZATION;
+  static const std::string IMS_SUBSCRIPTION;
   static const std::string VISITED_NETWORK_IDENTIFIER;
   static const std::string AUTHORIZATION_TYPE_REG;
   static const std::string AUTHORIZATION_TYPE_DEREG;
@@ -63,13 +65,17 @@ public:
   static const std::string ORIGINATING_TRUE;
   static const std::string ORIGINATING_FALSE;
   static const std::string EMPTY_STRING;
-  static const int32_t RESULT_CODE;
+  static std::vector<std::string> EMPTY_STRING_VECTOR;
+  static const int32_t RESULT_CODE_SUCCESS;
+  static const int32_t EXPERIMENTAL_RESULT_CODE_SUCCESS;
   static const int32_t AUTH_SESSION_STATE;
   static const std::vector<std::string> IMPIS;
   static const Cx::ServerAssignmentType TIMEOUT_DEREGISTRATION;
   static const Cx::ServerAssignmentType UNREGISTERED_USER;
+  static std::vector<std::string> IMPUS;
+  static std::vector<std::string> ASSOCIATED_IDENTITIES;
   static const ServerCapabilities CAPABILITIES;
-
+  static const ServerCapabilities NO_CAPABILITIES;
 
   static Diameter::Stack* _real_stack;
   static MockDiameterStack* _mock_stack;
@@ -140,7 +146,7 @@ public:
     EXPECT_NE(0, test_i32);
     EXPECT_EQ(10415, msg.vendor_id());
     EXPECT_TRUE(msg.get_i32_from_avp(_cx_dict->AUTH_SESSION_STATE, test_i32));
-    EXPECT_EQ(1, test_i32);
+    EXPECT_EQ(AUTH_SESSION_STATE, test_i32);
     EXPECT_TRUE(msg.get_str_from_avp(_cx_dict->ORIGIN_HOST, test_str));
     EXPECT_EQ("origin-host", test_str);
     EXPECT_TRUE(msg.get_str_from_avp(_cx_dict->ORIGIN_REALM, test_str));
@@ -149,22 +155,6 @@ public:
     EXPECT_EQ(DEST_REALM, test_str);
     EXPECT_TRUE(msg.get_str_from_avp(_cx_dict->DESTINATION_HOST, test_str));
     EXPECT_EQ(DEST_HOST, test_str);
-    return;
-  }
-
-  void check_common_answer_fields(const Diameter::Message& msg)
-  {
-    EXPECT_TRUE(msg.get_i32_from_avp(_cx_dict->SESSION_ID, test_i32));
-    EXPECT_NE(0, test_i32);
-    EXPECT_EQ(10415, msg.vendor_id());
-    EXPECT_TRUE(msg.get_i32_from_avp(_cx_dict->RESULT_CODE, test_i32));
-    EXPECT_EQ(RESULT_CODE, test_i32);
-    EXPECT_TRUE(msg.get_i32_from_avp(_cx_dict->AUTH_SESSION_STATE, test_i32));
-    EXPECT_EQ(AUTH_SESSION_STATE, test_i32);
-    EXPECT_TRUE(msg.get_str_from_avp(_cx_dict->ORIGIN_HOST, test_str));
-    EXPECT_EQ("origin-host", test_str);
-    EXPECT_TRUE(msg.get_str_from_avp(_cx_dict->ORIGIN_REALM, test_str));
-    EXPECT_EQ("origin-realm", test_str);
     return;
   }
 };
@@ -177,6 +167,7 @@ const std::string CxTest::SERVER_NAME = "sip:example.com";
 const std::string CxTest::SIP_AUTH_SCHEME_DIGEST = "SIP Digest";
 const std::string CxTest::SIP_AUTH_SCHEME_AKA = "Digest-AKAv1-MD5";
 const std::string CxTest::SIP_AUTHORIZATION = "authorization";
+const std::string CxTest::IMS_SUBSCRIPTION = "<some interesting xml>";
 const std::string CxTest::VISITED_NETWORK_IDENTIFIER = "visited-network";
 const std::string CxTest::AUTHORIZATION_TYPE_REG = "REG";
 const std::string CxTest::AUTHORIZATION_TYPE_DEREG = "DEREG";
@@ -184,18 +175,28 @@ const std::string CxTest::AUTHORIZATION_TYPE_CAPAB = "CAPAB";
 const std::string CxTest::ORIGINATING_TRUE = "true";
 const std::string CxTest::ORIGINATING_FALSE = "false";
 const std::string CxTest::EMPTY_STRING = "";
-const int32_t CxTest::RESULT_CODE = 2001;
+std::vector<std::string> CxTest::EMPTY_STRING_VECTOR = {};
+const int32_t CxTest::RESULT_CODE_SUCCESS = 2001;
+const int32_t CxTest::EXPERIMENTAL_RESULT_CODE_SUCCESS = 5001;
 const int32_t CxTest::AUTH_SESSION_STATE = 1;
 const std::vector<std::string> CxTest::IMPIS {"private_id1", "private_id2"};
 const Cx::ServerAssignmentType CxTest::TIMEOUT_DEREGISTRATION = Cx::TIMEOUT_DEREGISTRATION;
 const Cx::ServerAssignmentType CxTest::UNREGISTERED_USER = Cx::UNREGISTERED_USER;
+std::vector<std::string> CxTest::IMPUS {"public_id1", "public_id2"};
+std::vector<std::string> CxTest::ASSOCIATED_IDENTITIES {"associated_id1", "associated_id2", "associated_id3"};
 const std::vector<int32_t> mandatory_capabilities = {1, 3};
 const std::vector<int32_t> optional_capabilities = {2, 4};
+const std::vector<int32_t> no_capabilities = {};
 const ServerCapabilities CxTest::CAPABILITIES(mandatory_capabilities, optional_capabilities);
+const ServerCapabilities CxTest::NO_CAPABILITIES(no_capabilities, no_capabilities);
 
 Diameter::Stack* CxTest::_real_stack = NULL;
 MockDiameterStack* CxTest::_mock_stack = NULL;
 Cx::Dictionary* CxTest::_cx_dict = NULL;
+
+//
+// Multimedia Authorization Requests
+//
 
 TEST_F(CxTest, MARTest)
 {
@@ -244,6 +245,52 @@ TEST_F(CxTest, MARAuthorizationTest)
   EXPECT_EQ(SERVER_NAME, test_str);
 }
 
+//
+// Multimedia Authoirzation Answers
+//
+
+TEST_F(CxTest, MAATest)
+{
+  DigestAuthVector digest;
+  digest.ha1 = "ha1";
+  digest.realm = "realm";
+  digest.qop = "qop";
+
+  AKAAuthVector aka;
+  aka.challenge = "challenge";
+  aka.response = "response";
+  aka.crypt_key = "crypt_key";
+  aka.integrity_key = "integrity_key";
+
+  Cx::MultimediaAuthAnswer maa(_cx_dict,
+                               _mock_stack,
+                               RESULT_CODE_SUCCESS,
+                               SIP_AUTH_SCHEME_AKA,
+                               digest,
+                               aka);
+  Diameter::Message msg = launder_message(maa);
+  maa = Cx::MultimediaAuthAnswer(msg);
+  EXPECT_TRUE(maa.result_code(test_i32));
+  EXPECT_EQ(RESULT_CODE_SUCCESS, test_i32);
+  EXPECT_EQ(SIP_AUTH_SCHEME_AKA, maa.sip_auth_scheme());
+
+  DigestAuthVector maa_digest = maa.digest_auth_vector();
+  EXPECT_EQ(digest.ha1, maa_digest.ha1);
+  EXPECT_EQ(digest.realm, maa_digest.realm);
+  EXPECT_EQ(digest.qop, maa_digest.qop);
+
+  // The AKA values should be decoded from base64/hex.
+  AKAAuthVector maa_aka = maa.aka_auth_vector();
+  EXPECT_EQ("Y2hhbGxlbmdl", maa_aka.challenge);
+  EXPECT_EQ("726573706f6e7365", maa_aka.response);
+  EXPECT_EQ("63727970745f6b6579", maa_aka.crypt_key);
+  EXPECT_EQ("696e746567726974795f6b6579", maa_aka.integrity_key);
+}
+
+//
+// Server Assignment Requests
+//
+
 TEST_F(CxTest, SARTest)
 {
   Cx::ServerAssignmentRequest sar(_cx_dict,
@@ -289,6 +336,28 @@ TEST_F(CxTest, SARNoImpiTest)
   EXPECT_TRUE(sar.user_data_already_available(test_i32));
   EXPECT_EQ(0, test_i32);
 }
+
+//
+// Server Assignment Answers
+//
+
+TEST_F(CxTest, SAATest)
+{
+  Cx::ServerAssignmentAnswer saa(_cx_dict,
+                                 _mock_stack,
+                                 RESULT_CODE_SUCCESS,
+                                 IMS_SUBSCRIPTION);
+  Diameter::Message msg = launder_message(saa);
+  saa = Cx::ServerAssignmentAnswer(msg);
+  EXPECT_TRUE(saa.result_code(test_i32));
+  EXPECT_EQ(RESULT_CODE_SUCCESS, test_i32);
+  EXPECT_TRUE(saa.user_data(test_str));
+  EXPECT_EQ(IMS_SUBSCRIPTION, test_str);
+}
+
+//
+// User Authorization Requests
+//
 
 TEST_F(CxTest, UARTest)
 {
@@ -374,6 +443,100 @@ TEST_F(CxTest, UARNoAuthTypeTest)
   EXPECT_EQ(0, test_i32);
 }
 
+//
+// User Authorization Answers
+//
+
+TEST_F(CxTest, UAATest)
+{
+  Cx::UserAuthorizationAnswer uaa(_cx_dict,
+                                  _mock_stack,
+                                  RESULT_CODE_SUCCESS,
+                                  EXPERIMENTAL_RESULT_CODE_SUCCESS,
+                                  SERVER_NAME,
+                                  CAPABILITIES);
+  Diameter::Message msg = launder_message(uaa);
+  uaa = Cx::UserAuthorizationAnswer(msg);
+  EXPECT_TRUE(uaa.result_code(test_i32));
+  EXPECT_EQ(RESULT_CODE_SUCCESS, test_i32);
+  EXPECT_FALSE(uaa.experimental_result_code());
+  EXPECT_TRUE(uaa.server_name(test_str));
+  EXPECT_EQ(SERVER_NAME, test_str);
+  ServerCapabilities capabilities = uaa.server_capabilities();
+  EXPECT_EQ(CAPABILITIES.mandatory_capabilities,
+            capabilities.mandatory_capabilities);
+  EXPECT_EQ(CAPABILITIES.optional_capabilities,
+            capabilities.optional_capabilities);
+}
+
+TEST_F(CxTest, UAATestExperimentalResultCode)
+{
+  Cx::UserAuthorizationAnswer uaa(_cx_dict,
+                                  _mock_stack,
+                                  0,
+                                  EXPERIMENTAL_RESULT_CODE_SUCCESS,
+                                  SERVER_NAME,
+                                  CAPABILITIES);
+  Diameter::Message msg = launder_message(uaa);
+  uaa = Cx::UserAuthorizationAnswer(msg);
+  EXPECT_FALSE(uaa.result_code(test_i32));
+  EXPECT_EQ(EXPERIMENTAL_RESULT_CODE_SUCCESS, uaa.experimental_result_code());
+  EXPECT_TRUE(uaa.server_name(test_str));
+  EXPECT_EQ(SERVER_NAME, test_str);
+  ServerCapabilities capabilities = uaa.server_capabilities();
+  EXPECT_EQ(CAPABILITIES.mandatory_capabilities,
+            capabilities.mandatory_capabilities);
+  EXPECT_EQ(CAPABILITIES.optional_capabilities,
+            capabilities.optional_capabilities);
+}
+
+TEST_F(CxTest, UAATestNoServerName)
+{
+  Cx::UserAuthorizationAnswer uaa(_cx_dict,
+                                  _mock_stack,
+                                  RESULT_CODE_SUCCESS,
+                                  0,
+                                  EMPTY_STRING,
+                                  CAPABILITIES);
+  Diameter::Message msg = launder_message(uaa);
+  uaa = Cx::UserAuthorizationAnswer(msg);
+  EXPECT_TRUE(uaa.result_code(test_i32));
+  EXPECT_EQ(RESULT_CODE_SUCCESS, test_i32);
+  EXPECT_FALSE(uaa.experimental_result_code());
+  EXPECT_FALSE(uaa.server_name(test_str));
+  ServerCapabilities capabilities = uaa.server_capabilities();
+  EXPECT_EQ(CAPABILITIES.mandatory_capabilities,
+            capabilities.mandatory_capabilities);
+  EXPECT_EQ(CAPABILITIES.optional_capabilities,
+            capabilities.optional_capabilities);
+}
+
+TEST_F(CxTest, UAATestNoCapabilities)
+{
+  Cx::UserAuthorizationAnswer uaa(_cx_dict,
+                                  _mock_stack,
+                                  RESULT_CODE_SUCCESS,
+                                  0,
+                                  SERVER_NAME,
+                                  NO_CAPABILITIES);
+  Diameter::Message msg = launder_message(uaa);
+  uaa = Cx::UserAuthorizationAnswer(msg);
+  EXPECT_TRUE(uaa.result_code(test_i32));
+  EXPECT_EQ(RESULT_CODE_SUCCESS, test_i32);
+  EXPECT_FALSE(uaa.experimental_result_code());
+  EXPECT_TRUE(uaa.server_name(test_str));
+  EXPECT_EQ(SERVER_NAME, test_str);
+  ServerCapabilities capabilities = uaa.server_capabilities();
+  EXPECT_EQ(NO_CAPABILITIES.mandatory_capabilities,
+            capabilities.mandatory_capabilities);
+  EXPECT_EQ(NO_CAPABILITIES.optional_capabilities,
+            capabilities.optional_capabilities);
+}
+
+//
+// Location Info Requests
+//
+
 TEST_F(CxTest, LIRTest)
 {
   Cx::LocationInfoRequest lir(_cx_dict,
@@ -427,17 +590,200 @@ TEST_F(CxTest, LIRNoOptionalParamsTest)
   EXPECT_FALSE(lir.auth_type(test_i32));
 }
 
+//
+// Location Info Answers
+//
+
 TEST_F(CxTest, LIATest)
 {
   Cx::LocationInfoAnswer lia(_cx_dict,
                              _mock_stack,
-                             RESULT_CODE,
-                             0,
+                             RESULT_CODE_SUCCESS,
+                             EXPERIMENTAL_RESULT_CODE_SUCCESS,
                              SERVER_NAME,
                              CAPABILITIES);
   Diameter::Message msg = launder_message(lia);
   lia = Cx::LocationInfoAnswer(msg);
+  EXPECT_TRUE(lia.result_code(test_i32));
+  EXPECT_EQ(RESULT_CODE_SUCCESS, test_i32);
+  EXPECT_FALSE(lia.experimental_result_code());
   EXPECT_TRUE(lia.server_name(test_str));
   EXPECT_EQ(SERVER_NAME, test_str);
-  //EXPECT_EQ(CAPABILITIES, lia.server_capabilities());
+  ServerCapabilities capabilities = lia.server_capabilities();
+  EXPECT_EQ(CAPABILITIES.mandatory_capabilities,
+            capabilities.mandatory_capabilities);
+  EXPECT_EQ(CAPABILITIES.optional_capabilities,
+            capabilities.optional_capabilities);
 }
+
+TEST_F(CxTest, LIATestExperimentalResultCode)
+{
+  Cx::LocationInfoAnswer lia(_cx_dict,
+                             _mock_stack,
+                             0,
+                             EXPERIMENTAL_RESULT_CODE_SUCCESS,
+                             SERVER_NAME,
+                             CAPABILITIES);
+  Diameter::Message msg = launder_message(lia);
+  lia = Cx::LocationInfoAnswer(msg);
+  EXPECT_FALSE(lia.result_code(test_i32));
+  EXPECT_EQ(EXPERIMENTAL_RESULT_CODE_SUCCESS, lia.experimental_result_code());
+  EXPECT_TRUE(lia.server_name(test_str));
+  EXPECT_EQ(SERVER_NAME, test_str);
+  ServerCapabilities capabilities = lia.server_capabilities();
+  EXPECT_EQ(CAPABILITIES.mandatory_capabilities,
+            capabilities.mandatory_capabilities);
+  EXPECT_EQ(CAPABILITIES.optional_capabilities,
+            capabilities.optional_capabilities);
+}
+
+TEST_F(CxTest, LIATestNoServerName)
+{
+  Cx::LocationInfoAnswer lia(_cx_dict,
+                             _mock_stack,
+                             RESULT_CODE_SUCCESS,
+                             0,
+                             EMPTY_STRING,
+                             CAPABILITIES);
+  Diameter::Message msg = launder_message(lia);
+  lia = Cx::LocationInfoAnswer(msg);
+  EXPECT_TRUE(lia.result_code(test_i32));
+  EXPECT_EQ(RESULT_CODE_SUCCESS, test_i32);
+  EXPECT_FALSE(lia.experimental_result_code());
+  EXPECT_FALSE(lia.server_name(test_str));
+  ServerCapabilities capabilities = lia.server_capabilities();
+  EXPECT_EQ(CAPABILITIES.mandatory_capabilities,
+            capabilities.mandatory_capabilities);
+  EXPECT_EQ(CAPABILITIES.optional_capabilities,
+            capabilities.optional_capabilities);
+}
+
+TEST_F(CxTest, LIATestNoCapabilities)
+{
+  Cx::LocationInfoAnswer lia(_cx_dict,
+                             _mock_stack,
+                             RESULT_CODE_SUCCESS,
+                             0,
+                             SERVER_NAME,
+                             NO_CAPABILITIES);
+  Diameter::Message msg = launder_message(lia);
+  lia = Cx::LocationInfoAnswer(msg);
+  EXPECT_TRUE(lia.result_code(test_i32));
+  EXPECT_EQ(RESULT_CODE_SUCCESS, test_i32);
+  EXPECT_FALSE(lia.experimental_result_code());
+  EXPECT_TRUE(lia.server_name(test_str));
+  EXPECT_EQ(SERVER_NAME, test_str);
+  ServerCapabilities capabilities = lia.server_capabilities();
+  EXPECT_EQ(NO_CAPABILITIES.mandatory_capabilities,
+            capabilities.mandatory_capabilities);
+  EXPECT_EQ(NO_CAPABILITIES.optional_capabilities,
+            capabilities.optional_capabilities);
+}
+
+// //
+// // Registration Termination Requests and Answers
+// //
+//
+// TEST_F(CxTest, RTTest)
+// {
+//   Cx::RegistrationTerminationRequest rtr(_cx_dict,
+//                                          _mock_stack,
+//                                          IMPI,
+//                                          ASSOCIATED_IDENTITIES,
+//                                          IMPUS,
+//                                          AUTH_SESSION_STATE);
+//   Diameter::Message msg = launder_message(rtr);
+//   rtr = Cx::RegistrationTerminationRequest(msg);
+//   EXPECT_TRUE(rtr.get_i32_from_avp(_cx_dict->AUTH_SESSION_STATE, test_i32));
+//   EXPECT_EQ(AUTH_SESSION_STATE, test_i32);
+//   EXPECT_EQ(IMPI, rtr.impi());
+//   EXPECT_EQ(ASSOCIATED_IDENTITIES, rtr.associated_identities());
+//   EXPECT_EQ(IMPUS, rtr.impus());
+//
+//   Cx::RegistrationTerminationAnswer rta(msg,
+//                                         _cx_dict,
+//                                         DIAMETER_REQ_SUCCESS,
+//                                         AUTH_SESSION_STATE,
+//                                         ASSOCIATED_IDENTITIES);
+//   Diameter::Message msg2 = launder_message(rta);
+//   rta = Cx::RegistrationTerminationAnswer(msg2);
+//   EXPECT_EQ(10415, rta.vendor_id());
+//   EXPECT_TRUE(rta.result_code(test_i32));
+//   EXPECT_EQ(RESULT_CODE_SUCCESS, test_i32);
+//   EXPECT_TRUE(rta.get_i32_from_avp(_cx_dict->AUTH_SESSION_STATE, test_i32));
+//   EXPECT_EQ(AUTH_SESSION_STATE, test_i32);
+//   EXPECT_EQ(ASSOCIATED_IDENTITIES, rta.associated_identities());
+// }
+//
+// TEST_F(CxTest, RTTestNoIMPUsNoAssocatedIdentities)
+// {
+//   Cx::RegistrationTerminationRequest rtr(_cx_dict,
+//                                          _mock_stack,
+//                                          IMPI,
+//                                          EMPTY_STRING_VECTOR,
+//                                          EMPTY_STRING_VECTOR,
+//                                          AUTH_SESSION_STATE);
+//   Diameter::Message msg = launder_message(rtr);
+//   rtr = Cx::RegistrationTerminationRequest(msg);
+//   EXPECT_TRUE(rtr.get_i32_from_avp(_cx_dict->AUTH_SESSION_STATE, test_i32));
+//   EXPECT_EQ(AUTH_SESSION_STATE, test_i32);
+//   EXPECT_EQ(IMPI, rtr.impi());
+//   EXPECT_EQ(EMPTY_STRING_VECTOR, rtr.associated_identities());
+//   EXPECT_EQ(EMPTY_STRING_VECTOR, rtr.impus());
+//
+//   Cx::RegistrationTerminationAnswer rta(msg,
+//                                         _cx_dict,
+//                                         DIAMETER_REQ_SUCCESS,
+//                                         AUTH_SESSION_STATE,
+//                                         EMPTY_STRING_VECTOR);
+//   Diameter::Message msg2 = launder_message(rta);
+//   rta = Cx::RegistrationTerminationAnswer(msg2);
+//   EXPECT_EQ(10415, rta.vendor_id());
+//   EXPECT_TRUE(rta.result_code(test_i32));
+//   EXPECT_EQ(RESULT_CODE_SUCCESS, test_i32);
+//   EXPECT_TRUE(rta.get_i32_from_avp(_cx_dict->AUTH_SESSION_STATE, test_i32));
+//   EXPECT_EQ(AUTH_SESSION_STATE, test_i32);
+//   EXPECT_EQ(EMPTY_STRING_VECTOR, rta.associated_identities());
+// }
+//
+// //
+// // Push Profile Requests and Answers
+// //
+//
+// TEST_F(CxTest, PPTest)
+// {
+//   DigestAuthVector digest;
+//   digest.ha1 = "ha1";
+//   digest.realm = "realm";
+//   digest.qop = "qop";
+//
+//   Cx::PushProfileRequest ppr(_cx_dict,
+//                              _mock_stack,
+//                              IMPI,
+//                              digest,
+//                              IMS_SUBSCRIPTION,
+//                              AUTH_SESSION_STATE);
+//   Diameter::Message msg = launder_message(ppr);
+//   ppr = Cx::PushProfileRequest(msg);
+//   EXPECT_EQ(IMPI, ppr.impi());
+//   DigestAuthVector ppr_digest = ppr.digest_auth_vector();
+//   EXPECT_EQ(digest.ha1, ppr_digest.ha1);
+//   EXPECT_EQ(digest.realm, ppr_digest.realm);
+//   EXPECT_EQ(digest.qop, ppr_digest.qop);
+//   EXPECT_TRUE(ppr.user_data(test_str));
+//   EXPECT_EQ(IMS_SUBSCRIPTION, test_str);
+//   EXPECT_TRUE(ppr.get_i32_from_avp(_cx_dict->AUTH_SESSION_STATE, test_i32));
+//   EXPECT_EQ(AUTH_SESSION_STATE, test_i32);
+//
+//   Cx::PushProfileAnswer ppa(msg,
+//                             _cx_dict,
+//                             DIAMETER_REQ_SUCCESS,
+//                             AUTH_SESSION_STATE);
+//   Diameter::Message msg2 = launder_message(ppa);
+//   ppa = Cx::PushProfileAnswer(msg2);
+//   EXPECT_EQ(10415, ppa.vendor_id());
+//   EXPECT_TRUE(ppa.result_code(test_i32));
+//   EXPECT_EQ(RESULT_CODE_SUCCESS, test_i32);
+//   EXPECT_TRUE(ppa.get_i32_from_avp(_cx_dict->AUTH_SESSION_STATE, test_i32));
+//   EXPECT_EQ(AUTH_SESSION_STATE, test_i32);
+// }

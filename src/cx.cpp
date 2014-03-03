@@ -1,5 +1,5 @@
 /**
- * @file cx.h class definition wrapping Cx
+ * @file cx.cpp class definition wrapping Cx
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2013  Metaswitch Networks Ltd
@@ -734,9 +734,9 @@ PushProfileRequest::PushProfileRequest(const Dictionary* dict,
   add(Diameter::AVP(dict->USER_DATA).val_str(ims_subscription));
   Diameter::AVP sip_auth_data_item(dict->SIP_AUTH_DATA_ITEM);
   Diameter::AVP sip_digest_authenticate(dict->SIP_DIGEST_AUTHENTICATE);
-  sip_digest_authenticate.add(Diameter::AVP(dict->CX_DIGEST_HA1).val_str(digest_av.ha1));
-  sip_digest_authenticate.add(Diameter::AVP(dict->CX_DIGEST_REALM).val_str(digest_av.realm));
-  sip_digest_authenticate.add(Diameter::AVP(dict->CX_DIGEST_QOP).val_str(digest_av.qop));
+  sip_digest_authenticate.add(Diameter::AVP(dict->DIGEST_HA1).val_str(digest_av.ha1));
+  sip_digest_authenticate.add(Diameter::AVP(dict->DIGEST_REALM).val_str(digest_av.realm));
+  sip_digest_authenticate.add(Diameter::AVP(dict->DIGEST_QOP).val_str(digest_av.qop));
   sip_auth_data_item.add(sip_digest_authenticate);
   add(sip_auth_data_item);
   add(Diameter::AVP(dict->AUTH_SESSION_STATE).val_i32(auth_session_state));
