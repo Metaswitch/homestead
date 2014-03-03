@@ -1053,6 +1053,9 @@ void ImpuRegDataHandler::on_sar_response(Diameter::Message& rsp)
   saa.result_code(result_code);
   LOG_DEBUG("Received Server-Assignment answer with result code %d", result_code);
 
+  // Even if the HSS rejects our deregistration request, we should
+  // still delete our cached data - this reflects the fact that Sprout
+  // has no bindings for it.
   if (is_deregistration_request(_type))
   {
     std::vector<std::string> public_ids = XmlUtils::get_public_ids(_xml);
@@ -1078,6 +1081,9 @@ void ImpuRegDataHandler::on_sar_response(Diameter::Message& rsp)
   {
     case 2001:
     {
+      // If we expect this request to assign the user to us (i.e. it
+      // isn't triggered by a deregistration or a failure) we should
+      // cache the User-Data.
       if (!is_deregistration_request(_type) && !is_auth_failure_request(_type))
       {
         LOG_DEBUG("Getting User-Data from SAA for cache");

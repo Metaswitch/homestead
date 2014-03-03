@@ -171,6 +171,9 @@ std::string get_private_id(const std::string& user_data)
   // Parse the XML document, saving off the passed-in string first (as parsing
   // is destructive).
   rapidxml::xml_document<> doc;
+
+  // This doesn't need freeing - prev_doc is on the stack, and this
+  // uses its memory pool.
   char* user_data_str = doc.allocate_string(user_data.c_str());
 
   try
