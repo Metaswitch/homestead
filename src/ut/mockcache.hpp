@@ -65,20 +65,18 @@ public:
   //
   // Methods that create cache request objects.
   //
-  MOCK_METHOD6(create_PutIMSSubscription,
+  MOCK_METHOD5(create_PutIMSSubscription,
                PutIMSSubscription*(const std::string& public_id,
                                    const std::string& xml,
                                    const RegistrationState reg_state,
                                    const int64_t timestamp,
-                                   const int32_t xml_ttl,
-                                   const int32_t reg_state_ttl));
-  MOCK_METHOD6(create_PutIMSSubscription,
+                                   const int32_t ttl));
+  MOCK_METHOD5(create_PutIMSSubscription,
                PutIMSSubscription*(std::vector<std::string>& public_ids,
                                    const std::string& xml,
                                    const RegistrationState reg_state,
                                    const int64_t timestamp,
-                                   const int32_t xml_ttl,
-                                   const int32_t reg_state_ttl));
+                                   const int32_t ttl));
   MOCK_METHOD4(create_PutAssociatedPublicID,
                PutAssociatedPublicID*(const std::string& private_id,
                                       const std::string& assoc_public_id,

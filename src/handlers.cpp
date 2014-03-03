@@ -1038,7 +1038,6 @@ void ImpuRegDataHandler::put_in_cache()
                                         _xml,
                                         _new_state,
                                         Cache::generate_timestamp(),
-                                        ttl,
                                         ttl);
 
     CacheTransaction* tsx = new CacheTransaction(NULL);
@@ -1270,7 +1269,6 @@ void PushProfileHandler::run()
                                                                                   user_data,
                                                                                   state,
                                                                                   Cache::generate_timestamp(),
-                                                                                  (2 * _cfg->hss_reregistration_time),
                                                                                   (2 * _cfg->hss_reregistration_time));
     HssCacheHandler::CacheTransaction<PushProfileHandler>* tsx = new HssCacheHandler::CacheTransaction<PushProfileHandler>(NULL);
     _cfg->cache->send(tsx, put_ims_subscription);

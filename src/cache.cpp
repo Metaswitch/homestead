@@ -406,24 +406,6 @@ put_columns(const std::vector<std::string>& keys,
             int64_t timestamp,
             int32_t ttl)
 {
-  std::map<std::string, std::pair<std::string, int32_t> > columns_with_ttl;
-  for (std::map<std::string, std::string>::const_iterator it = columns.begin();
-       it != columns.end();
-       ++it)
-  {
-    std::string column_name = it->first;
-    std::string column_value = it->second;
-    columns_with_ttl[column_name].first = column_value;
-    columns_with_ttl[column_name].second = ttl;
-  }
-  put_columns(keys, columns_with_ttl, timestamp);
-}
-
-void Cache::PutRequest::
-put_columns(const std::vector<std::string>& keys,
-            const std::map<std::string, std::pair<std::string, int32_t> >& columns,
-            int64_t timestamp)
-{
   // Vector of mutations (one per column being modified).
   std::vector<Mutation> mutations;
 
@@ -432,18 +414,15 @@ put_columns(const std::vector<std::string>& keys,
 
   // Populate the mutations vector.
   LOG_DEBUG("Constructing cache put request with timestamp %lld and per-column TTLs", timestamp);
-  for (std::map<std::string, std::pair<std::string, int32_t> >::const_iterator it = columns.begin();
+  for (std::map<std::string, std::string>::const_iterator it = columns.begin();
        it != columns.end();
        ++it)
   {
     Mutation mutation;
     Column* column = &mutation.column_or_supercolumn.column;
 
-    std::string value = it->second.first;
-    int32_t ttl = it->second.second;
-
     column->name = it->first;
-    column->value = value;
+    column->value = it->second;
     LOG_DEBUG("  %s => %s (TTL %d)", column->name.c_str(), column->value.c_str(), ttl);
     column->__isset.value = true;
     column->timestamp = timestamp;
@@ -643,28 +622,24 @@ PutIMSSubscription(const std::string& public_id,
                    const std::string& xml,
                    const RegistrationState reg_state,
                    const int64_t timestamp,
-                   const int32_t xml_ttl,
-                   const int32_t reg_state_ttl) :
+                   const int32_t ttl):
   PutRequest(IMPU, timestamp, 0),
   _public_ids(1, public_id),
   _xml(xml),
   _reg_state(reg_state),
-  _xml_ttl(xml_ttl),
-  _reg_state_ttl(reg_state_ttl)
+  _ttl(ttl)
 {}
 Cache::PutIMSSubscription::
 PutIMSSubscription(const std::vector<std::string>& public_ids,
                    const std::string& xml,
                    const RegistrationState reg_state,
                    const int64_t timestamp,
-                   const int32_t xml_ttl,
-                   const int32_t reg_state_ttl) :
+                   const int32_t ttl):
   PutRequest(IMPU, timestamp, 0),
   _public_ids(public_ids),
   _xml(xml),
   _reg_state(reg_state),
-  _xml_ttl(xml_ttl),
-  _reg_state_ttl(reg_state_ttl)
+  _ttl(ttl)
 {}
 
 
@@ -675,19 +650,16 @@ Cache::PutIMSSubscription::
 
 void Cache::PutIMSSubscription::perform()
 {
-  std::map<std::string, std::pair<std::string, int32_t> > columns;
-  columns[IMS_SUB_XML_COLUMN_NAME].first = _xml;
-  columns[IMS_SUB_XML_COLUMN_NAME].second = _xml_ttl;
+  std::map<std::string, std::string> columns;
+  columns[IMS_SUB_XML_COLUMN_NAME] = _xml;
 
   if (_reg_state == RegistrationState::REGISTERED)
   {
-    columns[REG_STATE_COLUMN_NAME].first = BOOLEAN_TRUE;
-    columns[REG_STATE_COLUMN_NAME].second = _reg_state_ttl;
+    columns[REG_STATE_COLUMN_NAME] = BOOLEAN_TRUE;
   }
   else if (_reg_state == RegistrationState::UNREGISTERED)
   {
-    columns[REG_STATE_COLUMN_NAME].first = BOOLEAN_FALSE;
-    columns[REG_STATE_COLUMN_NAME].second = _reg_state_ttl;
+    columns[REG_STATE_COLUMN_NAME] = BOOLEAN_FALSE;
   }
   else
   {
@@ -699,7 +671,7 @@ void Cache::PutIMSSubscription::perform()
     }
   }
 
-  put_columns(_public_ids, columns, _timestamp);
+  put_columns(_public_ids, columns, _timestamp, _ttl);
   _trx->on_success(this);
 }
 

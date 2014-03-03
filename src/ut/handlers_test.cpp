@@ -377,7 +377,7 @@ public:
       // Once we simulate the Diameter response, check that the
       // database is updated and a 200 OK is sent.
       MockCache::MockPutIMSSubscription mock_req2;
-      EXPECT_CALL(*_cache, create_PutIMSSubscription(IMPU_IN_VECTOR, IMS_SUBSCRIPTION, expected_new_state, _, 7200, 7200))
+      EXPECT_CALL(*_cache, create_PutIMSSubscription(IMPU_IN_VECTOR, IMS_SUBSCRIPTION, expected_new_state, _, 7200))
         .WillOnce(Return(&mock_req2));
       EXPECT_CALL(*_cache, send(_, &mock_req2))
         .WillOnce(WithArgs<0>(Invoke(&mock_req2, &Cache::Request::set_trx)));
@@ -571,7 +571,7 @@ public:
       MockCache::MockPutIMSSubscription mock_req2;
 
       // We should never set a TTL in the non-HSS case
-      EXPECT_CALL(*_cache, create_PutIMSSubscription(IMPU_IN_VECTOR, IMS_SUBSCRIPTION, expected_new_state, _, 0, 0))
+      EXPECT_CALL(*_cache, create_PutIMSSubscription(IMPU_IN_VECTOR, IMS_SUBSCRIPTION, expected_new_state, _, 0))
         .WillOnce(Return(&mock_req2));
       EXPECT_CALL(*_cache, send(_, &mock_req2))
         .WillOnce(WithArgs<0>(Invoke(&mock_req2, &Cache::Request::set_trx)));
@@ -2650,7 +2650,7 @@ TEST_F(HandlersTest, PushProfile)
 
   MockCache::MockPutIMSSubscription mock_req2;
   std::vector<std::string> impus{IMPU};
-  EXPECT_CALL(*_cache, create_PutIMSSubscription(impus, IMS_SUBSCRIPTION, _, _, 7200, 7200))
+  EXPECT_CALL(*_cache, create_PutIMSSubscription(impus, IMS_SUBSCRIPTION, _, _, 7200))
     .WillOnce(Return(&mock_req2));
   EXPECT_CALL(*_cache, send(_, &mock_req2))
     .WillOnce(WithArgs<0>(Invoke(&mock_req2, &Cache::Request::set_trx)));
@@ -2936,7 +2936,7 @@ TEST_F(HandlerStatsTest, IMSSubscriptionReregHSS)
 
   MockCache::MockPutIMSSubscription mock_req2;
   std::vector<std::string> impus{IMPU};
-  EXPECT_CALL(*_cache, create_PutIMSSubscription(impus, IMS_SUBSCRIPTION, _, _, 3600, 3600))
+  EXPECT_CALL(*_cache, create_PutIMSSubscription(impus, IMS_SUBSCRIPTION, _, _, 3600))
     .WillOnce(Return(&mock_req2));
   EXPECT_CALL(*_cache, send(_, &mock_req2))
     .WillOnce(WithArgs<0>(Invoke(&mock_req2, &Cache::Request::set_trx)));
