@@ -613,9 +613,9 @@ RegistrationTerminationRequest::RegistrationTerminationRequest(const Dictionary*
   LOG_DEBUG("Building Registration-Termination request");
   add(Diameter::AVP(dict->AUTH_SESSION_STATE).val_i32(auth_session_state));
   add(Diameter::AVP(dict->USER_NAME).val_str(impi));
-  Diameter::AVP associated_identities_avp(dict->ASSOCIATED_IDENTITIES);
   if (!associated_identities.empty())
   {
+    Diameter::AVP associated_identities_avp(dict->ASSOCIATED_IDENTITIES);
     for (std::vector<std::string>::iterator it = associated_identities.begin();
          it != associated_identities.end();
          ++it)
@@ -681,15 +681,15 @@ RegistrationTerminationAnswer::RegistrationTerminationAnswer(Diameter::Message& 
                                                              Diameter::Message(msg)
 {
   LOG_DEBUG("Building Registration-Termination answer");
-  build_response();
+  build_response(msg);
   add_vendor_spec_app_id();
   set_result_code(result_code);
   add(Diameter::AVP(dict->AUTH_SESSION_STATE).val_i32(auth_session_state));
 
   // Add all the private IDs we've deleted in an Associated-Identities AVP.
-  Diameter::AVP associated_identities_avp(dict->ASSOCIATED_IDENTITIES);
   if (!associated_identities.empty())
   {
+    Diameter::AVP associated_identities_avp(dict->ASSOCIATED_IDENTITIES);
     for (std::vector<std::string>::iterator it = associated_identities.begin();
          it != associated_identities.end();
          ++it)
@@ -816,7 +816,7 @@ PushProfileAnswer::PushProfileAnswer(Diameter::Message& msg,
 
 {
   LOG_DEBUG("Building Push-Profile answer");
-  build_response();
+  build_response(msg);
   add_vendor_spec_app_id();
   set_result_code(result_code);
   add(Diameter::AVP(dict->AUTH_SESSION_STATE).val_i32(auth_session_state));
