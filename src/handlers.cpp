@@ -797,9 +797,13 @@ void ImpuRegDataHandler::on_get_ims_subscription_success(Cache::Request* request
   int32_t ttl = 0;
   get_ims_sub->get_xml(_xml, ttl);
   get_ims_sub->get_registration_state(old_state, ttl);
-  _new_state = old_state;
   LOG_DEBUG("TTL for this database record is %d and value of _type is %d", ttl, _type);
 
+  // By default, we should remain in the existing state.
+  _new_state = old_state;
+
+  // GET requests shouldn't change the state - just respond with what
+  // we have in the database
   if (_req.method() == htp_method_GET)
   {
     send_reply();
@@ -807,6 +811,8 @@ void ImpuRegDataHandler::on_get_ims_subscription_success(Cache::Request* request
     return;
   }
 
+  // Sprout didn't specify a private Id on the request, but we may
+  // have one embedded in the cached User-Data which we can retrieve.
   if (_impi.empty())
   {
     _impi = XmlUtils::get_private_id(_xml);
@@ -814,10 +820,17 @@ void ImpuRegDataHandler::on_get_ims_subscription_success(Cache::Request* request
 
   if (_type == RequestType::REG)
   {
+    // This message was based on a REGISTER request from Sprout. Check
+    // the subscriber's state in Cassandra to determine whether this
+    // is an initial registration or a re-registration.
     if (old_state == RegistrationState::REGISTERED)
     {
       _new_state = RegistrationState::REGISTERED;
       LOG_DEBUG("Handling re-registration");
+
+      // We set the record's TTL to be double the --hss-reregistration-time
+      // option - once half that time has elapsed, it's time to
+      // re-notify the HSS.
       if ((ttl < _cfg->hss_reregistration_time) && _cfg->hss_configured)
       {
         LOG_DEBUG("Sending re-registration to HSS as %d seconds have passed", _cfg->hss_reregistration_time);
@@ -825,6 +838,8 @@ void ImpuRegDataHandler::on_get_ims_subscription_success(Cache::Request* request
       }
       else
       {
+        // No state changes are required for a re-register if we're
+        // not notifying a HSS - just respond.
         send_reply();
         delete this;
         return;
@@ -835,11 +850,15 @@ void ImpuRegDataHandler::on_get_ims_subscription_success(Cache::Request* request
       LOG_DEBUG("Handling initial registration");
       if (_cfg->hss_configured)
       {
+        // If we have a HSS, we should process an initial registration
+        // by sending a Server-Assignment-Request and caching the response.
         _new_state = RegistrationState::REGISTERED;
         send_server_assignment_request(Cx::ServerAssignmentType::REGISTRATION);
       }
       else if (old_state == RegistrationState::UNREGISTERED)
       {
+        // No HSS, but we have been locally provisioned with this
+        // subscriber, so put it into REGISTERED state.
         _new_state = RegistrationState::REGISTERED;
         put_in_cache();
         send_reply();
@@ -848,6 +867,8 @@ void ImpuRegDataHandler::on_get_ims_subscription_success(Cache::Request* request
       }
       else
       {
+        // We have no HSS and no record of this subscriber, so they
+        // don't exist.
         _req.send_reply(404);
         delete this;
         return;
@@ -856,9 +877,15 @@ void ImpuRegDataHandler::on_get_ims_subscription_success(Cache::Request* request
   }
   else if (_type == RequestType::CALL)
   {
+    // This message was based on an initial non-REGISTER request
+    // (INVITE, PUBLISH, MESSAGE etc.).
     LOG_DEBUG("Handling call");
-    if ((old_state == RegistrationState::NOT_REGISTERED) || (_xml == ""))
+    if (old_state == RegistrationState::NOT_REGISTERED)
     {
+      // We don't know anything about this subscriber. If we have a
+      // HSS, this means we should send a Server-Assignment-Request to
+      // provide unregistered service; if we don't have a HSS, reject
+      // the request.
       if (_cfg->hss_configured)
       {
         LOG_DEBUG("Moving to unregistered state");
@@ -874,6 +901,8 @@ void ImpuRegDataHandler::on_get_ims_subscription_success(Cache::Request* request
     }
     else
     {
+      // We're already assigned to handle this subscriber - respond
+      // with the iFCs anfd whether they're in registered state or not.
       send_reply();
       delete this;
       return;
@@ -881,16 +910,24 @@ void ImpuRegDataHandler::on_get_ims_subscription_success(Cache::Request* request
   }
   else if (is_deregistration_request(_type))
   {
+    // Sprout wants to deregister this subscriber (because of a
+    // REGISTER with Expires: 0, a timeout of all bindings, a failed
+    // app server, etc.).
     if (old_state == RegistrationState::REGISTERED)
     {
       LOG_DEBUG("Handling deregistration");
       if (_cfg->hss_configured)
       {
+        // If we have a HSS, we should forget about this subscriber
+        // entirely and send an appropriate SAR.
         _new_state = RegistrationState::NOT_REGISTERED;
         send_server_assignment_request(sar_type_for_request(_type));
       }
       else
       {
+        // We don't have a HSS - we should just move the subscriber
+        // into unregistered state (but retain the data, as it's not
+        // stored anywhere else).
         _new_state = RegistrationState::UNREGISTERED;
         put_in_cache();
         send_reply();
@@ -912,6 +949,13 @@ void ImpuRegDataHandler::on_get_ims_subscription_success(Cache::Request* request
   }
   else if (is_auth_failure_request(_type))
   {
+    // Authentication failures don't change our state (if a user's
+    // already registered, failing to log in with a new binding
+    // shouldn't deregister them - if they're not registered and fail
+    // to log in, they're already in the right state).
+
+    // If we have a HSS, we do need to notify it so that it removes
+    // the Auth-Pending flag.
     LOG_DEBUG("Handling authentication failure/timeout");
     if (_cfg->hss_configured)
     {
