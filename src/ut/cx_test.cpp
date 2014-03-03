@@ -70,12 +70,12 @@ public:
   static const int32_t EXPERIMENTAL_RESULT_CODE_SUCCESS;
   static const int32_t AUTH_SESSION_STATE;
   static const std::vector<std::string> IMPIS;
+  static const Cx::ServerAssignmentType TIMEOUT_DEREGISTRATION;
+  static const Cx::ServerAssignmentType UNREGISTERED_USER;
   static std::vector<std::string> IMPUS;
   static std::vector<std::string> ASSOCIATED_IDENTITIES;
   static const ServerCapabilities CAPABILITIES;
   static const ServerCapabilities NO_CAPABILITIES;
-  static const ServerAssignmentType::Type TIMEOUT_DEREGISTRATION;
-  static const ServerAssignmentType::Type UNREGISTERED_USER;
 
   static Diameter::Stack* _real_stack;
   static MockDiameterStack* _mock_stack;
@@ -180,6 +180,8 @@ const int32_t CxTest::RESULT_CODE_SUCCESS = 2001;
 const int32_t CxTest::EXPERIMENTAL_RESULT_CODE_SUCCESS = 5001;
 const int32_t CxTest::AUTH_SESSION_STATE = 1;
 const std::vector<std::string> CxTest::IMPIS {"private_id1", "private_id2"};
+const Cx::ServerAssignmentType CxTest::TIMEOUT_DEREGISTRATION = Cx::TIMEOUT_DEREGISTRATION;
+const Cx::ServerAssignmentType CxTest::UNREGISTERED_USER = Cx::UNREGISTERED_USER;
 std::vector<std::string> CxTest::IMPUS {"public_id1", "public_id2"};
 std::vector<std::string> CxTest::ASSOCIATED_IDENTITIES {"associated_id1", "associated_id2", "associated_id3"};
 const std::vector<int32_t> mandatory_capabilities = {1, 3};
@@ -187,8 +189,6 @@ const std::vector<int32_t> optional_capabilities = {2, 4};
 const std::vector<int32_t> no_capabilities = {};
 const ServerCapabilities CxTest::CAPABILITIES(mandatory_capabilities, optional_capabilities);
 const ServerCapabilities CxTest::NO_CAPABILITIES(no_capabilities, no_capabilities);
-const ServerAssignmentType::Type CxTest::TIMEOUT_DEREGISTRATION = TIMEOUT_DEREGISTRATION;
-const ServerAssignmentType::Type CxTest::UNREGISTERED_USER = UNREGISTERED_USER;
 
 Diameter::Stack* CxTest::_real_stack = NULL;
 MockDiameterStack* CxTest::_mock_stack = NULL;
@@ -683,7 +683,7 @@ TEST_F(CxTest, LIATestNoCapabilities)
 // //
 // // Registration Termination Requests and Answers
 // //
-// 
+//
 // TEST_F(CxTest, RTTest)
 // {
 //   Cx::RegistrationTerminationRequest rtr(_cx_dict,
@@ -699,7 +699,7 @@ TEST_F(CxTest, LIATestNoCapabilities)
 //   EXPECT_EQ(IMPI, rtr.impi());
 //   EXPECT_EQ(ASSOCIATED_IDENTITIES, rtr.associated_identities());
 //   EXPECT_EQ(IMPUS, rtr.impus());
-// 
+//
 //   Cx::RegistrationTerminationAnswer rta(msg,
 //                                         _cx_dict,
 //                                         DIAMETER_REQ_SUCCESS,
@@ -714,7 +714,7 @@ TEST_F(CxTest, LIATestNoCapabilities)
 //   EXPECT_EQ(AUTH_SESSION_STATE, test_i32);
 //   EXPECT_EQ(ASSOCIATED_IDENTITIES, rta.associated_identities());
 // }
-// 
+//
 // TEST_F(CxTest, RTTestNoIMPUsNoAssocatedIdentities)
 // {
 //   Cx::RegistrationTerminationRequest rtr(_cx_dict,
@@ -730,7 +730,7 @@ TEST_F(CxTest, LIATestNoCapabilities)
 //   EXPECT_EQ(IMPI, rtr.impi());
 //   EXPECT_EQ(EMPTY_STRING_VECTOR, rtr.associated_identities());
 //   EXPECT_EQ(EMPTY_STRING_VECTOR, rtr.impus());
-// 
+//
 //   Cx::RegistrationTerminationAnswer rta(msg,
 //                                         _cx_dict,
 //                                         DIAMETER_REQ_SUCCESS,
@@ -745,18 +745,18 @@ TEST_F(CxTest, LIATestNoCapabilities)
 //   EXPECT_EQ(AUTH_SESSION_STATE, test_i32);
 //   EXPECT_EQ(EMPTY_STRING_VECTOR, rta.associated_identities());
 // }
-// 
+//
 // //
 // // Push Profile Requests and Answers
 // //
-// 
+//
 // TEST_F(CxTest, PPTest)
 // {
 //   DigestAuthVector digest;
 //   digest.ha1 = "ha1";
 //   digest.realm = "realm";
 //   digest.qop = "qop";
-// 
+//
 //   Cx::PushProfileRequest ppr(_cx_dict,
 //                              _mock_stack,
 //                              IMPI,
@@ -774,7 +774,7 @@ TEST_F(CxTest, LIATestNoCapabilities)
 //   EXPECT_EQ(IMS_SUBSCRIPTION, test_str);
 //   EXPECT_TRUE(ppr.get_i32_from_avp(_cx_dict->AUTH_SESSION_STATE, test_i32));
 //   EXPECT_EQ(AUTH_SESSION_STATE, test_i32);
-// 
+//
 //   Cx::PushProfileAnswer ppa(msg,
 //                             _cx_dict,
 //                             DIAMETER_REQ_SUCCESS,

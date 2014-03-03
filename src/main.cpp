@@ -59,7 +59,7 @@ struct options
   std::string dest_host;
   std::string server_name;
   int impu_cache_ttl;
-  int ims_sub_cache_ttl;
+  int hss_reregistration_time;
   std::string scheme_unknown;
   std::string scheme_digest;
   std::string scheme_aka;
@@ -85,8 +85,8 @@ void usage(void)
        " -s, --server-name <name>   Set Server-Name on Cx messages\n"
        " -i, --impu-cache-ttl <secs>\n"
        "                            IMPU cache time-to-live in seconds (default: 0)\n"
-       " -I, --ims-sub-cache-ttl <secs>\n"
-       "                            IMS subscription cache time-to-live in seconds (default: 0)\n"
+       " -I, --hss-reregistration-time <secs>\n"
+       "                            How often a RE_REGISTRATION SAR should be sent to the HSS in seconds (default: 1800)\n"
        "     --scheme-unknown <string>\n"
        "                            String to use to specify unknown SIP-Auth-Scheme (default: Unknown)\n"
        "     --scheme-digest <string>\n"
@@ -114,29 +114,29 @@ int init_options(int argc, char**argv, struct options& options)
 {
   struct option long_opt[] =
   {
-    {"diameter-conf",     required_argument, NULL, 'c'},
-    {"http",              required_argument, NULL, 'H'},
-    {"http-threads",      required_argument, NULL, 't'},
-    {"cache-threads",     required_argument, NULL, 'u'},
-    {"cassandra",         required_argument, NULL, 'S'},
-    {"dest-realm",        required_argument, NULL, 'D'},
-    {"dest-host",         required_argument, NULL, 'd'},
-    {"server-name",       required_argument, NULL, 's'},
-    {"impu-cache-ttl",    required_argument, NULL, 'i'},
-    {"ims-sub-cache-ttl", required_argument, NULL, 'I'},
-    {"scheme-unknown",    required_argument, NULL, SCHEME_UNKNOWN},
-    {"scheme-digest",     required_argument, NULL, SCHEME_DIGEST},
-    {"scheme-aka",        required_argument, NULL, SCHEME_AKA},
-    {"access-log",        required_argument, NULL, 'a'},
-    {"log-file",          required_argument, NULL, 'F'},
-    {"log-level",         required_argument, NULL, 'L'},
-    {"help",              no_argument,       NULL, 'h'},
-    {NULL,                0,                 NULL, 0},
+    {"diameter-conf",           required_argument, NULL, 'c'},
+    {"http",                    required_argument, NULL, 'H'},
+    {"http-threads",            required_argument, NULL, 't'},
+    {"cache-threads",           required_argument, NULL, 'u'},
+    {"cassandra",               required_argument, NULL, 'S'},
+    {"dest-realm",              required_argument, NULL, 'D'},
+    {"dest-host",               required_argument, NULL, 'd'},
+    {"server-name",             required_argument, NULL, 's'},
+    {"impu-cache-ttl",          required_argument, NULL, 'i'},
+    {"hss-reregistration-time", required_argument, NULL, 'I'},
+    {"scheme-unknown",          required_argument, NULL, SCHEME_UNKNOWN},
+    {"scheme-digest",           required_argument, NULL, SCHEME_DIGEST},
+    {"scheme-aka",              required_argument, NULL, SCHEME_AKA},
+    {"access-log",              required_argument, NULL, 'a'},
+    {"log-file",                required_argument, NULL, 'F'},
+    {"log-level",               required_argument, NULL, 'L'},
+    {"help",                    no_argument,       NULL, 'h'},
+    {NULL,                      0,                 NULL, 0},
   };
 
   int opt;
   int long_opt_ind;
-  while ((opt = getopt_long(argc, argv, "c:H:t:S:D:d:s:i:I:a:F:L:h", long_opt, &long_opt_ind)) != -1)
+  while ((opt = getopt_long(argc, argv, "c:H:t:u:S:D:d:s:i:I:a:F:L:h", long_opt, &long_opt_ind)) != -1)
   {
     switch (opt)
     {
@@ -177,7 +177,7 @@ int init_options(int argc, char**argv, struct options& options)
       break;
 
     case 'I':
-      options.ims_sub_cache_ttl = atoi(optarg);
+      options.hss_reregistration_time = atoi(optarg);
       break;
 
     case SCHEME_UNKNOWN:
@@ -265,7 +265,7 @@ int main(int argc, char**argv)
   options.scheme_aka = "Digest-AKAv1-MD5";
   options.access_log_enabled = false;
   options.impu_cache_ttl = 0;
-  options.ims_sub_cache_ttl = 0;
+  options.hss_reregistration_time = 1800;
   options.log_to_file = false;
   options.log_level = 0;
 
@@ -300,7 +300,7 @@ int main(int argc, char**argv)
   LoadMonitor* load_monitor = new LoadMonitor(100000, // Initial target latency (us)
                                               20,     // Maximum token bucket size.
                                               10.0,   // Initial token fill rate (per sec).
-                                              10.0);  // Minimum token fill rate (pre sec). 
+                                              10.0);  // Minimum token fill rate (pre sec).
 
   Cache* cache = Cache::get_instance();
   cache->initialize();
@@ -325,8 +325,8 @@ int main(int argc, char**argv)
     diameter_stack->configure(options.diameter_conf);
     dict = new Cx::Dictionary();
     diameter_stack->advertize_application(dict->TGPP, dict->CX);
-    rt_handler_config = RegistrationTerminationHandler::Config(cache, dict, options.ims_sub_cache_ttl);
-    pp_handler_config = PushProfileHandler::Config(cache, dict, options.impu_cache_ttl, options.ims_sub_cache_ttl);
+    rt_handler_config = RegistrationTerminationHandler::Config(cache, dict, options.hss_reregistration_time);
+    pp_handler_config = PushProfileHandler::Config(cache, dict, options.impu_cache_ttl, options.hss_reregistration_time);
     rtr_handler_factory = Diameter::Stack::ConfiguredHandlerFactory<RegistrationTerminationHandler, RegistrationTerminationHandler::Config>(dict, &rt_handler_config);
     ppr_handler_factory = Diameter::Stack::ConfiguredHandlerFactory<PushProfileHandler, PushProfileHandler::Config>(dict, &pp_handler_config);
     diameter_stack->register_handler(dict->CX, dict->REGISTRATION_TERMINATION_REQUEST, &rtr_handler_factory);
@@ -361,14 +361,16 @@ int main(int argc, char**argv)
                                           options.scheme_aka);
   ImpiRegistrationStatusHandler::Config registration_status_handler_config(hss_configured);
   ImpuLocationInfoHandler::Config location_info_handler_config(hss_configured);
-  ImpuIMSSubscriptionHandler::Config impu_handler_config(hss_configured, options.ims_sub_cache_ttl);
+  ImpuRegDataHandler::Config impu_handler_config(hss_configured, options.hss_reregistration_time);
+  ImpuIMSSubscriptionHandler::Config impu_handler_config_old(hss_configured, options.hss_reregistration_time);
 
   HttpStack::HandlerFactory<PingHandler> ping_handler_factory;
   HttpStack::ConfiguredHandlerFactory<ImpiDigestHandler, ImpiHandler::Config> impi_digest_handler_factory(&impi_handler_config);
   HttpStack::ConfiguredHandlerFactory<ImpiAvHandler, ImpiHandler::Config> impi_av_handler_factory(&impi_handler_config);
   HttpStack::ConfiguredHandlerFactory<ImpiRegistrationStatusHandler, ImpiRegistrationStatusHandler::Config> impi_reg_status_handler_factory(&registration_status_handler_config);
   HttpStack::ConfiguredHandlerFactory<ImpuLocationInfoHandler, ImpuLocationInfoHandler::Config> impu_loc_info_handler_factory(&location_info_handler_config);
-  HttpStack::ConfiguredHandlerFactory<ImpuIMSSubscriptionHandler, ImpuIMSSubscriptionHandler::Config> impu_ims_sub_handler_factory(&impu_handler_config);
+  HttpStack::ConfiguredHandlerFactory<ImpuRegDataHandler, ImpuRegDataHandler::Config> impu_reg_data_handler_factory(&impu_handler_config);
+  HttpStack::ConfiguredHandlerFactory<ImpuIMSSubscriptionHandler, ImpuIMSSubscriptionHandler::Config> impu_ims_sub_handler_factory(&impu_handler_config_old);
 
   try
   {
@@ -389,6 +391,8 @@ int main(int argc, char**argv)
                                  &impi_reg_status_handler_factory);
     http_stack->register_handler("^/impu/[^/]*/location$",
                                  &impu_loc_info_handler_factory);
+    http_stack->register_handler("^/impu/[^/]*/reg-data$",
+                                 &impu_reg_data_handler_factory);
     http_stack->register_handler("^/impu/",
                                  &impu_ims_sub_handler_factory);
     http_stack->start();

@@ -254,34 +254,34 @@ void ImpiHandler::on_mar_response(Diameter::Message& rsp)
   switch (result_code)
   {
     case 2001:
+    {
+      std::string sip_auth_scheme = maa.sip_auth_scheme();
+      if (sip_auth_scheme == _cfg->scheme_digest)
       {
-        std::string sip_auth_scheme = maa.sip_auth_scheme();
-        if (sip_auth_scheme == _cfg->scheme_digest)
+        send_reply(maa.digest_auth_vector());
+        if (_cfg->impu_cache_ttl != 0)
         {
-          send_reply(maa.digest_auth_vector());
-          if (_cfg->impu_cache_ttl != 0)
-          {
-            LOG_DEBUG("Caching that private ID %s includes public ID %s",
-                      _impi.c_str(), _impu.c_str());
-            Cache::Request* put_public_id =
-              _cache->create_PutAssociatedPublicID(_impi,
-                                                   _impu,
-                                                   Cache::generate_timestamp(),
-                                                   _cfg->impu_cache_ttl);
-            CacheTransaction* tsx = new CacheTransaction(NULL);
-            _cache->send(tsx, put_public_id);
-          }
-        }
-        else if (sip_auth_scheme == _cfg->scheme_aka)
-        {
-          send_reply(maa.aka_auth_vector());
-        }
-        else
-        {
-          _req.send_reply(404);
+          LOG_DEBUG("Caching that private ID %s includes public ID %s",
+                    _impi.c_str(), _impu.c_str());
+          Cache::Request* put_public_id =
+            _cache->create_PutAssociatedPublicID(_impi,
+                                                 _impu,
+                                                 Cache::generate_timestamp(),
+                                                 _cfg->impu_cache_ttl);
+          CacheTransaction* tsx = new CacheTransaction(NULL);
+          _cache->send(tsx, put_public_id);
         }
       }
-      break;
+      else if (sip_auth_scheme == _cfg->scheme_aka)
+      {
+        send_reply(maa.aka_auth_vector());
+      }
+      else
+      {
+        _req.send_reply(404);
+      }
+    }
+    break;
     case 5001:
       LOG_INFO("Multimedia-Auth answer with result code %d - reject", result_code);
       _req.send_reply(404);
@@ -633,7 +633,480 @@ void ImpuLocationInfoHandler::on_lir_response(Diameter::Message& rsp)
 }
 
 //
-// IMPU IMS Subscription handling
+// IMPU IMS Subscription handling for URLs of the form "/impu/<public ID>/reg-data"
+//
+
+// Determines whether an incoming HTTP request indicates deregistration
+bool ImpuRegDataHandler::is_deregistration_request(RequestType type)
+{
+  switch (type)
+  {
+    case RequestType::DEREG_USER:
+    case RequestType::DEREG_ADMIN:
+    case RequestType::DEREG_TIMEOUT:
+      return true;
+    default:
+      return false;
+  }
+}
+
+// Determines whether an incoming HTTP request indicates
+// authentication failure
+bool ImpuRegDataHandler::is_auth_failure_request(RequestType type)
+{
+  switch (type)
+  {
+    case RequestType::DEREG_AUTH_FAIL:
+    case RequestType::DEREG_AUTH_TIMEOUT:
+      return true;
+    default:
+      return false;
+  }
+}
+
+// If a HTTP request maps directly to a Diameter
+// Server-Assignment-Type field, return the appropriate field.
+Cx::ServerAssignmentType ImpuRegDataHandler::sar_type_for_request(RequestType type)
+{
+  switch (type)
+  {
+    case RequestType::DEREG_USER:
+      return Cx::ServerAssignmentType::USER_DEREGISTRATION;
+    case RequestType::DEREG_ADMIN:
+      return Cx::ServerAssignmentType::ADMINISTRATIVE_DEREGISTRATION;
+    case RequestType::DEREG_TIMEOUT:
+      return Cx::ServerAssignmentType::TIMEOUT_DEREGISTRATION;
+    case RequestType::DEREG_AUTH_FAIL:
+      return Cx::ServerAssignmentType::AUTHENTICATION_FAILURE;
+    case RequestType::DEREG_AUTH_TIMEOUT:
+      return Cx::ServerAssignmentType::AUTHENTICATION_TIMEOUT;
+    default:
+      // Should never be called for CALL or REG as they don't map to
+      // an obvious value.
+
+      // LCOV_EXCL_START
+      LOG_ERROR("Couldn't produce an appropriate SAR - internal software error'");
+      return Cx::ServerAssignmentType::ADMINISTRATIVE_DEREGISTRATION;
+      // LCOV_EXCL_STOP
+  }
+}
+
+ImpuRegDataHandler::RequestType ImpuRegDataHandler::request_type_from_body(std::string body)
+{
+  LOG_DEBUG("Determining request type from '%s'", body.c_str());
+  RequestType ret = RequestType::UNKNOWN;
+
+  std::string reqtype;
+  rapidjson::Document document;
+  document.Parse<0>(body.c_str());
+
+  if (!document.IsObject() || !document.HasMember("reqtype") || !document["reqtype"].IsString())
+  {
+    LOG_ERROR("Did not receive valid JSON with a 'reqtype' element");
+  }
+  else
+  {
+    reqtype = document["reqtype"].GetString();
+  }
+
+  if (reqtype == "reg")
+  {
+    ret = RequestType::REG;
+  }
+  else if (reqtype == "call")
+  {
+    ret = RequestType::CALL;
+  }
+  else if (reqtype == "dereg-user")
+  {
+    ret = RequestType::DEREG_USER;
+  }
+  else if (reqtype == "dereg-admin")
+  {
+    ret = RequestType::DEREG_ADMIN;
+  }
+  else if (reqtype == "dereg-timeout")
+  {
+    ret = RequestType::DEREG_TIMEOUT;
+  }
+  else if (reqtype == "dereg-auth-failed")
+  {
+    ret = RequestType::DEREG_AUTH_FAIL;
+  }
+  else if (reqtype == "dereg-auth-timeout")
+  {
+    ret = RequestType::DEREG_AUTH_TIMEOUT;
+  }
+  LOG_DEBUG("New value of _type is %d", ret);
+  return ret;
+}
+
+void ImpuRegDataHandler::run()
+{
+  const std::string prefix = "/impu/";
+  std::string path = _req.full_path();
+
+  _impu = path.substr(prefix.length(), path.find_first_of("/", prefix.length()) - prefix.length());
+  _impi = _req.param("private_id");
+  LOG_DEBUG("Parsed HTTP request: private ID %s, public ID %s",
+            _impi.c_str(), _impu.c_str());
+
+  htp_method method = _req.method();
+
+  // Police preconditions:
+  //    - Method must either be GET or PUT
+  //    - PUT requests must have a body of "reg", "call", "dereg-user"
+  //   "dereg-admin", "dereg-timeout", "dereg-auth-failed" or
+  //   "dereg-auth-timeout"
+
+  if (method == htp_method_PUT)
+  {
+    _type = request_type_from_body(_req.body());
+    if (_type == RequestType::UNKNOWN)
+    {
+      LOG_ERROR("HTTP request contains invalid value %s for type", _req.body().c_str());
+      _req.send_reply(400);
+      delete this;
+      return;
+    }
+  } else if (method == htp_method_GET) {
+    _type = RequestType::UNKNOWN;
+  } else {
+    _req.send_reply(405);
+    delete this;
+    return;
+  }
+
+  // We must always get the data from the cache - even if we're doing
+  // a deregistration, we'll need to use the existing private ID, and
+  // need to return the iFCs to Sprout.
+
+  LOG_DEBUG ("Try to find IMS Subscription information in the cache");
+  Cache::Request* get_ims_sub = _cache->create_GetIMSSubscription(_impu);
+  CacheTransaction* tsx = new CacheTransaction(this);
+  tsx->set_success_clbk(&ImpuRegDataHandler::on_get_ims_subscription_success);
+  tsx->set_failure_clbk(&ImpuRegDataHandler::on_get_ims_subscription_failure);
+  _cache->send(tsx, get_ims_sub);
+}
+
+void ImpuRegDataHandler::on_get_ims_subscription_success(Cache::Request* request)
+{
+  LOG_DEBUG("Got IMS subscription from cache");
+  Cache::GetIMSSubscription* get_ims_sub = (Cache::GetIMSSubscription*)request;
+  RegistrationState old_state;
+  int32_t ttl = 0;
+  get_ims_sub->get_xml(_xml, ttl);
+  get_ims_sub->get_registration_state(old_state, ttl);
+  LOG_DEBUG("TTL for this database record is %d and value of _type is %d", ttl, _type);
+
+  // By default, we should remain in the existing state.
+  _new_state = old_state;
+
+  // GET requests shouldn't change the state - just respond with what
+  // we have in the database
+  if (_req.method() == htp_method_GET)
+  {
+    send_reply();
+    delete this;
+    return;
+  }
+
+  // Sprout didn't specify a private Id on the request, but we may
+  // have one embedded in the cached User-Data which we can retrieve.
+  if (_impi.empty())
+  {
+    _impi = XmlUtils::get_private_id(_xml);
+  }
+
+  if (_type == RequestType::REG)
+  {
+    // This message was based on a REGISTER request from Sprout. Check
+    // the subscriber's state in Cassandra to determine whether this
+    // is an initial registration or a re-registration.
+    if (old_state == RegistrationState::REGISTERED)
+    {
+      _new_state = RegistrationState::REGISTERED;
+      LOG_DEBUG("Handling re-registration");
+
+      // We set the record's TTL to be double the --hss-reregistration-time
+      // option - once half that time has elapsed, it's time to
+      // re-notify the HSS.
+      if ((ttl < _cfg->hss_reregistration_time) && _cfg->hss_configured)
+      {
+        LOG_DEBUG("Sending re-registration to HSS as %d seconds have passed", _cfg->hss_reregistration_time);
+        send_server_assignment_request(Cx::ServerAssignmentType::RE_REGISTRATION);
+      }
+      else
+      {
+        // No state changes are required for a re-register if we're
+        // not notifying a HSS - just respond.
+        send_reply();
+        delete this;
+        return;
+      }
+    }
+    else
+    {
+      LOG_DEBUG("Handling initial registration");
+      if (_cfg->hss_configured)
+      {
+        // If we have a HSS, we should process an initial registration
+        // by sending a Server-Assignment-Request and caching the response.
+        _new_state = RegistrationState::REGISTERED;
+        send_server_assignment_request(Cx::ServerAssignmentType::REGISTRATION);
+      }
+      else if (old_state == RegistrationState::UNREGISTERED)
+      {
+        // No HSS, but we have been locally provisioned with this
+        // subscriber, so put it into REGISTERED state.
+        _new_state = RegistrationState::REGISTERED;
+        put_in_cache();
+        send_reply();
+        delete this;
+        return;
+      }
+      else
+      {
+        // We have no HSS and no record of this subscriber, so they
+        // don't exist.
+        _req.send_reply(404);
+        delete this;
+        return;
+      }
+    }
+  }
+  else if (_type == RequestType::CALL)
+  {
+    // This message was based on an initial non-REGISTER request
+    // (INVITE, PUBLISH, MESSAGE etc.).
+    LOG_DEBUG("Handling call");
+    if (old_state == RegistrationState::NOT_REGISTERED)
+    {
+      // We don't know anything about this subscriber. If we have a
+      // HSS, this means we should send a Server-Assignment-Request to
+      // provide unregistered service; if we don't have a HSS, reject
+      // the request.
+      if (_cfg->hss_configured)
+      {
+        LOG_DEBUG("Moving to unregistered state");
+        _new_state = RegistrationState::UNREGISTERED;
+        send_server_assignment_request(Cx::ServerAssignmentType::UNREGISTERED_USER);
+      }
+      else
+      {
+        _req.send_reply(404);
+        delete this;
+        return;
+      }
+    }
+    else
+    {
+      // We're already assigned to handle this subscriber - respond
+      // with the iFCs anfd whether they're in registered state or not.
+      send_reply();
+      delete this;
+      return;
+    }
+  }
+  else if (is_deregistration_request(_type))
+  {
+    // Sprout wants to deregister this subscriber (because of a
+    // REGISTER with Expires: 0, a timeout of all bindings, a failed
+    // app server, etc.).
+    if (old_state == RegistrationState::REGISTERED)
+    {
+      LOG_DEBUG("Handling deregistration");
+      if (_cfg->hss_configured)
+      {
+        // If we have a HSS, we should forget about this subscriber
+        // entirely and send an appropriate SAR.
+        _new_state = RegistrationState::NOT_REGISTERED;
+        send_server_assignment_request(sar_type_for_request(_type));
+      }
+      else
+      {
+        // We don't have a HSS - we should just move the subscriber
+        // into unregistered state (but retain the data, as it's not
+        // stored anywhere else).
+        _new_state = RegistrationState::UNREGISTERED;
+        put_in_cache();
+        send_reply();
+        delete this;
+        return;
+      }
+    }
+    else
+    {
+      // We treat a deregistration for a deregistered user as an error
+      // - this is useful for preventing loops, where we try and
+      // continually deregister a user
+
+      LOG_DEBUG("Rejecting deregistration for user who was not registered");
+      _req.send_reply(400);
+      delete this;
+      return;
+    }
+  }
+  else if (is_auth_failure_request(_type))
+  {
+    // Authentication failures don't change our state (if a user's
+    // already registered, failing to log in with a new binding
+    // shouldn't deregister them - if they're not registered and fail
+    // to log in, they're already in the right state).
+
+    // If we have a HSS, we do need to notify it so that it removes
+    // the Auth-Pending flag.
+    LOG_DEBUG("Handling authentication failure/timeout");
+    if (_cfg->hss_configured)
+    {
+      send_server_assignment_request(sar_type_for_request(_type));
+    }
+  }
+  else
+  {
+    // LCOV_EXCL_START - unreachable
+    LOG_ERROR("Invalid type %d", _type);
+    delete this;
+    return;
+    // LCOV_EXCL_STOP - unreachable
+  }
+}
+
+void ImpuRegDataHandler::send_reply()
+{
+  LOG_DEBUG("Building 200 OK response to send (body was %s)", _req.body().c_str());
+  _req.add_content(XmlUtils::build_ClearwaterRegData_xml(_new_state, _xml));
+  _req.send_reply(200);
+}
+
+void ImpuRegDataHandler::on_get_ims_subscription_failure(Cache::Request* request, Cache::ResultCode error, std::string& text)
+{
+  LOG_DEBUG("IMS subscription cache query failed: %u, %s", error, text.c_str());
+  _req.send_reply(502);
+  delete this;
+}
+
+void ImpuRegDataHandler::send_server_assignment_request(Cx::ServerAssignmentType type)
+{
+  Cx::ServerAssignmentRequest sar(_dict,
+                                  _diameter_stack,
+                                  _dest_host,
+                                  _dest_realm,
+                                  _impi,
+                                  _impu,
+                                  _server_name,
+                                  type);
+  DiameterTransaction* tsx =
+    new DiameterTransaction(_dict, this, SUBSCRIPTION_STATS);
+  tsx->set_response_clbk(&ImpuRegDataHandler::on_sar_response);
+  sar.send(tsx, 200);
+}
+
+void ImpuRegDataHandler::put_in_cache()
+{
+  int ttl;
+  if (_cfg->hss_configured)
+  {
+    // Set twice the HSS registration time - code elsewhere will check
+    // whether the TTL has passed the halfway point and do a
+    // RE_REGISTRATION request to the HSS. This is better than just
+    // setting the TTL to be the registration time, as it means there
+    // are no gaps where the data has expired but we haven't received
+    // a REGISTER yet.
+    ttl = (2 * _cfg->hss_reregistration_time);
+  }
+  else
+  {
+    // No TTL if we don't have a HSS - we should never expire the
+    // data because we're the master.
+    ttl = 0;
+  }
+
+  LOG_DEBUG("Attempting to cache IMS subscription for public IDs");
+  std::vector<std::string> public_ids = XmlUtils::get_public_ids(_xml);
+  if (!public_ids.empty())
+  {
+    LOG_DEBUG("Got public IDs to cache against - doing it");
+    for (std::vector<std::string>::iterator i = public_ids.begin();
+         i != public_ids.end();
+         i++)
+    {
+      LOG_DEBUG("Public ID %s", i->c_str());
+    }
+    Cache::Request* put_ims_sub =
+      _cache->create_PutIMSSubscription(public_ids,
+                                        _xml,
+                                        _new_state,
+                                        Cache::generate_timestamp(),
+                                        ttl);
+
+    CacheTransaction* tsx = new CacheTransaction(NULL);
+    _cache->send(tsx, put_ims_sub);
+  }
+}
+
+void ImpuRegDataHandler::on_sar_response(Diameter::Message& rsp)
+{
+  Cx::ServerAssignmentAnswer saa(rsp);
+  int32_t result_code = 0;
+  saa.result_code(result_code);
+  LOG_DEBUG("Received Server-Assignment answer with result code %d", result_code);
+
+  // Even if the HSS rejects our deregistration request, we should
+  // still delete our cached data - this reflects the fact that Sprout
+  // has no bindings for it.
+  if (is_deregistration_request(_type))
+  {
+    std::vector<std::string> public_ids = XmlUtils::get_public_ids(_xml);
+    if (!public_ids.empty())
+    {
+      LOG_DEBUG("Got public IDs to delete from cache - doing it");
+      for (std::vector<std::string>::iterator i = public_ids.begin();
+           i != public_ids.end();
+           i++)
+      {
+        LOG_DEBUG("Public ID %s", i->c_str());
+      }
+
+      Cache::Request* delete_public_id =
+        _cache->create_DeletePublicIDs(public_ids, Cache::generate_timestamp());
+      CacheTransaction* tsx = new CacheTransaction(NULL);
+      _cache->send(tsx, delete_public_id);
+    }
+  }
+
+
+  switch (result_code)
+  {
+    case 2001:
+    {
+      // If we expect this request to assign the user to us (i.e. it
+      // isn't triggered by a deregistration or a failure) we should
+      // cache the User-Data.
+      if (!is_deregistration_request(_type) && !is_auth_failure_request(_type))
+      {
+        LOG_DEBUG("Getting User-Data from SAA for cache");
+        saa.user_data(_xml);
+        put_in_cache();
+      }
+      send_reply();
+    }
+    break;
+    case 5001:
+      LOG_INFO("Server-Assignment answer with result code %d - reject", result_code);
+      _req.send_reply(404);
+      break;
+    default:
+      LOG_INFO("Server-Assignment answer with result code %d - reject", result_code);
+      _req.send_reply(500);
+  }
+  delete this;
+  return;
+}
+
+//
+// IMPU IMS Subscription handling for URLs of the form
+// "/impu/<public ID>". Deprecated.
 //
 
 void ImpuIMSSubscriptionHandler::run()
@@ -643,152 +1116,41 @@ void ImpuIMSSubscriptionHandler::run()
 
   _impu = path.substr(prefix.length());
   _impi = _req.param("private_id");
-  std::string type = _req.param("type");
-  LOG_DEBUG("Parsed HTTP request: private ID %s, public ID %s, type %s",
-            _impi.c_str(), _impu.c_str(), type.c_str());
+  LOG_DEBUG("Parsed HTTP request: private ID %s, public ID %s",
+            _impi.c_str(), _impu.c_str());
 
-  // Map the type parameter from the HTTP request to its corresponding
-  // ServerAssignmentType object and save it off. We should always get a match,
-  // but if not _type was initialised to default values by the constructor.
-  std::map<std::string, ServerAssignmentType>::const_iterator it = SERVER_ASSIGNMENT_TYPES.find(type);
-  if (it != SERVER_ASSIGNMENT_TYPES.end())
+  if (_impi.empty())
   {
-    _type = it->second;
+    _type = RequestType::CALL;
   }
   else
   {
-    // The default _type value assumed we had an IMPI, and therefore that this
-    // was a REGISTRATION. If we don't have an IMPI, change the default
-    // Server-Assignment-Type to UNREGISTERED_USER.
-    if (_impi.empty())
-    {
-      _type.unregistered_user_default();
-    }
-
-    if (!type.empty())
-    {
-      LOG_WARNING("HTTP request contains invalid value %s for type parameter", type.c_str());
-    }
+    _type = RequestType::REG;
   }
 
-  // The ServerAssignmentType object has a cache_lookup field which
-  // determines whether we should look for IMS subscription in the cache.
-  if((_type.cache_lookup()) || !(_cfg->hss_configured))
+  LOG_DEBUG("Try to find IMS Subscription information in the cache");
+  Cache::Request* get_ims_sub = _cache->create_GetIMSSubscription(_impu);
+  CacheTransaction* tsx = new CacheTransaction(this);
+  tsx->set_success_clbk(&ImpuRegDataHandler::on_get_ims_subscription_success);
+  tsx->set_failure_clbk(&ImpuRegDataHandler::on_get_ims_subscription_failure);
+  _cache->send(tsx, get_ims_sub);
+}
+
+void ImpuIMSSubscriptionHandler::send_reply()
+{
+  if (_xml != "")
   {
-    LOG_DEBUG("Try to find IMS Subscription information in the cache");
-    Cache::Request* get_ims_sub = _cache->create_GetIMSSubscription(_impu);
-    CacheTransaction* tsx = new CacheTransaction(this);
-    tsx->set_success_clbk(&ImpuIMSSubscriptionHandler::on_get_ims_subscription_success);
-    tsx->set_failure_clbk(&ImpuIMSSubscriptionHandler::on_get_ims_subscription_failure);
-    _cache->send(tsx, get_ims_sub);
+    LOG_DEBUG("Building 200 OK response to send");
+    _req.add_content(_xml);
+    _req.send_reply(200);
   }
   else
   {
-    LOG_DEBUG("First time register or deregistration - go to the HSS");
-    send_server_assignment_request();
+    LOG_DEBUG("No XML User-Data available, returning 404");
+    _req.send_reply(404);
   }
 }
 
-void ImpuIMSSubscriptionHandler::on_get_ims_subscription_success(Cache::Request* request)
-{
-  LOG_DEBUG("Got IMS subscription from cache");
-  Cache::GetIMSSubscription* get_ims_sub = (Cache::GetIMSSubscription*)request;
-  std::string xml;
-  get_ims_sub->get_result(xml);
-  _req.add_content(xml);
-  _req.send_reply(200);
-  delete this;
-}
-
-void ImpuIMSSubscriptionHandler::on_get_ims_subscription_failure(Cache::Request* request, Cache::ResultCode error, std::string& text)
-{
-  if ((error == Cache::NOT_FOUND) && (_cfg->hss_configured))
-  {
-    LOG_DEBUG("No cached IMS subscription found, and HSS configured - query it");
-    send_server_assignment_request();
-  }
-  else
-  {
-    LOG_DEBUG("IMS subscription cache query failed: %u, %s", error, text.c_str());
-    _req.send_reply(502);
-    delete this;
-  }
-}
-
-void ImpuIMSSubscriptionHandler::send_server_assignment_request()
-{
-  Cx::ServerAssignmentRequest sar(_dict,
-                                  _diameter_stack,
-                                  _dest_host,
-                                  _dest_realm,
-                                  _impi,
-                                  _impu,
-                                  _server_name,
-                                  _type.type());
-  DiameterTransaction* tsx =
-    new DiameterTransaction(_dict, this, SUBSCRIPTION_STATS);
-  tsx->set_response_clbk(&ImpuIMSSubscriptionHandler::on_sar_response);
-  sar.send(tsx, 200);
-}
-
-void ImpuIMSSubscriptionHandler::on_sar_response(Diameter::Message& rsp)
-{
-  Cx::ServerAssignmentAnswer saa(rsp);
-  int32_t result_code = 0;
-  saa.result_code(result_code);
-  LOG_DEBUG("Received Server-Assignment answer with result code %d", result_code);
-  switch (result_code)
-  {
-    case 2001:
-      {
-        if (!_type.deregistration())
-        {
-          std::string user_data;
-          saa.user_data(user_data);
-          _req.add_content(user_data);
-
-          if (_cfg->ims_sub_cache_ttl != 0)
-          {
-            LOG_DEBUG("Attempting to cache IMS subscription for public IDs");
-            std::vector<std::string> public_ids = XmlUtils::get_public_ids(user_data);
-            if (!public_ids.empty())
-            {
-              LOG_DEBUG("Got public IDs to cache against - doing it");
-              Cache::Request* put_ims_sub =
-                _cache->create_PutIMSSubscription(public_ids,
-                                                  user_data,
-                                                  Cache::generate_timestamp(),
-                                                  _cfg->ims_sub_cache_ttl);
-              CacheTransaction* tsx = new CacheTransaction(NULL);
-              _cache->send(tsx, put_ims_sub);
-            }
-          }
-        }
-        _req.send_reply(200);
-      }
-      break;
-    case 5001:
-      LOG_INFO("Server-Assignment answer with result code %d - reject", result_code);
-      _req.send_reply(404);
-      break;
-    default:
-      LOG_INFO("Server-Assignment answer with result code %d - reject", result_code);
-      _req.send_reply(500);
-      break;
-  }
-
-  // Finally, regardless of the result_code from the HSS, if we are doing a
-  // deregistration, we should delete the IMS subscription relating to our public_id.
-  if (_type.deregistration())
-  {
-    LOG_INFO("Delete IMS subscription for %s", _impu.c_str());
-    Cache::Request* delete_public_id =
-      _cache->create_DeletePublicIDs(_impu, Cache::generate_timestamp());
-    CacheTransaction* tsx = new CacheTransaction(NULL);
-    _cache->send(tsx, delete_public_id);
-  }
-  delete this;
-}
 
 void RegistrationTerminationHandler::run()
 {
@@ -902,7 +1264,12 @@ void PushProfileHandler::run()
   {
     LOG_INFO("Updating IMS subscription from PPR");
     std::vector<std::string> impus = XmlUtils::get_public_ids(user_data);
-    Cache::Request* put_ims_subscription = _cfg->cache->create_PutIMSSubscription(impus, user_data, Cache::generate_timestamp(), _cfg->ims_sub_cache_ttl);
+    RegistrationState state = RegistrationState::UNCHANGED;
+    Cache::Request* put_ims_subscription = _cfg->cache->create_PutIMSSubscription(impus,
+                                                                                  user_data,
+                                                                                  state,
+                                                                                  Cache::generate_timestamp(),
+                                                                                  (2 * _cfg->hss_reregistration_time));
     HssCacheHandler::CacheTransaction<PushProfileHandler>* tsx = new HssCacheHandler::CacheTransaction<PushProfileHandler>(NULL);
     _cfg->cache->send(tsx, put_ims_subscription);
   }

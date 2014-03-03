@@ -296,7 +296,8 @@ const slice_t empty_slice(0);
 
 // utlity functions to make a slice from a map of column names => values.
 void make_slice(slice_t& slice,
-                std::map<std::string, std::string>& columns)
+                std::map<std::string, std::string>& columns,
+                int32_t ttl = 0)
 {
   for(std::map<std::string, std::string>::const_iterator it = columns.begin();
       it != columns.end();
@@ -305,6 +306,10 @@ void make_slice(slice_t& slice,
     cass::Column c;
     c.__set_name(it->first);
     c.__set_value(it->second);
+    if (ttl != 0)
+    {
+      c.__set_ttl(ttl);
+    }
 
     cass::ColumnOrSuperColumn csc;
     csc.__set_column(c);
@@ -323,15 +328,32 @@ class MutationMapMatcher : public MatcherInterface<const mutmap_t&> {
 public:
   MutationMapMatcher(const std::string& table,
                      const std::vector<std::string>& rows,
-                     const std::map<std::string, std::string>& columns,
+                     const std::map<std::string, std::pair<std::string, int32_t> >& columns,
                      int64_t timestamp,
                      int32_t ttl = 0) :
     _table(table),
     _rows(rows),
     _columns(columns),
-    _timestamp(timestamp),
-    _ttl(ttl)
-  {}
+    _timestamp(timestamp)
+  {};
+
+  MutationMapMatcher(const std::string& table,
+                     const std::vector<std::string>& rows,
+                     const std::map<std::string, std::string>& columns,
+                     int64_t timestamp,
+                     int32_t ttl = 0) :
+    _table(table),
+    _rows(rows),
+    _timestamp(timestamp)
+  {
+    for(std::map<std::string, std::string>::const_iterator column = columns.begin();
+        column != columns.end();
+        ++column)
+    {
+      _columns[column->first].first = column->second;
+      _columns[column->first].second = ttl;
+    }
+  };
 
   virtual bool MatchAndExplain(const mutmap_t& mutmap,
                                MatchResultListener* listener) const
@@ -420,7 +442,8 @@ public:
           return false;
         }
 
-        const std::string& expected_value = _columns.find(column.name)->second;
+        const std::string& expected_value = _columns.find(column.name)->second.first;
+        const int32_t& expected_ttl = _columns.find(column.name)->second.second;
 
         // Check it specifies the correct value.
         if (!column.__isset.value)
@@ -451,7 +474,7 @@ public:
                     << ", got " << column.timestamp << ")";
         }
 
-        if (_ttl != 0)
+        if (expected_ttl != 0)
         {
           // A TTL is expected. Check the field is present and correct.
           if (!column.__isset.ttl)
@@ -460,10 +483,10 @@ public:
             return false;
           }
 
-          if (column.ttl != _ttl)
+          if (column.ttl != expected_ttl)
           {
             *listener << row_table_column_name
-                      << " has wrong ttl (expected " << _ttl <<
+                      << " has wrong ttl (expected " << expected_ttl <<
                       ", got " << column.ttl << ")";
             return false;
           }
@@ -496,7 +519,7 @@ public:
 private:
   std::string _table;
   std::vector<std::string> _rows;
-  std::map<std::string, std::string> _columns;
+  std::map<std::string, std::pair<std::string, int32_t> > _columns;
   int64_t _timestamp;
   int32_t _ttl;
 };
@@ -522,6 +545,16 @@ MutationMap(const std::string& table,
             int32_t ttl = 0)
 {
   return MakeMatcher(new MutationMapMatcher(table, rows, columns, timestamp, ttl));
+}
+
+inline Matcher<const mutmap_t&>
+MutationMap(const std::string& table,
+            const std::string& row,
+            const std::map<std::string, std::pair<std::string, int32_t> >& columns,
+            int64_t timestamp)
+{
+  std::vector<std::string> rows(1, row);
+  return MakeMatcher(new MutationMapMatcher(table, rows, columns, timestamp));
 }
 
 
@@ -649,7 +682,41 @@ TEST_F(CacheRequestTest, PutIMSSubscriptionMainline)
 {
   CacheTestTransaction *trx = make_trx();
   Cache::Request* req =
-    _cache.create_PutIMSSubscription("kermit", "<xml>", 1000, 300);
+    _cache.create_PutIMSSubscription("kermit", "<xml>", RegistrationState::REGISTERED, 1000, 300);
+
+  std::map<std::string, std::string> columns;
+  columns["ims_subscription_xml"] = "<xml>";
+  columns["is_registered"] = "\x01";
+
+  EXPECT_CALL(_client,
+              batch_mutate(
+                MutationMap("impu", "kermit", columns, 1000, 300), _));
+
+  do_successful_trx(trx, req);
+}
+
+TEST_F(CacheRequestTest, PutIMSSubscriptionUnregistered)
+{
+  CacheTestTransaction *trx = make_trx();
+  Cache::Request* req =
+    _cache.create_PutIMSSubscription("kermit", "<xml>", RegistrationState::UNREGISTERED, 1000, 300);
+
+  std::map<std::string, std::string> columns;
+  columns["ims_subscription_xml"] = "<xml>";
+  columns["is_registered"] = std::string("\x00", 1);
+
+  EXPECT_CALL(_client,
+              batch_mutate(
+                MutationMap("impu", "kermit", columns, 1000, 300), _));
+
+  do_successful_trx(trx, req);
+}
+
+TEST_F(CacheRequestTest, PutIMSSubscriptionUnchanged)
+{
+  CacheTestTransaction *trx = make_trx();
+  Cache::Request* req =
+    _cache.create_PutIMSSubscription("kermit", "<xml>", RegistrationState::UNCHANGED, 1000, 300);
 
   std::map<std::string, std::string> columns;
   columns["ims_subscription_xml"] = "<xml>";
@@ -666,10 +733,11 @@ TEST_F(CacheRequestTest, NoTTLOnPut)
 {
   CacheTestTransaction *trx = make_trx();
   Cache::Request* req =
-    _cache.create_PutIMSSubscription("kermit", "<xml>", 1000);
+    _cache.create_PutIMSSubscription("kermit", "<xml>", RegistrationState::REGISTERED, 1000);
 
   std::map<std::string, std::string> columns;
   columns["ims_subscription_xml"] = "<xml>";
+  columns["is_registered"] = "\x01";
 
   EXPECT_CALL(_client, batch_mutate(
                          MutationMap("impu", "kermit", columns, 1000), _));
@@ -686,10 +754,11 @@ TEST_F(CacheRequestTest, PutIMSSubMultipleIDs)
 
   CacheTestTransaction *trx = make_trx();
   Cache::Request* req =
-    _cache.create_PutIMSSubscription(ids, "<xml>", 1000);
+    _cache.create_PutIMSSubscription(ids, "<xml>", RegistrationState::REGISTERED, 1000);
 
   std::map<std::string, std::string> columns;
   columns["ims_subscription_xml"] = "<xml>";
+  columns["is_registered"] = "\x01";
 
   EXPECT_CALL(_client, batch_mutate(
                          MutationMap("impu", ids, columns, 1000), _));
@@ -702,7 +771,7 @@ TEST_F(CacheRequestTest, PutTransportEx)
 {
   CacheTestTransaction *trx = make_trx();
   Cache::Request* req =
-    _cache.create_PutIMSSubscription("kermit", "<xml>", 1000);
+    _cache.create_PutIMSSubscription("kermit", "<xml>", RegistrationState::REGISTERED, 1000);
 
   apache::thrift::transport::TTransportException te;
   EXPECT_CALL(_client, batch_mutate(_, _)).WillOnce(Throw(te));
@@ -717,7 +786,7 @@ TEST_F(CacheRequestTest, PutInvalidRequestException)
 {
   CacheTestTransaction *trx = make_trx();
   Cache::Request* req =
-    _cache.create_PutIMSSubscription("kermit", "<xml>", 1000);
+    _cache.create_PutIMSSubscription("kermit", "<xml>", RegistrationState::REGISTERED, 1000);
 
   cass::InvalidRequestException ire;
   EXPECT_CALL(_client, batch_mutate(_, _)).WillOnce(Throw(ire));
@@ -732,7 +801,7 @@ TEST_F(CacheRequestTest, PutNotFoundException)
 {
   CacheTestTransaction *trx = make_trx();
   Cache::Request* req =
-    _cache.create_PutIMSSubscription("kermit", "<xml>", 1000);
+    _cache.create_PutIMSSubscription("kermit", "<xml>", RegistrationState::REGISTERED, 1000);
 
   cass::NotFoundException nfe;
   EXPECT_CALL(_client, batch_mutate(_, _)).WillOnce(Throw(nfe));
@@ -747,7 +816,7 @@ TEST_F(CacheRequestTest, PutNoResultsException)
 {
   CacheTestTransaction *trx = make_trx();
   Cache::Request* req =
-    _cache.create_PutIMSSubscription("kermit", "<xml>", 1000);
+    _cache.create_PutIMSSubscription("kermit", "<xml>", RegistrationState::REGISTERED, 1000);
 
   Cache::NoResultsException rnfe("muppets", "kermit");
   EXPECT_CALL(_client, batch_mutate(_, _)).WillOnce(Throw(rnfe));
@@ -762,7 +831,7 @@ TEST_F(CacheRequestTest, PutUnknownException)
 {
   CacheTestTransaction *trx = make_trx();
   Cache::Request* req =
-    _cache.create_PutIMSSubscription("kermit", "<xml>", 1000);
+    _cache.create_PutIMSSubscription("kermit", "<xml>", RegistrationState::REGISTERED, 1000);
 
   std::string ex("Made up exception");
   EXPECT_CALL(_client, batch_mutate(_, _)).WillOnce(Throw(ex));
@@ -777,7 +846,7 @@ TEST_F(CacheRequestTest, PutsHaveConsistencyLevelOne)
 {
   CacheTestTransaction *trx = make_trx();
   Cache::Request* req =
-    _cache.create_PutIMSSubscription("kermit", "<xml>", 1000, 300);
+    _cache.create_PutIMSSubscription("kermit", "<xml>", RegistrationState::REGISTERED, 1000);
 
   EXPECT_CALL(_client, batch_mutate(_, cass::ConsistencyLevel::ONE));
 
@@ -907,20 +976,20 @@ TEST_F(CacheRequestTest, DeletesHaveConsistencyLevelOne)
   do_successful_trx(trx, req);
 }
 
-
-
 TEST_F(CacheRequestTest, GetIMSSubscriptionMainline)
 {
   std::vector<std::string> requested_columns;
   requested_columns.push_back("ims_subscription_xml");
+  requested_columns.push_back("is_registered");
 
   std::map<std::string, std::string> columns;
   columns["ims_subscription_xml"] = "<howdy>";
+  columns["is_registered"] = "\x01";
 
   std::vector<cass::ColumnOrSuperColumn> slice;
   make_slice(slice, columns);
 
-  ResultRecorder<Cache::GetIMSSubscription, std::string> rec;
+  ResultRecorder<Cache::GetIMSSubscription, std::pair<RegistrationState, std::string> > rec;
   RecordingTransaction* trx = make_rec_trx(&rec);
   Cache::Request *req = _cache.create_GetIMSSubscription("kermit");
 
@@ -936,24 +1005,166 @@ TEST_F(CacheRequestTest, GetIMSSubscriptionMainline)
   _cache.send(trx, req);
   wait();
 
-  EXPECT_EQ("<howdy>", rec.result);
+  EXPECT_EQ(RegistrationState::REGISTERED, rec.result.first);
+  EXPECT_EQ("<howdy>", rec.result.second);
+}
+
+TEST_F(CacheRequestTest, GetIMSSubscriptionTTL)
+{
+  std::vector<std::string> requested_columns;
+  requested_columns.push_back("ims_subscription_xml");
+  requested_columns.push_back("is_registered");
+
+  std::map<std::string, std::string> columns;
+  columns["is_registered"] = "\x01";
+
+  std::vector<cass::ColumnOrSuperColumn> slice;
+  make_slice(slice, columns);
+
+  ResultRecorder<Cache::GetIMSSubscription, std::pair<RegistrationState, std::string> > rec;
+  RecordingTransaction* trx = make_rec_trx(&rec);
+  Cache::Request *req = _cache.create_GetIMSSubscription("kermit");
+
+  EXPECT_CALL(_client, get_slice(_,
+                                 "kermit",
+                                 ColumnPathForTable("impu"),
+                                 SpecificColumns(requested_columns),
+                                 _))
+    .WillOnce(SetArgReferee<0>(slice));
+
+  EXPECT_CALL(*trx, on_success(_))
+    .WillOnce(Invoke(trx, &RecordingTransaction::record_result));
+  _cache.send(trx, req);
+  wait();
+
+  EXPECT_EQ(RegistrationState::REGISTERED, rec.result.first);
+  EXPECT_EQ("", rec.result.second);
+}
+
+TEST_F(CacheRequestTest, GetIMSSubscriptionUnregistered)
+{
+  std::vector<std::string> requested_columns;
+  requested_columns.push_back("ims_subscription_xml");
+  requested_columns.push_back("is_registered");
+
+  std::map<std::string, std::string> columns;
+  columns["ims_subscription_xml"] = "<howdy>";
+  columns["is_registered"] = std::string("\x00", 1);
+
+  std::vector<cass::ColumnOrSuperColumn> slice;
+  // Test with a TTL of 3600
+  make_slice(slice, columns, 3600);
+
+  ResultRecorder<Cache::GetIMSSubscription, std::pair<RegistrationState, std::string> > rec;
+  RecordingTransaction* trx = make_rec_trx(&rec);
+  Cache::Request *req = _cache.create_GetIMSSubscription("kermit");
+
+  EXPECT_CALL(_client, get_slice(_,
+                                 "kermit",
+                                 ColumnPathForTable("impu"),
+                                 SpecificColumns(requested_columns),
+                                 _))
+    .WillOnce(SetArgReferee<0>(slice));
+
+  EXPECT_CALL(*trx, on_success(_))
+    .WillOnce(Invoke(trx, &RecordingTransaction::record_result));
+  _cache.send(trx, req);
+  wait();
+
+  EXPECT_EQ(RegistrationState::UNREGISTERED, rec.result.first);
+  EXPECT_EQ("<howdy>", rec.result.second);
+}
+
+// If we have User-Data XML, but no explicit registration state, that should
+// still be treated as unregistered state.
+
+TEST_F(CacheRequestTest, GetIMSSubscriptionNoRegState)
+{
+  std::vector<std::string> requested_columns;
+  requested_columns.push_back("ims_subscription_xml");
+  requested_columns.push_back("is_registered");
+
+  std::map<std::string, std::string> columns;
+  columns["ims_subscription_xml"] = "<howdy>";
+  columns["is_registered"] = "";
+
+  std::vector<cass::ColumnOrSuperColumn> slice;
+  make_slice(slice, columns);
+
+  ResultRecorder<Cache::GetIMSSubscription, std::pair<RegistrationState, std::string> > rec;
+  RecordingTransaction* trx = make_rec_trx(&rec);
+  Cache::Request *req = _cache.create_GetIMSSubscription("kermit");
+
+  EXPECT_CALL(_client, get_slice(_,
+                                 "kermit",
+                                 ColumnPathForTable("impu"),
+                                 SpecificColumns(requested_columns),
+                                 _))
+    .WillOnce(SetArgReferee<0>(slice));
+
+  EXPECT_CALL(*trx, on_success(_))
+    .WillOnce(Invoke(trx, &RecordingTransaction::record_result));
+  _cache.send(trx, req);
+  wait();
+
+  EXPECT_EQ(RegistrationState::UNREGISTERED, rec.result.first);
+  EXPECT_EQ("<howdy>", rec.result.second);
+}
+
+// Invalid registration state is treated as NOT_REGISTERED
+
+TEST_F(CacheRequestTest, GetIMSSubscriptionInvalidRegState)
+{
+  std::vector<std::string> requested_columns;
+  requested_columns.push_back("ims_subscription_xml");
+  requested_columns.push_back("is_registered");
+
+  std::map<std::string, std::string> columns;
+  columns["ims_subscription_xml"] = "";
+  columns["is_registered"] = "\x03";
+
+  std::vector<cass::ColumnOrSuperColumn> slice;
+  make_slice(slice, columns);
+
+  ResultRecorder<Cache::GetIMSSubscription, std::pair<RegistrationState, std::string> > rec;
+  RecordingTransaction* trx = make_rec_trx(&rec);
+  Cache::Request *req = _cache.create_GetIMSSubscription("kermit");
+
+  EXPECT_CALL(_client, get_slice(_,
+                                 "kermit",
+                                 ColumnPathForTable("impu"),
+                                 SpecificColumns(requested_columns),
+                                 _))
+    .WillOnce(SetArgReferee<0>(slice));
+
+  EXPECT_CALL(*trx, on_success(_))
+    .WillOnce(Invoke(trx, &RecordingTransaction::record_result));
+  _cache.send(trx, req);
+  wait();
+
+  EXPECT_EQ(RegistrationState::NOT_REGISTERED, rec.result.first);
+  EXPECT_EQ("", rec.result.second);
 }
 
 
 TEST_F(CacheRequestTest, GetIMSSubscriptionNotFound)
 {
-  CacheTestTransaction* trx = make_trx();
   Cache::Request* req =
     _cache.create_GetIMSSubscription("kermit");
+  ResultRecorder<Cache::GetIMSSubscription, std::pair<RegistrationState, std::string> > rec;
+  RecordingTransaction* trx = make_rec_trx(&rec);
 
   EXPECT_CALL(_client, get_slice(_, "kermit", _, _, _))
     .WillOnce(SetArgReferee<0>(empty_slice));
 
-  EXPECT_CALL(*trx, on_failure(_, Cache::NOT_FOUND, _));
+  EXPECT_CALL(*trx, on_success(_))
+    .WillOnce(Invoke(trx, &RecordingTransaction::record_result));
   _cache.send(trx, req);
   wait();
-}
 
+  EXPECT_EQ("", rec.result.second);
+  EXPECT_EQ(RegistrationState::NOT_REGISTERED, rec.result.first);
+}
 
 TEST_F(CacheRequestTest, GetAuthVectorAllColsReturned)
 {
@@ -1235,14 +1446,16 @@ TEST_F(CacheRequestTest, HaGetMainline)
 {
   std::vector<std::string> requested_columns;
   requested_columns.push_back("ims_subscription_xml");
+  requested_columns.push_back("is_registered");
 
   std::map<std::string, std::string> columns;
   columns["ims_subscription_xml"] = "<howdy>";
+  columns["is_registered"] = "\x01";
 
   std::vector<cass::ColumnOrSuperColumn> slice;
   make_slice(slice, columns);
 
-  ResultRecorder<Cache::GetIMSSubscription, std::string> rec;
+  ResultRecorder<Cache::GetIMSSubscription, std::pair<RegistrationState, std::string> > rec;
   RecordingTransaction* trx = make_rec_trx(&rec);
   Cache::Request* req = _cache.create_GetIMSSubscription("kermit");
 
@@ -1265,7 +1478,7 @@ TEST_F(CacheRequestTest, HaGetMainline)
   _cache.send(trx, req);
   wait();
 
-  EXPECT_EQ("<howdy>", rec.result);
+  EXPECT_EQ("<howdy>", rec.result.second);
 }
 
 
@@ -1280,7 +1493,7 @@ TEST_F(CacheRequestTest, HaGet2ndReadNotFoundException)
   std::vector<cass::ColumnOrSuperColumn> slice;
   make_slice(slice, columns);
 
-  ResultRecorder<Cache::GetIMSSubscription, std::string> rec;
+  ResultRecorder<Cache::GetIMSSubscription, std::pair<RegistrationState, std::string> > rec;
   RecordingTransaction* trx = make_rec_trx(&rec);
   Cache::Request* req = _cache.create_GetIMSSubscription("kermit");
 
@@ -1309,7 +1522,7 @@ TEST_F(CacheRequestTest, HaGet2ndReadUnavailableException)
   std::vector<cass::ColumnOrSuperColumn> slice;
   make_slice(slice, columns);
 
-  ResultRecorder<Cache::GetIMSSubscription, std::string> rec;
+  ResultRecorder<Cache::GetIMSSubscription, std::pair<RegistrationState, std::string> > rec;
   RecordingTransaction* trx = make_rec_trx(&rec);
   Cache::Request* req = _cache.create_GetIMSSubscription("kermit");
 
@@ -1354,7 +1567,7 @@ TEST_F(CacheLatencyTest, PutRecordsLatency)
 {
   CacheTestTransaction *trx = make_trx();
   Cache::Request* req =
-    _cache.create_PutIMSSubscription("kermit", "<xml>", 1000, 300);
+    _cache.create_PutIMSSubscription("kermit", "<xml>", RegistrationState::REGISTERED, 1000, 300);
 
   std::map<std::string, std::string> columns;
   columns["ims_subscription_xml"] = "<xml>";
@@ -1392,7 +1605,7 @@ TEST_F(CacheLatencyTest, GetRecordsLatency)
   std::vector<cass::ColumnOrSuperColumn> slice;
   make_slice(slice, columns);
 
-  ResultRecorder<Cache::GetIMSSubscription, std::string> rec;
+  ResultRecorder<Cache::GetIMSSubscription, std::pair<RegistrationState, std::string> > rec;
   RecordingTransaction* trx = make_rec_trx(&rec);
   Cache::Request *req = _cache.create_GetIMSSubscription("kermit");
 
@@ -1413,10 +1626,7 @@ TEST_F(CacheLatencyTest, ErrorRecordsLatency)
 {
   CacheTestTransaction *trx = make_trx();
   Cache::Request* req =
-    _cache.create_PutIMSSubscription("kermit", "<xml>", 1000, 300);
-
-  std::map<std::string, std::string> columns;
-  columns["ims_subscription_xml"] = "<xml>";
+    _cache.create_PutIMSSubscription("kermit", "<xml>", RegistrationState::REGISTERED, 1000, 300);
 
   cass::NotFoundException nfe;
   EXPECT_CALL(_client, batch_mutate(_, _))

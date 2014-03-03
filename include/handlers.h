@@ -44,7 +44,6 @@
 #include "cache.h"
 #include "httpstack.h"
 #include "statisticsmanager.h"
-#include "serverassignmenttype.h"
 
 // Result-Code AVP constants
 const int DIAMETER_SUCCESS = 2001;
@@ -79,26 +78,6 @@ const std::string JSON_INTEGRITYKEY = "integritykey";
 const std::string JSON_RC = "result-code";
 const std::string JSON_SCSCF = "scscf";
 
-// Server Assignment Types
-const ServerAssignmentType REG(false, ServerAssignmentType::REGISTRATION, false);
-const ServerAssignmentType REREG(true, ServerAssignmentType::RE_REGISTRATION, false);
-const ServerAssignmentType DEREG_USER(false, ServerAssignmentType::USER_DEREGISTRATION, true);
-const ServerAssignmentType DEREG_TIMEOUT(false, ServerAssignmentType::TIMEOUT_DEREGISTRATION, true);
-const ServerAssignmentType DEREG_AUTH_FAIL(false, ServerAssignmentType::AUTHENTICATION_FAILURE, true);
-const ServerAssignmentType DEREG_AUTH_TIMEOUT(false, ServerAssignmentType::AUTHENTICATION_TIMEOUT, true);
-const ServerAssignmentType DEREG_ADMIN(false, ServerAssignmentType::ADMINISTRATIVE_DEREGISTRATION, true);
-const ServerAssignmentType CALL_REG(true, ServerAssignmentType::NO_ASSIGNMENT, false);
-const ServerAssignmentType CALL_UNREG(true, ServerAssignmentType::UNREGISTERED_USER, false);
-const std::map<std::string, ServerAssignmentType> SERVER_ASSIGNMENT_TYPES = {{"reg", REG},
-                                                                             {"rereg", REREG},
-                                                                             {"dereg-user", DEREG_USER},
-                                                                             {"dereg-timeout", DEREG_TIMEOUT},
-                                                                             {"dereg-auth-fail", DEREG_AUTH_FAIL},
-                                                                             {"dereg-auth-timeout", DEREG_AUTH_TIMEOUT},
-                                                                             {"dereg-admin", DEREG_ADMIN},
-                                                                             {"call-reg", CALL_REG},
-                                                                             {"call-unreg", CALL_UNREG}};
-
 class PingHandler : public HttpStack::Handler
 {
 public:
@@ -119,7 +98,10 @@ public:
   static void configure_cache(Cache* cache);
   static void configure_stats(StatisticsManager* stats_manager);
 
-  inline Cache* cache() const {return _cache;}
+  inline Cache* cache() const
+  {
+    return _cache;
+  }
 
   void on_diameter_timeout();
 
@@ -305,11 +287,11 @@ public:
            std::string _scheme_unknown = "Unknown",
            std::string _scheme_digest = "SIP Digest",
            std::string _scheme_aka = "Digest-AKAv1-MD5") :
-    query_cache_av(!_hss_configured),
-    impu_cache_ttl(_impu_cache_ttl),
-    scheme_unknown(_scheme_unknown),
-    scheme_digest(_scheme_digest),
-    scheme_aka(_scheme_aka) {}
+      query_cache_av(!_hss_configured),
+      impu_cache_ttl(_impu_cache_ttl),
+      scheme_unknown(_scheme_unknown),
+      scheme_digest(_scheme_digest),
+      scheme_aka(_scheme_aka) {}
 
     bool query_cache_av;
     int impu_cache_ttl;
@@ -418,39 +400,70 @@ private:
   std::string _authorization_type;
 };
 
-class ImpuIMSSubscriptionHandler : public HssCacheHandler
+class ImpuRegDataHandler : public HssCacheHandler
 {
 public:
   struct Config
   {
-    Config(bool _hss_configured = true, int _ims_sub_cache_ttl = 3600) : hss_configured(_hss_configured), ims_sub_cache_ttl(_ims_sub_cache_ttl) {}
+    Config(bool _hss_configured = true, int _hss_reregistration_time = 3600) :
+      hss_configured(_hss_configured),
+      hss_reregistration_time(_hss_reregistration_time) {}
     bool hss_configured;
-    int ims_sub_cache_ttl;
+    int hss_reregistration_time;
   };
 
-  // Initialise the type field to reflect default behaviour if no type is specified.
-  // That is, look for IMS subscription information in the cache. If we don't find
-  // any, assume we have a first registration and query the cache with
-  // Server-Assignment-Type set to REGISTRATION (1) and cache any IMS subscription
-  // information that gets returned.
-  ImpuIMSSubscriptionHandler(HttpStack::Request& req, const Config* cfg) :
-    HssCacheHandler(req), _cfg(cfg), _impi(), _impu(), _type(true, ServerAssignmentType::REGISTRATION, false)
+  ImpuRegDataHandler(HttpStack::Request& req, const Config* cfg) :
+    HssCacheHandler(req), _cfg(cfg), _impi(), _impu()
   {}
-
-  void run();
+  virtual ~ImpuRegDataHandler() {};
+  virtual void run();
   void on_get_ims_subscription_success(Cache::Request* request);
   void on_get_ims_subscription_failure(Cache::Request* request, Cache::ResultCode error, std::string& text);
-  void send_server_assignment_request();
+  void send_server_assignment_request(Cx::ServerAssignmentType type);
   void on_sar_response(Diameter::Message& rsp);
 
-  typedef HssCacheHandler::CacheTransaction<ImpuIMSSubscriptionHandler> CacheTransaction;
-  typedef HssCacheHandler::DiameterTransaction<ImpuIMSSubscriptionHandler> DiameterTransaction;
+  typedef HssCacheHandler::CacheTransaction<ImpuRegDataHandler> CacheTransaction;
+  typedef HssCacheHandler::DiameterTransaction<ImpuRegDataHandler> DiameterTransaction;
 
-private:
+protected:
+
+  // Represents the possible types of request that can be made in the
+  // body of a PUT. Homestead determines what action to take (e.g.
+  // what to set in the database, what to send to the HSS) based on a
+  // combination of this type and the user's registration state in the
+  // Cassandra database.
+  enum RequestType
+  {
+    UNKNOWN, REG, CALL, DEREG_USER, DEREG_ADMIN, DEREG_TIMEOUT, DEREG_AUTH_FAIL, DEREG_AUTH_TIMEOUT
+  };
+
+  virtual void send_reply();
+  void put_in_cache();
+  bool is_deregistration_request(RequestType type);
+  bool is_auth_failure_request(RequestType type);
+  Cx::ServerAssignmentType sar_type_for_request(RequestType type);
+  RequestType request_type_from_body(std::string body);
+
+
   const Config* _cfg;
   std::string _impi;
   std::string _impu;
-  ServerAssignmentType _type;
+  std::string _type_param;
+  RequestType _type;
+  std::string _xml;
+  RegistrationState _new_state;
+};
+
+class ImpuIMSSubscriptionHandler : public ImpuRegDataHandler
+{
+public:
+  ImpuIMSSubscriptionHandler(HttpStack::Request& req, const Config* cfg) :
+    ImpuRegDataHandler(req, cfg)
+  {};
+
+  void run();
+private:
+  void send_reply();
 };
 
 class RegistrationTerminationHandler : public Diameter::Stack::Handler
@@ -460,14 +473,14 @@ public:
   {
     Config(Cache* _cache,
            Cx::Dictionary* _dict,
-           int _ims_sub_cache_ttl = 3600) :
-           cache(_cache),
-           dict(_dict),
-           ims_sub_cache_ttl(_ims_sub_cache_ttl) {}
+           int _hss_reregistration_time = 3600) :
+      cache(_cache),
+      dict(_dict),
+      hss_reregistration_time(_hss_reregistration_time) {}
 
     Cache* cache;
     Cx::Dictionary* dict;
-    int ims_sub_cache_ttl;
+    int hss_reregistration_time;
   };
 
   RegistrationTerminationHandler(Diameter::Message& msg, const Config* cfg) :
@@ -496,16 +509,16 @@ public:
     Config(Cache* _cache,
            Cx::Dictionary* _dict,
            int _impu_cache_ttl = 0,
-           int _ims_sub_cache_ttl = 3600) :
-           cache(_cache),
-           dict(_dict),
-           impu_cache_ttl(_impu_cache_ttl),
-           ims_sub_cache_ttl(_ims_sub_cache_ttl) {}
+           int _hss_reregistration_time = 3600) :
+      cache(_cache),
+      dict(_dict),
+      impu_cache_ttl(_impu_cache_ttl),
+      hss_reregistration_time(_hss_reregistration_time) {}
 
     Cache* cache;
     Cx::Dictionary* dict;
     int impu_cache_ttl;
-    int ims_sub_cache_ttl;
+    int hss_reregistration_time;
   };
 
   PushProfileHandler(Diameter::Message& msg, const Config* cfg) :
