@@ -98,7 +98,10 @@ public:
   static void configure_cache(Cache* cache);
   static void configure_stats(StatisticsManager* stats_manager);
 
-  inline Cache* cache() const {return _cache;}
+  inline Cache* cache() const
+  {
+    return _cache;
+  }
 
   void on_diameter_timeout();
 
@@ -284,11 +287,11 @@ public:
            std::string _scheme_unknown = "Unknown",
            std::string _scheme_digest = "SIP Digest",
            std::string _scheme_aka = "Digest-AKAv1-MD5") :
-    query_cache_av(!_hss_configured),
-    impu_cache_ttl(_impu_cache_ttl),
-    scheme_unknown(_scheme_unknown),
-    scheme_digest(_scheme_digest),
-    scheme_aka(_scheme_aka) {}
+      query_cache_av(!_hss_configured),
+      impu_cache_ttl(_impu_cache_ttl),
+      scheme_unknown(_scheme_unknown),
+      scheme_digest(_scheme_digest),
+      scheme_aka(_scheme_aka) {}
 
     bool query_cache_av;
     int impu_cache_ttl;
@@ -402,8 +405,8 @@ class ImpuRegDataHandler : public HssCacheHandler
 public:
   struct Config
   {
-  Config(bool _hss_configured = true, int _hss_reregistration_time = 3600) :
-    hss_configured(_hss_configured),
+    Config(bool _hss_configured = true, int _hss_reregistration_time = 3600) :
+      hss_configured(_hss_configured),
       hss_reregistration_time(_hss_reregistration_time) {}
     bool hss_configured;
     int hss_reregistration_time;
@@ -429,7 +432,8 @@ protected:
   // what to set in the database, what to send to the HSS) based on a
   // combination of this type and the user's registration state in the
   // Cassandra database.
-  enum RequestType {
+  enum RequestType
+  {
     UNKNOWN, REG, CALL, DEREG_USER, DEREG_ADMIN, DEREG_TIMEOUT, DEREG_AUTH_FAIL, DEREG_AUTH_TIMEOUT
   };
 
@@ -453,13 +457,13 @@ protected:
 class ImpuIMSSubscriptionHandler : public ImpuRegDataHandler
 {
 public:
-ImpuIMSSubscriptionHandler(HttpStack::Request& req, const Config* cfg) :
-  ImpuRegDataHandler(req, cfg)
+  ImpuIMSSubscriptionHandler(HttpStack::Request& req, const Config* cfg) :
+    ImpuRegDataHandler(req, cfg)
   {};
 
   void run();
 private:
-    void send_reply();
+  void send_reply();
 };
 
 class RegistrationTerminationHandler : public Diameter::Stack::Handler
@@ -470,9 +474,9 @@ public:
     Config(Cache* _cache,
            Cx::Dictionary* _dict,
            int _hss_reregistration_time = 3600) :
-           cache(_cache),
-           dict(_dict),
-           hss_reregistration_time(_hss_reregistration_time) {}
+      cache(_cache),
+      dict(_dict),
+      hss_reregistration_time(_hss_reregistration_time) {}
 
     Cache* cache;
     Cx::Dictionary* dict;
@@ -506,10 +510,10 @@ public:
            Cx::Dictionary* _dict,
            int _impu_cache_ttl = 0,
            int _hss_reregistration_time = 3600) :
-           cache(_cache),
-           dict(_dict),
-           impu_cache_ttl(_impu_cache_ttl),
-           hss_reregistration_time(_hss_reregistration_time) {}
+      cache(_cache),
+      dict(_dict),
+      impu_cache_ttl(_impu_cache_ttl),
+      hss_reregistration_time(_hss_reregistration_time) {}
 
     Cache* cache;
     Cx::Dictionary* dict;
