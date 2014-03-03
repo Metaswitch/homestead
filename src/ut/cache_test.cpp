@@ -296,7 +296,8 @@ const slice_t empty_slice(0);
 
 // utlity functions to make a slice from a map of column names => values.
 void make_slice(slice_t& slice,
-                std::map<std::string, std::string>& columns)
+                std::map<std::string, std::string>& columns,
+                int32_t ttl = 0)
 {
   for(std::map<std::string, std::string>::const_iterator it = columns.begin();
       it != columns.end();
@@ -305,6 +306,10 @@ void make_slice(slice_t& slice,
     cass::Column c;
     c.__set_name(it->first);
     c.__set_value(it->second);
+    if (ttl != 0)
+    {
+      c.__set_ttl(ttl);
+    }
 
     cass::ColumnOrSuperColumn csc;
     csc.__set_column(c);
@@ -1052,6 +1057,43 @@ TEST_F(CacheRequestTest, GetIMSSubscriptionUnregistered)
   columns["is_registered"] = std::string("\x00", 1);
 
   std::vector<cass::ColumnOrSuperColumn> slice;
+  // Test with a TTL of 3600
+  make_slice(slice, columns, 3600);
+
+  ResultRecorder<Cache::GetIMSSubscription, std::pair<RegistrationState, std::string> > rec;
+  RecordingTransaction* trx = make_rec_trx(&rec);
+  Cache::Request *req = _cache.create_GetIMSSubscription("kermit");
+
+  EXPECT_CALL(_client, get_slice(_,
+                                 "kermit",
+                                 ColumnPathForTable("impu"),
+                                 SpecificColumns(requested_columns),
+                                 _))
+    .WillOnce(SetArgReferee<0>(slice));
+
+  EXPECT_CALL(*trx, on_success(_))
+    .WillOnce(Invoke(trx, &RecordingTransaction::record_result));
+  _cache.send(trx, req);
+  wait();
+
+  EXPECT_EQ(RegistrationState::UNREGISTERED, rec.result.first);
+  EXPECT_EQ("<howdy>", rec.result.second);
+}
+
+// If we have User-Data XML, but no explicit registration state, that should
+// still be treated as unregistered state.
+
+TEST_F(CacheRequestTest, GetIMSSubscriptionNoRegState)
+{
+  std::vector<std::string> requested_columns;
+  requested_columns.push_back("ims_subscription_xml");
+  requested_columns.push_back("is_registered");
+
+  std::map<std::string, std::string> columns;
+  columns["ims_subscription_xml"] = "<howdy>";
+  columns["is_registered"] = "";
+
+  std::vector<cass::ColumnOrSuperColumn> slice;
   make_slice(slice, columns);
 
   ResultRecorder<Cache::GetIMSSubscription, std::pair<RegistrationState, std::string> > rec;
@@ -1072,6 +1114,41 @@ TEST_F(CacheRequestTest, GetIMSSubscriptionUnregistered)
 
   EXPECT_EQ(RegistrationState::UNREGISTERED, rec.result.first);
   EXPECT_EQ("<howdy>", rec.result.second);
+}
+
+// Invalid registration state is treated as NOT_REGISTERED
+
+TEST_F(CacheRequestTest, GetIMSSubscriptionInvalidRegState)
+{
+  std::vector<std::string> requested_columns;
+  requested_columns.push_back("ims_subscription_xml");
+  requested_columns.push_back("is_registered");
+
+  std::map<std::string, std::string> columns;
+  columns["ims_subscription_xml"] = "";
+  columns["is_registered"] = "\x03";
+
+  std::vector<cass::ColumnOrSuperColumn> slice;
+  make_slice(slice, columns);
+
+  ResultRecorder<Cache::GetIMSSubscription, std::pair<RegistrationState, std::string> > rec;
+  RecordingTransaction* trx = make_rec_trx(&rec);
+  Cache::Request *req = _cache.create_GetIMSSubscription("kermit");
+
+  EXPECT_CALL(_client, get_slice(_,
+                                 "kermit",
+                                 ColumnPathForTable("impu"),
+                                 SpecificColumns(requested_columns),
+                                 _))
+    .WillOnce(SetArgReferee<0>(slice));
+
+  EXPECT_CALL(*trx, on_success(_))
+    .WillOnce(Invoke(trx, &RecordingTransaction::record_result));
+  _cache.send(trx, req);
+  wait();
+
+  EXPECT_EQ(RegistrationState::NOT_REGISTERED, rec.result.first);
+  EXPECT_EQ("", rec.result.second);
 }
 
 

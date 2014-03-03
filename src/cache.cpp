@@ -693,7 +693,9 @@ void Cache::PutIMSSubscription::perform()
   {
     if (_reg_state != RegistrationState::UNCHANGED)
     {
+      // LCOV_EXCL_START - invalid case not hit in UT
       LOG_ERROR("Invalid registration state %d", _reg_state);
+      // LCOV_EXCL_STOP
     }
   }
 
@@ -806,22 +808,31 @@ void Cache::GetIMSSubscription::perform()
         // Cassandra timestamps are in microseconds (see
         // generate_timestamp) but TTLs are in seconds, so divide the
         // timestamps by a million.
-        _xml_ttl = ((it->column.timestamp/1000000) + it->column.ttl) - (now / 1000000);
+        if (it->column.ttl > 0) {
+          _xml_ttl = ((it->column.timestamp/1000000) + it->column.ttl) - (now / 1000000);
+        };
         LOG_DEBUG("Retrieved XML column with TTL %d", _xml_ttl);
       }
       else if (it->column.name.compare(REG_STATE_COLUMN_NAME) == 0)
       {
-        _reg_state_ttl = ((it->column.timestamp/1000000) + it->column.ttl) - (now / 1000000);
+        if (it->column.ttl > 0) {
+          _reg_state_ttl = ((it->column.timestamp/1000000) + it->column.ttl) - (now / 1000000);
+        };
         if (it->column.value.compare(BOOLEAN_TRUE) == 0)
         {
           _reg_state = RegistrationState::REGISTERED;
           LOG_DEBUG("Retrieved is_registered column with value True and TTL %d",
                     _reg_state_ttl);
         }
-        else if (it->column.value.compare(BOOLEAN_FALSE) == 0)
+        else if ((it->column.value.compare(BOOLEAN_FALSE) == 0))
         {
           _reg_state = RegistrationState::UNREGISTERED;
-          LOG_DEBUG("Retrieved is_registered column with value True and TTL %d",
+          LOG_DEBUG("Retrieved is_registered column with value False and TTL %d",
+                    _reg_state_ttl);
+        }
+        else if ((it->column.value == ""))
+        {
+          LOG_DEBUG("Retrieved is_registered column with empty value and TTL %d",
                     _reg_state_ttl);
         }
         else
@@ -831,6 +842,14 @@ void Cache::GetIMSSubscription::perform()
                       it->column.value.c_str());
         };
       };
+    }
+
+    // If we're storing user data for this subscriber (i.e. there is
+    // XML), then by definition they cannot be in NOT_REGISTERED state
+    // - they must be in UNREGISTERED state.
+    if ((_reg_state == RegistrationState::NOT_REGISTERED) && !_xml.empty())
+    {
+      _reg_state = RegistrationState::UNREGISTERED;
     }
 
   }
