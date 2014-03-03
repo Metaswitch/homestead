@@ -1,5 +1,5 @@
 /**
- * @file serverassignmenttype.h defines the ServerAssignmentType structure.
+ * @file reg_state.h A definition of possible registration states.
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2013  Metaswitch Networks Ltd
@@ -34,41 +34,9 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#ifndef SERVERASSIGNMENTTYPE_H__
-#define SERVERASSIGNMENTTYPE_H__
+#ifndef REG_STATE_H__
+#define REG_STATE_H__
 
-struct ServerAssignmentType
-{
-public:
-  enum Type
-  {
-    NO_ASSIGNMENT = 0,
-    REGISTRATION = 1,
-    RE_REGISTRATION = 2,
-    UNREGISTERED_USER = 3,
-    TIMEOUT_DEREGISTRATION = 4,
-    USER_DEREGISTRATION = 5,
-    TIMEOUT_DEREGISTRATION_STORE_SERVER_NAME = 6, // Currently not used
-    USER_DEREGISTRATION_STORE_SERVER_NAME = 7, // Currently not used
-    ADMINISTRATIVE_DEREGISTRATION = 8,
-    AUTHENTICATION_FAILURE = 9,
-    AUTHENTICATION_TIMEOUT = 10
-  };
-
-  ServerAssignmentType(const bool& lookup, const Type& type, const bool& dereg) :
-    _cache_lookup(lookup), _server_assignment_type(type), _deregistration(dereg)
-  {}
-
-  inline bool cache_lookup() const {return _cache_lookup;}
-  inline Type type() const {return _server_assignment_type;}
-  inline bool deregistration() const {return _deregistration;}
-
-  inline void unregistered_user_default() {_server_assignment_type = UNREGISTERED_USER;}
-
-private:
-  bool _cache_lookup;
-  Type _server_assignment_type;
-  bool _deregistration;
-};
+enum RegistrationState {REGISTERED, UNREGISTERED, NOT_REGISTERED, UNCHANGED};
 
 #endif

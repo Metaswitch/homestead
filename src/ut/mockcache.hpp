@@ -65,14 +65,16 @@ public:
   //
   // Methods that create cache request objects.
   //
-  MOCK_METHOD4(create_PutIMSSubscription,
+  MOCK_METHOD5(create_PutIMSSubscription,
                PutIMSSubscription*(const std::string& public_id,
                                    const std::string& xml,
+                                   const RegistrationState reg_state,
                                    const int64_t timestamp,
                                    const int32_t ttl));
-  MOCK_METHOD4(create_PutIMSSubscription,
+  MOCK_METHOD5(create_PutIMSSubscription,
                PutIMSSubscription*(std::vector<std::string>& public_ids,
                                    const std::string& xml,
+                                   const RegistrationState reg_state,
                                    const int64_t timestamp,
                                    const int32_t ttl));
   MOCK_METHOD4(create_PutAssociatedPublicID,
@@ -136,7 +138,7 @@ public:
   // code and the UTs easier to write.
   class MockPutIMSSubscription : public PutIMSSubscription
   {
-    MockPutIMSSubscription() : PutIMSSubscription("", "", 0) {}
+    MockPutIMSSubscription() : PutIMSSubscription("", "", RegistrationState::REGISTERED, 0) {}
     virtual ~MockPutIMSSubscription() {}
   };
 
@@ -157,7 +159,8 @@ public:
     MockGetIMSSubscription() : GetIMSSubscription("") {}
     virtual ~MockGetIMSSubscription() {}
 
-    MOCK_METHOD1(get_result, void(std::string& xml));
+    MOCK_METHOD2(get_xml, void(std::string& xml, int& ttl));
+    MOCK_METHOD2(get_registration_state, void(RegistrationState& state, int& ttl));
   };
 
   class MockGetAssociatedPublicIDs : public GetAssociatedPublicIDs

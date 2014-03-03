@@ -34,7 +34,7 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#include <cache.h>
+#include "cache.h"
 
 #include <boost/format.hpp>
 #include <time.h>
@@ -55,6 +55,7 @@ std::string IMPU = "impu";
 
 // Column names in the IMPU column family.
 std::string IMS_SUB_XML_COLUMN_NAME = "ims_subscription_xml";
+std::string REG_STATE_COLUMN_NAME = "is_registered";
 
 // Column names in the IMPI column family.
 std::string ASSOC_PUBLIC_ID_COLUMN_PREFIX = "public_id_";
@@ -62,6 +63,9 @@ std::string DIGEST_HA1_COLUMN_NAME      ="digest_ha1";
 std::string DIGEST_REALM_COLUMN_NAME    = "digest_realm";
 std::string DIGEST_QOP_COLUMN_NAME      = "digest_qop";
 std::string KNOWN_PREFERRED_COLUMN_NAME = "known_preferred";
+
+const std::string BOOLEAN_FALSE = std::string("\0", 1);
+const std::string BOOLEAN_TRUE = std::string("\x01", 1);
 
 //
 // Cache methods
@@ -208,11 +212,11 @@ Cache::CacheClientInterface* Cache::get_client()
   {
     LOG_DEBUG("No thread-local CacheClientInterface - creating one");
     boost::shared_ptr<TTransport> socket =
-        boost::shared_ptr<TSocket>(new TSocket(_cass_hostname, _cass_port));
+      boost::shared_ptr<TSocket>(new TSocket(_cass_hostname, _cass_port));
     boost::shared_ptr<TFramedTransport> transport =
-        boost::shared_ptr<TFramedTransport>(new TFramedTransport(socket));
+      boost::shared_ptr<TFramedTransport>(new TFramedTransport(socket));
     boost::shared_ptr<TProtocol> protocol =
-        boost::shared_ptr<TBinaryProtocol>(new TBinaryProtocol(transport));
+      boost::shared_ptr<TBinaryProtocol>(new TBinaryProtocol(transport));
     client = new Cache::CacheClient(protocol, transport);
     client->set_keyspace(KEYSPACE);
     pthread_setspecific(_thread_local, client);
@@ -232,15 +236,17 @@ void Cache::release_client()
   if (client != NULL)
   {
     LOG_DEBUG("Found thread-local CacheClientInterface - destroying");
-    delete_client(client); client = NULL;
+    delete_client(client);
+    client = NULL;
     pthread_setspecific(_thread_local, NULL);
   }
 }
 
 
-void Cache::delete_client(void *client)
+void Cache::delete_client(void* client)
 {
-  delete (Cache::CacheClientInterface *)client; client = NULL;
+  delete (Cache::CacheClientInterface*)client;
+  client = NULL;
 }
 // LCOV_EXCL_STOP
 
@@ -248,7 +254,8 @@ void Cache::delete_client(void *client)
 void Cache::send(Cache::Transaction* trx, Cache::Request* req)
 {
   req->set_trx(trx);
-  _thread_pool->add_work(req); req = NULL;
+  _thread_pool->add_work(req);
+  req = NULL;
 }
 
 
@@ -256,10 +263,10 @@ void Cache::send(Cache::Transaction* trx, Cache::Request* req)
 // CacheThreadPool methods
 //
 
-Cache::CacheThreadPool::CacheThreadPool(Cache *cache,
+Cache::CacheThreadPool::CacheThreadPool(Cache* cache,
                                         unsigned int num_threads,
                                         unsigned int max_queue) :
-  ThreadPool<Cache::Request *>(num_threads, max_queue),
+  ThreadPool<Cache::Request*>(num_threads, max_queue),
   _cache(cache)
 {}
 
@@ -285,7 +292,8 @@ void Cache::CacheThreadPool::process_work(Request* &req)
   // LCOV_EXCL_STOP
 
   // We own the request so we have to free it.
-  delete req; req = NULL;
+  delete req;
+  req = NULL;
 }
 
 //
@@ -300,11 +308,12 @@ Cache::Request::Request(const std::string& column_family) :
 
 Cache::Request::~Request()
 {
-  delete _trx; _trx = NULL;
+  delete _trx;
+  _trx = NULL;
 }
 
 
-void Cache::Request::run(Cache::CacheClientInterface *client)
+void Cache::Request::run(Cache::CacheClientInterface* client)
 {
   ResultCode rc = OK;
   std::string error_text = "";
@@ -404,17 +413,17 @@ put_columns(const std::vector<std::string>& keys,
   std::map<std::string, std::map<std::string, std::vector<Mutation> > > mutmap;
 
   // Populate the mutations vector.
-  LOG_DEBUG("Constructing cache put request with timestamp %lld and TTL %d", timestamp, ttl);
+  LOG_DEBUG("Constructing cache put request with timestamp %lld and per-column TTLs", timestamp);
   for (std::map<std::string, std::string>::const_iterator it = columns.begin();
        it != columns.end();
        ++it)
   {
-    LOG_DEBUG("  %s => %s", it->first.c_str(), it->second.c_str());
     Mutation mutation;
     Column* column = &mutation.column_or_supercolumn.column;
 
     column->name = it->first;
     column->value = it->second;
+    LOG_DEBUG("  %s => %s (TTL %d)", column->name.c_str(), column->value.c_str(), ttl);
     column->__isset.value = true;
     column->timestamp = timestamp;
     column->__isset.timestamp = true;
@@ -611,22 +620,26 @@ delete_row(const std::string& key,
 Cache::PutIMSSubscription::
 PutIMSSubscription(const std::string& public_id,
                    const std::string& xml,
+                   const RegistrationState reg_state,
                    const int64_t timestamp,
-                   const int32_t ttl) :
-  PutRequest(IMPU, timestamp, ttl),
+                   const int32_t ttl):
+  PutRequest(IMPU, timestamp, 0),
   _public_ids(1, public_id),
-  _xml(xml)
+  _xml(xml),
+  _reg_state(reg_state),
+  _ttl(ttl)
 {}
-
-
 Cache::PutIMSSubscription::
 PutIMSSubscription(const std::vector<std::string>& public_ids,
                    const std::string& xml,
+                   const RegistrationState reg_state,
                    const int64_t timestamp,
-                   const int32_t ttl) :
-  PutRequest(IMPU, timestamp, ttl),
+                   const int32_t ttl):
+  PutRequest(IMPU, timestamp, 0),
   _public_ids(public_ids),
-  _xml(xml)
+  _xml(xml),
+  _reg_state(reg_state),
+  _ttl(ttl)
 {}
 
 
@@ -639,6 +652,24 @@ void Cache::PutIMSSubscription::perform()
 {
   std::map<std::string, std::string> columns;
   columns[IMS_SUB_XML_COLUMN_NAME] = _xml;
+
+  if (_reg_state == RegistrationState::REGISTERED)
+  {
+    columns[REG_STATE_COLUMN_NAME] = BOOLEAN_TRUE;
+  }
+  else if (_reg_state == RegistrationState::UNREGISTERED)
+  {
+    columns[REG_STATE_COLUMN_NAME] = BOOLEAN_FALSE;
+  }
+  else
+  {
+    if (_reg_state != RegistrationState::UNCHANGED)
+    {
+      // LCOV_EXCL_START - invalid case not hit in UT
+      LOG_ERROR("Invalid registration state %d", _reg_state);
+      // LCOV_EXCL_STOP
+    }
+  }
 
   put_columns(_public_ids, columns, _timestamp, _ttl);
   _trx->on_success(this);
@@ -701,7 +732,7 @@ void Cache::PutAuthVector::perform()
   columns[DIGEST_HA1_COLUMN_NAME]      = _auth_vector.ha1;
   columns[DIGEST_REALM_COLUMN_NAME]    = _auth_vector.realm;
   columns[DIGEST_QOP_COLUMN_NAME]      = _auth_vector.qop;
-  columns[KNOWN_PREFERRED_COLUMN_NAME] = _auth_vector.preferred ? "\x01" : "\x00";
+  columns[KNOWN_PREFERRED_COLUMN_NAME] = _auth_vector.preferred ? BOOLEAN_TRUE : BOOLEAN_FALSE;
 
   put_columns(_private_ids, columns, _timestamp, _ttl);
   _trx->on_success(this);
@@ -716,7 +747,8 @@ Cache::GetIMSSubscription::
 GetIMSSubscription(const std::string& public_id) :
   GetRequest(IMPU),
   _public_id(public_id),
-  _xml()
+  _xml(),
+  _reg_state(RegistrationState::NOT_REGISTERED)
 {}
 
 
@@ -727,21 +759,107 @@ Cache::GetIMSSubscription::
 
 void Cache::GetIMSSubscription::perform()
 {
+  int64_t now = generate_timestamp();
   LOG_DEBUG("Issuing get for column %s for key %s",
             IMS_SUB_XML_COLUMN_NAME.c_str(), _public_id.c_str());
   std::vector<ColumnOrSuperColumn> results;
-  std::vector<std::string> requested_columns(1, IMS_SUB_XML_COLUMN_NAME);
+  std::vector<std::string> requested_columns;
+  requested_columns.push_back(IMS_SUB_XML_COLUMN_NAME);
+  requested_columns.push_back(REG_STATE_COLUMN_NAME);
 
-  ha_get_columns(_public_id, requested_columns, results);
+  try
+  {
+    ha_get_columns(_public_id, requested_columns, results);
 
-  // We must have a result, ha_get_columns raises NoResultsException if not.
-  _xml = results[0].column.value;
+    for(std::vector<ColumnOrSuperColumn>::iterator it = results.begin(); it != results.end(); ++it)
+    {
+      if (it->column.name.compare(IMS_SUB_XML_COLUMN_NAME) == 0)
+      {
+        _xml = it->column.value;
+
+        // Cassandra timestamps are in microseconds (see
+        // generate_timestamp) but TTLs are in seconds, so divide the
+        // timestamps by a million.
+        if (it->column.ttl > 0) {
+          _xml_ttl = ((it->column.timestamp/1000000) + it->column.ttl) - (now / 1000000);
+        };
+        LOG_DEBUG("Retrieved XML column with TTL %d", _xml_ttl);
+      }
+      else if (it->column.name.compare(REG_STATE_COLUMN_NAME) == 0)
+      {
+        if (it->column.ttl > 0) {
+          _reg_state_ttl = ((it->column.timestamp/1000000) + it->column.ttl) - (now / 1000000);
+        };
+        if (it->column.value.compare(BOOLEAN_TRUE) == 0)
+        {
+          _reg_state = RegistrationState::REGISTERED;
+          LOG_DEBUG("Retrieved is_registered column with value True and TTL %d",
+                    _reg_state_ttl);
+        }
+        else if ((it->column.value.compare(BOOLEAN_FALSE) == 0))
+        {
+          _reg_state = RegistrationState::UNREGISTERED;
+          LOG_DEBUG("Retrieved is_registered column with value False and TTL %d",
+                    _reg_state_ttl);
+        }
+        else if ((it->column.value == ""))
+        {
+          LOG_DEBUG("Retrieved is_registered column with empty value and TTL %d",
+                    _reg_state_ttl);
+        }
+        else
+        {
+          LOG_WARNING("Registration state column has invalid value %d %s",
+                      it->column.value.c_str()[0],
+                      it->column.value.c_str());
+        };
+      };
+    }
+
+    // If we're storing user data for this subscriber (i.e. there is
+    // XML), then by definition they cannot be in NOT_REGISTERED state
+    // - they must be in UNREGISTERED state.
+    if ((_reg_state == RegistrationState::NOT_REGISTERED) && !_xml.empty())
+    {
+      _reg_state = RegistrationState::UNREGISTERED;
+    }
+
+  }
+  catch(Cache::NoResultsException& nre)
+  {
+    // This is a valid state rather than an exceptional one, so we
+    // catch the exception and return success. Values ae left in the
+    // default state (NOT_REGISTERED and empty XML).
+  }
+
+
   _trx->on_success(this);
 }
 
-void Cache::GetIMSSubscription::get_result(std::string& xml)
+void Cache::GetIMSSubscription::get_xml(std::string& xml, int32_t& ttl)
 {
   xml = _xml;
+  ttl = _xml_ttl;
+}
+
+void Cache::GetIMSSubscription::get_result(std::pair<RegistrationState, std::string>& result)
+{
+  RegistrationState state;
+  int32_t reg_ttl;
+  std::string xml;
+  int32_t xml_ttl;
+
+  get_registration_state(state, reg_ttl);
+  get_xml(xml, xml_ttl);
+  result.first = state;
+  result.second = xml;
+}
+
+
+void Cache::GetIMSSubscription::get_registration_state(RegistrationState& reg_state, int32_t& ttl)
+{
+  reg_state = _reg_state;
+  ttl = _reg_state_ttl;
 }
 
 //
@@ -876,7 +994,7 @@ void Cache::GetAuthVector::perform()
        it != results.end();
        ++it)
   {
-    const Column *col = &it->column;
+    const Column* col = &it->column;
 
     if (col->name == DIGEST_HA1_COLUMN_NAME)
     {
@@ -907,8 +1025,8 @@ void Cache::GetAuthVector::perform()
     // We were asked to verify a public ID, but that public ID that was not
     // found.  This is a failure.
     std::string error_text = (boost::format(
-        "Private ID '%s' exists but does not have associated public ID '%s'")
-        % _private_id % _public_id).str();
+                                "Private ID '%s' exists but does not have associated public ID '%s'")
+                              % _private_id % _public_id).str();
     LOG_DEBUG("Cache query failed: %s", error_text.c_str());
     _trx->on_failure(this, NOT_FOUND, error_text);
   }

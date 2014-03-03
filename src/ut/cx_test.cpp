@@ -70,12 +70,12 @@ public:
   static const int32_t EXPERIMENTAL_RESULT_CODE_SUCCESS;
   static const int32_t AUTH_SESSION_STATE;
   static const std::vector<std::string> IMPIS;
+  static const Cx::ServerAssignmentType TIMEOUT_DEREGISTRATION;
+  static const Cx::ServerAssignmentType UNREGISTERED_USER;
   static std::vector<std::string> IMPUS;
   static std::vector<std::string> ASSOCIATED_IDENTITIES;
   static const ServerCapabilities CAPABILITIES;
   static const ServerCapabilities NO_CAPABILITIES;
-  static const ServerAssignmentType::Type TIMEOUT_DEREGISTRATION;
-  static const ServerAssignmentType::Type UNREGISTERED_USER;
 
   static Diameter::Stack* _real_stack;
   static MockDiameterStack* _mock_stack;
@@ -105,40 +105,6 @@ public:
 
   CxTest() {}
   ~CxTest() {}
-
-  static Diameter::Message launder_message(const Diameter::Message& msg)
-  {
-    struct msg* msg_to_build = msg.fd_msg();
-    uint8_t* buffer;
-    size_t len;
-    int rc = fd_msg_bufferize(msg_to_build, &buffer, &len);
-    if (rc != 0)
-    {
-      std::stringstream ss;
-      ss << "fd_msg_bufferize failed: " << rc;
-      throw new std::runtime_error(ss.str());
-    }
-
-    struct msg* parsed_msg = NULL;
-    rc = fd_msg_parse_buffer(&buffer, len, &parsed_msg);
-    if (rc != 0)
-    {
-      std::stringstream ss;
-      ss << "fd_msg_parse_buffer failed: " << rc;
-      throw new std::runtime_error(ss.str());
-    }
-
-    struct fd_pei error_info;
-    rc = fd_msg_parse_dict(parsed_msg, fd_g_config->cnf_dict, &error_info);
-    if (rc != 0)
-    {
-      std::stringstream ss;
-      ss << "fd_msg_parse_dict failed: " << rc << " - " << error_info.pei_errcode;
-      throw new std::runtime_error(ss.str());
-    }
-
-    return Diameter::Message(_cx_dict, parsed_msg, _mock_stack);
-  }
 
   static void launder_message(Diameter::Message& msg)
   {
@@ -219,6 +185,8 @@ const int32_t CxTest::RESULT_CODE_SUCCESS = 2001;
 const int32_t CxTest::EXPERIMENTAL_RESULT_CODE_SUCCESS = 5001;
 const int32_t CxTest::AUTH_SESSION_STATE = 1;
 const std::vector<std::string> CxTest::IMPIS {"private_id1", "private_id2"};
+const Cx::ServerAssignmentType CxTest::TIMEOUT_DEREGISTRATION = Cx::TIMEOUT_DEREGISTRATION;
+const Cx::ServerAssignmentType CxTest::UNREGISTERED_USER = Cx::UNREGISTERED_USER;
 std::vector<std::string> CxTest::IMPUS {"public_id1", "public_id2"};
 std::vector<std::string> CxTest::ASSOCIATED_IDENTITIES {"associated_id1", "associated_id2", "associated_id3"};
 const std::vector<int32_t> mandatory_capabilities = {1, 3};
@@ -226,8 +194,6 @@ const std::vector<int32_t> optional_capabilities = {2, 4};
 const std::vector<int32_t> no_capabilities = {};
 const ServerCapabilities CxTest::CAPABILITIES(mandatory_capabilities, optional_capabilities);
 const ServerCapabilities CxTest::NO_CAPABILITIES(no_capabilities, no_capabilities);
-const ServerAssignmentType::Type CxTest::TIMEOUT_DEREGISTRATION = TIMEOUT_DEREGISTRATION;
-const ServerAssignmentType::Type CxTest::UNREGISTERED_USER = UNREGISTERED_USER;
 
 Diameter::Stack* CxTest::_real_stack = NULL;
 MockDiameterStack* CxTest::_mock_stack = NULL;
