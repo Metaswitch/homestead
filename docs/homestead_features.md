@@ -5,12 +5,15 @@ Homestead is a HSS-cache. It does not aim to provide the full functionality of a
 but instead to provide a high availability data store for Sprout to read subscriber
 data from over a RESTful HTTP interface.
 
+In traditional IMS terms, it is the data-caching part of an S-CSCF,
+with Sprout providing the associated SIP-routing function of an S-CSCF.
+
 Authentication
 --------------
 
 In a Clearwater deployment, a Homestead node must be locked down using
 firewalls such that it is only visible to other nodes, and not externally. Any
-client able to send traffic to port 8888 of a Homestead node may perform any
+client able to send traffic to port 8888 or port 8889 of a Homestead node may perform any
 operation on any data stored in Homestead, without providing any
 authentication; allowing external access therefore presents a significant
 security risk.
@@ -21,7 +24,11 @@ Subscriber data storage
 Homestead provides a [RESTful HTTP interface](homestead_api.md) for storing and retrieving
 the following subscriber data:
 
-* Initial Filter Criteria
-* Sip digests
-* Serving S-CSCF
-* Server capability information
+* Initial Filter Criteria (Server-Assignment Requests)
+* SIP-Digest or AKA authentication vectors (Multimedia-Auth Requests)
+* Serving S-CSCF (User-Authorization/Lcation-Information requests)
+* Server capability information (User-Authorization/Lcation-Information requests)
+
+Homestead also supports receiving Push-Profile requests and
+Registration-Termination requests from the S-CSCF.
+
