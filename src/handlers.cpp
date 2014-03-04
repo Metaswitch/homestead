@@ -789,6 +789,21 @@ void ImpuRegDataHandler::run()
   _cache->send(tsx, get_ims_sub);
 }
 
+std::string regstate_to_str(RegistrationState state)
+{
+  switch (state)
+  {
+  case REGISTERED:
+    return "REGISTERED";
+  case UNREGISTERED:
+    return "UNREGISTERED";
+  case NOT_REGISTERED:
+    return "NOT_REGISTERED";
+  default:
+    return "???";
+  }
+}
+
 void ImpuRegDataHandler::on_get_ims_subscription_success(Cache::Request* request)
 {
   LOG_DEBUG("Got IMS subscription from cache");
@@ -797,7 +812,10 @@ void ImpuRegDataHandler::on_get_ims_subscription_success(Cache::Request* request
   int32_t ttl = 0;
   get_ims_sub->get_xml(_xml, ttl);
   get_ims_sub->get_registration_state(old_state, ttl);
-  LOG_DEBUG("TTL for this database record is %d and value of _type is %d", ttl, _type);
+  LOG_DEBUG("TTL for this database record is %d, IMS Subscription XML is %s, and registration state is %s",
+            ttl,
+            _xml.empty() ? "empty" : "not empty",
+            regstate_to_str(old_state).c_str());
 
   // By default, we should remain in the existing state.
   _new_state = old_state;

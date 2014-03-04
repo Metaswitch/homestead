@@ -783,7 +783,7 @@ void Cache::GetIMSSubscription::perform()
         if (it->column.ttl > 0) {
           _xml_ttl = ((it->column.timestamp/1000000) + it->column.ttl) - (now / 1000000);
         };
-        LOG_DEBUG("Retrieved XML column with TTL %d", _xml_ttl);
+        LOG_DEBUG("Retrieved XML column with TTL %d and value %s", _xml_ttl, _xml.c_str());
       }
       else if (it->column.name.compare(REG_STATE_COLUMN_NAME) == 0)
       {
@@ -821,6 +821,7 @@ void Cache::GetIMSSubscription::perform()
     // - they must be in UNREGISTERED state.
     if ((_reg_state == RegistrationState::NOT_REGISTERED) && !_xml.empty())
     {
+      LOG_DEBUG("Found stored XML for subscriber, treating as UNREGISTERED state");
       _reg_state = RegistrationState::UNREGISTERED;
     }
 
