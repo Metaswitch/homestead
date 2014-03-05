@@ -748,7 +748,9 @@ GetIMSSubscription(const std::string& public_id) :
   GetRequest(IMPU),
   _public_id(public_id),
   _xml(),
-  _reg_state(RegistrationState::NOT_REGISTERED)
+  _reg_state(RegistrationState::NOT_REGISTERED),
+  _xml_ttl(0),
+  _reg_state_ttl(0)
 {}
 
 
@@ -773,7 +775,7 @@ void Cache::GetIMSSubscription::perform()
 
     for(std::vector<ColumnOrSuperColumn>::iterator it = results.begin(); it != results.end(); ++it)
     {
-      if (it->column.name.compare(IMS_SUB_XML_COLUMN_NAME) == 0)
+      if (it->column.name == IMS_SUB_XML_COLUMN_NAME)
       {
         _xml = it->column.value;
 
@@ -785,18 +787,19 @@ void Cache::GetIMSSubscription::perform()
         };
         LOG_DEBUG("Retrieved XML column with TTL %d and value %s", _xml_ttl, _xml.c_str());
       }
-      else if (it->column.name.compare(REG_STATE_COLUMN_NAME) == 0)
+      else if (it->column.name == REG_STATE_COLUMN_NAME)
       {
-        if (it->column.ttl > 0) {
+        if (it->column.ttl > 0)
+        {
           _reg_state_ttl = ((it->column.timestamp/1000000) + it->column.ttl) - (now / 1000000);
         };
-        if (it->column.value.compare(BOOLEAN_TRUE) == 0)
+        if (it->column.value == BOOLEAN_TRUE)
         {
           _reg_state = RegistrationState::REGISTERED;
           LOG_DEBUG("Retrieved is_registered column with value True and TTL %d",
                     _reg_state_ttl);
         }
-        else if ((it->column.value.compare(BOOLEAN_FALSE) == 0))
+        else if (it->column.value == BOOLEAN_FALSE)
         {
           _reg_state = RegistrationState::UNREGISTERED;
           LOG_DEBUG("Retrieved is_registered column with value False and TTL %d",
