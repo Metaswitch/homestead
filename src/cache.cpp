@@ -56,6 +56,7 @@ std::string IMPU = "impu";
 // Column names in the IMPU column family.
 std::string IMS_SUB_XML_COLUMN_NAME = "ims_subscription_xml";
 std::string REG_STATE_COLUMN_NAME = "is_registered";
+std::string IMPI_COLUMN_PREFIX = "associated_impi__";
 
 // Column names in the IMPI column family.
 std::string ASSOC_PUBLIC_ID_COLUMN_PREFIX = "public_id_";
@@ -675,6 +676,14 @@ void Cache::PutIMSSubscription::perform()
     }
   }
 
+  for (std::vector<std::string>::iterator impi = _impis.begin();
+       impi != _impis.end();
+       impi++)
+  {
+    std::string column_name = IMPI_COLUMN_PREFIX + *impi;
+    columns[column_name] = "";
+  }
+
   put_columns(_public_ids, columns, _timestamp, _ttl);
   _trx->on_success(this);
 }
@@ -706,8 +715,9 @@ void Cache::PutAssociatedPrivateID::perform()
   std::vector<std::string> keys(1, _private_id);
 
   put_columns(keys, columns, _timestamp, _ttl);
-  _trx->on_success(this);
   */
+  _trx->on_success(this);
+
 }
 
 
