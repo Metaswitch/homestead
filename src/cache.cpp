@@ -621,10 +621,12 @@ Cache::PutIMSSubscription::
 PutIMSSubscription(const std::string& public_id,
                    const std::string& xml,
                    const RegistrationState reg_state,
+                   const std::vector<std::string>& impis,
                    const int64_t timestamp,
                    const int32_t ttl):
   PutRequest(IMPU, timestamp, 0),
   _public_ids(1, public_id),
+  _impis(impis),
   _xml(xml),
   _reg_state(reg_state),
   _ttl(ttl)
@@ -633,10 +635,12 @@ Cache::PutIMSSubscription::
 PutIMSSubscription(const std::vector<std::string>& public_ids,
                    const std::string& xml,
                    const RegistrationState reg_state,
+                   const std::vector<std::string>& impis,
                    const int64_t timestamp,
                    const int32_t ttl):
   PutRequest(IMPU, timestamp, 0),
   _public_ids(public_ids),
+  _impis(impis),
   _xml(xml),
   _reg_state(reg_state),
   _ttl(ttl)
@@ -674,6 +678,38 @@ void Cache::PutIMSSubscription::perform()
   put_columns(_public_ids, columns, _timestamp, _ttl);
   _trx->on_success(this);
 }
+
+// PutAssociatedPrivateID methods
+
+Cache::PutAssociatedPrivateID::
+PutAssociatedPrivateID(const std::vector<std::string>& impus,
+                       const std::string& impi,
+                       const int64_t timestamp,
+                       const int32_t ttl) :
+  PutRequest(IMPI, timestamp, ttl),
+  _impus(impus),
+  _impi(impi)
+{}
+
+
+Cache::PutAssociatedPrivateID::
+~PutAssociatedPrivateID()
+{}
+
+
+void Cache::PutAssociatedPrivateID::perform()
+{
+  /*
+  std::map<std::string, std::string> columns;
+  columns[ASSOC_PUBLIC_ID_COLUMN_PREFIX + _assoc_public_id] = "";
+
+  std::vector<std::string> keys(1, _private_id);
+
+  put_columns(keys, columns, _timestamp, _ttl);
+  _trx->on_success(this);
+  */
+}
+
 
 //
 // PutAssociatedPublicID methods.
@@ -845,6 +881,11 @@ void Cache::GetIMSSubscription::get_xml(std::string& xml, int32_t& ttl)
   xml = _xml;
   ttl = _xml_ttl;
 }
+
+void Cache::GetIMSSubscription::get_associated_impis(std::vector<std::string>& associated_impis)
+{
+}
+
 
 void Cache::GetIMSSubscription::get_result(std::pair<RegistrationState, std::string>& result)
 {
@@ -1059,14 +1100,25 @@ void Cache::GetAuthVector::get_result(DigestAuthVector& av)
 Cache::DeletePublicIDs::
 DeletePublicIDs(const std::string& public_id, int64_t timestamp) :
   DeleteRowsRequest(IMPU, timestamp),
-  _public_ids(1, public_id)
+  _public_ids(1, public_id),
+  _impis()
 {}
 
 
 Cache::DeletePublicIDs::
 DeletePublicIDs(const std::vector<std::string>& public_ids, int64_t timestamp) :
   DeleteRowsRequest(IMPU, timestamp),
-  _public_ids(public_ids)
+  _public_ids(public_ids),
+  _impis()
+{}
+
+Cache::DeletePublicIDs::
+DeletePublicIDs(const std::vector<std::string>& public_ids,
+                const std::vector<std::string>& impis,
+                int64_t timestamp) :
+  DeleteRowsRequest(IMPU, timestamp),
+  _public_ids(public_ids),
+  _impis(impis)
 {}
 
 

@@ -546,9 +546,13 @@ public:
     ///
     /// @param public_id the public ID.
     /// @param xml the subscription XML.
+    /// @param reg_state The new registration state
+    /// @param impis A set of private IDs to associate with this
+    /// public ID
     PutIMSSubscription(const std::string& public_id,
                        const std::string& xml,
                        const RegistrationState reg_state,
+                       const std::vector<std::string>& impis,
                        const int64_t timestamp,
                        const int32_t ttl = 0);
 
@@ -557,15 +561,21 @@ public:
     ///
     /// @param public_ids a vector of public IDs to set the XML for.
     /// @param xml the subscription XML.
+    /// @param reg_state The new registration state
+    /// @param impis A set of private IDs to associate with these
+    /// public IDs
     PutIMSSubscription(const std::vector<std::string>& public_ids,
                        const std::string& xml,
                        const RegistrationState reg_state,
+                       const std::vector<std::string>& impis,
                        const int64_t timestamp,
                        const int32_t ttl = 0);
+
     virtual ~PutIMSSubscription();
 
   protected:
     std::vector<std::string> _public_ids;
+    std::vector<std::string> _impis;
     std::string _xml;
     RegistrationState _reg_state;
     int32_t _ttl;
@@ -577,20 +587,71 @@ public:
     create_PutIMSSubscription(const std::string& public_id,
                               const std::string& xml,
                               const RegistrationState reg_state,
+                              const std::vector<std::string>& impis,
                               const int64_t timestamp,
                               const int32_t ttl = 0)
   {
-    return new PutIMSSubscription(public_id, xml, reg_state, timestamp, ttl);
+    return new PutIMSSubscription(public_id, xml, reg_state, impis, timestamp, ttl);
   }
 
   virtual PutIMSSubscription*
     create_PutIMSSubscription(std::vector<std::string>& public_ids,
                               const std::string& xml,
                               const RegistrationState reg_state,
+                              const std::vector<std::string>& impis,
                               const int64_t timestamp,
                               const int32_t ttl = 0)
   {
-    return new PutIMSSubscription(public_ids, xml, reg_state, timestamp, ttl);
+    return new PutIMSSubscription(public_ids, xml, reg_state, impis, timestamp, ttl);
+  }
+
+    virtual PutIMSSubscription*
+    create_PutIMSSubscription(const std::vector<std::string>& public_ids,
+                              const std::string& xml,
+                              const RegistrationState reg_state,
+                              const int64_t timestamp,
+                              const int32_t ttl = 0)
+  {
+    return NULL;
+  }
+
+        virtual PutIMSSubscription*
+    create_PutIMSSubscription(const std::string& public_id,
+                              const std::string& xml,
+                              const RegistrationState reg_state,
+                              const int64_t timestamp,
+                              const int32_t ttl = 0)
+  {
+    return NULL;
+  }
+
+  class PutAssociatedPrivateID : public PutRequest
+  {
+  public:
+    /// Give a set of public IDs (representing an impicit registration set) an associated public ID.
+    ///
+    /// @param impus The public IDs.
+    /// @param impi the private ID to associate with them.
+    PutAssociatedPrivateID(const std::vector<std::string>& impus,
+                           const std::string& impi,
+                           const int64_t timestamp,
+                           const int32_t ttl = 0);
+    virtual ~PutAssociatedPrivateID();
+
+  protected:
+    std::vector<std::string> _impus;
+    std::string _impi;
+
+    void perform();
+  };
+
+  virtual PutAssociatedPrivateID*
+    create_PutAssociatedPrivateID(const std::vector<std::string>& impus,
+                                  const std::string& impi,
+                                  const int64_t timestamp,
+                                  const int32_t ttl = 0)
+  {
+    return new PutAssociatedPrivateID(impus, impi, timestamp, ttl);
   }
 
   class PutAssociatedPublicID : public PutRequest
@@ -676,6 +737,11 @@ public:
     /// @param ttl the column's time-to-live.
     virtual void get_registration_state(RegistrationState& reg_state, int32_t& ttl);
 
+    /// Access the result of the request.
+    ///
+    /// @param impis The IMPIs associated with this IMS Subscription
+    virtual void get_associated_impis(std::vector<std::string>& impis);
+
   protected:
     // Request parameters.
     std::string _public_id;
@@ -685,6 +751,7 @@ public:
     RegistrationState _reg_state;
     int32_t _xml_ttl;
     int32_t _reg_state_ttl;
+    std::vector<std::string> _impis;
 
     void perform();
   };
@@ -796,10 +863,23 @@ public:
     /// @param public_ids the public IDs to delete.
     DeletePublicIDs(const std::vector<std::string>& public_ids,
                     int64_t timestamp);
+
+    /// Delete several public IDs from the cache, and also dissociate
+    /// the primary public ID (the first one in the vector) from the
+    /// given IMPIs.
+    ///
+    /// @param public_ids the public IDs to delete.
+    /// @param impis the IMPIs to dissociate from this implicit
+    ///              registration set.
+    DeletePublicIDs(const std::vector<std::string>& public_ids,
+                    const std::vector<std::string>& impis,
+                    int64_t timestamp);
+
     virtual ~DeletePublicIDs();
 
   protected:
     std::vector<std::string> _public_ids;
+    std::vector<std::string> _impis;
 
     void perform();
   };
@@ -816,6 +896,14 @@ public:
                            int64_t timestamp)
   {
     return new DeletePublicIDs(public_ids, timestamp);
+  }
+
+  virtual DeletePublicIDs*
+    create_DeletePublicIDs(const std::vector<std::string>& public_ids,
+                           const std::vector<std::string>& impis,
+                           int64_t timestamp)
+  {
+    return new DeletePublicIDs(public_ids, impis, timestamp);
   }
 
   class DeletePrivateIDs : public DeleteRowsRequest
