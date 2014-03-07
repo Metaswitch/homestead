@@ -443,7 +443,7 @@ protected:
   bool is_auth_failure_request(RequestType type);
   Cx::ServerAssignmentType sar_type_for_request(RequestType type);
   RequestType request_type_from_body(std::string body);
-
+  std::vector<std::string> get_associated_private_ids();
 
   const Config* _cfg;
   std::string _impi;

@@ -769,9 +769,13 @@ void ImpuRegDataHandler::run()
       delete this;
       return;
     }
-  } else if (method == htp_method_GET) {
+  }
+  else if (method == htp_method_GET)
+  {
     _type = RequestType::UNKNOWN;
-  } else {
+  }
+  else
+  {
     _req.send_reply(405);
     delete this;
     return;
@@ -809,9 +813,11 @@ void ImpuRegDataHandler::on_get_ims_subscription_success(Cache::Request* request
   LOG_DEBUG("Got IMS subscription from cache");
   Cache::GetIMSSubscription* get_ims_sub = (Cache::GetIMSSubscription*)request;
   RegistrationState old_state;
+  std::vector<std::string> associated_impis;
   int32_t ttl = 0;
   get_ims_sub->get_xml(_xml, ttl);
   get_ims_sub->get_registration_state(old_state, ttl);
+  get_ims_sub->get_associated_impis(associated_impis);
   LOG_DEBUG("TTL for this database record is %d, IMS Subscription XML is %s, and registration state is %s",
             ttl,
             _xml.empty() ? "empty" : "not empty",
@@ -834,6 +840,20 @@ void ImpuRegDataHandler::on_get_ims_subscription_success(Cache::Request* request
   if (_impi.empty())
   {
     _impi = XmlUtils::get_private_id(_xml);
+  }
+  else if ((_cfg->hss_configured) &&
+           ((associated_impis.empty()) ||
+            (std::find(associated_impis.begin(), associated_impis.end(), _impi) == associated_impis.end())))
+  {
+    LOG_DEBUG("Associating private identity %s to IRS for %s", _impi.c_str(), _impu.c_str());
+    std::vector<std::string> public_ids = XmlUtils::get_public_ids(_xml);
+    Cache::Request* put_associated_private_id =
+      _cache->create_PutAssociatedPrivateID(public_ids,
+                                            _impi,
+                                            Cache::generate_timestamp(),
+                                            (2 * _cfg->hss_reregistration_time));
+    CacheTransaction* tsx = new CacheTransaction(NULL);
+    _cache->send(tsx, put_associated_private_id);
   }
 
   if (_type == RequestType::REG)
@@ -1020,6 +1040,23 @@ void ImpuRegDataHandler::send_server_assignment_request(Cx::ServerAssignmentType
   sar.send(tsx, 200);
 }
 
+std::vector<std::string> ImpuRegDataHandler::get_associated_private_ids()
+{
+  std::vector<std::string> private_ids;
+  if (!_impi.empty())
+  {
+    LOG_DEBUG("Associated private ID %s", _impi.c_str());
+    private_ids.push_back(_impi);
+  }
+  std::string xml_impi = XmlUtils::get_private_id(_xml);
+  if ((!xml_impi.empty()) && (xml_impi != _impi))
+  {
+    LOG_DEBUG("Associated private ID %s", xml_impi.c_str());
+    private_ids.push_back(xml_impi);
+  }
+  return private_ids;
+}
+
 void ImpuRegDataHandler::put_in_cache()
 {
   int ttl;
@@ -1051,13 +1088,20 @@ void ImpuRegDataHandler::put_in_cache()
     {
       LOG_DEBUG("Public ID %s", i->c_str());
     }
+
+    std::vector<std::string> associated_private_ids;
+    if (_cfg->hss_configured)
+    {
+      associated_private_ids = get_associated_private_ids();
+    }
+
     Cache::Request* put_ims_sub =
       _cache->create_PutIMSSubscription(public_ids,
                                         _xml,
                                         _new_state,
+                                        associated_private_ids,
                                         Cache::generate_timestamp(),
                                         ttl);
-
     CacheTransaction* tsx = new CacheTransaction(NULL);
     _cache->send(tsx, put_ims_sub);
   }
@@ -1068,6 +1112,7 @@ void ImpuRegDataHandler::on_sar_response(Diameter::Message& rsp)
   Cx::ServerAssignmentAnswer saa(rsp);
   int32_t result_code = 0;
   saa.result_code(result_code);
+  saa.user_data(_xml);
   LOG_DEBUG("Received Server-Assignment answer with result code %d", result_code);
 
   // Even if the HSS rejects our deregistration request, we should
@@ -1087,12 +1132,13 @@ void ImpuRegDataHandler::on_sar_response(Diameter::Message& rsp)
       }
 
       Cache::Request* delete_public_id =
-        _cache->create_DeletePublicIDs(public_ids, Cache::generate_timestamp());
+        _cache->create_DeletePublicIDs(public_ids,
+                                       get_associated_private_ids(),
+                                       Cache::generate_timestamp());
       CacheTransaction* tsx = new CacheTransaction(NULL);
       _cache->send(tsx, delete_public_id);
     }
   }
-
 
   switch (result_code)
   {
@@ -1104,7 +1150,6 @@ void ImpuRegDataHandler::on_sar_response(Diameter::Message& rsp)
       if (!is_deregistration_request(_type) && !is_auth_failure_request(_type))
       {
         LOG_DEBUG("Getting User-Data from SAA for cache");
-        saa.user_data(_xml);
         put_in_cache();
       }
       send_reply();
