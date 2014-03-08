@@ -57,6 +57,7 @@ std::string IMPU = "impu";
 std::string IMS_SUB_XML_COLUMN_NAME = "ims_subscription_xml";
 std::string REG_STATE_COLUMN_NAME = "is_registered";
 std::string IMPI_COLUMN_PREFIX = "associated_impi__";
+std::string IMPI_MAPPING_PREFIX = "associated_primary_impu__";
 
 // Column names in the IMPI column family.
 std::string ASSOC_PUBLIC_ID_COLUMN_PREFIX = "public_id_";
@@ -456,6 +457,59 @@ put_columns(const std::vector<std::string>& keys,
   _trx->stop_timer();
 }
 
+void Cache::PutRequest::
+put_columns_to_multiple_cfs(const std::vector<CFRowColumnValue>& to_put,
+                            int64_t timestamp,
+                            int32_t ttl)
+{
+  // The mutation map is of the form {"key": {"column_family": [mutations] } }
+  std::map<std::string, std::map<std::string, std::vector<Mutation> > > mutmap;
+
+  // Populate the mutations vector.
+  LOG_DEBUG("Constructing cache put request with timestamp %lld and per-column TTLs", timestamp);
+  for (std::vector<CFRowColumnValue>::const_iterator it = to_put.begin();
+       it != to_put.end();
+       ++it)
+  {
+    // Vector of mutations (one per column being modified).
+    std::vector<Mutation> mutations;
+
+    for (std::map<std::string, std::string>::const_iterator col = it->columns.begin();
+         col != it->columns.end();
+         ++col)
+    {
+      Mutation mutation;
+      Column* column = &mutation.column_or_supercolumn.column;
+
+      column->name = col->first;
+      column->value = col->second;
+      LOG_DEBUG("  %s => %s (TTL %d)", column->name.c_str(), column->value.c_str(), ttl);
+      column->__isset.value = true;
+      column->timestamp = timestamp;
+      column->__isset.timestamp = true;
+
+      // A ttl of 0 => no expiry.
+      if (ttl > 0)
+      {
+        column->ttl = ttl;
+        column->__isset.ttl = true;
+      }
+
+      mutation.column_or_supercolumn.__isset.column = true;
+      mutation.__isset.column_or_supercolumn = true;
+      mutations.push_back(mutation);
+    }
+
+    mutmap[it->row][it->cf] = mutations;
+  }
+
+  // Execute the database operation.
+  LOG_DEBUG("Executing put request operation");
+  _trx->start_timer();
+  _client->batch_mutate(mutmap, ConsistencyLevel::ONE);
+  _trx->stop_timer();
+}
+
 //
 // GetRequest methods.
 //
@@ -522,6 +576,13 @@ ha_get_columns_with_prefix(const std::string& key,
   HA(get_columns_with_prefix, key, prefix, columns);
 }
 
+void Cache::GetRequest::
+ha_get_all_columns(const std::string& key,
+                   std::vector<ColumnOrSuperColumn>& columns)
+{
+  HA(get_row, key, columns);
+}
+
 
 void Cache::GetRequest::
 get_columns(const std::string& key,
@@ -564,6 +625,24 @@ get_columns_with_prefix(const std::string& key,
   {
     it->column.name = it->column.name.substr(prefix.length());
   }
+}
+
+void Cache::GetRequest::
+get_row(const std::string& key,
+                std::vector<ColumnOrSuperColumn>& columns,
+                ConsistencyLevel::type consistency_level)
+{
+  // This slice range gets all columns with the specified prefix.
+  SliceRange sr;
+  sr.start = "";
+  // Increment the last character of the "finish" field.
+  sr.finish = "";
+
+  SlicePredicate sp;
+  sp.slice_range = sr;
+  sp.__isset.slice_range = true;
+
+  issue_get_for_key(key, sp, columns, consistency_level);
 }
 
 
@@ -655,6 +734,7 @@ Cache::PutIMSSubscription::
 
 void Cache::PutIMSSubscription::perform()
 {
+  std::vector<CFRowColumnValue> to_put;
   std::map<std::string, std::string> columns;
   columns[IMS_SUB_XML_COLUMN_NAME] = _xml;
 
@@ -682,9 +762,22 @@ void Cache::PutIMSSubscription::perform()
   {
     std::string column_name = IMPI_COLUMN_PREFIX + *impi;
     columns[column_name] = "";
+
+    std::map<std::string, std::string> impi_columns;
+    std::vector<std::string>::iterator default_public_id = _public_ids.begin();
+    impi_columns[IMPI_MAPPING_PREFIX + *default_public_id] = "";
+    to_put.push_back(CFRowColumnValue("impi_mapping", *impi, impi_columns));
+
   }
 
-  put_columns(_public_ids, columns, _timestamp, _ttl);
+  for (std::vector<std::string>::iterator row = _public_ids.begin();
+       row != _public_ids.end();
+       row++)
+  {
+    to_put.push_back(CFRowColumnValue(_column_family, *row, columns));
+  }
+
+  put_columns_to_multiple_cfs(to_put, _timestamp, _ttl);
   _trx->on_success(this);
 }
 
@@ -796,7 +889,8 @@ GetIMSSubscription(const std::string& public_id) :
   _xml(),
   _reg_state(RegistrationState::NOT_REGISTERED),
   _xml_ttl(0),
-  _reg_state_ttl(0)
+  _reg_state_ttl(0),
+  _impis()
 {}
 
 
@@ -811,13 +905,10 @@ void Cache::GetIMSSubscription::perform()
   LOG_DEBUG("Issuing get for column %s for key %s",
             IMS_SUB_XML_COLUMN_NAME.c_str(), _public_id.c_str());
   std::vector<ColumnOrSuperColumn> results;
-  std::vector<std::string> requested_columns;
-  requested_columns.push_back(IMS_SUB_XML_COLUMN_NAME);
-  requested_columns.push_back(REG_STATE_COLUMN_NAME);
 
   try
   {
-    ha_get_columns(_public_id, requested_columns, results);
+    ha_get_all_columns(_public_id, results);
 
     for(std::vector<ColumnOrSuperColumn>::iterator it = results.begin(); it != results.end(); ++it)
     {
@@ -862,7 +953,10 @@ void Cache::GetIMSSubscription::perform()
                       it->column.value.c_str()[0],
                       it->column.value.c_str());
         };
-      };
+      } else if (it->column.name.find(IMPI_COLUMN_PREFIX) == 0) {
+        std::string impi = it->column.name.substr(IMPI_COLUMN_PREFIX.length());
+        _impis.push_back(impi);
+      }
     }
 
     // If we're storing user data for this subscriber (i.e. there is
@@ -894,6 +988,7 @@ void Cache::GetIMSSubscription::get_xml(std::string& xml, int32_t& ttl)
 
 void Cache::GetIMSSubscription::get_associated_impis(std::vector<std::string>& associated_impis)
 {
+  associated_impis = _impis;
 }
 
 
@@ -908,6 +1003,15 @@ void Cache::GetIMSSubscription::get_result(std::pair<RegistrationState, std::str
   get_xml(xml, xml_ttl);
   result.first = state;
   result.second = xml;
+}
+
+void Cache::GetIMSSubscription::get_result(Cache::GetIMSSubscription::Result& result)
+{
+  int32_t unused_ttl;
+
+  get_registration_state(result.state, unused_ttl);
+  get_xml(result.xml, unused_ttl);
+  get_associated_impis(result.impis);
 }
 
 

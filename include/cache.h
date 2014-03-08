@@ -74,6 +74,22 @@
 
 namespace cass = org::apache::cassandra;
 
+struct CFRowColumnValue
+{
+  CFRowColumnValue(std::string cf,
+                   std::string row,
+                   std::map<std::string, std::string> columns) :
+    cf(cf),
+    row(row),
+    columns(columns)
+  {}
+
+  std::string cf;
+  std::string row;
+  std::map<std::string, std::string> columns;
+
+};
+
 /// @class Cache
 ///
 /// Singleton class representing a cassandra-backed subscriber cache.
@@ -432,6 +448,10 @@ public:
                      int64_t timestamp,
                      int32_t ttl);
 
+    void put_columns_to_multiple_cfs(const std::vector<CFRowColumnValue>& to_put,
+                                     int64_t timestamp,
+                                     int32_t ttl);
+
   };
 
   /// @class GetRequest a request to read data from the cache.
@@ -477,6 +497,14 @@ public:
     void ha_get_columns(const std::string& key,
                         const std::vector<std::string>& names,
                         std::vector<cass::ColumnOrSuperColumn>& columns);
+
+    /// HA get all columns in a row
+    /// This is useful when working with dynamic columns.
+    ///
+    /// @param key row key
+    /// @param columns (out) the retrieved columns.
+    void ha_get_all_columns(const std::string& key,
+                            std::vector<cass::ColumnOrSuperColumn>& columns);
 
     /// HA get all columns in a row that have a particular prefix to their name.
     /// This is useful when working with dynamic columns.
@@ -741,6 +769,14 @@ public:
     ///
     /// @param impis The IMPIs associated with this IMS Subscription
     virtual void get_associated_impis(std::vector<std::string>& impis);
+
+    struct Result
+    {
+      std::string xml;
+      RegistrationState state;
+      std::vector<std::string> impis;
+    };
+    virtual void get_result(Result& result);
 
   protected:
     // Request parameters.
