@@ -693,6 +693,22 @@ delete_row(const std::string& key,
   _trx->stop_timer();
 }
 
+void Cache::DeleteRowsRequest::
+delete_column(const std::string& key,
+              const std::string& column,
+              const std::string& cf,
+              int64_t timestamp)
+{
+  ColumnPath cp;
+  cp.column_family = cf;
+  cp.column = column;
+
+  _trx->start_timer();
+  LOG_DEBUG("Deleting column %s with key %s (timestamp %lld", column.c_str(), key.c_str(), timestamp);
+  _client->remove(key, cp, timestamp, ConsistencyLevel::ONE);
+  _trx->stop_timer();
+}
+
 //
 // PutIMSSubscription methods.
 //
@@ -788,7 +804,7 @@ PutAssociatedPrivateID(const std::vector<std::string>& impus,
                        const std::string& impi,
                        const int64_t timestamp,
                        const int32_t ttl) :
-  PutRequest(IMPI, timestamp, ttl),
+  PutRequest(IMPU, timestamp, ttl),
   _impus(impus),
   _impi(impi)
 {}
@@ -801,14 +817,24 @@ Cache::PutAssociatedPrivateID::
 
 void Cache::PutAssociatedPrivateID::perform()
 {
-  /*
-  std::map<std::string, std::string> columns;
-  columns[ASSOC_PUBLIC_ID_COLUMN_PREFIX + _assoc_public_id] = "";
+  std::vector<CFRowColumnValue> to_put;
+  std::map<std::string, std::string> impu_columns;
+  std::map<std::string, std::string> impi_columns;
+  impu_columns[IMPI_COLUMN_PREFIX + _impi] = "";
 
-  std::vector<std::string> keys(1, _private_id);
+  std::string default_public_id = _impus.front();
+  impi_columns[IMPI_MAPPING_PREFIX + default_public_id] = "";
+  to_put.push_back(CFRowColumnValue("impi_mapping", _impi, impi_columns));
 
-  put_columns(keys, columns, _timestamp, _ttl);
-  */
+  for (std::vector<std::string>::iterator row = _impus.begin();
+       row != _impus.end();
+       row++)
+  {
+    to_put.push_back(CFRowColumnValue(_column_family, *row, impu_columns));
+  }
+
+  put_columns_to_multiple_cfs(to_put, _timestamp, _ttl);
+
   _trx->on_success(this);
 
 }
@@ -1248,6 +1274,16 @@ void Cache::DeletePublicIDs::perform()
   {
     delete_row(*it, _timestamp);
   }
+
+  std::string primary_public_id = _public_ids.front();
+
+  for (std::vector<std::string>::const_iterator it = _impis.begin();
+       it != _impis.end();
+       ++it)
+  {
+    delete_column(*it, IMPI_MAPPING_PREFIX + primary_public_id, "impi_mapping", _timestamp);
+  }
+
 
   _trx->on_success(this);
 }

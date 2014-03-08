@@ -704,6 +704,15 @@ MATCHER_P(ColumnPathForTable, table, std::string("refers to table ")+table)
   return (arg.column_family == table);
 }
 
+// Matcher that check whether the argument is a ColumnPath that refers to a
+// single table.
+MATCHER_P2(ColumnPath, table, column, std::string("refers to table ")+table)
+{
+  *result_listener << "refers to table " << arg.column_family;
+  *result_listener << "refers to column " << arg.column;
+  return ((arg.column_family == table) && (arg.column == column));
+}
+
 
 // Matcher that checks whether a SlicePredicate specifies a sequence of specific
 // columns.
@@ -1091,16 +1100,46 @@ TEST_F(CacheRequestTest, PutAsoocPublicIdMainline)
   do_successful_trx(trx, req);
 }
 
+TEST_F(CacheRequestTest, PutAssocPrivateIdMainline)
+{
+  CacheTestTransaction *trx = make_trx();
+  Cache::Request* req =
+    _cache.create_PutAssociatedPrivateID({"kermit", "miss piggy"}, "gonzo", 1000);
+
+  std::vector<CFRowColumnValue> expected;
+
+  std::map<std::string, std::string> impi_columns;
+  impi_columns["associated_primary_impu__kermit"] = "";
+
+  std::map<std::string, std::string> impu_columns;
+  impu_columns["associated_impi__gonzo"] = "";
+
+  expected.push_back(CFRowColumnValue("impu", "kermit", impu_columns));
+  expected.push_back(CFRowColumnValue("impu", "miss piggy", impu_columns));
+  expected.push_back(CFRowColumnValue("impi_mapping", "gonzo", impi_columns));
+
+  EXPECT_CALL(_client,
+              batch_mutate(MutationMap(expected), _));
+
+  do_successful_trx(trx, req);
+}
+
 
 TEST_F(CacheRequestTest, DeletePublicId)
 {
   CacheTestTransaction *trx = make_trx();
   Cache::Request* req =
-    _cache.create_DeletePublicIDs("kermit", 1000);
+    _cache.create_DeletePublicIDs({"kermit"}, IMPIS, 1000);
 
   EXPECT_CALL(_client,
               remove("kermit",
                      ColumnPathForTable("impu"),
+                     1000,
+                     cass::ConsistencyLevel::ONE));
+
+  EXPECT_CALL(_client,
+              remove("somebody@example.com",
+                     ColumnPath("impi_mapping", "associated_primary_impu__kermit"),
                      1000,
                      cass::ConsistencyLevel::ONE));
 
@@ -1117,11 +1156,17 @@ TEST_F(CacheRequestTest, DeleteMultiPublicIds)
 
   CacheTestTransaction *trx = make_trx();
   Cache::Request* req =
-    _cache.create_DeletePublicIDs(ids, 1000);
+    _cache.create_DeletePublicIDs(ids, IMPIS, 1000);
 
   EXPECT_CALL(_client, remove("kermit", ColumnPathForTable("impu"), _, _));
   EXPECT_CALL(_client, remove("gonzo", ColumnPathForTable("impu"), _, _));
   EXPECT_CALL(_client, remove("miss piggy", ColumnPathForTable("impu"), _, _));
+
+  EXPECT_CALL(_client,
+              remove("somebody@example.com",
+                     ColumnPath("impi_mapping", "associated_primary_impu__kermit"),
+                     1000,
+                     cass::ConsistencyLevel::ONE));
 
   do_successful_trx(trx, req);
 }
@@ -1771,8 +1816,9 @@ TEST_F(CacheLatencyTest, DeleteRecordsLatency)
 {
   CacheTestTransaction *trx = make_trx();
   Cache::Request* req =
-    _cache.create_DeletePublicIDs("kermit", 1000);
+    _cache.create_DeletePublicIDs({"kermit"}, IMPIS, 1000);
 
+  EXPECT_CALL(_client, remove(_, _, _, _));
   EXPECT_CALL(_client, remove(_, _, _, _)).WillOnce(AdvanceTimeMs(13));
   EXPECT_CALL(*trx, on_success(_)).WillOnce(CheckLatency(trx, 13));
 

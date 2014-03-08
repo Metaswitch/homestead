@@ -564,6 +564,14 @@ public:
     /// @param key key of the row to delete
     void delete_row(const std::string& key,
                     int64_t timestamp);
+
+    /// Delete a column from the cache.
+    ///
+    /// @param key key of the row to delete
+    void delete_column(const std::string& key,
+                       const std::string& column,
+                       const std::string& cf,
+                       int64_t timestamp);
   };
 
   /// @class PutIMSSubscription write the IMS subscription XML for a public ID.
