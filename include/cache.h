@@ -82,7 +82,14 @@ struct CFRowColumnValue
     cf(cf),
     row(row),
     columns(columns)
-  {}
+  {};
+
+CFRowColumnValue(std::string cf,
+                 std::string row) :
+    cf(cf),
+    row(row),
+    columns()
+  {};
 
   std::string cf;
   std::string row;
@@ -573,6 +580,10 @@ public:
                        const std::string& column,
                        const std::string& cf,
                        int64_t timestamp);
+
+    void delete_columns_from_multiple_cfs(const std::vector<CFRowColumnValue>& to_rm,
+                                          int64_t timestamp);
+
   };
 
   /// @class PutIMSSubscription write the IMS subscription XML for a public ID.

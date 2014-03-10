@@ -709,6 +709,47 @@ delete_column(const std::string& key,
   _trx->stop_timer();
 }
 
+void Cache::DeleteRowsRequest::
+delete_columns_from_multiple_cfs(const std::vector<CFRowColumnValue>& to_rm,
+                                 int64_t timestamp)
+{
+  // The mutation map is of the form {"key": {"column_family": [mutations] } }
+  std::map<std::string, std::map<std::string, std::vector<Mutation> > > mutmap;
+
+  // Populate the mutations vector.
+  LOG_DEBUG("Constructing cache delete request with timestamp %lld", timestamp);
+
+  for (std::vector<CFRowColumnValue>::const_iterator it = to_rm.begin();
+       it != to_rm.end();
+       ++it)
+  {
+    std::vector<Mutation> mutations;
+    Mutation mutation;
+    mutation.__isset.deletion = true;
+    Deletion* deletion = &mutation.deletion;
+    SlicePredicate* what = &deletion->predicate;
+    deletion->timestamp = timestamp;
+
+    for (std::map<std::string, std::string>::const_iterator col = it->columns.begin();
+         col != it->columns.end();
+         ++col)
+    {
+      // Vector of mutations (one per column being modified).
+      printf("Deleting column %s\n", col->first.c_str());
+      what->column_names.push_back(col->first);
+    }
+    mutations.push_back(mutation);
+    mutmap[it->row][it->cf] = mutations;
+  }
+
+  // Execute the database operation.
+  LOG_DEBUG("Executing delete request operation");
+  _trx->start_timer();
+  _client->batch_mutate(mutmap, ConsistencyLevel::ONE);
+  _trx->stop_timer();
+}
+
+
 //
 // PutIMSSubscription methods.
 //
@@ -1383,13 +1424,17 @@ DeleteIMPIMapping(const std::vector<std::string>& private_ids, int64_t timestamp
 
 void Cache::DeleteIMPIMapping::perform()
 {
+  std::vector<CFRowColumnValue> to_delete;
+
   for (std::vector<std::string>::const_iterator it = _private_ids.begin();
        it != _private_ids.end();
        ++it)
   {
-    delete_row(*it, _timestamp);
+    // Don't specify columns as we're deleting the whole row
+    to_delete.push_back(CFRowColumnValue(_column_family, *it));
   }
 
+  delete_columns_from_multiple_cfs(to_delete, _timestamp);
   _trx->on_success(this);
 }
 
@@ -1408,13 +1453,22 @@ DissociateImplicitRegistrationSetFromImpi(const std::vector<std::string>& impus,
 
 void Cache::DissociateImplicitRegistrationSetFromImpi::perform()
 {
+  std::vector<CFRowColumnValue> to_delete;
+
   // Go through IMPI mapping table and delete the columns
 
   std::string primary_public_id = _impus.front();
 
   LOG_DEBUG("Deleting column %s from row %s", std::string(IMPI_MAPPING_PREFIX + primary_public_id).c_str(), _impi.c_str());
 
-  delete_column(_impi, IMPI_MAPPING_PREFIX + primary_public_id, "impi_mapping", _timestamp);
+  std::map<std::string, std::string> impi_columns_to_delete;
+  std::map<std::string, std::string> impu_columns_to_delete;
+
+  // Value doesn't matter for deletions
+  impi_columns_to_delete[IMPI_MAPPING_PREFIX + primary_public_id] = "";
+  impu_columns_to_delete[IMPI_COLUMN_PREFIX + _impi] = "";
+
+  to_delete.push_back(CFRowColumnValue("impi_mapping", _impi, impi_columns_to_delete));
 
   // Check how many IMPIs are associated with this implicit
   // registration set (all the columns are the same, so we only need
@@ -1435,15 +1489,17 @@ void Cache::DissociateImplicitRegistrationSetFromImpi::perform()
     {
       // No - Go through IMPU table and delete the column
       // specifically for this IMPI
-      delete_column(*it, IMPI_COLUMN_PREFIX + _impi, _column_family, _timestamp);
+      to_delete.push_back(CFRowColumnValue(_column_family, *it, impu_columns_to_delete));
     }
     else
     {
-      // Yes - delete the IMPU rows completely
-      delete_row(*it, _timestamp);
+      // Yes - delete the IMPU rows completely by not specifying columns
+      to_delete.push_back(CFRowColumnValue(_column_family, *it));
     }
   }
 
+  // Perform the batch deletion we've built up
+  delete_columns_from_multiple_cfs(to_delete, _timestamp);
 
   _trx->on_success(this);
 }
