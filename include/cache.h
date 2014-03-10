@@ -74,6 +74,9 @@
 
 namespace cass = org::apache::cassandra;
 
+// Simple data structure to allow specifying a set of column names and values for
+// a particular row and column family. Useful when batching operations
+// across multiple column families in one Thrift request.
 struct CFRowColumnValue
 {
   CFRowColumnValue(std::string cf,
@@ -400,6 +403,12 @@ public:
     virtual void set_trx(Transaction* trx) { _trx = trx; }
     virtual Transaction* get_trx() { return _trx; }
 
+    // The get_* methods live in Request rather than GetRequest -
+    // classes like PutRequest and DeleteRequest may need to get data
+    // to fulfil their purpose (whereas the delete_* and put_* methods
+    // should stay in the subclasss, as a GetRequest should never need
+    // to put or delete data).
+
     // After growing a cluster, Cassandra does not pro-actively populate the
     // new nodes with their data (the nodes are expected to use `nodetool
     // repair` if they need to get their data).  Combining this with
@@ -581,6 +590,10 @@ public:
                        const std::string& cf,
                        int64_t timestamp);
 
+    // Deletes a set of columns from arbitrary rows in arbitrary
+    // column familes, as specified by the CFRowColumnValue vector.
+
+    // Useful for batching up delete operations into a single Thrift request.
     void delete_columns_from_multiple_cfs(const std::vector<CFRowColumnValue>& to_rm,
                                           int64_t timestamp);
 
@@ -818,6 +831,13 @@ public:
     return new GetIMSSubscription(public_id);
   }
 
+  /// Get all the public IDs that are associated with one or more
+  /// private IDs.
+
+  // Only used when subscribers are locally provisioned - for the
+  // database operation that stores associations between IMPIs and
+  // primary public IDs for use in handling RTRs, see GetAssociatedPrimaryPublicIDs.
+
   class GetAssociatedPublicIDs : public GetRequest
   {
   public:
@@ -859,10 +879,18 @@ public:
     return new GetAssociatedPublicIDs(private_ids);
   }
 
+  // Retrieves the primary public IDs which a particular IMPI has been
+  // used to authenticate, by querying the "impi_mapping" table.
+
+  // Note that this operates on the "impi_mapping" table (storing data
+  // needed to handle Registration-Termination-Requests, and only used
+  // when we have a HSS) not the "impi" table (storing the SIP digest
+  // HA1 and all the public IDs associated with this IMPI, and only
+  // used when subscribers are locally provisioned).
   class GetAssociatedPrimaryPublicIDs : public GetRequest
   {
   public:
-    /// Get the public Ids that are associated with a single private ID.
+    /// Get the primary public Ids that are associated with a single private ID.
     ///
     /// @param private_id the private ID.
     GetAssociatedPrimaryPublicIDs(const std::string& private_id);
@@ -1045,6 +1073,15 @@ public:
     return new DeletePrivateIDs(private_ids, timestamp);
   }
 
+  // DeleteIMPIMapping operates on the "impi_mapping" Cassandra table,
+  // and deletes whole rows - effectively causing the cache to
+  // "forget" that a particular IMPI has been used to authenticate any
+  // IMPUs.
+
+  // The main use-case is for Registration-Termination-Requests, which
+  // may specify a private ID and require the S-CSCF to clear all data
+  // and bindings associated with it.
+
   class DeleteIMPIMapping : public DeleteRowsRequest
   {
   public:
@@ -1066,6 +1103,19 @@ public:
   {
     return new DeleteIMPIMapping(private_ids, timestamp);
   }
+
+  // DeleteIMPIMapping operates on the "impi_mapping" and "impu"
+  // Cassandra tables. It takes a vector of public IDs (representing
+  // the IDs in an implicit registration set) and a private ID, and
+  // removes the association between them:
+  //   * Each public ID's row in the IMPU table is updated to remove
+  //     this private ID. If this is the last private ID, the row is deleted.
+  //   * The private ID's row in the IMPI mapping table is updated to
+  //     remove the primary public ID. If this was the last prmary
+  //     public ID, the row is left empty for Cassandra to eventually
+  //     delete.
+
+  // The main use-case is for Registration-Termination-Requests.
 
   class DissociateImplicitRegistrationSetFromImpi : public DeleteRowsRequest
   {

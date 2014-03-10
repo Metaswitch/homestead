@@ -51,6 +51,7 @@ Cache Cache::DEFAULT_INSTANCE;
 // Keyspace and column family names.
 std::string KEYSPACE = "homestead_cache";
 std::string IMPI = "impi";
+std::string IMPI_MAPPING = "impi_mapping";
 std::string IMPU = "impu";
 
 // Column names in the IMPU column family.
@@ -823,7 +824,7 @@ void Cache::PutIMSSubscription::perform()
     std::map<std::string, std::string> impi_columns;
     std::vector<std::string>::iterator default_public_id = _public_ids.begin();
     impi_columns[IMPI_MAPPING_PREFIX + *default_public_id] = "";
-    to_put.push_back(CFRowColumnValue("impi_mapping", *impi, impi_columns));
+    to_put.push_back(CFRowColumnValue(IMPI_MAPPING, *impi, impi_columns));
 
   }
 
@@ -865,7 +866,7 @@ void Cache::PutAssociatedPrivateID::perform()
 
   std::string default_public_id = _impus.front();
   impi_columns[IMPI_MAPPING_PREFIX + default_public_id] = "";
-  to_put.push_back(CFRowColumnValue("impi_mapping", _impi, impi_columns));
+  to_put.push_back(CFRowColumnValue(IMPI_MAPPING, _impi, impi_columns));
 
   for (std::vector<std::string>::iterator row = _impus.begin();
        row != _impus.end();
@@ -1166,7 +1167,7 @@ void Cache::GetAssociatedPublicIDs::get_result(std::vector<std::string>& ids)
 
 Cache::GetAssociatedPrimaryPublicIDs::
 GetAssociatedPrimaryPublicIDs(const std::string& private_id) :
-  GetRequest("impi_mapping"),
+  GetRequest(IMPI_MAPPING),
   _private_id(private_id),
   _public_ids()
 {}
@@ -1180,7 +1181,7 @@ void Cache::GetAssociatedPrimaryPublicIDs::perform()
   try
   {
     ha_get_columns_with_prefix(_private_id,
-                               "associated_primary_impu__",
+                               IMPI_MAPPING_PREFIX,
                                columns);
   }
   catch(Cache::NoResultsException& nre)
@@ -1383,7 +1384,7 @@ void Cache::DeletePublicIDs::perform()
        it != _impis.end();
        ++it)
   {
-    delete_column(*it, IMPI_MAPPING_PREFIX + primary_public_id, "impi_mapping", _timestamp);
+    delete_column(*it, IMPI_MAPPING_PREFIX + primary_public_id, IMPI_MAPPING, _timestamp);
   }
 
 
@@ -1431,7 +1432,7 @@ void Cache::DeletePrivateIDs::perform()
 
 Cache::DeleteIMPIMapping::
 DeleteIMPIMapping(const std::vector<std::string>& private_ids, int64_t timestamp) :
-  DeleteRowsRequest("impi_mapping", timestamp),
+  DeleteRowsRequest(IMPI_MAPPING, timestamp),
   _private_ids(private_ids)
 {}
 
@@ -1481,7 +1482,7 @@ void Cache::DissociateImplicitRegistrationSetFromImpi::perform()
   impi_columns_to_delete[IMPI_MAPPING_PREFIX + primary_public_id] = "";
   impu_columns_to_delete[IMPI_COLUMN_PREFIX + _impi] = "";
 
-  to_delete.push_back(CFRowColumnValue("impi_mapping", _impi, impi_columns_to_delete));
+  to_delete.push_back(CFRowColumnValue(IMPI_MAPPING, _impi, impi_columns_to_delete));
 
   // Check how many IMPIs are associated with this implicit
   // registration set (all the columns are the same, so we only need
