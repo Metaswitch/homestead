@@ -559,7 +559,7 @@ Cache::GetRequest::~GetRequest()
         }
 
 
-void Cache::GetRequest::
+void Cache::Request::
 ha_get_columns(const std::string& key,
                const std::vector<std::string>& names,
                std::vector<ColumnOrSuperColumn>& columns)
@@ -568,7 +568,7 @@ ha_get_columns(const std::string& key,
 }
 
 
-void Cache::GetRequest::
+void Cache::Request::
 ha_get_columns_with_prefix(const std::string& key,
                            const std::string& prefix,
                            std::vector<ColumnOrSuperColumn>& columns)
@@ -576,7 +576,7 @@ ha_get_columns_with_prefix(const std::string& key,
   HA(get_columns_with_prefix, key, prefix, columns);
 }
 
-void Cache::GetRequest::
+void Cache::Request::
 ha_get_all_columns(const std::string& key,
                    std::vector<ColumnOrSuperColumn>& columns)
 {
@@ -584,7 +584,7 @@ ha_get_all_columns(const std::string& key,
 }
 
 
-void Cache::GetRequest::
+void Cache::Request::
 get_columns(const std::string& key,
             const std::vector<std::string>& names,
             std::vector<ColumnOrSuperColumn>& columns,
@@ -599,7 +599,7 @@ get_columns(const std::string& key,
 }
 
 
-void Cache::GetRequest::
+void Cache::Request::
 get_columns_with_prefix(const std::string& key,
                         const std::string& prefix,
                         std::vector<ColumnOrSuperColumn>& columns,
@@ -627,7 +627,7 @@ get_columns_with_prefix(const std::string& key,
   }
 }
 
-void Cache::GetRequest::
+void Cache::Request::
 get_row(const std::string& key,
                 std::vector<ColumnOrSuperColumn>& columns,
                 ConsistencyLevel::type consistency_level)
@@ -646,7 +646,7 @@ get_row(const std::string& key,
 }
 
 
-void Cache::GetRequest::
+void Cache::Request::
 issue_get_for_key(const std::string& key,
                   const SlicePredicate& predicate,
                   std::vector<ColumnOrSuperColumn>& columns,
@@ -927,6 +927,7 @@ Cache::GetIMSSubscription::
 
 void Cache::GetIMSSubscription::perform()
 {
+  printf("Performing GetIMSSubscription\n");
   int64_t now = generate_timestamp();
   LOG_DEBUG("Issuing get for column %s for key %s",
             IMS_SUB_XML_COLUMN_NAME.c_str(), _public_id.c_str());
@@ -1388,6 +1389,61 @@ void Cache::DeleteIMPIMapping::perform()
   {
     delete_row(*it, _timestamp);
   }
+
+  _trx->on_success(this);
+}
+
+//
+// DeleteIMPIMapping methods
+//
+
+Cache::DissociateImplicitRegistrationSetFromImpi::
+DissociateImplicitRegistrationSetFromImpi(const std::vector<std::string>& impus,
+                                          const std::string& impi,
+                                          int64_t timestamp) :
+  DeleteRowsRequest(IMPU, timestamp),
+  _impus(impus),
+  _impi(impi)
+{}
+
+void Cache::DissociateImplicitRegistrationSetFromImpi::perform()
+{
+  // Go through IMPI mapping table and delete the columns
+
+  std::string primary_public_id = _impus.front();
+
+  LOG_DEBUG("Deleting column %s from row %s", std::string(IMPI_MAPPING_PREFIX + primary_public_id).c_str(), _impi.c_str());
+
+  delete_column(_impi, IMPI_MAPPING_PREFIX + primary_public_id, "impi_mapping", _timestamp);
+
+  // Check how many IMPIs are associated with this implicit
+  // registration set (all the columns are the same, so we only need
+  // to check the first)
+
+  std::vector<cass::ColumnOrSuperColumn> columns;
+  ha_get_columns_with_prefix(primary_public_id, IMPI_COLUMN_PREFIX, columns);
+  int associated_impis = columns.size();
+
+  LOG_DEBUG("%d IMPIs are associated with this IRS", associated_impis);
+
+  for (std::vector<std::string>::const_iterator it = _impus.begin();
+       it != _impus.end();
+       ++it)
+  {
+    // Is this the last IMPI associated with this IMPU?
+    if (associated_impis > 1)
+    {
+      // No - Go through IMPU table and delete the column
+      // specifically for this IMPI
+      delete_column(*it, IMPI_COLUMN_PREFIX + _impi, _column_family, _timestamp);
+    }
+    else
+    {
+      // Yes - delete the IMPU rows completely
+      delete_row(*it, _timestamp);
+    }
+  }
+
 
   _trx->on_success(this);
 }

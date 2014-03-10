@@ -393,76 +393,6 @@ public:
     virtual void set_trx(Transaction* trx) { _trx = trx; }
     virtual Transaction* get_trx() { return _trx; }
 
-    /// Method that contains the business logic of the request.
-    ///
-    /// This is called by run from within an exception handler(). It is safe to
-    /// throw exceptions from perform, as run() will catch them and convert them
-    /// to appropriate error codes.
-    virtual void perform() {};
-
-    std::string _column_family;
-    CacheClientInterface *_client;
-    Transaction *_trx;
-  };
-
-  /// @class ModificationRequest a request to modify the cache (e.g. write
-  /// columns or delete rows).
-  class ModificationRequest : public Request
-  {
-  public:
-    /// Constructor
-    ///
-    /// @param timestamp the timestamp of the request.  Should be filled in with
-    ///   the result from generate_timestamp().  To ensure consistency, related
-    ///   cache updates should all be made with the same timestamp.
-    ModificationRequest(const std::string& column_family, int64_t timestamp);
-    virtual ~ModificationRequest();
-
-  protected:
-    int64_t _timestamp;
-  };
-
-  /// @class PutRequest a request to write to the database.
-  class PutRequest : public ModificationRequest
-  {
-  public:
-    /// Constructor
-    /// @param ttl the time-to-live of the written data (after which it expires
-    ///   and is deleted). 0 => no expiry.
-    PutRequest(const std::string& column_family,
-               int64_t timestamp,
-               int32_t ttl = 0);
-    virtual ~PutRequest();
-
-  protected:
-    int32_t _ttl;
-
-    /// Write columns to a row/rows.
-    ///
-    /// If multiple rows are specified the same columns are written to all rows.
-    ///
-    /// @param keys the row keys
-    /// @param columns the columns to write. Specified as a map {name => value}
-    void put_columns(const std::vector<std::string>& keys,
-                     const std::map<std::string, std::string>& columns,
-                     int64_t timestamp,
-                     int32_t ttl);
-
-    void put_columns_to_multiple_cfs(const std::vector<CFRowColumnValue>& to_put,
-                                     int64_t timestamp,
-                                     int32_t ttl);
-
-  };
-
-  /// @class GetRequest a request to read data from the cache.
-  class GetRequest : public Request
-  {
-  public:
-    /// Constructor.
-    GetRequest(const std::string& column_family);
-    virtual ~GetRequest();
-
-  protected:
     // After growing a cluster, Cassandra does not pro-actively populate the
     // new nodes with their data (the nodes are expected to use `nodetool
     // repair` if they need to get their data).  Combining this with
@@ -547,6 +477,77 @@ public:
                            const cass::SlicePredicate& predicate,
                            std::vector<cass::ColumnOrSuperColumn>& columns,
                            cass::ConsistencyLevel::type consistency_level);
+
+    /// Method that contains the business logic of the request.
+    ///
+    /// This is called by run from within an exception handler(). It is safe to
+    /// throw exceptions from perform, as run() will catch them and convert them
+    /// to appropriate error codes.
+    virtual void perform() {};
+
+    std::string _column_family;
+    CacheClientInterface *_client;
+    Transaction *_trx;
+  };
+
+  /// @class ModificationRequest a request to modify the cache (e.g. write
+  /// columns or delete rows).
+  class ModificationRequest : public Request
+  {
+  public:
+    /// Constructor
+    ///
+    /// @param timestamp the timestamp of the request.  Should be filled in with
+    ///   the result from generate_timestamp().  To ensure consistency, related
+    ///   cache updates should all be made with the same timestamp.
+    ModificationRequest(const std::string& column_family, int64_t timestamp);
+    virtual ~ModificationRequest();
+
+  protected:
+    int64_t _timestamp;
+  };
+
+  /// @class PutRequest a request to write to the database.
+  class PutRequest : public ModificationRequest
+  {
+  public:
+    /// Constructor
+    /// @param ttl the time-to-live of the written data (after which it expires
+    ///   and is deleted). 0 => no expiry.
+    PutRequest(const std::string& column_family,
+               int64_t timestamp,
+               int32_t ttl = 0);
+    virtual ~PutRequest();
+
+  protected:
+    int32_t _ttl;
+
+    /// Write columns to a row/rows.
+    ///
+    /// If multiple rows are specified the same columns are written to all rows.
+    ///
+    /// @param keys the row keys
+    /// @param columns the columns to write. Specified as a map {name => value}
+    void put_columns(const std::vector<std::string>& keys,
+                     const std::map<std::string, std::string>& columns,
+                     int64_t timestamp,
+                     int32_t ttl);
+
+    void put_columns_to_multiple_cfs(const std::vector<CFRowColumnValue>& to_put,
+                                     int64_t timestamp,
+                                     int32_t ttl);
+
+  };
+
+  /// @class GetRequest a request to read data from the cache.
+  class GetRequest : public Request
+  {
+  public:
+    /// Constructor.
+    GetRequest(const std::string& column_family);
+    virtual ~GetRequest();
+
+  protected:
   };
 
   /// @class DeleteRowsRequest a request to delete one or more rows from the
@@ -1035,6 +1036,31 @@ public:
                              int64_t timestamp)
   {
     return new DeleteIMPIMapping(private_ids, timestamp);
+  }
+
+  class DissociateImplicitRegistrationSetFromImpi : public DeleteRowsRequest
+  {
+  public:
+    /// Delete a mapping from private IDs to the IMPUs they have authenticated.
+    ///
+    DissociateImplicitRegistrationSetFromImpi(const std::vector<std::string>& impus,
+                                              const std::string& impi,
+                                              int64_t timestamp);
+    virtual ~DissociateImplicitRegistrationSetFromImpi() {};
+
+  protected:
+    std::vector<std::string> _impus;
+    std::string _impi;
+
+    void perform();
+  };
+
+  virtual DissociateImplicitRegistrationSetFromImpi*
+    create_DissociateImplicitRegistrationSetFromImpi(const std::vector<std::string>& impus,
+                                                     const std::string& impi,
+                                                     int64_t timestamp)
+  {
+    return new DissociateImplicitRegistrationSetFromImpi(impus, impi, timestamp);
   }
 };
 

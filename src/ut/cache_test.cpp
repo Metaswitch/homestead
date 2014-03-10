@@ -1923,3 +1923,110 @@ TEST_F(CacheLatencyTest, ErrorRecordsLatency)
   _cache.send(trx, req);
   wait();
 }
+
+TEST_F(CacheRequestTest, DissociateImplicitRegistrationSetFromImpi)
+{
+  std::map<std::string, std::string> impu_columns;
+  impu_columns["associated_impi__somebody@example.com"] = "";
+  impu_columns["associated_impi__gonzo"] = "";
+
+  std::vector<cass::ColumnOrSuperColumn> impu_slice;
+  make_slice(impu_slice, impu_columns);
+
+
+  std::map<std::string, std::string> impi_columns;
+  impi_columns["associated_primary_impu__kermit"] = "";
+  impi_columns["associated_primary_impu__miss piggy"] = "";
+
+  std::vector<cass::ColumnOrSuperColumn> impi_slice;
+  make_slice(impi_slice, impi_columns);
+
+  CacheTestTransaction* trx = make_trx();
+  Cache::Request* req = _cache.create_DissociateImplicitRegistrationSetFromImpi({"kermit", "robin"}, "gonzo", 1000);
+
+  EXPECT_CALL(_client,
+              remove("gonzo",
+                     ColumnPath("impi_mapping", "associated_primary_impu__kermit"),
+                     1000,
+                     cass::ConsistencyLevel::ONE));
+
+  // Expect associated IMPI lookup
+
+  EXPECT_CALL(_client,
+              get_slice(_,
+                        "kermit",
+                        ColumnPathForTable("impu"),
+                        ColumnsWithPrefix("associated_impi__"),
+                        _))
+    .WillOnce(SetArgReferee<0>(impu_slice));
+
+  // Expect single-column removal, twice
+
+  EXPECT_CALL(_client,
+              remove("kermit",
+                     ColumnPath("impu", "associated_impi__gonzo"),
+                     1000,
+                     cass::ConsistencyLevel::ONE));
+
+  EXPECT_CALL(_client,
+              remove("robin",
+                     ColumnPath("impu", "associated_impi__gonzo"),
+                     1000,
+                     cass::ConsistencyLevel::ONE));
+
+  do_successful_trx(trx, req);
+}
+
+
+TEST_F(CacheRequestTest, DissociateImplicitRegistrationSetFromImpiCausingDeletion)
+{
+  std::map<std::string, std::string> impu_columns;
+  impu_columns["associated_impi__gonzo"] = "";
+
+  std::vector<cass::ColumnOrSuperColumn> impu_slice;
+  make_slice(impu_slice, impu_columns);
+
+
+  std::map<std::string, std::string> impi_columns;
+  impi_columns["associated_primary_impu__kermit"] = "";
+
+  std::vector<cass::ColumnOrSuperColumn> impi_slice;
+  make_slice(impi_slice, impi_columns);
+
+  CacheTestTransaction* trx = make_trx();
+  Cache::Request* req = _cache.create_DissociateImplicitRegistrationSetFromImpi({"kermit", "robin"}, "gonzo", 1000);
+
+  EXPECT_CALL(_client,
+              remove("gonzo",
+                     ColumnPath("impi_mapping", "associated_primary_impu__kermit"),
+                     1000,
+                     cass::ConsistencyLevel::ONE));
+
+  // Expect associated IMPI lookup
+
+  EXPECT_CALL(_client,
+              get_slice(_,
+                        "kermit",
+                        ColumnPathForTable("impu"),
+                        ColumnsWithPrefix("associated_impi__"),
+                        _))
+    .WillOnce(SetArgReferee<0>(impu_slice));
+
+  // Expect full-column removal, twice
+
+  EXPECT_CALL(_client,
+              remove("kermit",
+                     ColumnPath("impu", ""),
+                     1000,
+                     cass::ConsistencyLevel::ONE));
+
+  EXPECT_CALL(_client,
+              remove("robin",
+                     ColumnPath("impu", ""),
+                     1000,
+                     cass::ConsistencyLevel::ONE));
+
+  do_successful_trx(trx, req);
+}
+
+
