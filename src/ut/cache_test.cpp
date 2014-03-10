@@ -1263,21 +1263,22 @@ TEST_F(CacheRequestTest, PutAssocPrivateIdMainline)
 
 TEST_F(CacheRequestTest, DeletePublicId)
 {
+  std::vector<CFRowColumnValue> expected;
+
   CacheTestTransaction *trx = make_trx();
   Cache::Request* req =
     _cache.create_DeletePublicIDs("kermit", IMPIS, 1000);
 
-  EXPECT_CALL(_client,
-              remove("kermit",
-                     ColumnPathForTable("impu"),
-                     1000,
-                     cass::ConsistencyLevel::ONE));
+  // The "kermit" IMPU row should be deleted entirely
+  expected.push_back(CFRowColumnValue("impu", "kermit"));
 
-  EXPECT_CALL(_client,
-              remove("somebody@example.com",
-                     ColumnPath("impi_mapping", "associated_primary_impu__kermit"),
-                     1000,
-                     cass::ConsistencyLevel::ONE));
+  // The "kermit" column should be deleted from the IMPI's row in the
+  // IMPI mapping table
+  std::map<std::string, std::string> deleted_impi_columns;
+  deleted_impi_columns["associated_primary_impu__kermit"] = "";
+  expected.push_back(CFRowColumnValue("impi_mapping", "somebody@example.com", deleted_impi_columns));
+
+  EXPECT_CALL(_client, batch_mutate(DeletionMap(expected), _));
 
   do_successful_trx(trx, req);
 }
@@ -1285,6 +1286,8 @@ TEST_F(CacheRequestTest, DeletePublicId)
 
 TEST_F(CacheRequestTest, DeleteMultiPublicIds)
 {
+  std::vector<CFRowColumnValue> expected;
+
   std::vector<std::string> ids;
   ids.push_back("kermit");
   ids.push_back("gonzo");
@@ -1294,15 +1297,18 @@ TEST_F(CacheRequestTest, DeleteMultiPublicIds)
   Cache::Request* req =
     _cache.create_DeletePublicIDs(ids, IMPIS, 1000);
 
-  EXPECT_CALL(_client, remove("kermit", ColumnPathForTable("impu"), _, _));
-  EXPECT_CALL(_client, remove("gonzo", ColumnPathForTable("impu"), _, _));
-  EXPECT_CALL(_client, remove("miss piggy", ColumnPathForTable("impu"), _, _));
+  // The "kermit", "gonzo" and "miss piggy" IMPU rows should be deleted entirely
+  expected.push_back(CFRowColumnValue("impu", "kermit"));
+  expected.push_back(CFRowColumnValue("impu", "gonzo"));
+  expected.push_back(CFRowColumnValue("impu", "miss piggy"));
 
-  EXPECT_CALL(_client,
-              remove("somebody@example.com",
-                     ColumnPath("impi_mapping", "associated_primary_impu__kermit"),
-                     1000,
-                     cass::ConsistencyLevel::ONE));
+  // Only the "kermit" column should be deleted from the IMPI's row in the
+  // IMPI mapping table
+  std::map<std::string, std::string> deleted_impi_columns;
+  deleted_impi_columns["associated_primary_impu__kermit"] = "";
+  expected.push_back(CFRowColumnValue("impi_mapping", "somebody@example.com", deleted_impi_columns));
+
+  EXPECT_CALL(_client, batch_mutate(DeletionMap(expected), _));
 
   do_successful_trx(trx, req);
 }
@@ -1370,7 +1376,7 @@ TEST_F(CacheRequestTest, DeletesHaveConsistencyLevelOne)
   Cache::Request* req =
     _cache.create_DeletePublicIDs("kermit", 1000);
 
-  EXPECT_CALL(_client, remove(_, _, _, cass::ConsistencyLevel::ONE));
+  EXPECT_CALL(_client, batch_mutate(_, cass::ConsistencyLevel::ONE));
 
   do_successful_trx(trx, req);
 }
@@ -2031,7 +2037,7 @@ TEST_F(CacheLatencyTest, DeleteRecordsLatency)
   Cache::Request* req =
     _cache.create_DeletePublicIDs("kermit", IMPIS, 1000);
 
-  EXPECT_CALL(_client, remove(_, _, _, _)).WillRepeatedly(AdvanceTimeMs(13));
+  EXPECT_CALL(_client, batch_mutate(_, _)).WillRepeatedly(AdvanceTimeMs(13));
   EXPECT_CALL(*trx, on_success(_)).WillOnce(CheckLatency(trx, 13));
 
   _cache.send(trx, req);

@@ -695,22 +695,6 @@ delete_row(const std::string& key,
 }
 
 void Cache::DeleteRowsRequest::
-delete_column(const std::string& key,
-              const std::string& column,
-              const std::string& cf,
-              int64_t timestamp)
-{
-  ColumnPath cp;
-  cp.column_family = cf;
-  cp.column = column;
-
-  _trx->start_timer();
-  LOG_DEBUG("Deleting column %s with key %s (timestamp %lld", column.c_str(), key.c_str(), timestamp);
-  _client->remove(key, cp, timestamp, ConsistencyLevel::ONE);
-  _trx->stop_timer();
-}
-
-void Cache::DeleteRowsRequest::
 delete_columns_from_multiple_cfs(const std::vector<CFRowColumnValue>& to_rm,
                                  int64_t timestamp)
 {
@@ -1374,22 +1358,31 @@ Cache::DeletePublicIDs::
 
 void Cache::DeletePublicIDs::perform()
 {
+  std::vector<CFRowColumnValue> to_delete;
+
   for (std::vector<std::string>::const_iterator it = _public_ids.begin();
        it != _public_ids.end();
        ++it)
   {
-    delete_row(*it, _timestamp);
+    // Don't specify columns as we're deleting the whole row
+    to_delete.push_back(CFRowColumnValue(_column_family, *it));
   }
 
   std::string primary_public_id = _public_ids.front();
+  std::map<std::string, std::string> impi_columns_to_delete;
+  impi_columns_to_delete[IMPI_MAPPING_PREFIX + primary_public_id] = "";
 
   for (std::vector<std::string>::const_iterator it = _impis.begin();
        it != _impis.end();
        ++it)
   {
-    delete_column(*it, IMPI_MAPPING_PREFIX + primary_public_id, IMPI_MAPPING, _timestamp);
+    // Delete the column for this primary public ID from the IMPI
+    // mapping table
+    to_delete.push_back(CFRowColumnValue(IMPI_MAPPING, *it, impi_columns_to_delete));
   }
 
+  // Perform the batch deletion we've built up
+  delete_columns_from_multiple_cfs(to_delete, _timestamp);
 
   _trx->on_success(this);
 }
