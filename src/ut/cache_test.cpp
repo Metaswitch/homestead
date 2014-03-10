@@ -1872,8 +1872,7 @@ TEST_F(CacheLatencyTest, DeleteRecordsLatency)
   Cache::Request* req =
     _cache.create_DeletePublicIDs({"kermit"}, IMPIS, 1000);
 
-  EXPECT_CALL(_client, remove(_, _, _, _));
-  EXPECT_CALL(_client, remove(_, _, _, _)).WillOnce(AdvanceTimeMs(13));
+  EXPECT_CALL(_client, remove(_, _, _, _)).WillRepeatedly(AdvanceTimeMs(13));
   EXPECT_CALL(*trx, on_success(_)).WillOnce(CheckLatency(trx, 13));
 
   _cache.send(trx, req);
