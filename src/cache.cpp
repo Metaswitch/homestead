@@ -56,6 +56,8 @@ std::string IMPU = "impu";
 // Column names in the IMPU column family.
 std::string IMS_SUB_XML_COLUMN_NAME = "ims_subscription_xml";
 std::string REG_STATE_COLUMN_NAME = "is_registered";
+std::string IMPI_COLUMN_PREFIX = "associated_impi__";
+std::string IMPI_MAPPING_PREFIX = "associated_primary_impu__";
 
 // Column names in the IMPI column family.
 std::string ASSOC_PUBLIC_ID_COLUMN_PREFIX = "public_id_";
@@ -455,6 +457,59 @@ put_columns(const std::vector<std::string>& keys,
   _trx->stop_timer();
 }
 
+void Cache::PutRequest::
+put_columns_to_multiple_cfs(const std::vector<CFRowColumnValue>& to_put,
+                            int64_t timestamp,
+                            int32_t ttl)
+{
+  // The mutation map is of the form {"key": {"column_family": [mutations] } }
+  std::map<std::string, std::map<std::string, std::vector<Mutation> > > mutmap;
+
+  // Populate the mutations vector.
+  LOG_DEBUG("Constructing cache put request with timestamp %lld and per-column TTLs", timestamp);
+  for (std::vector<CFRowColumnValue>::const_iterator it = to_put.begin();
+       it != to_put.end();
+       ++it)
+  {
+    // Vector of mutations (one per column being modified).
+    std::vector<Mutation> mutations;
+
+    for (std::map<std::string, std::string>::const_iterator col = it->columns.begin();
+         col != it->columns.end();
+         ++col)
+    {
+      Mutation mutation;
+      Column* column = &mutation.column_or_supercolumn.column;
+
+      column->name = col->first;
+      column->value = col->second;
+      LOG_DEBUG("  %s => %s (TTL %d)", column->name.c_str(), column->value.c_str(), ttl);
+      column->__isset.value = true;
+      column->timestamp = timestamp;
+      column->__isset.timestamp = true;
+
+      // A ttl of 0 => no expiry.
+      if (ttl > 0)
+      {
+        column->ttl = ttl;
+        column->__isset.ttl = true;
+      }
+
+      mutation.column_or_supercolumn.__isset.column = true;
+      mutation.__isset.column_or_supercolumn = true;
+      mutations.push_back(mutation);
+    }
+
+    mutmap[it->row][it->cf] = mutations;
+  }
+
+  // Execute the database operation.
+  LOG_DEBUG("Executing put request operation");
+  _trx->start_timer();
+  _client->batch_mutate(mutmap, ConsistencyLevel::ONE);
+  _trx->stop_timer();
+}
+
 //
 // GetRequest methods.
 //
@@ -504,7 +559,7 @@ Cache::GetRequest::~GetRequest()
         }
 
 
-void Cache::GetRequest::
+void Cache::Request::
 ha_get_columns(const std::string& key,
                const std::vector<std::string>& names,
                std::vector<ColumnOrSuperColumn>& columns)
@@ -513,7 +568,7 @@ ha_get_columns(const std::string& key,
 }
 
 
-void Cache::GetRequest::
+void Cache::Request::
 ha_get_columns_with_prefix(const std::string& key,
                            const std::string& prefix,
                            std::vector<ColumnOrSuperColumn>& columns)
@@ -521,8 +576,15 @@ ha_get_columns_with_prefix(const std::string& key,
   HA(get_columns_with_prefix, key, prefix, columns);
 }
 
+void Cache::Request::
+ha_get_all_columns(const std::string& key,
+                   std::vector<ColumnOrSuperColumn>& columns)
+{
+  HA(get_row, key, columns);
+}
 
-void Cache::GetRequest::
+
+void Cache::Request::
 get_columns(const std::string& key,
             const std::vector<std::string>& names,
             std::vector<ColumnOrSuperColumn>& columns,
@@ -537,7 +599,7 @@ get_columns(const std::string& key,
 }
 
 
-void Cache::GetRequest::
+void Cache::Request::
 get_columns_with_prefix(const std::string& key,
                         const std::string& prefix,
                         std::vector<ColumnOrSuperColumn>& columns,
@@ -565,8 +627,26 @@ get_columns_with_prefix(const std::string& key,
   }
 }
 
+void Cache::Request::
+get_row(const std::string& key,
+                std::vector<ColumnOrSuperColumn>& columns,
+                ConsistencyLevel::type consistency_level)
+{
+  // This slice range gets all columns with the specified prefix.
+  SliceRange sr;
+  sr.start = "";
+  // Increment the last character of the "finish" field.
+  sr.finish = "";
 
-void Cache::GetRequest::
+  SlicePredicate sp;
+  sp.slice_range = sr;
+  sp.__isset.slice_range = true;
+
+  issue_get_for_key(key, sp, columns, consistency_level);
+}
+
+
+void Cache::Request::
 issue_get_for_key(const std::string& key,
                   const SlicePredicate& predicate,
                   std::vector<ColumnOrSuperColumn>& columns,
@@ -613,6 +693,22 @@ delete_row(const std::string& key,
   _trx->stop_timer();
 }
 
+void Cache::DeleteRowsRequest::
+delete_column(const std::string& key,
+              const std::string& column,
+              const std::string& cf,
+              int64_t timestamp)
+{
+  ColumnPath cp;
+  cp.column_family = cf;
+  cp.column = column;
+
+  _trx->start_timer();
+  LOG_DEBUG("Deleting column %s with key %s (timestamp %lld", column.c_str(), key.c_str(), timestamp);
+  _client->remove(key, cp, timestamp, ConsistencyLevel::ONE);
+  _trx->stop_timer();
+}
+
 //
 // PutIMSSubscription methods.
 //
@@ -654,6 +750,7 @@ Cache::PutIMSSubscription::
 
 void Cache::PutIMSSubscription::perform()
 {
+  std::vector<CFRowColumnValue> to_put;
   std::map<std::string, std::string> columns;
   columns[IMS_SUB_XML_COLUMN_NAME] = _xml;
 
@@ -675,7 +772,28 @@ void Cache::PutIMSSubscription::perform()
     }
   }
 
-  put_columns(_public_ids, columns, _timestamp, _ttl);
+  for (std::vector<std::string>::iterator impi = _impis.begin();
+       impi != _impis.end();
+       impi++)
+  {
+    std::string column_name = IMPI_COLUMN_PREFIX + *impi;
+    columns[column_name] = "";
+
+    std::map<std::string, std::string> impi_columns;
+    std::vector<std::string>::iterator default_public_id = _public_ids.begin();
+    impi_columns[IMPI_MAPPING_PREFIX + *default_public_id] = "";
+    to_put.push_back(CFRowColumnValue("impi_mapping", *impi, impi_columns));
+
+  }
+
+  for (std::vector<std::string>::iterator row = _public_ids.begin();
+       row != _public_ids.end();
+       row++)
+  {
+    to_put.push_back(CFRowColumnValue(_column_family, *row, columns));
+  }
+
+  put_columns_to_multiple_cfs(to_put, _timestamp, _ttl);
   _trx->on_success(this);
 }
 
@@ -686,7 +804,7 @@ PutAssociatedPrivateID(const std::vector<std::string>& impus,
                        const std::string& impi,
                        const int64_t timestamp,
                        const int32_t ttl) :
-  PutRequest(IMPI, timestamp, ttl),
+  PutRequest(IMPU, timestamp, ttl),
   _impus(impus),
   _impi(impi)
 {}
@@ -699,15 +817,26 @@ Cache::PutAssociatedPrivateID::
 
 void Cache::PutAssociatedPrivateID::perform()
 {
-  /*
-  std::map<std::string, std::string> columns;
-  columns[ASSOC_PUBLIC_ID_COLUMN_PREFIX + _assoc_public_id] = "";
+  std::vector<CFRowColumnValue> to_put;
+  std::map<std::string, std::string> impu_columns;
+  std::map<std::string, std::string> impi_columns;
+  impu_columns[IMPI_COLUMN_PREFIX + _impi] = "";
 
-  std::vector<std::string> keys(1, _private_id);
+  std::string default_public_id = _impus.front();
+  impi_columns[IMPI_MAPPING_PREFIX + default_public_id] = "";
+  to_put.push_back(CFRowColumnValue("impi_mapping", _impi, impi_columns));
 
-  put_columns(keys, columns, _timestamp, _ttl);
+  for (std::vector<std::string>::iterator row = _impus.begin();
+       row != _impus.end();
+       row++)
+  {
+    to_put.push_back(CFRowColumnValue(_column_family, *row, impu_columns));
+  }
+
+  put_columns_to_multiple_cfs(to_put, _timestamp, _ttl);
+
   _trx->on_success(this);
-  */
+
 }
 
 
@@ -786,7 +915,8 @@ GetIMSSubscription(const std::string& public_id) :
   _xml(),
   _reg_state(RegistrationState::NOT_REGISTERED),
   _xml_ttl(0),
-  _reg_state_ttl(0)
+  _reg_state_ttl(0),
+  _impis()
 {}
 
 
@@ -797,17 +927,15 @@ Cache::GetIMSSubscription::
 
 void Cache::GetIMSSubscription::perform()
 {
+  printf("Performing GetIMSSubscription\n");
   int64_t now = generate_timestamp();
   LOG_DEBUG("Issuing get for column %s for key %s",
             IMS_SUB_XML_COLUMN_NAME.c_str(), _public_id.c_str());
   std::vector<ColumnOrSuperColumn> results;
-  std::vector<std::string> requested_columns;
-  requested_columns.push_back(IMS_SUB_XML_COLUMN_NAME);
-  requested_columns.push_back(REG_STATE_COLUMN_NAME);
 
   try
   {
-    ha_get_columns(_public_id, requested_columns, results);
+    ha_get_all_columns(_public_id, results);
 
     for(std::vector<ColumnOrSuperColumn>::iterator it = results.begin(); it != results.end(); ++it)
     {
@@ -852,7 +980,10 @@ void Cache::GetIMSSubscription::perform()
                       it->column.value.c_str()[0],
                       it->column.value.c_str());
         };
-      };
+      } else if (it->column.name.find(IMPI_COLUMN_PREFIX) == 0) {
+        std::string impi = it->column.name.substr(IMPI_COLUMN_PREFIX.length());
+        _impis.push_back(impi);
+      }
     }
 
     // If we're storing user data for this subscriber (i.e. there is
@@ -884,6 +1015,7 @@ void Cache::GetIMSSubscription::get_xml(std::string& xml, int32_t& ttl)
 
 void Cache::GetIMSSubscription::get_associated_impis(std::vector<std::string>& associated_impis)
 {
+  associated_impis = _impis;
 }
 
 
@@ -898,6 +1030,15 @@ void Cache::GetIMSSubscription::get_result(std::pair<RegistrationState, std::str
   get_xml(xml, xml_ttl);
   result.first = state;
   result.second = xml;
+}
+
+void Cache::GetIMSSubscription::get_result(Cache::GetIMSSubscription::Result& result)
+{
+  int32_t unused_ttl;
+
+  get_registration_state(result.state, unused_ttl);
+  get_xml(result.xml, unused_ttl);
+  get_associated_impis(result.impis);
 }
 
 
@@ -974,6 +1115,53 @@ void Cache::GetAssociatedPublicIDs::perform()
 }
 
 void Cache::GetAssociatedPublicIDs::get_result(std::vector<std::string>& ids)
+{
+  ids = _public_ids;
+}
+
+//
+// GetAssociatedPrimaryPublicIDs methods
+//
+
+Cache::GetAssociatedPrimaryPublicIDs::
+GetAssociatedPrimaryPublicIDs(const std::string& private_id) :
+  GetRequest("impi_mapping"),
+  _private_id(private_id),
+  _public_ids()
+{}
+
+
+void Cache::GetAssociatedPrimaryPublicIDs::perform()
+{
+  std::vector<ColumnOrSuperColumn> columns;
+
+  LOG_DEBUG("Looking for primary public IDs for private ID %s", _private_id.c_str());
+  try
+  {
+    ha_get_columns_with_prefix(_private_id,
+                               "associated_primary_impu__",
+                               columns);
+  }
+  catch(Cache::NoResultsException& nre)
+  {
+    LOG_INFO("Couldn't find any public IDs for private ID %s", _private_id.c_str());
+  }
+
+  // Convert the query results from a vector of columns to a vector containing
+  // the column names. The public_id prefix has already been stripped, so this
+  // is just a list of public IDs and can be passed directly to on_success.
+  for(std::vector<ColumnOrSuperColumn>::const_iterator column_it = columns.begin();
+      column_it != columns.end();
+      ++column_it)
+  {
+    LOG_DEBUG("Found associated public ID %s", column_it->column.name.c_str());
+    _public_ids.push_back(column_it->column.name);
+  }
+
+  _trx->on_success(this);
+}
+
+void Cache::GetAssociatedPrimaryPublicIDs::get_result(std::vector<std::string>& ids)
 {
   ids = _public_ids;
 }
@@ -1135,6 +1323,16 @@ void Cache::DeletePublicIDs::perform()
     delete_row(*it, _timestamp);
   }
 
+  std::string primary_public_id = _public_ids.front();
+
+  for (std::vector<std::string>::const_iterator it = _impis.begin();
+       it != _impis.end();
+       ++it)
+  {
+    delete_column(*it, IMPI_MAPPING_PREFIX + primary_public_id, "impi_mapping", _timestamp);
+  }
+
+
   _trx->on_success(this);
 }
 
@@ -1169,6 +1367,83 @@ void Cache::DeletePrivateIDs::perform()
   {
     delete_row(*it, _timestamp);
   }
+
+  _trx->on_success(this);
+}
+
+//
+// DeleteIMPIMapping methods
+//
+
+Cache::DeleteIMPIMapping::
+DeleteIMPIMapping(const std::vector<std::string>& private_ids, int64_t timestamp) :
+  DeleteRowsRequest("impi_mapping", timestamp),
+  _private_ids(private_ids)
+{}
+
+void Cache::DeleteIMPIMapping::perform()
+{
+  for (std::vector<std::string>::const_iterator it = _private_ids.begin();
+       it != _private_ids.end();
+       ++it)
+  {
+    delete_row(*it, _timestamp);
+  }
+
+  _trx->on_success(this);
+}
+
+//
+// DeleteIMPIMapping methods
+//
+
+Cache::DissociateImplicitRegistrationSetFromImpi::
+DissociateImplicitRegistrationSetFromImpi(const std::vector<std::string>& impus,
+                                          const std::string& impi,
+                                          int64_t timestamp) :
+  DeleteRowsRequest(IMPU, timestamp),
+  _impus(impus),
+  _impi(impi)
+{}
+
+void Cache::DissociateImplicitRegistrationSetFromImpi::perform()
+{
+  // Go through IMPI mapping table and delete the columns
+
+  std::string primary_public_id = _impus.front();
+
+  LOG_DEBUG("Deleting column %s from row %s", std::string(IMPI_MAPPING_PREFIX + primary_public_id).c_str(), _impi.c_str());
+
+  delete_column(_impi, IMPI_MAPPING_PREFIX + primary_public_id, "impi_mapping", _timestamp);
+
+  // Check how many IMPIs are associated with this implicit
+  // registration set (all the columns are the same, so we only need
+  // to check the first)
+
+  std::vector<cass::ColumnOrSuperColumn> columns;
+  ha_get_columns_with_prefix(primary_public_id, IMPI_COLUMN_PREFIX, columns);
+  int associated_impis = columns.size();
+
+  LOG_DEBUG("%d IMPIs are associated with this IRS", associated_impis);
+
+  for (std::vector<std::string>::const_iterator it = _impus.begin();
+       it != _impus.end();
+       ++it)
+  {
+    // Is this the last IMPI associated with this IMPU?
+    if (associated_impis > 1)
+    {
+      // No - Go through IMPU table and delete the column
+      // specifically for this IMPI
+      delete_column(*it, IMPI_COLUMN_PREFIX + _impi, _column_family, _timestamp);
+    }
+    else
+    {
+      // Yes - delete the IMPU rows completely
+      delete_row(*it, _timestamp);
+    }
+  }
+
 
   _trx->on_success(this);
 }

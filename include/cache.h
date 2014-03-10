@@ -74,6 +74,22 @@
 
 namespace cass = org::apache::cassandra;
 
+struct CFRowColumnValue
+{
+  CFRowColumnValue(std::string cf,
+                   std::string row,
+                   std::map<std::string, std::string> columns) :
+    cf(cf),
+    row(row),
+    columns(columns)
+  {}
+
+  std::string cf;
+  std::string row;
+  std::map<std::string, std::string> columns;
+
+};
+
 /// @class Cache
 ///
 /// Singleton class representing a cassandra-backed subscriber cache.
@@ -377,6 +393,91 @@ public:
     virtual void set_trx(Transaction* trx) { _trx = trx; }
     virtual Transaction* get_trx() { return _trx; }
 
+    // After growing a cluster, Cassandra does not pro-actively populate the
+    // new nodes with their data (the nodes are expected to use `nodetool
+    // repair` if they need to get their data).  Combining this with
+    // the fact that we generally use consistency ONE when reading data, the
+    // behaviour on new nodes is to return NotFoundException or empty result
+    // sets to queries, even though the other nodes have a copy of the data.
+    //
+    // To resolve this issue, we define ha_ versions of various get methods.
+    // These attempt a QUORUM read in the event that a ONE read returns
+    // no data.  If the QUORUM read fails due to unreachable nodes, the
+    // original result will be used.
+    //
+    // To implement this, the non-HA versions must take the consistency level as
+    // their last parameter.
+
+    /// HA get an entire row.
+    ///
+    /// @param key row key
+    /// @param columns (out) columns in the row
+    void ha_get_row(const std::string& key,
+                    std::vector<cass::ColumnOrSuperColumn>& columns);
+
+    /// HA get specific columns in a row.
+    ///
+    /// Note that if a requested row does not exist in cassandra, this method
+    /// will return only the rows that do exist. It will not throw an exception
+    /// in this case.
+    ///
+    /// @param key row key
+    /// @param names the names of the columns to retrieve
+    /// @param columns (out) the retrieved columns
+    void ha_get_columns(const std::string& key,
+                        const std::vector<std::string>& names,
+                        std::vector<cass::ColumnOrSuperColumn>& columns);
+
+    /// HA get all columns in a row
+    /// This is useful when working with dynamic columns.
+    ///
+    /// @param key row key
+    /// @param columns (out) the retrieved columns.
+    void ha_get_all_columns(const std::string& key,
+                            std::vector<cass::ColumnOrSuperColumn>& columns);
+
+    /// HA get all columns in a row that have a particular prefix to their name.
+    /// This is useful when working with dynamic columns.
+    ///
+    /// @param key row key
+    /// @param prefix the prefix
+    /// @param columns (out) the retrieved columns. NOTE: the column names have
+    ///   their prefix removed.
+    void ha_get_columns_with_prefix(const std::string& key,
+                                    const std::string& prefix,
+                                    std::vector<cass::ColumnOrSuperColumn>& columns);
+
+    /// Get an entire row (non-HA).
+    /// @param consistency_level cassandra consistency level.
+    void get_row(const std::string& key,
+                 std::vector<cass::ColumnOrSuperColumn>& columns,
+                 cass::ConsistencyLevel::type consistency_level);
+
+    /// Get specific columns in a row (non-HA).
+    /// @param consistency_level cassandra consistency level.
+    void get_columns(const std::string& key,
+                     const std::vector<std::string>& names,
+                     std::vector<cass::ColumnOrSuperColumn>& columns,
+                     cass::ConsistencyLevel::type consistency_level);
+
+    /// Get columns whose names begin with the specified prefix. (non-HA).
+    /// @param consistency_level cassandra consistency level.
+    void get_columns_with_prefix(const std::string& key,
+                                 const std::string& prefix,
+                                 std::vector<cass::ColumnOrSuperColumn>& columns,
+                                 cass::ConsistencyLevel::type consistency_level);
+
+    /// Utility method to issue a get request for a particular key.
+    ///
+    /// @param key row key
+    /// @param predicate slice predicate specifying what columns to get.
+    /// @param columns (out) the retrieved columns.
+    /// @param consistency_level cassandra consistency level.
+    void issue_get_for_key(const std::string& key,
+                           const cass::SlicePredicate& predicate,
+                           std::vector<cass::ColumnOrSuperColumn>& columns,
+                           cass::ConsistencyLevel::type consistency_level);
+
     /// Method that contains the business logic of the request.
     ///
     /// This is called by run from within an exception handler(). It is safe to
@@ -432,6 +533,10 @@ public:
                      int64_t timestamp,
                      int32_t ttl);
 
+    void put_columns_to_multiple_cfs(const std::vector<CFRowColumnValue>& to_put,
+                                     int64_t timestamp,
+                                     int32_t ttl);
+
   };
 
   /// @class GetRequest a request to read data from the cache.
@@ -443,82 +548,6 @@ public:
     virtual ~GetRequest();
 
   protected:
-    // After growing a cluster, Cassandra does not pro-actively populate the
-    // new nodes with their data (the nodes are expected to use `nodetool
-    // repair` if they need to get their data).  Combining this with
-    // the fact that we generally use consistency ONE when reading data, the
-    // behaviour on new nodes is to return NotFoundException or empty result
-    // sets to queries, even though the other nodes have a copy of the data.
-    //
-    // To resolve this issue, we define ha_ versions of various get methods.
-    // These attempt a QUORUM read in the event that a ONE read returns
-    // no data.  If the QUORUM read fails due to unreachable nodes, the
-    // original result will be used.
-    //
-    // To implement this, the non-HA versions must take the consistency level as
-    // their last parameter.
-
-    /// HA get an entire row.
-    ///
-    /// @param key row key
-    /// @param columns (out) columns in the row
-    void ha_get_row(const std::string& key,
-                    std::vector<cass::ColumnOrSuperColumn>& columns);
-
-    /// HA get specific columns in a row.
-    ///
-    /// Note that if a requested row does not exist in cassandra, this method
-    /// will return only the rows that do exist. It will not throw an exception
-    /// in this case.
-    ///
-    /// @param key row key
-    /// @param names the names of the columns to retrieve
-    /// @param columns (out) the retrieved columns
-    void ha_get_columns(const std::string& key,
-                        const std::vector<std::string>& names,
-                        std::vector<cass::ColumnOrSuperColumn>& columns);
-
-    /// HA get all columns in a row that have a particular prefix to their name.
-    /// This is useful when working with dynamic columns.
-    ///
-    /// @param key row key
-    /// @param prefix the prefix
-    /// @param columns (out) the retrieved columns. NOTE: the column names have
-    ///   their prefix removed.
-    void ha_get_columns_with_prefix(const std::string& key,
-                                    const std::string& prefix,
-                                    std::vector<cass::ColumnOrSuperColumn>& columns);
-
-    /// Get an entire row (non-HA).
-    /// @param consistency_level cassandra consistency level.
-    void get_row(const std::string& key,
-                 std::vector<cass::ColumnOrSuperColumn>& columns,
-                 cass::ConsistencyLevel::type consistency_level);
-
-    /// Get specific columns in a row (non-HA).
-    /// @param consistency_level cassandra consistency level.
-    void get_columns(const std::string& key,
-                     const std::vector<std::string>& names,
-                     std::vector<cass::ColumnOrSuperColumn>& columns,
-                     cass::ConsistencyLevel::type consistency_level);
-
-    /// Get columns whose names begin with the specified prefix. (non-HA).
-    /// @param consistency_level cassandra consistency level.
-    void get_columns_with_prefix(const std::string& key,
-                                 const std::string& prefix,
-                                 std::vector<cass::ColumnOrSuperColumn>& columns,
-                                 cass::ConsistencyLevel::type consistency_level);
-
-    /// Utility method to issue a get request for a particular key.
-    ///
-    /// @param key row key
-    /// @param predicate slice predicate specifying what columns to get.
-    /// @param columns (out) the retrieved columns.
-    /// @param consistency_level cassandra consistency level.
-    void issue_get_for_key(const std::string& key,
-                           const cass::SlicePredicate& predicate,
-                           std::vector<cass::ColumnOrSuperColumn>& columns,
-                           cass::ConsistencyLevel::type consistency_level);
   };
 
   /// @class DeleteRowsRequest a request to delete one or more rows from the
@@ -536,6 +565,14 @@ public:
     /// @param key key of the row to delete
     void delete_row(const std::string& key,
                     int64_t timestamp);
+
+    /// Delete a column from the cache.
+    ///
+    /// @param key key of the row to delete
+    void delete_column(const std::string& key,
+                       const std::string& column,
+                       const std::string& cf,
+                       int64_t timestamp);
   };
 
   /// @class PutIMSSubscription write the IMS subscription XML for a public ID.
@@ -628,7 +665,7 @@ public:
   class PutAssociatedPrivateID : public PutRequest
   {
   public:
-    /// Give a set of public IDs (representing an impicit registration set) an associated public ID.
+    /// Give a set of public IDs (representing an implicit registration set) an associated private ID.
     ///
     /// @param impus The public IDs.
     /// @param impi the private ID to associate with them.
@@ -742,6 +779,14 @@ public:
     /// @param impis The IMPIs associated with this IMS Subscription
     virtual void get_associated_impis(std::vector<std::string>& impis);
 
+    struct Result
+    {
+      std::string xml;
+      RegistrationState state;
+      std::vector<std::string> impis;
+    };
+    virtual void get_result(Result& result);
+
   protected:
     // Request parameters.
     std::string _public_id;
@@ -801,6 +846,36 @@ public:
     create_GetAssociatedPublicIDs(const std::vector<std::string>& private_ids)
   {
     return new GetAssociatedPublicIDs(private_ids);
+  }
+
+  class GetAssociatedPrimaryPublicIDs : public GetRequest
+  {
+  public:
+    /// Get the public Ids that are associated with a single private ID.
+    ///
+    /// @param private_id the private ID.
+    GetAssociatedPrimaryPublicIDs(const std::string& private_id);
+    virtual ~GetAssociatedPrimaryPublicIDs() {};
+
+    /// Access the result of the request.
+    ///
+    /// @param public_ids A vector of public IDs associated with the private ID.
+    virtual void get_result(std::vector<std::string>& public_ids);
+
+  protected:
+    // Request parameters.
+   std::string _private_id;
+
+    // Result.
+    std::vector<std::string> _public_ids;
+
+    void perform();
+  };
+
+  virtual GetAssociatedPrimaryPublicIDs*
+    create_GetAssociatedPrimaryPublicIDs(const std::string& private_id)
+  {
+    return new GetAssociatedPrimaryPublicIDs(private_id);
   }
 
   class GetAuthVector : public GetRequest
@@ -939,6 +1014,53 @@ public:
                             int64_t timestamp)
   {
     return new DeletePrivateIDs(private_ids, timestamp);
+  }
+
+  class DeleteIMPIMapping : public DeleteRowsRequest
+  {
+  public:
+    /// Delete a mapping from private IDs to the IMPUs they have authenticated.
+    ///
+    DeleteIMPIMapping(const std::vector<std::string>& private_ids,
+                      int64_t timestamp);
+    virtual ~DeleteIMPIMapping() {};
+
+  protected:
+    std::vector<std::string> _private_ids;
+
+    void perform();
+  };
+
+  virtual DeleteIMPIMapping*
+    create_DeleteIMPIMapping(const std::vector<std::string>& private_ids,
+                             int64_t timestamp)
+  {
+    return new DeleteIMPIMapping(private_ids, timestamp);
+  }
+
+  class DissociateImplicitRegistrationSetFromImpi : public DeleteRowsRequest
+  {
+  public:
+    /// Delete a mapping from private IDs to the IMPUs they have authenticated.
+    ///
+    DissociateImplicitRegistrationSetFromImpi(const std::vector<std::string>& impus,
+                                              const std::string& impi,
+                                              int64_t timestamp);
+    virtual ~DissociateImplicitRegistrationSetFromImpi() {};
+
+  protected:
+    std::vector<std::string> _impus;
+    std::string _impi;
+
+    void perform();
+  };
+
+  virtual DissociateImplicitRegistrationSetFromImpi*
+    create_DissociateImplicitRegistrationSetFromImpi(const std::vector<std::string>& impus,
+                                                     const std::string& impi,
+                                                     int64_t timestamp)
+  {
+    return new DissociateImplicitRegistrationSetFromImpi(impus, impi, timestamp);
   }
 };
 
