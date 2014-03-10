@@ -1322,3 +1322,25 @@ void Cache::DeletePrivateIDs::perform()
 
   _trx->on_success(this);
 }
+
+//
+// DeleteIMPIMapping methods
+//
+
+Cache::DeleteIMPIMapping::
+DeleteIMPIMapping(const std::vector<std::string>& private_ids, int64_t timestamp) :
+  DeleteRowsRequest("impi_mapping", timestamp),
+  _private_ids(private_ids)
+{}
+
+void Cache::DeleteIMPIMapping::perform()
+{
+  for (std::vector<std::string>::const_iterator it = _private_ids.begin();
+       it != _private_ids.end();
+       ++it)
+  {
+    delete_row(*it, _timestamp);
+  }
+
+  _trx->on_success(this);
+}

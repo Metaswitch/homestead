@@ -1187,7 +1187,6 @@ TEST_F(CacheRequestTest, DeletePrivateId)
   do_successful_trx(trx, req);
 }
 
-
 TEST_F(CacheRequestTest, DeleteMultiPrivateIds)
 {
   std::vector<std::string> ids;
@@ -1205,6 +1204,25 @@ TEST_F(CacheRequestTest, DeleteMultiPrivateIds)
 
   do_successful_trx(trx, req);
 }
+
+TEST_F(CacheRequestTest, DeleteIMPIMappings)
+{
+  std::vector<std::string> ids;
+  ids.push_back("kermit");
+  ids.push_back("gonzo");
+  ids.push_back("miss piggy");
+
+  CacheTestTransaction *trx = make_trx();
+  Cache::Request* req =
+    _cache.create_DeleteIMPIMapping(ids, 1000);
+
+  EXPECT_CALL(_client, remove("kermit", ColumnPathForTable("impi_mapping"), _, _));
+  EXPECT_CALL(_client, remove("gonzo", ColumnPathForTable("impi_mapping"), _, _));
+  EXPECT_CALL(_client, remove("miss piggy", ColumnPathForTable("impi_mapping"), _, _));
+
+  do_successful_trx(trx, req);
+}
+
 
 
 TEST_F(CacheRequestTest, DeletesHaveConsistencyLevelOne)

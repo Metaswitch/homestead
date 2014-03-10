@@ -664,7 +664,7 @@ public:
   class PutAssociatedPrivateID : public PutRequest
   {
   public:
-    /// Give a set of public IDs (representing an impicit registration set) an associated public ID.
+    /// Give a set of public IDs (representing an implicit registration set) an associated private ID.
     ///
     /// @param impus The public IDs.
     /// @param impi the private ID to associate with them.
@@ -983,6 +983,28 @@ public:
                             int64_t timestamp)
   {
     return new DeletePrivateIDs(private_ids, timestamp);
+  }
+
+  class DeleteIMPIMapping : public DeleteRowsRequest
+  {
+  public:
+    /// Delete a mapping from private IDs to the IMPUs they have authenticated.
+    ///
+    DeleteIMPIMapping(const std::vector<std::string>& private_ids,
+                      int64_t timestamp);
+    virtual ~DeleteIMPIMapping() {};
+
+  protected:
+    std::vector<std::string> _private_ids;
+
+    void perform();
+  };
+
+  virtual DeleteIMPIMapping*
+    create_DeleteIMPIMapping(const std::vector<std::string>& private_ids,
+                             int64_t timestamp)
+  {
+    return new DeleteIMPIMapping(private_ids, timestamp);
   }
 };
 
