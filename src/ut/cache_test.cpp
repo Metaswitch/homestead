@@ -1695,6 +1695,42 @@ TEST_F(CacheRequestTest, GetAssocPublicIDsNoResults)
   EXPECT_EQ(expected_ids, rec.result);
 }
 
+TEST_F(CacheRequestTest, GetAssociatedPrimaryPublicIDs)
+{
+  std::map<std::string, std::string> columns;
+  columns["associated_primary_impu__kermit"] = "";
+  columns["associated_primary_impu__miss piggy"] = "";
+
+  std::vector<cass::ColumnOrSuperColumn> slice;
+  make_slice(slice, columns);
+
+  ResultRecorder<Cache::GetAssociatedPrimaryPublicIDs, std::vector<std::string>> rec;
+  RecordingTransaction* trx = make_rec_trx(&rec);
+  Cache::Request* req = _cache.create_GetAssociatedPrimaryPublicIDs("gonzo");
+
+  EXPECT_CALL(_client,
+              get_slice(_,
+                        "gonzo",
+                        ColumnPathForTable("impi_mapping"),
+                        ColumnsWithPrefix("associated_primary_impu__"),
+                        _))
+    .WillOnce(SetArgReferee<0>(slice));
+
+  EXPECT_CALL(*trx, on_success(_))
+    .WillOnce(Invoke(trx, &RecordingTransaction::record_result));
+  _cache.send(trx, req);
+  wait();
+
+  std::vector<std::string> expected_ids;
+  expected_ids.push_back("kermit");
+  expected_ids.push_back("miss piggy");
+  std::sort(expected_ids.begin(), expected_ids.end());
+  std::sort(rec.result.begin(), rec.result.end());
+
+  EXPECT_EQ(expected_ids, rec.result);
+}
+
+
 
 TEST_F(CacheRequestTest, HaGetMainline)
 {

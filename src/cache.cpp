@@ -1119,6 +1119,53 @@ void Cache::GetAssociatedPublicIDs::get_result(std::vector<std::string>& ids)
 }
 
 //
+// GetAssociatedPrimaryPublicIDs methods
+//
+
+Cache::GetAssociatedPrimaryPublicIDs::
+GetAssociatedPrimaryPublicIDs(const std::string& private_id) :
+  GetRequest("impi_mapping"),
+  _private_id(private_id),
+  _public_ids()
+{}
+
+
+void Cache::GetAssociatedPrimaryPublicIDs::perform()
+{
+  std::vector<ColumnOrSuperColumn> columns;
+
+  LOG_DEBUG("Looking for primary public IDs for private ID %s", _private_id.c_str());
+  try
+  {
+    ha_get_columns_with_prefix(_private_id,
+                               "associated_primary_impu__",
+                               columns);
+  }
+  catch(Cache::NoResultsException& nre)
+  {
+    LOG_INFO("Couldn't find any public IDs for private ID %s", _private_id.c_str());
+  }
+
+  // Convert the query results from a vector of columns to a vector containing
+  // the column names. The public_id prefix has already been stripped, so this
+  // is just a list of public IDs and can be passed directly to on_success.
+  for(std::vector<ColumnOrSuperColumn>::const_iterator column_it = columns.begin();
+      column_it != columns.end();
+      ++column_it)
+  {
+    LOG_DEBUG("Found associated public ID %s", column_it->column.name.c_str());
+    _public_ids.push_back(column_it->column.name);
+  }
+
+  _trx->on_success(this);
+}
+
+void Cache::GetAssociatedPrimaryPublicIDs::get_result(std::vector<std::string>& ids)
+{
+  ids = _public_ids;
+}
+
+//
 // GetAuthVector methods.
 //
 

@@ -847,6 +847,36 @@ public:
     return new GetAssociatedPublicIDs(private_ids);
   }
 
+  class GetAssociatedPrimaryPublicIDs : public GetRequest
+  {
+  public:
+    /// Get the public Ids that are associated with a single private ID.
+    ///
+    /// @param private_id the private ID.
+    GetAssociatedPrimaryPublicIDs(const std::string& private_id);
+    virtual ~GetAssociatedPrimaryPublicIDs() {};
+
+    /// Access the result of the request.
+    ///
+    /// @param public_ids A vector of public IDs associated with the private ID.
+    virtual void get_result(std::vector<std::string>& public_ids);
+
+  protected:
+    // Request parameters.
+   std::string _private_id;
+
+    // Result.
+    std::vector<std::string> _public_ids;
+
+    void perform();
+  };
+
+  virtual GetAssociatedPrimaryPublicIDs*
+    create_GetAssociatedPrimaryPublicIDs(const std::string& private_id)
+  {
+    return new GetAssociatedPrimaryPublicIDs(private_id);
+  }
+
   class GetAuthVector : public GetRequest
   {
   public:
