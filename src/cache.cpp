@@ -630,8 +630,8 @@ get_columns_with_prefix(const std::string& key,
 
 void Cache::Request::
 get_row(const std::string& key,
-                std::vector<ColumnOrSuperColumn>& columns,
-                ConsistencyLevel::type consistency_level)
+        std::vector<ColumnOrSuperColumn>& columns,
+        ConsistencyLevel::type consistency_level)
 {
   // This slice range gets all columns with the specified prefix.
   SliceRange sr;
@@ -988,7 +988,8 @@ void Cache::GetIMSSubscription::perform()
         // Cassandra timestamps are in microseconds (see
         // generate_timestamp) but TTLs are in seconds, so divide the
         // timestamps by a million.
-        if (it->column.ttl > 0) {
+        if (it->column.ttl > 0)
+        {
           _xml_ttl = ((it->column.timestamp/1000000) + it->column.ttl) - (now / 1000000);
         };
         LOG_DEBUG("Retrieved XML column with TTL %d and value %s", _xml_ttl, _xml.c_str());
@@ -1022,7 +1023,9 @@ void Cache::GetIMSSubscription::perform()
                       it->column.value.c_str()[0],
                       it->column.value.c_str());
         };
-      } else if (it->column.name.find(IMPI_COLUMN_PREFIX) == 0) {
+      }
+      else if (it->column.name.find(IMPI_COLUMN_PREFIX) == 0)
+      {
         std::string impi = it->column.name.substr(IMPI_COLUMN_PREFIX.length());
         _impis.push_back(impi);
       }

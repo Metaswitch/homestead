@@ -87,8 +87,8 @@ struct CFRowColumnValue
     columns(columns)
   {};
 
-CFRowColumnValue(std::string cf,
-                 std::string row) :
+  CFRowColumnValue(std::string cf,
+                   std::string row) :
     cf(cf),
     row(row),
     columns()
@@ -135,7 +135,10 @@ public:
   };
 
   /// @return the singleton cache instance.
-  static inline Cache* get_instance() { return INSTANCE; }
+  static inline Cache* get_instance()
+  {
+    return INSTANCE;
+  }
 
   /// Initialize the cache.
   virtual void initialize();
@@ -248,16 +251,16 @@ private:
   ///
   /// The thread pool used by the cache.  This is a simple subclass of
   /// ThreadPool that also stores a pointer back to the cache.
-  class CacheThreadPool : public ThreadPool<Cache::Request *>
+  class CacheThreadPool : public ThreadPool<Cache::Request*>
   {
   public:
-    CacheThreadPool(Cache *cache,
+    CacheThreadPool(Cache* cache,
                     unsigned int num_threads,
                     unsigned int max_queue = 0);
     virtual ~CacheThreadPool();
 
   private:
-    Cache *_cache;
+    Cache* _cache;
 
     void process_work(Request*&);
   };
@@ -279,7 +282,7 @@ private:
   // are used when creating the thread pool in the call to start().
   unsigned int _num_threads;
   unsigned int _max_queue;
-  CacheThreadPool *_thread_pool;
+  CacheThreadPool* _thread_pool;
 
   // Cassandra connection management.
   //
@@ -296,14 +299,14 @@ private:
 
   virtual CacheClientInterface* get_client();
   virtual void release_client();
-  static void delete_client(void *client);
+  static void delete_client(void* client);
 
   // The constructors and assignment operation are protected to prevent multiple
   // instances of the class from being created.
 protected:
   Cache();
-  Cache(Cache const &);
-  void operator=(Cache const &);
+  Cache(Cache const&);
+  void operator=(Cache const&);
 
 public:
   /// @class NoResultsException exception that is thrown to indicate that a
@@ -318,8 +321,14 @@ public:
 
     virtual ~NoResultsException() {} ;
 
-    std::string& get_column_family() { return _column_family; };
-    std::string& get_key() { return _key; };
+    std::string& get_column_family()
+    {
+      return _column_family;
+    };
+    std::string& get_key()
+    {
+      return _key;
+    };
 
   private:
     std::string _column_family;
@@ -358,8 +367,14 @@ public:
 
     // Start and stop the transaction stopwatch.  Should only be called by cache
     // module code.
-    void start_timer() { _stopwatch.start(); }
-    void stop_timer() { _stopwatch.stop(); }
+    void start_timer()
+    {
+      _stopwatch.start();
+    }
+    void stop_timer()
+    {
+      _stopwatch.stop();
+    }
 
     /// Get the duration of the transaction.
     ///
@@ -400,8 +415,14 @@ public:
     ///   complete).
     virtual void run(CacheClientInterface* client);
 
-    virtual void set_trx(Transaction* trx) { _trx = trx; }
-    virtual Transaction* get_trx() { return _trx; }
+    virtual void set_trx(Transaction* trx)
+    {
+      _trx = trx;
+    }
+    virtual Transaction* get_trx()
+    {
+      return _trx;
+    }
 
     // The get_* methods live in Request rather than GetRequest -
     // classes like PutRequest and DeleteRequest may need to get data
@@ -502,8 +523,8 @@ public:
     virtual void perform() {};
 
     std::string _column_family;
-    CacheClientInterface *_client;
-    Transaction *_trx;
+    CacheClientInterface* _client;
+    Transaction* _trx;
   };
 
   /// @class ModificationRequest a request to modify the cache (e.g. write
@@ -645,43 +666,43 @@ public:
   };
 
   virtual PutIMSSubscription*
-    create_PutIMSSubscription(const std::string& public_id,
-                              const std::string& xml,
-                              const RegistrationState reg_state,
-                              const std::vector<std::string>& impis,
-                              const int64_t timestamp,
-                              const int32_t ttl = 0)
+  create_PutIMSSubscription(const std::string& public_id,
+                            const std::string& xml,
+                            const RegistrationState reg_state,
+                            const std::vector<std::string>& impis,
+                            const int64_t timestamp,
+                            const int32_t ttl = 0)
   {
     return new PutIMSSubscription(public_id, xml, reg_state, impis, timestamp, ttl);
   }
 
   virtual PutIMSSubscription*
-    create_PutIMSSubscription(std::vector<std::string>& public_ids,
-                              const std::string& xml,
-                              const RegistrationState reg_state,
-                              const std::vector<std::string>& impis,
-                              const int64_t timestamp,
-                              const int32_t ttl = 0)
+  create_PutIMSSubscription(std::vector<std::string>& public_ids,
+                            const std::string& xml,
+                            const RegistrationState reg_state,
+                            const std::vector<std::string>& impis,
+                            const int64_t timestamp,
+                            const int32_t ttl = 0)
   {
     return new PutIMSSubscription(public_ids, xml, reg_state, impis, timestamp, ttl);
   }
 
-    virtual PutIMSSubscription*
-    create_PutIMSSubscription(const std::vector<std::string>& public_ids,
-                              const std::string& xml,
-                              const RegistrationState reg_state,
-                              const int64_t timestamp,
-                              const int32_t ttl = 0)
+  virtual PutIMSSubscription*
+  create_PutIMSSubscription(const std::vector<std::string>& public_ids,
+                            const std::string& xml,
+                            const RegistrationState reg_state,
+                            const int64_t timestamp,
+                            const int32_t ttl = 0)
   {
     return NULL;
   }
 
-        virtual PutIMSSubscription*
-    create_PutIMSSubscription(const std::string& public_id,
-                              const std::string& xml,
-                              const RegistrationState reg_state,
-                              const int64_t timestamp,
-                              const int32_t ttl = 0)
+  virtual PutIMSSubscription*
+  create_PutIMSSubscription(const std::string& public_id,
+                            const std::string& xml,
+                            const RegistrationState reg_state,
+                            const int64_t timestamp,
+                            const int32_t ttl = 0)
   {
     return NULL;
   }
@@ -707,10 +728,10 @@ public:
   };
 
   virtual PutAssociatedPrivateID*
-    create_PutAssociatedPrivateID(const std::vector<std::string>& impus,
-                                  const std::string& impi,
-                                  const int64_t timestamp,
-                                  const int32_t ttl = 0)
+  create_PutAssociatedPrivateID(const std::vector<std::string>& impus,
+                                const std::string& impi,
+                                const int64_t timestamp,
+                                const int32_t ttl = 0)
   {
     return new PutAssociatedPrivateID(impus, impi, timestamp, ttl);
   }
@@ -736,10 +757,10 @@ public:
   };
 
   virtual PutAssociatedPublicID*
-    create_PutAssociatedPublicID(const std::string& private_id,
-                                 const std::string& assoc_public_id,
-                                 const int64_t timestamp,
-                                 const int32_t ttl = 0)
+  create_PutAssociatedPublicID(const std::string& private_id,
+                               const std::string& assoc_public_id,
+                               const int64_t timestamp,
+                               const int32_t ttl = 0)
   {
     return new PutAssociatedPublicID(private_id, assoc_public_id, timestamp, ttl);
   }
@@ -768,10 +789,10 @@ public:
   };
 
   virtual PutAuthVector*
-    create_PutAuthVector(const std::string& private_id,
-                         const DigestAuthVector& auth_vector,
-                         const int64_t timestamp,
-                         const int32_t ttl = 0)
+  create_PutAuthVector(const std::string& private_id,
+                       const DigestAuthVector& auth_vector,
+                       const int64_t timestamp,
+                       const int32_t ttl = 0)
   {
     return new PutAuthVector(private_id, auth_vector, timestamp, ttl);
   }
@@ -826,7 +847,7 @@ public:
   };
 
   virtual GetIMSSubscription*
-    create_GetIMSSubscription(const std::string& public_id)
+  create_GetIMSSubscription(const std::string& public_id)
   {
     return new GetIMSSubscription(public_id);
   }
@@ -868,13 +889,13 @@ public:
   };
 
   virtual GetAssociatedPublicIDs*
-    create_GetAssociatedPublicIDs(const std::string& private_id)
+  create_GetAssociatedPublicIDs(const std::string& private_id)
   {
     return new GetAssociatedPublicIDs(private_id);
   }
 
   virtual GetAssociatedPublicIDs*
-    create_GetAssociatedPublicIDs(const std::vector<std::string>& private_ids)
+  create_GetAssociatedPublicIDs(const std::vector<std::string>& private_ids)
   {
     return new GetAssociatedPublicIDs(private_ids);
   }
@@ -903,7 +924,7 @@ public:
 
   protected:
     // Request parameters.
-   std::string _private_id;
+    std::string _private_id;
 
     // Result.
     std::vector<std::string> _public_ids;
@@ -912,7 +933,7 @@ public:
   };
 
   virtual GetAssociatedPrimaryPublicIDs*
-    create_GetAssociatedPrimaryPublicIDs(const std::string& private_id)
+  create_GetAssociatedPrimaryPublicIDs(const std::string& private_id)
   {
     return new GetAssociatedPrimaryPublicIDs(private_id);
   }
@@ -952,14 +973,14 @@ public:
   };
 
   virtual GetAuthVector*
-    create_GetAuthVector(const std::string& private_id)
+  create_GetAuthVector(const std::string& private_id)
   {
     return new GetAuthVector(private_id);
   }
 
   virtual GetAuthVector*
-    create_GetAuthVector(const std::string& private_id,
-                         const std::string& public_id)
+  create_GetAuthVector(const std::string& private_id,
+                       const std::string& public_id)
   {
     return new GetAuthVector(private_id, public_id);
   }
@@ -1009,31 +1030,31 @@ public:
   };
 
   virtual DeletePublicIDs*
-    create_DeletePublicIDs(const std::string& public_id,
-                           int64_t timestamp)
+  create_DeletePublicIDs(const std::string& public_id,
+                         int64_t timestamp)
   {
     return new DeletePublicIDs(public_id, timestamp);
   }
 
   virtual DeletePublicIDs*
-    create_DeletePublicIDs(const std::vector<std::string>& public_ids,
-                           int64_t timestamp)
+  create_DeletePublicIDs(const std::vector<std::string>& public_ids,
+                         int64_t timestamp)
   {
     return new DeletePublicIDs(public_ids, timestamp);
   }
 
   virtual DeletePublicIDs*
-    create_DeletePublicIDs(const std::vector<std::string>& public_ids,
-                           const std::vector<std::string>& impis,
-                           int64_t timestamp)
+  create_DeletePublicIDs(const std::vector<std::string>& public_ids,
+                         const std::vector<std::string>& impis,
+                         int64_t timestamp)
   {
     return new DeletePublicIDs(public_ids, impis, timestamp);
   }
 
   virtual DeletePublicIDs*
-    create_DeletePublicIDs(const std::string& public_id,
-                           const std::vector<std::string>& impis,
-                           int64_t timestamp)
+  create_DeletePublicIDs(const std::string& public_id,
+                         const std::vector<std::string>& impis,
+                         int64_t timestamp)
   {
     return new DeletePublicIDs(public_id, impis, timestamp);
   }
@@ -1060,15 +1081,15 @@ public:
   };
 
   virtual DeletePrivateIDs*
-    create_DeletePrivateIDs(const std::string& private_id,
-                            int64_t timestamp)
+  create_DeletePrivateIDs(const std::string& private_id,
+                          int64_t timestamp)
   {
     return new DeletePrivateIDs(private_id, timestamp);
   }
 
   virtual DeletePrivateIDs*
-    create_DeletePrivateIDs(const std::vector<std::string>& private_ids,
-                            int64_t timestamp)
+  create_DeletePrivateIDs(const std::vector<std::string>& private_ids,
+                          int64_t timestamp)
   {
     return new DeletePrivateIDs(private_ids, timestamp);
   }
@@ -1098,8 +1119,8 @@ public:
   };
 
   virtual DeleteIMPIMapping*
-    create_DeleteIMPIMapping(const std::vector<std::string>& private_ids,
-                             int64_t timestamp)
+  create_DeleteIMPIMapping(const std::vector<std::string>& private_ids,
+                           int64_t timestamp)
   {
     return new DeleteIMPIMapping(private_ids, timestamp);
   }
@@ -1135,9 +1156,9 @@ public:
   };
 
   virtual DissociateImplicitRegistrationSetFromImpi*
-    create_DissociateImplicitRegistrationSetFromImpi(const std::vector<std::string>& impus,
-                                                     const std::string& impi,
-                                                     int64_t timestamp)
+  create_DissociateImplicitRegistrationSetFromImpi(const std::vector<std::string>& impus,
+                                                   const std::string& impi,
+                                                   int64_t timestamp)
   {
     return new DissociateImplicitRegistrationSetFromImpi(impus, impi, timestamp);
   }
