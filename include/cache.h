@@ -82,7 +82,14 @@ struct CFRowColumnValue
     cf(cf),
     row(row),
     columns(columns)
-  {}
+  {};
+
+CFRowColumnValue(std::string cf,
+                 std::string row) :
+    cf(cf),
+    row(row),
+    columns()
+  {};
 
   std::string cf;
   std::string row;
@@ -573,6 +580,10 @@ public:
                        const std::string& column,
                        const std::string& cf,
                        int64_t timestamp);
+
+    void delete_columns_from_multiple_cfs(const std::vector<CFRowColumnValue>& to_rm,
+                                          int64_t timestamp);
+
   };
 
   /// @class PutIMSSubscription write the IMS subscription XML for a public ID.
@@ -950,6 +961,16 @@ public:
                     const std::vector<std::string>& impis,
                     int64_t timestamp);
 
+    /// Delete a public ID from the cache, and also dissociate
+    /// it from the given IMPIs.
+    ///
+    /// @param public_id the public ID to delete.
+    /// @param impis the IMPIs to dissociate from this implicit
+    ///              registration set.
+    DeletePublicIDs(const std::string& public_id,
+                    const std::vector<std::string>& impis,
+                    int64_t timestamp);
+
     virtual ~DeletePublicIDs();
 
   protected:
@@ -979,6 +1000,14 @@ public:
                            int64_t timestamp)
   {
     return new DeletePublicIDs(public_ids, impis, timestamp);
+  }
+
+  virtual DeletePublicIDs*
+    create_DeletePublicIDs(const std::string& public_id,
+                           const std::vector<std::string>& impis,
+                           int64_t timestamp)
+  {
+    return new DeletePublicIDs(public_id, impis, timestamp);
   }
 
   class DeletePrivateIDs : public DeleteRowsRequest

@@ -456,6 +456,120 @@ private:
 };
 
 // A class that matches against a supplied mutation map.
+class BatchDeletionMatcher : public MatcherInterface<const mutmap_t&> {
+public:
+  BatchDeletionMatcher(const std::vector<CFRowColumnValue>& expected):
+    _expected(expected)
+  {
+  };
+
+  virtual bool MatchAndExplain(const mutmap_t& mutmap,
+                               MatchResultListener* listener) const
+  {
+    // First check we have the right number of rows.
+    if (mutmap.size() != _expected.size())
+    {
+      *listener << "map has " << mutmap.size()
+                << " rows, expected " << _expected.size();
+      return false;
+    }
+
+    // Loop through the rows we expect and check that are all present in the
+    // mutmap.
+    for(std::vector<CFRowColumnValue>::const_iterator expected = _expected.begin();
+        expected != _expected.end();
+        ++expected)
+    {
+      std::string row = expected->row;
+      std::map<std::string, std::string> expected_columns = expected->columns;
+      mutmap_t::const_iterator row_mut = mutmap.find(row);
+
+      if (row_mut == mutmap.end())
+      {
+        *listener << row << " row expected but not present";
+        return false;
+      }
+
+      if (row_mut->second.size() != 1)
+      {
+        *listener << "multiple tables specified for row " << row;
+        return false;
+      }
+
+      // Get the table name being operated on (there can only be one as checked
+      // above), and the mutations being applied to it for this row.
+      const std::string& table = row_mut->second.begin()->first;
+      const std::vector<cass::Mutation>& row_table_mut =
+                                                row_mut->second.begin()->second;
+      std::string row_table_name = row + ":" + table;
+
+      // Check we're modifying the right table.
+      if (table != expected->cf)
+      {
+        *listener << "wrong table for " << row
+                  << "(expected " << expected->cf
+                  << ", got " << table << ")";
+        return false;
+      }
+
+      // Deletions should only consist of one mutation per row.
+      if (row_table_mut.size() != 1)
+      {
+        *listener << "wrong number of columns for " << row_table_name
+                  << "(expected 1"
+                  << ", got " << row_table_mut.size() << ")";
+        return false;
+      }
+
+      const cass::Mutation* mutation = &row_table_mut.front();
+      // We only allow mutations for a single column (not supercolumns,
+      // counters, etc).
+      if (!mutation->__isset.deletion)
+      {
+        *listener << row_table_name << " has a mutation that isn't a deletion";
+        return false;
+      }
+
+      const cass::SlicePredicate* deletion = &mutation->deletion.predicate;
+
+      // Check that the number of columns to be deleted is right
+      if (deletion->column_names.size() != expected_columns.size())
+      {
+        *listener << deletion->column_names.size() << " columns deleted, expected " << expected_columns.size();
+        return false;
+      }
+
+      // Loop over the columns and check that each of them
+      // is expected
+      for(std::vector<std::string>::const_iterator col = deletion->column_names.begin();
+          col != deletion->column_names.end();
+          ++col)
+      {
+        // Check that we were expecting to receive this column and if we were,
+        // extract the expected value.
+        if (expected_columns.find(*col) == expected_columns.end())
+        {
+          *listener << "unexpected mutation " << *col;
+          return false;
+        }
+      }
+
+    }
+
+    // Phew! All checks passed.
+    return true;
+  }
+
+  // User fiendly description of what we expect the mutmap to do.
+  virtual void DescribeTo(::std::ostream* os) const
+  {
+  }
+
+private:
+  std::vector<CFRowColumnValue> _expected;
+};
+
+// A class that matches against a supplied mutation map.
 class MutationMapMatcher : public MatcherInterface<const mutmap_t&> {
 public:
   MutationMapMatcher(const std::string& table,
@@ -693,6 +807,12 @@ inline Matcher<const mutmap_t&>
 MutationMap(const std::vector<CFRowColumnValue>& expected)
 {
   return MakeMatcher(new MultipleCfMutationMapMatcher(expected));
+}
+
+inline Matcher<const mutmap_t&>
+DeletionMap(const std::vector<CFRowColumnValue>& expected)
+{
+  return MakeMatcher(new BatchDeletionMatcher(expected));
 }
 
 
@@ -1100,6 +1220,22 @@ TEST_F(CacheRequestTest, PutAsoocPublicIdMainline)
   do_successful_trx(trx, req);
 }
 
+TEST_F(CacheRequestTest, PutAssocPublicIdTTL)
+{
+  CacheTestTransaction *trx = make_trx();
+  Cache::Request* req =
+    _cache.create_PutAssociatedPublicID("gonzo", "kermit", 1000, 300);
+
+  std::map<std::string, std::string> columns;
+  columns["public_id_kermit"] = "";
+
+  EXPECT_CALL(_client,
+              batch_mutate(MutationMap("impi", "gonzo", columns, 1000, 300), _));
+
+  do_successful_trx(trx, req);
+}
+
+
 TEST_F(CacheRequestTest, PutAssocPrivateIdMainline)
 {
   CacheTestTransaction *trx = make_trx();
@@ -1129,7 +1265,7 @@ TEST_F(CacheRequestTest, DeletePublicId)
 {
   CacheTestTransaction *trx = make_trx();
   Cache::Request* req =
-    _cache.create_DeletePublicIDs({"kermit"}, IMPIS, 1000);
+    _cache.create_DeletePublicIDs("kermit", IMPIS, 1000);
 
   EXPECT_CALL(_client,
               remove("kermit",
@@ -1216,9 +1352,12 @@ TEST_F(CacheRequestTest, DeleteIMPIMappings)
   Cache::Request* req =
     _cache.create_DeleteIMPIMapping(ids, 1000);
 
-  EXPECT_CALL(_client, remove("kermit", ColumnPathForTable("impi_mapping"), _, _));
-  EXPECT_CALL(_client, remove("gonzo", ColumnPathForTable("impi_mapping"), _, _));
-  EXPECT_CALL(_client, remove("miss piggy", ColumnPathForTable("impi_mapping"), _, _));
+  std::vector<CFRowColumnValue> expected;
+  expected.push_back(CFRowColumnValue("impi_mapping", "kermit"));
+  expected.push_back(CFRowColumnValue("impi_mapping", "gonzo"));
+  expected.push_back(CFRowColumnValue("impi_mapping", "miss piggy"));
+
+  EXPECT_CALL(_client, batch_mutate(DeletionMap(expected), _));
 
   do_successful_trx(trx, req);
 }
@@ -1730,7 +1869,27 @@ TEST_F(CacheRequestTest, GetAssociatedPrimaryPublicIDs)
   EXPECT_EQ(expected_ids, rec.result);
 }
 
+TEST_F(CacheRequestTest, GetAssociatedPrimaryPublicIDsNoReults)
+{
+  ResultRecorder<Cache::GetAssociatedPrimaryPublicIDs, std::vector<std::string>> rec;
+  RecordingTransaction* trx = make_rec_trx(&rec);
+  Cache::Request* req = _cache.create_GetAssociatedPrimaryPublicIDs("gonzo");
 
+  EXPECT_CALL(_client,
+              get_slice(_,
+                        "gonzo",
+                        ColumnPathForTable("impi_mapping"),
+                        ColumnsWithPrefix("associated_primary_impu__"),
+                        _))
+    .WillOnce(SetArgReferee<0>(empty_slice));
+
+  EXPECT_CALL(*trx, on_success(_))
+    .WillOnce(Invoke(trx, &RecordingTransaction::record_result));
+  _cache.send(trx, req);
+  wait();
+
+  EXPECT_TRUE(rec.result.empty());
+}
 
 TEST_F(CacheRequestTest, HaGetMainline)
 {
@@ -1870,10 +2029,9 @@ TEST_F(CacheLatencyTest, DeleteRecordsLatency)
 {
   CacheTestTransaction *trx = make_trx();
   Cache::Request* req =
-    _cache.create_DeletePublicIDs({"kermit"}, IMPIS, 1000);
+    _cache.create_DeletePublicIDs("kermit", IMPIS, 1000);
 
-  EXPECT_CALL(_client, remove(_, _, _, _));
-  EXPECT_CALL(_client, remove(_, _, _, _)).WillOnce(AdvanceTimeMs(13));
+  EXPECT_CALL(_client, remove(_, _, _, _)).WillRepeatedly(AdvanceTimeMs(13));
   EXPECT_CALL(*trx, on_success(_)).WillOnce(CheckLatency(trx, 13));
 
   _cache.send(trx, req);
@@ -1926,17 +2084,24 @@ TEST_F(CacheLatencyTest, ErrorRecordsLatency)
 
 TEST_F(CacheRequestTest, DissociateImplicitRegistrationSetFromImpi)
 {
+  std::vector<CFRowColumnValue> expected;
+
   std::map<std::string, std::string> impu_columns;
   impu_columns["associated_impi__somebody@example.com"] = "";
   impu_columns["associated_impi__gonzo"] = "";
 
+  std::map<std::string, std::string> deleted_impu_columns;
+  deleted_impu_columns["associated_impi__gonzo"] = "";
+
   std::vector<cass::ColumnOrSuperColumn> impu_slice;
   make_slice(impu_slice, impu_columns);
-
 
   std::map<std::string, std::string> impi_columns;
   impi_columns["associated_primary_impu__kermit"] = "";
   impi_columns["associated_primary_impu__miss piggy"] = "";
+
+  std::map<std::string, std::string> deleted_impi_columns;
+  deleted_impi_columns["associated_primary_impu__kermit"] = "";
 
   std::vector<cass::ColumnOrSuperColumn> impi_slice;
   make_slice(impi_slice, impi_columns);
@@ -1944,11 +2109,7 @@ TEST_F(CacheRequestTest, DissociateImplicitRegistrationSetFromImpi)
   CacheTestTransaction* trx = make_trx();
   Cache::Request* req = _cache.create_DissociateImplicitRegistrationSetFromImpi({"kermit", "robin"}, "gonzo", 1000);
 
-  EXPECT_CALL(_client,
-              remove("gonzo",
-                     ColumnPath("impi_mapping", "associated_primary_impu__kermit"),
-                     1000,
-                     cass::ConsistencyLevel::ONE));
+  expected.push_back(CFRowColumnValue("impi_mapping", "gonzo", deleted_impi_columns));
 
   // Expect associated IMPI lookup
 
@@ -1961,18 +2122,10 @@ TEST_F(CacheRequestTest, DissociateImplicitRegistrationSetFromImpi)
     .WillOnce(SetArgReferee<0>(impu_slice));
 
   // Expect single-column removal, twice
+  expected.push_back(CFRowColumnValue("impu", "kermit", deleted_impu_columns));
+  expected.push_back(CFRowColumnValue("impu", "robin", deleted_impu_columns));
 
-  EXPECT_CALL(_client,
-              remove("kermit",
-                     ColumnPath("impu", "associated_impi__gonzo"),
-                     1000,
-                     cass::ConsistencyLevel::ONE));
-
-  EXPECT_CALL(_client,
-              remove("robin",
-                     ColumnPath("impu", "associated_impi__gonzo"),
-                     1000,
-                     cass::ConsistencyLevel::ONE));
+  EXPECT_CALL(_client, batch_mutate(DeletionMap(expected), _));
 
   do_successful_trx(trx, req);
 }
@@ -1980,6 +2133,8 @@ TEST_F(CacheRequestTest, DissociateImplicitRegistrationSetFromImpi)
 
 TEST_F(CacheRequestTest, DissociateImplicitRegistrationSetFromImpiCausingDeletion)
 {
+  std::vector<CFRowColumnValue> expected;
+
   std::map<std::string, std::string> impu_columns;
   impu_columns["associated_impi__gonzo"] = "";
 
@@ -1996,11 +2151,7 @@ TEST_F(CacheRequestTest, DissociateImplicitRegistrationSetFromImpiCausingDeletio
   CacheTestTransaction* trx = make_trx();
   Cache::Request* req = _cache.create_DissociateImplicitRegistrationSetFromImpi({"kermit", "robin"}, "gonzo", 1000);
 
-  EXPECT_CALL(_client,
-              remove("gonzo",
-                     ColumnPath("impi_mapping", "associated_primary_impu__kermit"),
-                     1000,
-                     cass::ConsistencyLevel::ONE));
+  expected.push_back(CFRowColumnValue("impi_mapping", "gonzo", impi_columns));
 
   // Expect associated IMPI lookup
 
@@ -2014,17 +2165,10 @@ TEST_F(CacheRequestTest, DissociateImplicitRegistrationSetFromImpiCausingDeletio
 
   // Expect full-column removal, twice
 
-  EXPECT_CALL(_client,
-              remove("kermit",
-                     ColumnPath("impu", ""),
-                     1000,
-                     cass::ConsistencyLevel::ONE));
+  expected.push_back(CFRowColumnValue("impu", "kermit"));
+  expected.push_back(CFRowColumnValue("impu", "robin"));
 
-  EXPECT_CALL(_client,
-              remove("robin",
-                     ColumnPath("impu", ""),
-                     1000,
-                     cass::ConsistencyLevel::ONE));
+  EXPECT_CALL(_client, batch_mutate(DeletionMap(expected), _));
 
   do_successful_trx(trx, req);
 }
