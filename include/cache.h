@@ -961,6 +961,16 @@ public:
                     const std::vector<std::string>& impis,
                     int64_t timestamp);
 
+    /// Delete a public ID from the cache, and also dissociate
+    /// it from the given IMPIs.
+    ///
+    /// @param public_id the public ID to delete.
+    /// @param impis the IMPIs to dissociate from this implicit
+    ///              registration set.
+    DeletePublicIDs(const std::string& public_id,
+                    const std::vector<std::string>& impis,
+                    int64_t timestamp);
+
     virtual ~DeletePublicIDs();
 
   protected:
@@ -990,6 +1000,14 @@ public:
                            int64_t timestamp)
   {
     return new DeletePublicIDs(public_ids, impis, timestamp);
+  }
+
+  virtual DeletePublicIDs*
+    create_DeletePublicIDs(const std::string& public_id,
+                           const std::vector<std::string>& impis,
+                           int64_t timestamp)
+  {
+    return new DeletePublicIDs(public_id, impis, timestamp);
   }
 
   class DeletePrivateIDs : public DeleteRowsRequest

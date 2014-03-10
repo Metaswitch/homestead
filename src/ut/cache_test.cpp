@@ -1220,6 +1220,22 @@ TEST_F(CacheRequestTest, PutAsoocPublicIdMainline)
   do_successful_trx(trx, req);
 }
 
+TEST_F(CacheRequestTest, PutAssocPublicIdTTL)
+{
+  CacheTestTransaction *trx = make_trx();
+  Cache::Request* req =
+    _cache.create_PutAssociatedPublicID("gonzo", "kermit", 1000, 300);
+
+  std::map<std::string, std::string> columns;
+  columns["public_id_kermit"] = "";
+
+  EXPECT_CALL(_client,
+              batch_mutate(MutationMap("impi", "gonzo", columns, 1000, 300), _));
+
+  do_successful_trx(trx, req);
+}
+
+
 TEST_F(CacheRequestTest, PutAssocPrivateIdMainline)
 {
   CacheTestTransaction *trx = make_trx();
@@ -1249,7 +1265,7 @@ TEST_F(CacheRequestTest, DeletePublicId)
 {
   CacheTestTransaction *trx = make_trx();
   Cache::Request* req =
-    _cache.create_DeletePublicIDs({"kermit"}, IMPIS, 1000);
+    _cache.create_DeletePublicIDs("kermit", IMPIS, 1000);
 
   EXPECT_CALL(_client,
               remove("kermit",
@@ -1853,7 +1869,27 @@ TEST_F(CacheRequestTest, GetAssociatedPrimaryPublicIDs)
   EXPECT_EQ(expected_ids, rec.result);
 }
 
+TEST_F(CacheRequestTest, GetAssociatedPrimaryPublicIDsNoReults)
+{
+  ResultRecorder<Cache::GetAssociatedPrimaryPublicIDs, std::vector<std::string>> rec;
+  RecordingTransaction* trx = make_rec_trx(&rec);
+  Cache::Request* req = _cache.create_GetAssociatedPrimaryPublicIDs("gonzo");
 
+  EXPECT_CALL(_client,
+              get_slice(_,
+                        "gonzo",
+                        ColumnPathForTable("impi_mapping"),
+                        ColumnsWithPrefix("associated_primary_impu__"),
+                        _))
+    .WillOnce(SetArgReferee<0>(empty_slice));
+
+  EXPECT_CALL(*trx, on_success(_))
+    .WillOnce(Invoke(trx, &RecordingTransaction::record_result));
+  _cache.send(trx, req);
+  wait();
+
+  EXPECT_TRUE(rec.result.empty());
+}
 
 TEST_F(CacheRequestTest, HaGetMainline)
 {
@@ -1993,7 +2029,7 @@ TEST_F(CacheLatencyTest, DeleteRecordsLatency)
 {
   CacheTestTransaction *trx = make_trx();
   Cache::Request* req =
-    _cache.create_DeletePublicIDs({"kermit"}, IMPIS, 1000);
+    _cache.create_DeletePublicIDs("kermit", IMPIS, 1000);
 
   EXPECT_CALL(_client, remove(_, _, _, _)).WillRepeatedly(AdvanceTimeMs(13));
   EXPECT_CALL(*trx, on_success(_)).WillOnce(CheckLatency(trx, 13));
