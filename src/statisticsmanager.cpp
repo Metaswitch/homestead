@@ -46,10 +46,12 @@ const static std::string known_stats[] = {
   "H_rejected_overload",
 };
 
+const static std::string HOMESTEAD_ZMQ_PORT = "6668";
+
 const static int num_known_stats = sizeof(known_stats) / sizeof(std::string);
 
 StatisticsManager::StatisticsManager(long poll_timeout_ms) :
-  lvc(num_known_stats, known_stats, poll_timeout_ms),
+  lvc(num_known_stats, known_stats, HOMESTEAD_ZMQ_PORT, poll_timeout_ms),
   H_latency_us("H_latency_us", &lvc),
   H_hss_latency_us("H_hss_latency_us", &lvc),
   H_hss_digest_latency_us("H_hss_digest_latency_us", &lvc),
