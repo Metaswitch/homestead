@@ -980,17 +980,6 @@ public:
   class DeletePublicIDs : public DeleteRowsRequest
   {
   public:
-    /// Delete an single public ID from the cache.
-    ///
-    /// @param public_id the public ID to delete.
-    DeletePublicIDs(const std::string& public_id, int64_t timestamp);
-
-    /// Delete several public IDs from the cache.
-    ///
-    /// @param public_ids the public IDs to delete.
-    DeletePublicIDs(const std::vector<std::string>& public_ids,
-                    int64_t timestamp);
-
     /// Delete several public IDs from the cache, and also dissociate
     /// the primary public ID (the first one in the vector) from the
     /// given IMPIs.
@@ -1020,20 +1009,6 @@ public:
 
     void perform();
   };
-
-  virtual DeletePublicIDs*
-  create_DeletePublicIDs(const std::string& public_id,
-                         int64_t timestamp)
-  {
-    return new DeletePublicIDs(public_id, timestamp);
-  }
-
-  virtual DeletePublicIDs*
-  create_DeletePublicIDs(const std::vector<std::string>& public_ids,
-                         int64_t timestamp)
-  {
-    return new DeletePublicIDs(public_ids, timestamp);
-  }
 
   virtual DeletePublicIDs*
   create_DeletePublicIDs(const std::vector<std::string>& public_ids,

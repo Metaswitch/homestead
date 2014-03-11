@@ -1319,25 +1319,6 @@ void Cache::GetAuthVector::get_result(DigestAuthVector& av)
 // DeletePublicIDs methods
 //
 
-// Excluded from coverage - these are only kept temporarily until the
-// handler code is updated
-// LCOV_EXCL_START
-Cache::DeletePublicIDs::
-DeletePublicIDs(const std::string& public_id, int64_t timestamp) :
-  DeleteRowsRequest(IMPU, timestamp),
-  _public_ids(1, public_id),
-  _impis()
-{}
-
-
-Cache::DeletePublicIDs::
-DeletePublicIDs(const std::vector<std::string>& public_ids, int64_t timestamp) :
-  DeleteRowsRequest(IMPU, timestamp),
-  _public_ids(public_ids),
-  _impis()
-{}
-// LCOV_EXCL_STOP
-
 Cache::DeletePublicIDs::
 DeletePublicIDs(const std::string& public_id,
                 const std::vector<std::string>& impis,
