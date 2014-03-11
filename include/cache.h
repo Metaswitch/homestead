@@ -686,7 +686,8 @@ public:
                             const int64_t timestamp,
                             const int32_t ttl = 0)
   {
-    return NULL;
+    std::vector<std::string> no_impis;
+    return new PutIMSSubscription(public_ids, xml, reg_state, no_impis, timestamp, ttl);
   }
 
   virtual PutIMSSubscription*
@@ -696,7 +697,8 @@ public:
                             const int64_t timestamp,
                             const int32_t ttl = 0)
   {
-    return NULL;
+    std::vector<std::string> no_impis;
+    return new PutIMSSubscription(public_id, xml, reg_state, no_impis, timestamp, ttl);
   }
 
   class PutAssociatedPrivateID : public PutRequest
