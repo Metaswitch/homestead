@@ -86,6 +86,7 @@ public:
   const Diameter::Dictionary::AVP INTEGRITY_KEY;
   const Diameter::Dictionary::AVP ASSOCIATED_IDENTITIES;
   const Diameter::Dictionary::AVP DEREGISTRATION_REASON;
+  const Diameter::Dictionary::AVP REASON_CODE;
   const Diameter::Dictionary::AVP IDENTITY_WITH_EMERGENCY_REGISTRATION;
   const Diameter::Dictionary::AVP CHARGING_INFORMATION;
 };
@@ -312,6 +313,7 @@ public:
 
   std::vector<std::string> associated_identities() const;
   std::vector<std::string> impus() const;
+  int32_t deregistration_reason() const;
 };
 
 class RegistrationTerminationAnswer : public Diameter::Message

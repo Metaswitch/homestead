@@ -86,6 +86,7 @@ Dictionary::Dictionary() :
   INTEGRITY_KEY("3GPP", "Integrity-Key"),
   ASSOCIATED_IDENTITIES("3GPP", "Associated-Identities"),
   DEREGISTRATION_REASON("3GPP", "Deregistration-Reason"),
+  REASON_CODE("3GPP", "Reason-Code"),
   IDENTITY_WITH_EMERGENCY_REGISTRATION("3GPP", "Identity-with-Emergency-Registration"),
   CHARGING_INFORMATION("3GPP", "Charging-Information")
 {
@@ -671,6 +672,22 @@ std::vector<std::string> RegistrationTerminationRequest::impus() const
     avps++;
   }
   return impus;
+}
+
+int32_t RegistrationTerminationRequest::deregistration_reason() const
+{
+  int32_t deregistration_reason = 0;
+  Diameter::AVP::iterator avps = begin(((Cx::Dictionary*)dict())->DEREGISTRATION_REASON);
+  if (avps != end())
+  {
+    avps = avps->begin(((Cx::Dictionary*)dict())->REASON_CODE);
+    if (avps != end())
+    {
+      deregistration_reason = avps->val_i32();
+      LOG_DEBUG("Got Deregistration Reason-Code %d", deregistration_reason);
+    }
+  }
+  return deregistration_reason;
 }
 
 RegistrationTerminationAnswer::RegistrationTerminationAnswer(Diameter::Message& msg,

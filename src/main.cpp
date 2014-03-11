@@ -47,6 +47,8 @@
 #include "handlers.h"
 #include "logger.h"
 #include "cache.h"
+#include "sasevent.h"
+#include "sproutconnection.h"
 
 struct options
 {
@@ -313,8 +315,13 @@ int main(int argc, char**argv)
     exit(2);
   }
 
+  HttpConnection* http = new HttpConnection(options.server_name + ":9888",
+                                            false,
+                                            SASEvent::TX_HSS_BASE);
+  SproutConnection* sprout_conn = new SproutConnection(http);
+
   Diameter::Stack* diameter_stack = Diameter::Stack::get_instance();
-  RegistrationTerminationHandler::Config rt_handler_config(NULL, NULL, 0);
+  RegistrationTerminationHandler::Config rt_handler_config(NULL, NULL, NULL, 0);
   PushProfileHandler::Config pp_handler_config(NULL, NULL, 0, 0);
   Diameter::Stack::ConfiguredHandlerFactory<RegistrationTerminationHandler, RegistrationTerminationHandler::Config> rtr_handler_factory(NULL, NULL);
   Diameter::Stack::ConfiguredHandlerFactory<PushProfileHandler, PushProfileHandler::Config> ppr_handler_factory(NULL, NULL);
@@ -325,7 +332,7 @@ int main(int argc, char**argv)
     diameter_stack->configure(options.diameter_conf);
     dict = new Cx::Dictionary();
     diameter_stack->advertize_application(dict->TGPP, dict->CX);
-    rt_handler_config = RegistrationTerminationHandler::Config(cache, dict, options.hss_reregistration_time);
+    rt_handler_config = RegistrationTerminationHandler::Config(cache, dict, sprout_conn, options.hss_reregistration_time);
     pp_handler_config = PushProfileHandler::Config(cache, dict, options.impu_cache_ttl, options.hss_reregistration_time);
     rtr_handler_factory = Diameter::Stack::ConfiguredHandlerFactory<RegistrationTerminationHandler, RegistrationTerminationHandler::Config>(dict, &rt_handler_config);
     ppr_handler_factory = Diameter::Stack::ConfiguredHandlerFactory<PushProfileHandler, PushProfileHandler::Config>(dict, &pp_handler_config);

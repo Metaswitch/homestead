@@ -1143,7 +1143,6 @@ void ImpuRegDataHandler::on_sar_response(Diameter::Message& rsp)
   switch (result_code)
   {
     case 2001:
-    {
       // If we expect this request to assign the user to us (i.e. it
       // isn't triggered by a deregistration or a failure) we should
       // cache the User-Data.
@@ -1153,8 +1152,7 @@ void ImpuRegDataHandler::on_sar_response(Diameter::Message& rsp)
         put_in_cache();
       }
       send_reply();
-    }
-    break;
+      break;
     case 5001:
       LOG_INFO("Server-Assignment answer with result code %d - reject", result_code);
       _req.send_reply(404);
@@ -1162,6 +1160,7 @@ void ImpuRegDataHandler::on_sar_response(Diameter::Message& rsp)
     default:
       LOG_INFO("Server-Assignment answer with result code %d - reject", result_code);
       _req.send_reply(500);
+      break;
   }
   delete this;
   return;
@@ -1214,85 +1213,276 @@ void ImpuIMSSubscriptionHandler::send_reply()
   }
 }
 
-
 void RegistrationTerminationHandler::run()
 {
-  // Received a Registration Termination Request. Delete all private IDs and public IDs
-  // associated with this RTR from the cache.
-  LOG_INFO("Received Regestration Termination Request");
   Cx::RegistrationTerminationRequest rtr(_msg);
 
-  // The RTR should contain a User-Name AVP with one private ID, and then an
-  // Associated-Identities AVP with any number of associated private IDs.
+  // Save off the deregistration reason and all private and public
+  // identities on the request.
+  _deregistration_reason = rtr.deregistration_reason();
   std::string impi = rtr.impi();
   _impis.push_back(impi);
   std::vector<std::string> associated_identities = rtr.associated_identities();
   _impis.insert(_impis.end(), associated_identities.begin(), associated_identities.end());
-
-  // The RTR may also contain some number of Public-Identity AVPs containing public IDs.
-  // If we can't find any, we go to the cache and find any public IDs associated with the
-  // private IDs we've got.
-  _impus = rtr.impus();
-
-  if (_impus.empty())
+  if (_deregistration_reason != SERVER_CHANGE)
   {
-    LOG_DEBUG("No public IDs on the RTR - go to the cache");
-    Cache::Request* get_public_ids = _cfg->cache->create_GetAssociatedPublicIDs(_impis);
-    HssCacheHandler::CacheTransaction<RegistrationTerminationHandler>* tsx = new HssCacheHandler::CacheTransaction<RegistrationTerminationHandler>(this);
-    tsx->set_success_clbk(&RegistrationTerminationHandler::on_get_public_ids_success);
-    tsx->set_failure_clbk(&RegistrationTerminationHandler::on_get_public_ids_failure);
-    _cfg->cache->send(tsx, get_public_ids);
+    // We're not interested in the public identities on the request
+    // if deregistration reason is SERVER_CHANGE. We'll find some
+    // public identities later, and we want _impus to be empty for now.
+    _impus = rtr.impus();
+  }
+
+  LOG_INFO("Received Regestration-Termination request with dereg reason %d",
+           _deregistration_reason);
+
+  if (((_impus.empty()) && ((_deregistration_reason == PERMANENT_TERMINATION) ||
+                            (_deregistration_reason == REMOVE_SCSCF))) ||
+      (_deregistration_reason == SERVER_CHANGE))
+  {
+    // Find all the default public identities associated with the
+    // private identities specified on the request. Create a copy of
+    // our private identities so that we can keep track of which ones
+    // we've made cache requests for.
+    _impis_copy = _impis;
+    get_associated_primary_public_ids(NULL);
+  }
+  else if ((!_impus.empty()) && ((_deregistration_reason == PERMANENT_TERMINATION) ||
+                                 (_deregistration_reason == REMOVE_SCSCF) ||
+                                 (_deregistration_reason == NEW_SERVER_ASSIGNED)))
+  {
+    // Find information about the registration sets for the public
+    // identities specified on the request.
+    get_registration_sets(NULL);
   }
   else
   {
-    delete_identities();
+    // This is either an invalid deregistration reason, or no public
+    // identities specified on a NEW_SERVER_ASSIGNED RTR. Both of these
+    // are errors.
+    LOG_ERROR("Unexpected Registration-Termination request received with deregistration reason %d",
+              _deregistration_reason);
   }
 }
 
-void RegistrationTerminationHandler::on_get_public_ids_success(Cache::Request* request)
+void RegistrationTerminationHandler::get_associated_primary_public_ids(Cache::Request* request)
 {
-  // Get any public IDs returned from the Cache.
-  LOG_DEBUG("Extract associated public IDs from cache request");
-  Cache::GetAssociatedPublicIDs* get_public_ids = (Cache::GetAssociatedPublicIDs*)request;
-  get_public_ids->get_result(_impus);
-  delete_identities();
+  // This is a recursive function. It makes cache requests and sets itself
+  // as the callback. The function creates a list of all the default public
+  // identities associated with the private identities specified on the RTR.
+  if (request != NULL)
+  {
+    // Add the default public identities returned by the cache to _impus.
+    Cache::GetAssociatedPrimaryPublicIDs* get_associated_impus_result =
+      (Cache::GetAssociatedPrimaryPublicIDs*)request;
+    std::vector<std::string> associated_primary_public_ids;
+    get_associated_impus_result->get_result(associated_primary_public_ids);
+    _impus.insert(_impus.end(),
+                  associated_primary_public_ids.begin(),
+                  associated_primary_public_ids.end());
+
+    // We have now finished with the last element of the copy vector, so
+    // get rid of it.
+     _impis_copy.pop_back();
+  }
+
+  if (!_impis_copy.empty())
+  {
+    std::string impi = _impis_copy.back();
+    LOG_DEBUG("Finding associated default public identities for impi %s", impi.c_str());
+    Cache::Request* get_associated_impus = _cfg->cache->create_GetAssociatedPrimaryPublicIDs(impi);
+    CacheTransaction* tsx = new CacheTransaction(this);
+    tsx->set_success_clbk(&RegistrationTerminationHandler::get_associated_primary_public_ids);
+    tsx->set_failure_clbk(&RegistrationTerminationHandler::get_associated_primary_public_ids_failure);
+    _cfg->cache->send(tsx, get_associated_impus);
+  }
+  else
+  {
+    // We now have all the default public identities. Find their registration sets.
+    // Remove any duplicates first.
+    sort(_impus.begin(), _impus.end());
+    _impus.erase(unique(_impus.begin(), _impus.end()), _impus.end());
+    get_registration_sets(NULL);
+  }
 }
 
-void RegistrationTerminationHandler::on_get_public_ids_failure(Cache::Request* request, Cache::ResultCode error, std::string& text)
+void RegistrationTerminationHandler::get_associated_primary_public_ids_failure(Cache::Request* request,
+                                                                               Cache::ResultCode error,
+                                                                               std::string& text)
 {
-  LOG_DEBUG("Failed to get any public IDs from the cache");
-  delete_identities();
+  // We don't worry too much about this. Just move on to the next private ID.
+  LOG_DEBUG("Failed to get associated default public identities for impi %s", _impis_copy.back().c_str());
+  _impis_copy.pop_back();
+  get_associated_primary_public_ids(NULL);
 }
 
-void RegistrationTerminationHandler::delete_identities()
+void RegistrationTerminationHandler::get_registration_sets(Cache::Request* request)
 {
-  // If _impus is empty then we couldn't find any public IDs associated with
-  // the private IDs, so there are no public IDs to delete.
+  // This is a recursive function. It makes cache requests and sets itself
+  // as the callback. The function creates a list of all the registration sets
+  // associated with this RTR. It can also save off a list of private identities
+  // associated with our public identities.
+  if (request != NULL)
+  {
+    Cache::GetIMSSubscription* get_ims_sub_result = (Cache::GetIMSSubscription*)request;
+    std::string ims_sub;
+    int32_t temp;
+    get_ims_sub_result->get_xml(ims_sub, temp);
+
+    // Add the list of public identities in the IMS subscription to
+    // the list of registration sets and remove the last element of
+    // _impus so that we can keep track of which public identities
+    // we've looked up.
+    _registration_sets.push_back(XmlUtils::get_public_ids(ims_sub));
+    _impus.pop_back();
+
+    if ((_deregistration_reason == SERVER_CHANGE) ||
+        (_deregistration_reason == NEW_SERVER_ASSIGNED))
+    {
+      // GetIMSSubscription also returns a list of associated private
+      // identities. Save these off.
+      std::vector<std::string> associated_impis;
+      get_ims_sub_result->get_associated_impis(associated_impis);
+      _associated_impis.insert(_associated_impis.end(),
+                               associated_impis.begin(),
+                               associated_impis.end());
+    }
+  }
+
   if (!_impus.empty())
   {
-    LOG_INFO("Deleting public IDs from RTR");
-    Cache::Request* delete_public_ids = _cfg->cache->create_DeletePublicIDs(_impus, Cache::generate_timestamp());
-    HssCacheHandler::CacheTransaction<RegistrationTerminationHandler>* public_ids_tsx = new HssCacheHandler::CacheTransaction<RegistrationTerminationHandler>(this);
-    _cfg->cache->send(public_ids_tsx, delete_public_ids);
+    std::string impu = _impus.back();
+    LOG_DEBUG("Finding registration set for public identity %s", impu.c_str());
+    Cache::Request* get_ims_sub = _cfg->cache->create_GetIMSSubscription(impu);
+    CacheTransaction* tsx = new CacheTransaction(this);
+    tsx->set_success_clbk(&RegistrationTerminationHandler::get_registration_sets);
+    tsx->set_failure_clbk(&RegistrationTerminationHandler::get_registration_sets_failure);
+    _cfg->cache->send(tsx, get_ims_sub);
+  }
+  else
+  {
+    // We now have all the registration sets, and we can delete the registrations.
+    delete_registrations();
+  }
+}
+
+void RegistrationTerminationHandler::get_registration_sets_failure(Cache::Request* request,
+                                                                   Cache::ResultCode error,
+                                                                   std::string& text)
+{
+  // We don't worry too much about this. Just move on to the next public ID.
+  LOG_DEBUG("Failed to get registration set for public identity %s", _impus.back().c_str());
+  _impus.pop_back();
+  get_registration_sets(NULL);
+}
+
+void RegistrationTerminationHandler::delete_registrations()
+{
+  // No real SAS implementation yet.
+  SAS::TrailId fake_trail = 0;
+  HTTPCode ret_code = 0;
+  std::vector<std::string> empty_vector;
+  std::vector<std::string> default_public_identities;
+
+  // Extract the default public identities from the registration sets. These are the
+  // first public identities in the sets.
+  for (std::vector<std::vector<std::string>>::iterator i = _registration_sets.begin();
+       i != _registration_sets.end();
+       i++)
+  {
+    default_public_identities.push_back((*i)[0]);
   }
 
-  // Delete the _impis extracted from the RTR.
-  LOG_INFO("Deleting private IDs from RTR");
-  Cache::Request* delete_private_ids = _cfg->cache->create_DeletePrivateIDs(_impis, Cache::generate_timestamp());
-  HssCacheHandler::CacheTransaction<RegistrationTerminationHandler>* private_ids_tsx = new HssCacheHandler::CacheTransaction<RegistrationTerminationHandler>(this);
-  _cfg->cache->send(private_ids_tsx, delete_private_ids);
+  // We need to notify sprout of the deregistrations. What we send to sprout depends
+  // on the deregistration reason.
+  switch (_deregistration_reason)
+  {
+  case PERMANENT_TERMINATION:
+    ret_code = _cfg->sprout_conn->send_delete(false, default_public_identities, _impis, fake_trail);
+    break;
 
-  // Get the Auth-Session-State. RTRs are required to have an Auth-Session-State, so
-  // this AVP will be present.
-  int32_t auth_session_state = _msg.auth_session_state();
+  case REMOVE_SCSCF:
+  case SERVER_CHANGE:
+    ret_code = _cfg->sprout_conn->send_delete(true, default_public_identities, empty_vector, fake_trail);
+    break;
 
+  case NEW_SERVER_ASSIGNED:
+    ret_code = _cfg->sprout_conn->send_delete(false, default_public_identities, empty_vector, fake_trail);
+    break;
+
+  default:
+    LOG_ERROR("Unexpected deregistration reason %d on RTR", _deregistration_reason);
+    break;
+  }
+
+  switch (ret_code)
+  {
+  case HTTP_OK:
+    LOG_DEBUG("Send Registration-Termination answer indicating success");
+    send_rta(DIAMETER_REQ_SUCCESS);
+    break;
+
+  case HTTP_BADMETHOD:
+  case HTTP_BAD_RESULT:
+  case HTTP_SERVER_ERROR:
+    LOG_DEBUG("Send Registration-Termination answer indicating failure");
+    send_rta(DIAMETER_REQ_FAILURE);
+    break;
+
+  default:
+    LOG_ERROR("Unexpected HTTP return code, send Registration-Termination answer indicating failure");
+    send_rta(DIAMETER_REQ_FAILURE);
+    break;
+  }
+
+  // Remove the relevant registration information from Cassandra.
+  dissociate_implicit_registration_sets();
+
+  if ((_deregistration_reason == SERVER_CHANGE) ||
+      (_deregistration_reason == NEW_SERVER_ASSIGNED))
+  {
+    LOG_DEBUG("Delete IMPI mappings");
+    delete_impi_mappings();
+  }
+}
+
+void RegistrationTerminationHandler::dissociate_implicit_registration_sets()
+{
+  // Dissociate each private identity from each registration set.
+  for (std::vector<std::string>::iterator i = _impis.begin();
+       i != _impis.end();
+       i++)
+  {
+    for (std::vector<std::vector<std::string>>::iterator j = _registration_sets.begin();
+         j != _registration_sets.end();
+         j++)
+    {
+      Cache::Request* dissociate_reg_set =
+        _cfg->cache->create_DissociateImplicitRegistrationSetFromImpi(*j, *i, Cache::generate_timestamp());
+      CacheTransaction* tsx = new CacheTransaction(this);
+      _cfg->cache->send(tsx, dissociate_reg_set);
+    }
+  }
+}
+
+void RegistrationTerminationHandler::delete_impi_mappings()
+{
+  // Delete rows from the IMPI table for all associated IMPIs. First remove any
+  // duplicates in the list of _associated_impis.
+  _associated_impis.erase(unique(_associated_impis.begin(), _associated_impis.end()), _associated_impis.end());
+  get_registration_sets(NULL);
+  Cache::Request* delete_impis = _cfg->cache->create_DeleteIMPIMapping(_associated_impis, Cache::generate_timestamp());
+  CacheTransaction* tsx = new CacheTransaction(this);
+  _cfg->cache->send(tsx, delete_impis);
+}
+
+void RegistrationTerminationHandler::send_rta(const std::string result_code)
+{
   // Use our Cx layer to create a RTA object and add the correct AVPs. The RTA is
-  // created from the RTR. We currently always return DIAMETER_SUCCESS. We may want
-  // to return DIAMETER_UNABLE_TO_COMPLY for failures in future.
+  // created from the RTR.
   Cx::RegistrationTerminationAnswer rta(_msg,
                                         _cfg->dict,
-                                        DIAMETER_REQ_SUCCESS,
-                                        auth_session_state,
+                                        result_code,
+                                        _msg.auth_session_state(),
                                         _impis);
 
   // Send the RTA back to the HSS.
