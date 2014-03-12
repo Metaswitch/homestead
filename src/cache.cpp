@@ -720,10 +720,18 @@ delete_columns_from_multiple_cfs(const std::vector<CFRowColumnValue>& to_rm,
          ++col)
     {
       // Vector of mutations (one per column being modified).
-      printf("Deleting column %s\n", col->first.c_str());
       what->column_names.push_back(col->first);
     }
     mutations.push_back(mutation);
+
+    if (what->column_names.empty())
+    {
+      LOG_DEBUG("Deleting all columns from %s:%s", it->cf.c_str(), it->row.c_str());
+    }
+    else
+    {
+      LOG_DEBUG("Deleting %d columns from %s:%s", what->column_names.size(), it->cf.c_str(), it->row.c_str());
+    }
     mutmap[it->row][it->cf] = mutations;
   }
 
@@ -809,7 +817,6 @@ void Cache::PutIMSSubscription::perform()
     std::vector<std::string>::iterator default_public_id = _public_ids.begin();
     impi_columns[IMPI_MAPPING_PREFIX + *default_public_id] = "";
     to_put.push_back(CFRowColumnValue(IMPI_MAPPING, *impi, impi_columns));
-
   }
 
   for (std::vector<std::string>::iterator row = _public_ids.begin();
@@ -862,7 +869,6 @@ void Cache::PutAssociatedPrivateID::perform()
   put_columns_to_multiple_cfs(to_put, _timestamp, _ttl);
 
   _trx->on_success(this);
-
 }
 
 
@@ -953,7 +959,6 @@ Cache::GetIMSSubscription::
 
 void Cache::GetIMSSubscription::perform()
 {
-  printf("Performing GetIMSSubscription\n");
   int64_t now = generate_timestamp();
   LOG_DEBUG("Issuing get for column %s for key %s",
             IMS_SUB_XML_COLUMN_NAME.c_str(), _public_id.c_str());
@@ -1313,25 +1318,6 @@ void Cache::GetAuthVector::get_result(DigestAuthVector& av)
 //
 // DeletePublicIDs methods
 //
-
-// Excluded from coverage - these are only kept temporarily until the
-// handler code is updated
-// LCOV_EXCL_START
-Cache::DeletePublicIDs::
-DeletePublicIDs(const std::string& public_id, int64_t timestamp) :
-  DeleteRowsRequest(IMPU, timestamp),
-  _public_ids(1, public_id),
-  _impis()
-{}
-
-
-Cache::DeletePublicIDs::
-DeletePublicIDs(const std::vector<std::string>& public_ids, int64_t timestamp) :
-  DeleteRowsRequest(IMPU, timestamp),
-  _public_ids(public_ids),
-  _impis()
-{}
-// LCOV_EXCL_STOP
 
 Cache::DeletePublicIDs::
 DeletePublicIDs(const std::string& public_id,
