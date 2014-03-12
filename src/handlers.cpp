@@ -1470,8 +1470,8 @@ void RegistrationTerminationHandler::delete_impi_mappings()
 {
   // Delete rows from the IMPI table for all associated IMPIs. First remove any
   // duplicates in the list of _associated_impis.
+  sort(_associated_impis.begin(), _associated_impis.end());
   _associated_impis.erase(unique(_associated_impis.begin(), _associated_impis.end()), _associated_impis.end());
-  get_registration_sets(NULL);
   Cache::Request* delete_impis = _cfg->cache->create_DeleteIMPIMapping(_associated_impis, Cache::generate_timestamp());
   CacheTransaction* tsx = new CacheTransaction(this);
   _cfg->cache->send(tsx, delete_impis);
