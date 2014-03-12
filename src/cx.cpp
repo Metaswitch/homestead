@@ -605,6 +605,7 @@ ServerAssignmentAnswer::ServerAssignmentAnswer(const Dictionary* dict,
 
 RegistrationTerminationRequest::RegistrationTerminationRequest(const Dictionary* dict,
                                                                Diameter::Stack* stack,
+                                                               const int32_t& deregistration_reason,
                                                                const std::string& impi,
                                                                std::vector<std::string>& associated_identities,
                                                                std::vector<std::string>& impus,
@@ -636,6 +637,9 @@ RegistrationTerminationRequest::RegistrationTerminationRequest(const Dictionary*
       add(Diameter::AVP(dict->PUBLIC_IDENTITY).val_str(*it));
     }
   }
+  Diameter::AVP deregistration_reason_avp(dict->DEREGISTRATION_REASON);
+  deregistration_reason_avp.add(Diameter::AVP(dict->REASON_CODE).val_i32(deregistration_reason));
+  add(deregistration_reason_avp);
 }
 
 std::vector<std::string> RegistrationTerminationRequest::associated_identities() const

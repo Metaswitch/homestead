@@ -1449,7 +1449,7 @@ void Cache::DeleteIMPIMapping::perform()
 }
 
 //
-// DeleteIMPIMapping methods
+// DissociateImplicitRegistrationSetFromImpi methods
 //
 
 Cache::DissociateImplicitRegistrationSetFromImpi::

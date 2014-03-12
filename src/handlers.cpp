@@ -1443,6 +1443,8 @@ void RegistrationTerminationHandler::delete_registrations()
     LOG_DEBUG("Delete IMPI mappings");
     delete_impi_mappings();
   }
+
+  delete this;
 }
 
 void RegistrationTerminationHandler::dissociate_implicit_registration_sets()
@@ -1488,8 +1490,6 @@ void RegistrationTerminationHandler::send_rta(const std::string result_code)
   // Send the RTA back to the HSS.
   LOG_INFO("Ready to send RTA");
   rta.send();
-
-  delete this;
 }
 
 void PushProfileHandler::run()

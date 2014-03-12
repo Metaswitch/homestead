@@ -438,6 +438,8 @@ int main(int argc, char**argv)
   }
   delete dict;
 
+  delete sprout_conn; sprout_conn = NULL;
+
   delete stats_manager; stats_manager = NULL;
   delete load_monitor; load_monitor = NULL;
 

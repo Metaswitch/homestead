@@ -305,6 +305,7 @@ class RegistrationTerminationRequest : public Diameter::Message
 public:
   RegistrationTerminationRequest(const Dictionary* dict,
                                  Diameter::Stack* stack,
+                                 const int32_t& deregistration_reason,
                                  const std::string& impi,
                                  std::vector<std::string>& associated_identities,
                                  std::vector<std::string>& impus,
