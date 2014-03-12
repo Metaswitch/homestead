@@ -842,6 +842,7 @@ void ImpuRegDataHandler::on_get_ims_subscription_success(Cache::Request* request
     _impi = XmlUtils::get_private_id(_xml);
   }
   else if ((_cfg->hss_configured) &&
+           (!_xml.empty()) &&
            ((associated_impis.empty()) ||
             (std::find(associated_impis.begin(), associated_impis.end(), _impi) == associated_impis.end())))
   {
