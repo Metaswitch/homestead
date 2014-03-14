@@ -43,7 +43,7 @@
 #include "rapidjson/writer.h"
 #include "rapidjson/stringbuffer.h"
 #include "rapidxml/rapidxml.hpp"
-
+#include "boost/algorithm/string/join.hpp"
 
 // The poll_homestead script pings homestead to check it's still alive.
 // Handle the ping.
@@ -818,6 +818,7 @@ void ImpuRegDataHandler::on_get_ims_subscription_success(Cache::Request* request
   get_ims_sub->get_xml(_xml, ttl);
   get_ims_sub->get_registration_state(old_state, ttl);
   get_ims_sub->get_associated_impis(associated_impis);
+  bool new_binding = true;
   LOG_DEBUG("TTL for this database record is %d, IMS Subscription XML is %s, and registration state is %s",
             ttl,
             _xml.empty() ? "empty" : "not empty",
@@ -855,14 +856,18 @@ void ImpuRegDataHandler::on_get_ims_subscription_success(Cache::Request* request
                                             (2 * _cfg->hss_reregistration_time));
     CacheTransaction* tsx = new CacheTransaction(NULL);
     _cache->send(tsx, put_associated_private_id);
+    new_binding = true;
   }
 
   if (_type == RequestType::REG)
   {
     // This message was based on a REGISTER request from Sprout. Check
     // the subscriber's state in Cassandra to determine whether this
-    // is an initial registration or a re-registration.
-    if (old_state == RegistrationState::REGISTERED)
+    // is an initial registration or a re-registration. The public
+    // identity may be registering with a new private identity, so also
+    // check if this is a new binding (in which case we need to notify
+    // the HSS).
+    if ((old_state == RegistrationState::REGISTERED) && (!new_binding))
     {
       _new_state = RegistrationState::REGISTERED;
       LOG_DEBUG("Handling re-registration");
@@ -1333,7 +1338,11 @@ void RegistrationTerminationHandler::get_registration_sets(Cache::Request* reque
     // the list of registration sets and remove the last element of
     // _impus so that we can keep track of which public identities
     // we've looked up.
-    _registration_sets.push_back(XmlUtils::get_public_ids(ims_sub));
+    std::vector<std::string> public_ids = XmlUtils::get_public_ids(ims_sub);
+    if (!public_ids.empty())
+    {
+      _registration_sets.push_back(XmlUtils::get_public_ids(ims_sub));
+    }
     _impus.pop_back();
 
     if ((_deregistration_reason == SERVER_CHANGE) ||
@@ -1343,6 +1352,9 @@ void RegistrationTerminationHandler::get_registration_sets(Cache::Request* reque
       // identities. Save these off.
       std::vector<std::string> associated_impis;
       get_ims_sub_result->get_associated_impis(associated_impis);
+      std::string associated_impis_string = boost::algorithm::join(associated_impis, ", ");
+      LOG_DEBUG("GetIMSSubscription returned associated identites: %s",
+                associated_impis_string.c_str());
       _associated_impis.insert(_associated_impis.end(),
                                associated_impis.begin(),
                                associated_impis.end());

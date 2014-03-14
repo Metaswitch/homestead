@@ -493,8 +493,8 @@ public:
     int hss_reregistration_time;
   };
 
-  RegistrationTerminationHandler(Diameter::Message& msg, const Config* cfg) :
-    Diameter::Stack::Handler(msg), _cfg(cfg)
+  RegistrationTerminationHandler(Diameter::Dictionary* dict, struct msg** fd_msg, const Config* cfg) :
+    Diameter::Stack::Handler(dict, fd_msg), _cfg(cfg)
   {}
 
   void run();
@@ -544,8 +544,8 @@ public:
     int hss_reregistration_time;
   };
 
-  PushProfileHandler(Diameter::Message& msg, const Config* cfg) :
-    Diameter::Stack::Handler(msg), _cfg(cfg)
+  PushProfileHandler(Diameter::Dictionary* dict, struct msg** fd_msg, const Config* cfg) :
+    Diameter::Stack::Handler(dict, fd_msg), _cfg(cfg)
   {}
 
   void run();
