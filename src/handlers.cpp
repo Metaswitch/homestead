@@ -373,6 +373,7 @@ void ImpiAvHandler::send_reply(const DigestAuthVector& av)
   // The qop value can be empty - in this case it should be replaced
   // with 'auth'.
   std::string qop_value = (!av.qop.empty()) ? av.qop : JSON_AUTH;
+
   writer.StartObject();
   {
     writer.String(JSON_DIGEST.c_str());
