@@ -70,6 +70,7 @@ const std::string JSON_DIGEST = "digest";
 const std::string JSON_HA1 = "ha1";
 const std::string JSON_REALM = "realm";
 const std::string JSON_QOP = "qop";
+const std::string JSON_AUTH = "auth";
 const std::string JSON_AKA = "aka";
 const std::string JSON_CHALLENGE = "challenge";
 const std::string JSON_RESPONSE = "response";

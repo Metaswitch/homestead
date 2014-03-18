@@ -200,6 +200,10 @@ public:
     rapidjson::StringBuffer sb;
     rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
 
+    // The qop value can be empty - in this case it should be replaced
+    // with 'auth'.
+    std::string qop_value = (!av.qop.empty()) ? av.qop : JSON_AUTH;
+
     writer.StartObject();
     {
       writer.String(JSON_DIGEST.c_str());
@@ -210,7 +214,7 @@ public:
         writer.String(JSON_REALM.c_str());
         writer.String(av.realm.c_str());
         writer.String(JSON_QOP.c_str());
-        writer.String(av.qop.c_str());
+        writer.String(qop_value.c_str());
       }
       writer.EndObject();
     }
@@ -1320,6 +1324,50 @@ TEST_F(HandlersTest, AvCache)
   digest.ha1 = "ha1";
   digest.realm = "realm";
   digest.qop = "qop";
+
+  // Confirm the cache transaction is not NULL, and specify an auth vector
+  // to be returned on the expected call for the cache request's results.
+  // We also expect a successful HTTP response.
+  Cache::Transaction* t = mock_req.get_trx();
+  ASSERT_FALSE(t == NULL);
+  EXPECT_CALL(mock_req, get_result(_))
+    .WillRepeatedly(SetArgReferee<0>(digest));
+  EXPECT_CALL(*_httpstack, send_reply(_, 200));
+
+  t->on_success(&mock_req);
+
+  // Build the expected response and check it's correct.
+  EXPECT_EQ(build_av_json(digest), req.content());
+}
+
+TEST_F(HandlersTest, AvEmptyQoP)
+{
+  // This test tests an Impi Av handler case where no HSS is configured.
+  // Start by building the HTTP request which will invoke a cache lookup.
+  MockHttpStack::Request req(_httpstack,
+                             "/impi/" + IMPI,
+                             "av",
+                             "?impu=" + IMPU);
+
+  ImpiHandler::Config cfg(false);
+  ImpiAvHandler* handler = new ImpiAvHandler(req, &cfg);
+
+  // Once the handler's run function is called, expect to lookup an auth
+  // vector for the specified public and private IDs.
+  MockCache::MockGetAuthVector mock_req;
+  EXPECT_CALL(*_cache, create_GetAuthVector(IMPI, IMPU))
+    .WillOnce(Return(&mock_req));
+  EXPECT_CALL(*_cache, send(_, &mock_req))
+    .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
+
+  handler->run();
+
+  // Set up the returned auth vector to have qop set to the empty string.
+  // Homestead should convert this to auth.
+  DigestAuthVector digest;
+  digest.ha1 = "ha1";
+  digest.realm = "realm";
+  digest.qop = "";
 
   // Confirm the cache transaction is not NULL, and specify an auth vector
   // to be returned on the expected call for the cache request's results.
