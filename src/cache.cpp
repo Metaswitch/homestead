@@ -636,7 +636,6 @@ get_row(const std::string& key,
   // This slice range gets all columns with the specified prefix.
   SliceRange sr;
   sr.start = "";
-  // Increment the last character of the "finish" field.
   sr.finish = "";
 
   SlicePredicate sp;
@@ -820,7 +819,7 @@ void Cache::PutIMSSubscription::perform()
        row != _public_ids.end();
        row++)
   {
-    to_put.push_back(CFRowColumnValue(_column_family, *row, columns));
+    to_put.push_back(CFRowColumnValue(IMPU, *row, columns));
   }
 
   put_columns_to_multiple_cfs(to_put, _timestamp, _ttl);
@@ -860,7 +859,7 @@ void Cache::PutAssociatedPrivateID::perform()
        row != _impus.end();
        row++)
   {
-    to_put.push_back(CFRowColumnValue(_column_family, *row, impu_columns));
+    to_put.push_back(CFRowColumnValue(IMPU, *row, impu_columns));
   }
 
   put_columns_to_multiple_cfs(to_put, _timestamp, _ttl);
@@ -957,8 +956,7 @@ Cache::GetIMSSubscription::
 void Cache::GetIMSSubscription::perform()
 {
   int64_t now = generate_timestamp();
-  LOG_DEBUG("Issuing get for column %s for key %s",
-            IMS_SUB_XML_COLUMN_NAME.c_str(), _public_id.c_str());
+  LOG_DEBUG("Issuing get for key %s", _public_id.c_str());
   std::vector<ColumnOrSuperColumn> results;
 
   try
@@ -1427,7 +1425,7 @@ void Cache::DeleteIMPIMapping::perform()
     to_delete.push_back(CFRowColumnValue(_column_family, *it));
   }
 
-  delete_columns_from_multiple_cfs(to_delete, _timestamp);
+  batch_delete(to_delete, _timestamp);
   _trx->on_success(this);
 }
 
@@ -1470,6 +1468,23 @@ void Cache::DissociateImplicitRegistrationSetFromImpi::perform()
   std::vector<cass::ColumnOrSuperColumn> columns;
   ha_get_columns_with_prefix(primary_public_id, IMPI_COLUMN_PREFIX, columns);
   int associated_impis = columns.size();
+  bool impi_in_registration_set = false;
+
+  for (std::vector<cass::ColumnOrSuperColumn>::const_iterator it = columns.begin();
+       it != columns.end();
+       ++it)
+  {
+    if (it->column.name == _impi)
+    {
+      impi_in_registration_set = true;
+      break;
+    }
+  }
+
+  if (!impi_in_registration_set)
+  {
+    LOG_WARNING("DissociateImplicitRegistrationSetFromImpi was called but the provided IMPI is not associated with the IMPU");
+  }
 
   LOG_DEBUG("%d IMPIs are associated with this IRS", associated_impis);
 
@@ -1477,8 +1492,9 @@ void Cache::DissociateImplicitRegistrationSetFromImpi::perform()
        it != _impus.end();
        ++it)
   {
-    // Is this the last IMPI associated with this IMPU?
-    if (associated_impis > 1)
+    // Is this the last IMPI associated with this IMPU? (This is false
+    // if the IMPI isn't associated with the IMPU).
+    if ((!impi_in_registration_set) || (associated_impis > 1))
     {
       // No - Go through IMPU table and delete the column
       // specifically for this IMPI
