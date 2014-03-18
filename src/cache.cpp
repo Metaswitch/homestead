@@ -1516,8 +1516,18 @@ DissociateImplicitRegistrationSetFromImpi(const std::vector<std::string>& impus,
                                           const std::string& impi,
                                           int64_t timestamp) :
   DeleteRowsRequest(IMPU, timestamp),
+  _impus(impus)
+{
+  _impis.insert(impi);
+}
+
+Cache::DissociateImplicitRegistrationSetFromImpi::
+DissociateImplicitRegistrationSetFromImpi(const std::vector<std::string>& impus,
+                                          const std::set<std::string>& impis,
+                                          int64_t timestamp) :
+  DeleteRowsRequest(IMPU, timestamp),
   _impus(impus),
-  _impi(impi)
+  _impis(impis)
 {}
 
 void Cache::DissociateImplicitRegistrationSetFromImpi::perform()
@@ -1528,16 +1538,19 @@ void Cache::DissociateImplicitRegistrationSetFromImpi::perform()
 
   std::string primary_public_id = _impus.front();
 
-  LOG_DEBUG("Deleting column %s from row %s", std::string(IMPI_MAPPING_PREFIX + primary_public_id).c_str(), _impi.c_str());
-
   std::map<std::string, std::string> impi_columns_to_delete;
   std::map<std::string, std::string> impu_columns_to_delete;
 
   // Value doesn't matter for deletions
   impi_columns_to_delete[IMPI_MAPPING_PREFIX + primary_public_id] = "";
-  impu_columns_to_delete[IMPI_COLUMN_PREFIX + _impi] = "";
+  for (std::set<std::string>::const_iterator it = _impis.begin();
+       it != _impis.end();
+       ++it)
+  {
+    impu_columns_to_delete[IMPI_COLUMN_PREFIX + *it] = "";
+    to_delete.push_back(CFRowColumnValue(IMPI_MAPPING, *it, impi_columns_to_delete));
+  }
 
-  to_delete.push_back(CFRowColumnValue(IMPI_MAPPING, _impi, impi_columns_to_delete));
 
   // Check how many IMPIs are associated with this implicit
   // registration set (all the columns are the same, so we only need
@@ -1545,42 +1558,56 @@ void Cache::DissociateImplicitRegistrationSetFromImpi::perform()
 
   std::vector<cass::ColumnOrSuperColumn> columns;
   ha_get_columns_with_prefix(primary_public_id, IMPI_COLUMN_PREFIX, columns);
-  int associated_impis = columns.size();
-  bool impi_in_registration_set = false;
+  LOG_DEBUG("%d IMPIs are associated with this IRS", columns.size());
+
+  std::set<std::string> associated_impis_set;
 
   for (std::vector<cass::ColumnOrSuperColumn>::const_iterator it = columns.begin();
        it != columns.end();
        ++it)
   {
-    if (it->column.name == _impi)
-    {
-      impi_in_registration_set = true;
-      break;
-    }
+    associated_impis_set.insert(it->column.name);
   }
 
-  if (!impi_in_registration_set)
+
+  // Are any IMPIs in _impis but not in associated_impis_set? If so,
+  // warn.
+
+  std::vector<std::string> output;
+  std::set_difference(_impis.begin(),
+                      _impis.end(),
+                      associated_impis_set.begin(),
+                      associated_impis_set.end(),
+                      std::back_inserter(output));
+
+  if (output.size() > 0)
   {
-    LOG_WARNING("DissociateImplicitRegistrationSetFromImpi was called but the provided IMPI is not associated with the IMPU");
+    LOG_WARNING("DissociateImplicitRegistrationSetFromImpi was called but not all the provided IMPIs are associated with the IMPU");
   }
 
-  LOG_DEBUG("%d IMPIs are associated with this IRS", associated_impis);
+  //  Are we deleting all the associated impis?
+
+  output.clear();
+  std::set_intersection(_impis.begin(),
+                        _impis.end(),
+                        associated_impis_set.begin(),
+                        associated_impis_set.end(),
+                        std::back_inserter(output));
+  bool deleting_all_impis = (output.size() == _impis.size());
 
   for (std::vector<std::string>::const_iterator it = _impus.begin();
        it != _impus.end();
        ++it)
   {
-    // Is this the last IMPI associated with this IMPU? (This is false
-    // if the IMPI isn't associated with the IMPU).
-    if ((!impi_in_registration_set) || (associated_impis > 1))
+    if (!deleting_all_impis)
     {
-      // No - Go through IMPU table and delete the column
+      // Go through IMPU table and delete the column
       // specifically for this IMPI
       to_delete.push_back(CFRowColumnValue(_column_family, *it, impu_columns_to_delete));
     }
     else
     {
-      // Yes - delete the IMPU rows completely by not specifying columns
+      // Delete the IMPU rows completely by not specifying columns
       to_delete.push_back(CFRowColumnValue(_column_family, *it));
     }
   }

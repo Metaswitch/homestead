@@ -1123,11 +1123,14 @@ public:
     DissociateImplicitRegistrationSetFromImpi(const std::vector<std::string>& impus,
                                               const std::string& impi,
                                               int64_t timestamp);
+    DissociateImplicitRegistrationSetFromImpi(const std::vector<std::string>& impus,
+                                              const std::set<std::string>& impis,
+                                              int64_t timestamp);
     virtual ~DissociateImplicitRegistrationSetFromImpi() {};
 
   protected:
     std::vector<std::string> _impus;
-    std::string _impi;
+    std::set<std::string> _impis;
 
     void perform();
   };
