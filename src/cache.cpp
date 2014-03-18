@@ -709,28 +709,25 @@ delete_columns_from_multiple_cfs(const std::vector<CFRowColumnValue>& to_rm,
   {
     std::vector<Mutation> mutations;
     Mutation mutation;
-    mutation.__isset.deletion = true;
-    Deletion* deletion = &mutation.deletion;
-    SlicePredicate* what = &deletion->predicate;
-    deletion->timestamp = timestamp;
+    Deletion deletion;
+    SlicePredicate what;
+    std::vector<std::string> column_names;
 
     for (std::map<std::string, std::string>::const_iterator col = it->columns.begin();
          col != it->columns.end();
          ++col)
     {
       // Vector of mutations (one per column being modified).
-      what->column_names.push_back(col->first);
+      column_names.push_back(col->first);
     }
+
+    what.__set_column_names(column_names);
+    LOG_DEBUG("Deleting %d columns from %s:%s", what.column_names.size(), it->cf.c_str(), it->row.c_str());
+    deletion.__set_predicate(what);
+    deletion.__set_timestamp(timestamp);
+    mutation.__set_deletion(deletion);
     mutations.push_back(mutation);
 
-    if (what->column_names.empty())
-    {
-      LOG_DEBUG("Deleting all columns from %s:%s", it->cf.c_str(), it->row.c_str());
-    }
-    else
-    {
-      LOG_DEBUG("Deleting %d columns from %s:%s", what->column_names.size(), it->cf.c_str(), it->row.c_str());
-    }
     mutmap[it->row][it->cf] = mutations;
   }
 
@@ -1505,8 +1502,10 @@ void Cache::DissociateImplicitRegistrationSetFromImpi::perform()
     }
     else
     {
-      // Yes - delete the IMPU rows completely by not specifying columns
-      to_delete.push_back(CFRowColumnValue(_column_family, *it));
+      // Yes - delete all columns in the IMPU rows
+      impu_columns_to_delete[IMS_SUB_XML_COLUMN_NAME] = "";
+      impu_columns_to_delete[REG_STATE_COLUMN_NAME] = "";
+      to_delete.push_back(CFRowColumnValue(_column_family, *it, impu_columns_to_delete));
     }
   }
 

@@ -93,16 +93,20 @@ public:
                GetAssociatedPublicIDs*(const std::string& private_id));
   MOCK_METHOD1(create_GetAssociatedPublicIDs,
                GetAssociatedPublicIDs*(const std::vector<std::string>& private_ids));
+  MOCK_METHOD1(create_GetAssociatedPrimaryPublicIDs,
+               GetAssociatedPrimaryPublicIDs*(const std::string& private_id));
   MOCK_METHOD1(create_GetAuthVector,
                GetAuthVector*(const std::string& private_id));
   MOCK_METHOD2(create_GetAuthVector,
                GetAuthVector*(const std::string& private_id,
                               const std::string& public_id));
-  MOCK_METHOD2(create_DeletePublicIDs,
+  MOCK_METHOD3(create_DeletePublicIDs,
                DeletePublicIDs*(const std::string& public_id,
+                                const std::vector<std::string>& impis,
                                 int64_t timestamp));
-  MOCK_METHOD2(create_DeletePublicIDs,
+  MOCK_METHOD3(create_DeletePublicIDs,
                DeletePublicIDs*(const std::vector<std::string>& public_ids,
+                                const std::vector<std::string>& impis,
                                 int64_t timestamp));
   MOCK_METHOD2(create_DeletePrivateIDs,
                DeletePrivateIDs*(const std::string& private_id,
@@ -110,6 +114,13 @@ public:
   MOCK_METHOD2(create_DeletePrivateIDs,
                DeletePrivateIDs*(const std::vector<std::string>& private_ids,
                                  int64_t timestamp));
+  MOCK_METHOD2(create_DeleteIMPIMapping,
+               DeleteIMPIMapping*(const std::vector<std::string>& private_ids,
+                                  int64_t timestamp));
+  MOCK_METHOD3(create_DissociateImplicitRegistrationSetFromImpi,
+               DissociateImplicitRegistrationSetFromImpi*(const std::vector<std::string>& impus,
+                                                          const std::string& impi,
+                                                          int64_t timestamp));
 
   // Mock request objects.
   //
@@ -162,12 +173,21 @@ public:
 
     MOCK_METHOD2(get_xml, void(std::string& xml, int& ttl));
     MOCK_METHOD2(get_registration_state, void(RegistrationState& state, int& ttl));
+    MOCK_METHOD1(get_associated_impis, void(std::vector<std::string>& associated_impis));
   };
 
   class MockGetAssociatedPublicIDs : public GetAssociatedPublicIDs
   {
     MockGetAssociatedPublicIDs() : GetAssociatedPublicIDs("") {}
     virtual ~MockGetAssociatedPublicIDs() {}
+
+    MOCK_METHOD1(get_result, void(std::vector<std::string>& public_ids));
+  };
+
+  class MockGetAssociatedPrimaryPublicIDs : public GetAssociatedPrimaryPublicIDs
+  {
+    MockGetAssociatedPrimaryPublicIDs() : GetAssociatedPrimaryPublicIDs("") {}
+    virtual ~MockGetAssociatedPrimaryPublicIDs() {}
 
     MOCK_METHOD1(get_result, void(std::vector<std::string>& public_ids));
   };
@@ -182,7 +202,7 @@ public:
 
   class MockDeletePublicIDs : public DeletePublicIDs
   {
-    MockDeletePublicIDs() : DeletePublicIDs("", 0) {}
+    MockDeletePublicIDs() : DeletePublicIDs("", {}, 0) {}
     virtual ~MockDeletePublicIDs() {}
   };
 
@@ -190,6 +210,18 @@ public:
   {
     MockDeletePrivateIDs() : DeletePrivateIDs("", 0) {}
     virtual ~MockDeletePrivateIDs() {}
+  };
+
+  class MockDeleteIMPIMapping : public DeleteIMPIMapping
+  {
+    MockDeleteIMPIMapping() : DeleteIMPIMapping({}, 0) {}
+    virtual ~MockDeleteIMPIMapping() {}
+  };
+
+  class MockDissociateImplicitRegistrationSetFromImpi : public DissociateImplicitRegistrationSetFromImpi
+  {
+    MockDissociateImplicitRegistrationSetFromImpi() : DissociateImplicitRegistrationSetFromImpi({}, {}, 0) {}
+    virtual ~MockDissociateImplicitRegistrationSetFromImpi() {}
   };
 };
 
