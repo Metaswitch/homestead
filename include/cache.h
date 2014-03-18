@@ -201,6 +201,11 @@ public:
                            const cass::ColumnParent& column_parent,
                            const cass::SlicePredicate& predicate,
                            const cass::ConsistencyLevel::type consistency_level) = 0;
+    virtual void multiget_slice(std::map<std::string, std::vector<cass::ColumnOrSuperColumn> >& _return,
+                                const std::vector<std::string>& key,
+                                const cass::ColumnParent& column_parent,
+                                const cass::SlicePredicate& predicate,
+                                const cass::ConsistencyLevel::type consistency_level) = 0;
     virtual void remove(const std::string& key,
                         const cass::ColumnPath& column_path,
                         const int64_t timestamp,
@@ -245,6 +250,15 @@ public:
                    const cass::ConsistencyLevel::type consistency_level)
     {
       cass::CassandraClient::get_slice(_return, key, column_parent, predicate, consistency_level);
+    }
+
+    void multiget_slice(std::map<std::string, std::vector<cass::ColumnOrSuperColumn> >& _return,
+                        const std::vector<std::string>& keys,
+                        const cass::ColumnParent& column_parent,
+                        const cass::SlicePredicate& predicate,
+                        const cass::ConsistencyLevel::type consistency_level)
+    {
+      cass::CassandraClient::multiget_slice(_return, keys, column_parent, predicate, consistency_level);
     }
 
     void remove(const std::string& key, const cass::ColumnPath& column_path, const int64_t timestamp, const cass::ConsistencyLevel::type consistency_level)
@@ -475,6 +489,9 @@ public:
     void ha_get_columns_with_prefix(const std::string& key,
                                     const std::string& prefix,
                                     std::vector<cass::ColumnOrSuperColumn>& columns);
+    void ha_multiget_columns_with_prefix(const std::vector<std::string>& keys,
+                                         const std::string& prefix,
+                                         std::map<std::string, std::vector<cass::ColumnOrSuperColumn> >& columns);
 
     /// Get an entire row (non-HA).
     /// @param consistency_level cassandra consistency level.
@@ -495,6 +512,10 @@ public:
                                  const std::string& prefix,
                                  std::vector<cass::ColumnOrSuperColumn>& columns,
                                  cass::ConsistencyLevel::type consistency_level);
+    void multiget_columns_with_prefix(const std::vector<std::string>& key,
+                                      const std::string& prefix,
+                                      std::map<std::string, std::vector<cass::ColumnOrSuperColumn> >& columns,
+                                      cass::ConsistencyLevel::type consistency_level);
 
     /// Utility method to issue a get request for a particular key.
     ///
@@ -506,6 +527,10 @@ public:
                            const cass::SlicePredicate& predicate,
                            std::vector<cass::ColumnOrSuperColumn>& columns,
                            cass::ConsistencyLevel::type consistency_level);
+    void issue_multiget_for_key(const std::vector<std::string>& keys,
+                                const cass::SlicePredicate& predicate,
+                                std::map<std::string, std::vector<cass::ColumnOrSuperColumn> >& columns,
+                                cass::ConsistencyLevel::type consistency_level);
 
     /// Method that contains the business logic of the request.
     ///
@@ -896,6 +921,7 @@ public:
     ///
     /// @param private_id the private ID.
     GetAssociatedPrimaryPublicIDs(const std::string& private_id);
+    GetAssociatedPrimaryPublicIDs(const std::vector<std::string>& private_ids);
     virtual ~GetAssociatedPrimaryPublicIDs() {};
 
     /// Access the result of the request.
@@ -905,7 +931,7 @@ public:
 
   protected:
     // Request parameters.
-    std::string _private_id;
+    std::vector<std::string> _private_ids;
 
     // Result.
     std::vector<std::string> _public_ids;

@@ -578,6 +578,14 @@ ha_get_columns_with_prefix(const std::string& key,
 }
 
 void Cache::Request::
+ha_multiget_columns_with_prefix(const std::vector<std::string>& keys,
+                                const std::string& prefix,
+                                std::map<std::string, std::vector<ColumnOrSuperColumn> >& columns)
+{
+  HA(multiget_columns_with_prefix, keys, prefix, columns);
+}
+
+void Cache::Request::
 ha_get_all_columns(const std::string& key,
                    std::vector<ColumnOrSuperColumn>& columns)
 {
@@ -629,6 +637,39 @@ get_columns_with_prefix(const std::string& key,
 }
 
 void Cache::Request::
+multiget_columns_with_prefix(const std::vector<std::string>& keys,
+                             const std::string& prefix,
+                             std::map<std::string, std::vector<ColumnOrSuperColumn> >& columns,
+                             ConsistencyLevel::type consistency_level)
+{
+  // This slice range gets all columns with the specified prefix.
+  SliceRange sr;
+  sr.start = prefix;
+  // Increment the last character of the "finish" field.
+  sr.finish = prefix;
+  *sr.finish.rbegin() = (*sr.finish.rbegin() + 1);
+
+  SlicePredicate sp;
+  sp.slice_range = sr;
+  sp.__isset.slice_range = true;
+
+  issue_multiget_for_key(keys, sp, columns, consistency_level);
+
+  // Remove the prefix from the returned column names.
+  for (std::map<std::string, std::vector<ColumnOrSuperColumn> >::iterator it = columns.begin();
+       it != columns.end();
+       ++it)
+  {
+    for (std::vector<ColumnOrSuperColumn>::iterator it2 = it->second.begin();
+         it2 != it->second.end();
+         ++it2)
+    {
+      it2->column.name = it2->column.name.substr(prefix.length());
+    }
+  }
+}
+
+void Cache::Request::
 get_row(const std::string& key,
         std::vector<ColumnOrSuperColumn>& columns,
         ConsistencyLevel::type consistency_level)
@@ -665,6 +706,27 @@ issue_get_for_key(const std::string& key,
     throw row_not_found_ex;
   }
 }
+
+void Cache::Request::
+issue_multiget_for_key(const std::vector<std::string>& keys,
+                       const SlicePredicate& predicate,
+                       std::map<std::string, std::vector<ColumnOrSuperColumn> >& columns,
+                       ConsistencyLevel::type consistency_level)
+{
+  ColumnParent cparent;
+  cparent.column_family = _column_family;
+
+  _trx->start_timer();
+  _client->multiget_slice(columns, keys, cparent, predicate, consistency_level);
+  _trx->stop_timer();
+
+  if (columns.size() == 0)
+  {
+    Cache::NoResultsException row_not_found_ex(_column_family, keys.front());
+    throw row_not_found_ex;
+  }
+}
+
 
 //
 // DeleteRowsRequest methods
@@ -1158,38 +1220,51 @@ void Cache::GetAssociatedPublicIDs::get_result(std::vector<std::string>& ids)
 Cache::GetAssociatedPrimaryPublicIDs::
 GetAssociatedPrimaryPublicIDs(const std::string& private_id) :
   GetRequest(IMPI_MAPPING),
-  _private_id(private_id),
+  _private_ids(1, private_id),
+  _public_ids()
+{}
+
+Cache::GetAssociatedPrimaryPublicIDs::
+GetAssociatedPrimaryPublicIDs(const std::vector<std::string>& private_ids) :
+  GetRequest(IMPI_MAPPING),
+  _private_ids(private_ids),
   _public_ids()
 {}
 
 
 void Cache::GetAssociatedPrimaryPublicIDs::perform()
 {
-  std::vector<ColumnOrSuperColumn> columns;
+  std::set<std::string> public_ids_set;
+  std::map<std::string, std::vector<ColumnOrSuperColumn> > columns;
 
-  LOG_DEBUG("Looking for primary public IDs for private ID %s", _private_id.c_str());
+  LOG_DEBUG("Looking for primary public IDs for private ID %s and %d others", _private_ids.front().c_str(), _private_ids.size());
   try
   {
-    ha_get_columns_with_prefix(_private_id,
-                               IMPI_MAPPING_PREFIX,
-                               columns);
+    ha_multiget_columns_with_prefix(_private_ids,
+                                    IMPI_MAPPING_PREFIX,
+                                    columns);
   }
   catch(Cache::NoResultsException& nre)
   {
-    LOG_INFO("Couldn't find any public IDs for private ID %s", _private_id.c_str());
+    LOG_INFO("Couldn't find any public IDs");
   }
 
   // Convert the query results from a vector of columns to a vector containing
   // the column names. The public_id prefix has already been stripped, so this
   // is just a list of public IDs and can be passed directly to on_success.
-  for(std::vector<ColumnOrSuperColumn>::const_iterator column_it = columns.begin();
-      column_it != columns.end();
-      ++column_it)
+  for(std::map<std::string, std::vector<ColumnOrSuperColumn> >::const_iterator key_it = columns.begin();
+      key_it != columns.end();
+      ++key_it)
   {
-    LOG_DEBUG("Found associated public ID %s", column_it->column.name.c_str());
-    _public_ids.push_back(column_it->column.name);
+    for(std::vector<ColumnOrSuperColumn>::const_iterator column = key_it->second.begin();
+        column != key_it->second.end();
+        ++column)
+    {
+      LOG_DEBUG("Found associated public ID %s", column->column.name.c_str());
+      public_ids_set.insert(column->column.name);
+    }
   }
-
+  std::copy(public_ids_set.begin(), public_ids_set.end(), std::back_inserter(_public_ids));
   _trx->on_success(this);
 }
 
