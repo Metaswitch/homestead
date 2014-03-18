@@ -16,7 +16,7 @@ DEB_NAMES := homestead-libs homestead-libs-dbg homestead homestead-dbg
 INCLUDE_DIR := ${INSTALL_DIR}/include
 LIB_DIR := ${INSTALL_DIR}/lib
 
-SUBMODULES := libevhtp freeDiameter thrift cassandra
+SUBMODULES := libevhtp freeDiameter thrift cassandra sas-client
 
 include $(patsubst %, ${MK_DIR}/%.mk, ${SUBMODULES})
 include ${MK_DIR}/homestead.mk

@@ -44,25 +44,32 @@
 #include "cache.h"
 #include "httpstack.h"
 #include "statisticsmanager.h"
+#include "sproutconnection.h"
 
 // Result-Code AVP constants
-const int DIAMETER_SUCCESS = 2001;
-const int DIAMETER_COMMAND_UNSUPPORTED = 3001;
-const int DIAMETER_TOO_BUSY = 3004;
-const int DIAMETER_AUTHORIZATION_REJECTED = 5003;
-const int DIAMETER_UNABLE_TO_COMPLY = 5012;
+const int32_t DIAMETER_SUCCESS = 2001;
+const int32_t DIAMETER_COMMAND_UNSUPPORTED = 3001;
+const int32_t DIAMETER_TOO_BUSY = 3004;
+const int32_t DIAMETER_AUTHORIZATION_REJECTED = 5003;
+const int32_t DIAMETER_UNABLE_TO_COMPLY = 5012;
 // Experimental-Result-Code AVP constants
-const int DIAMETER_FIRST_REGISTRATION = 2001;
-const int DIAMETER_SUBSEQUENT_REGISTRATION = 2002;
-const int DIAMETER_UNREGISTERED_SERVICE = 2003;
-const int DIAMETER_ERROR_USER_UNKNOWN = 5001;
-const int DIAMETER_ERROR_IDENTITIES_DONT_MATCH = 5002;
-const int DIAMETER_ERROR_IDENTITY_NOT_REGISTERED = 5003;
-const int DIAMETER_ERROR_ROAMING_NOT_ALLOWED = 5004;
+const int32_t DIAMETER_FIRST_REGISTRATION = 2001;
+const int32_t DIAMETER_SUBSEQUENT_REGISTRATION = 2002;
+const int32_t DIAMETER_UNREGISTERED_SERVICE = 2003;
+const int32_t DIAMETER_ERROR_USER_UNKNOWN = 5001;
+const int32_t DIAMETER_ERROR_IDENTITIES_DONT_MATCH = 5002;
+const int32_t DIAMETER_ERROR_IDENTITY_NOT_REGISTERED = 5003;
+const int32_t DIAMETER_ERROR_ROAMING_NOT_ALLOWED = 5004;
 
 // Result-Code AVP strings used in set_result_code function
 const std::string DIAMETER_REQ_SUCCESS = "DIAMETER_SUCCESS";
 const std::string DIAMETER_REQ_FAILURE = "DIAMETER_UNABLE_TO_COMPLY";
+
+// Deregistration-Reason Reason-Code AVP constants
+const int32_t PERMANENT_TERMINATION = 0;
+const int32_t NEW_SERVER_ASSIGNED = 1;
+const int32_t SERVER_CHANGE = 2;
+const int32_t REMOVE_SCSCF = 3;
 
 // JSON string constants
 const std::string JSON_DIGEST_HA1 = "digest_ha1";
@@ -443,7 +450,7 @@ protected:
   bool is_auth_failure_request(RequestType type);
   Cx::ServerAssignmentType sar_type_for_request(RequestType type);
   RequestType request_type_from_body(std::string body);
-
+  std::vector<std::string> get_associated_private_ids();
 
   const Config* _cfg;
   std::string _impi;
@@ -473,18 +480,21 @@ public:
   {
     Config(Cache* _cache,
            Cx::Dictionary* _dict,
+           SproutConnection* _sprout_conn,
            int _hss_reregistration_time = 3600) :
       cache(_cache),
       dict(_dict),
+      sprout_conn(_sprout_conn),
       hss_reregistration_time(_hss_reregistration_time) {}
 
     Cache* cache;
     Cx::Dictionary* dict;
+    SproutConnection* sprout_conn;
     int hss_reregistration_time;
   };
 
-  RegistrationTerminationHandler(Diameter::Message& msg, const Config* cfg) :
-    Diameter::Stack::Handler(msg), _cfg(cfg)
+  RegistrationTerminationHandler(Diameter::Dictionary* dict, struct msg** fd_msg, const Config* cfg) :
+    Diameter::Stack::Handler(dict, fd_msg), _cfg(cfg)
   {}
 
   void run();
@@ -493,12 +503,25 @@ public:
 
 private:
   const Config* _cfg;
+  int32_t _deregistration_reason;
   std::vector<std::string> _impis;
   std::vector<std::string> _impus;
+  std::vector<std::string> _impis_copy;
+  std::vector<std::string> _associated_impis;
+  std::vector<std::vector<std::string>> _registration_sets;
 
-  void on_get_public_ids_success(Cache::Request* request);
-  void on_get_public_ids_failure(Cache::Request* request, Cache::ResultCode error, std::string& text);
-  void delete_identities();
+  void get_associated_primary_public_ids(Cache::Request* request);
+  void get_associated_primary_public_ids_failure(Cache::Request* request,
+                                                 Cache::ResultCode error,
+                                                 std::string& text);
+  void get_registration_sets(Cache::Request* request);
+  void get_registration_sets_failure(Cache::Request* request,
+                                     Cache::ResultCode error,
+                                     std::string& text);
+  void delete_registrations();
+  void dissociate_implicit_registration_sets();
+  void delete_impi_mappings();
+  void send_rta(const std::string result_code);
 };
 
 class PushProfileHandler : public Diameter::Stack::Handler
@@ -521,8 +544,8 @@ public:
     int hss_reregistration_time;
   };
 
-  PushProfileHandler(Diameter::Message& msg, const Config* cfg) :
-    Diameter::Stack::Handler(msg), _cfg(cfg)
+  PushProfileHandler(Diameter::Dictionary* dict, struct msg** fd_msg, const Config* cfg) :
+    Diameter::Stack::Handler(dict, fd_msg), _cfg(cfg)
   {}
 
   void run();

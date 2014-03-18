@@ -18,16 +18,17 @@ TARGET_SOURCES := accesslogger.cpp \
                   cx.cpp \
                   diameterstack.cpp \
                   handlers.cpp \
+                  httpconnection.cpp \
                   httpstack.cpp \
                   load_monitor.cpp \
                   logger.cpp \
                   log.cpp \
+                  sproutconnection.cpp \
                   statistic.cpp \
                   statisticsmanager.cpp \
                   utils.cpp \
-                  zmq_lvc.cpp \
-                  log.cpp \
-                  xmlutils.cpp
+                  xmlutils.cpp \
+                  zmq_lvc.cpp
 
 TARGET_SOURCES_BUILD := main.cpp
 
@@ -69,7 +70,8 @@ CPPFLAGS += -I${ROOT}/include \
             -I${ROOT}/usr/include \
             -I${ROOT}/modules/cpp-common/include \
             -I${ROOT}/modules/cpp-common/test_utils \
-            -I${ROOT}/modules/rapidjson/include
+            -I${ROOT}/modules/rapidjson/include \
+            -I${ROOT}/modules/sas-client/include
 
 # Add modules/cpp-common/src as a VPATH to pull in required common modules
 VPATH := ${ROOT}/modules/cpp-common/src:${ROOT}/modules/cpp-common/test_utils
@@ -101,7 +103,9 @@ LDFLAGS += -lthrift \
            -levhtp \
            -levent_pthreads \
            -levent \
-           -lpthread
+           -lpthread \
+           -lsas \
+           -lcurl
 
 # Test build uses just-built libraries, which may not be installed
 LDFLAGS_TEST += -Wl,-rpath=$(ROOT)/usr/lib
