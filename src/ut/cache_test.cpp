@@ -73,6 +73,9 @@ public:
   MOCK_METHOD4(remove, void(const std::string& key, const cass::ColumnPath& column_path, const int64_t timestamp, const cass::ConsistencyLevel::type consistency_level));
 };
 
+const std::vector<std::string> IMPIS = {"somebody@example.com"};
+const std::vector<std::string> EMPTY_IMPIS;
+
 
 // The class under test.
 //
@@ -324,6 +327,249 @@ void make_slice(slice_t& slice,
 //
 
 // A class that matches against a supplied mutation map.
+class MultipleCfMutationMapMatcher : public MatcherInterface<const mutmap_t&> {
+public:
+  MultipleCfMutationMapMatcher(const std::vector<CFRowColumnValue>& expected):
+    _expected(expected)
+  {
+  };
+
+  virtual bool MatchAndExplain(const mutmap_t& mutmap,
+                               MatchResultListener* listener) const
+  {
+    // First check we have the right number of rows.
+    if (mutmap.size() != _expected.size())
+    {
+      *listener << "map has " << mutmap.size()
+                << " rows, expected " << _expected.size();
+      return false;
+    }
+
+    // Loop through the rows we expect and check that are all present in the
+    // mutmap.
+    for(std::vector<CFRowColumnValue>::const_iterator expected = _expected.begin();
+        expected != _expected.end();
+        ++expected)
+    {
+      std::string row = expected->row;
+      std::map<std::string, std::string> expected_columns = expected->columns;
+      mutmap_t::const_iterator row_mut = mutmap.find(row);
+
+      if (row_mut == mutmap.end())
+      {
+        *listener << row << " row expected but not present";
+        return false;
+      }
+
+      if (row_mut->second.size() != 1)
+      {
+        *listener << "multiple tables specified for row " << row;
+        return false;
+      }
+
+      // Get the table name being operated on (there can only be one as checked
+      // above), and the mutations being applied to it for this row.
+      const std::string& table = row_mut->second.begin()->first;
+      const std::vector<cass::Mutation>& row_table_mut =
+                                                row_mut->second.begin()->second;
+      std::string row_table_name = row + ":" + table;
+
+      // Check we're modifying the right table.
+      if (table != expected->cf)
+      {
+        *listener << "wrong table for " << row
+                  << "(expected " << expected->cf
+                  << ", got " << table << ")";
+        return false;
+      }
+
+      // Check we've modifying the right number of columns for this row/table.
+      if (row_table_mut.size() != expected_columns.size())
+      {
+        *listener << "wrong number of columns for " << row_table_name
+                  << "(expected " << expected_columns.size()
+                  << ", got " << row_table_mut.size() << ")";
+        return false;
+      }
+
+      for(std::vector<cass::Mutation>::const_iterator mutation = row_table_mut.begin();
+          mutation != row_table_mut.end();
+          ++mutation)
+      {
+        // We only allow mutations for a single column (not supercolumns,
+        // counters, etc).
+        if (!mutation->__isset.column_or_supercolumn ||
+            mutation->__isset.deletion ||
+            !mutation->column_or_supercolumn.__isset.column ||
+            mutation->column_or_supercolumn.__isset.super_column ||
+            mutation->column_or_supercolumn.__isset.counter_column ||
+            mutation->column_or_supercolumn.__isset.counter_super_column)
+        {
+          *listener << row_table_name << " has a mutation that isn't a single column change";
+          return false;
+        }
+
+        // By now we know we're dealing with a column mutation, so extract the
+        // column itself and build a descriptive name.
+        const cass::Column& column = mutation->column_or_supercolumn.column;
+        const std::string row_table_column_name =
+                                             row_table_name + ":" + column.name;
+
+        // Check that we were expecting to receive this column and if we were,
+        // extract the expected value.
+        if (expected_columns.find(column.name) == expected_columns.end())
+        {
+          *listener << "unexpected mutation " << row_table_column_name;
+          return false;
+        }
+
+        const std::string& expected_value = expected_columns.find(column.name)->second;
+
+        // Check it specifies the correct value.
+        if (!column.__isset.value)
+        {
+          *listener << row_table_column_name << " does not have a value";
+          return false;
+        }
+
+        if (column.value != expected_value)
+        {
+          *listener << row_table_column_name
+                    << " has wrong value (expected " << expected_value
+                    << " , got " << column.value << ")";
+          return false;
+        }
+      }
+    }
+
+    // Phew! All checks passed.
+    return true;
+  }
+
+  // User fiendly description of what we expect the mutmap to do.
+  virtual void DescribeTo(::std::ostream* os) const
+  {
+  }
+
+private:
+  std::vector<CFRowColumnValue> _expected;
+};
+
+// A class that matches against a supplied mutation map.
+class BatchDeletionMatcher : public MatcherInterface<const mutmap_t&> {
+public:
+  BatchDeletionMatcher(const std::vector<CFRowColumnValue>& expected):
+    _expected(expected)
+  {
+  };
+
+  virtual bool MatchAndExplain(const mutmap_t& mutmap,
+                               MatchResultListener* listener) const
+  {
+    // First check we have the right number of rows.
+    if (mutmap.size() != _expected.size())
+    {
+      *listener << "map has " << mutmap.size()
+                << " rows, expected " << _expected.size();
+      return false;
+    }
+
+    // Loop through the rows we expect and check that are all present in the
+    // mutmap.
+    for(std::vector<CFRowColumnValue>::const_iterator expected = _expected.begin();
+        expected != _expected.end();
+        ++expected)
+    {
+      std::string row = expected->row;
+      std::map<std::string, std::string> expected_columns = expected->columns;
+      mutmap_t::const_iterator row_mut = mutmap.find(row);
+
+      if (row_mut == mutmap.end())
+      {
+        *listener << row << " row expected but not present";
+        return false;
+      }
+
+      if (row_mut->second.size() != 1)
+      {
+        *listener << "multiple tables specified for row " << row;
+        return false;
+      }
+
+      // Get the table name being operated on (there can only be one as checked
+      // above), and the mutations being applied to it for this row.
+      const std::string& table = row_mut->second.begin()->first;
+      const std::vector<cass::Mutation>& row_table_mut =
+                                                row_mut->second.begin()->second;
+      std::string row_table_name = row + ":" + table;
+
+      // Check we're modifying the right table.
+      if (table != expected->cf)
+      {
+        *listener << "wrong table for " << row
+                  << "(expected " << expected->cf
+                  << ", got " << table << ")";
+        return false;
+      }
+
+      // Deletions should only consist of one mutation per row.
+      if (row_table_mut.size() != 1)
+      {
+        *listener << "wrong number of columns for " << row_table_name
+                  << "(expected 1"
+                  << ", got " << row_table_mut.size() << ")";
+        return false;
+      }
+
+      const cass::Mutation* mutation = &row_table_mut.front();
+      // We only allow mutations for a single column (not supercolumns,
+      // counters, etc).
+      if (!mutation->__isset.deletion)
+      {
+        *listener << row_table_name << " has a mutation that isn't a deletion";
+        return false;
+      }
+
+      const cass::SlicePredicate* deletion = &mutation->deletion.predicate;
+
+      // Check that the number of columns to be deleted is right
+      if (deletion->column_names.size() != expected_columns.size())
+      {
+        *listener << deletion->column_names.size() << " columns deleted, expected " << expected_columns.size();
+        return false;
+      }
+
+      // Loop over the columns and check that each of them
+      // is expected
+      for(std::vector<std::string>::const_iterator col = deletion->column_names.begin();
+          col != deletion->column_names.end();
+          ++col)
+      {
+        // Check that we were expecting to receive this column and if we were,
+        // extract the expected value.
+        if (expected_columns.find(*col) == expected_columns.end())
+        {
+          *listener << "unexpected mutation " << *col;
+          return false;
+        }
+      }
+
+    }
+
+    // Phew! All checks passed.
+    return true;
+  }
+
+  // User fiendly description of what we expect the mutmap to do.
+  virtual void DescribeTo(::std::ostream* os) const
+  {
+  }
+
+private:
+  std::vector<CFRowColumnValue> _expected;
+};
+
+// A class that matches against a supplied mutation map.
 class MutationMapMatcher : public MatcherInterface<const mutmap_t&> {
 public:
   MutationMapMatcher(const std::string& table,
@@ -557,6 +803,18 @@ MutationMap(const std::string& table,
   return MakeMatcher(new MutationMapMatcher(table, rows, columns, timestamp));
 }
 
+inline Matcher<const mutmap_t&>
+MutationMap(const std::vector<CFRowColumnValue>& expected)
+{
+  return MakeMatcher(new MultipleCfMutationMapMatcher(expected));
+}
+
+inline Matcher<const mutmap_t&>
+DeletionMap(const std::vector<CFRowColumnValue>& expected)
+{
+  return MakeMatcher(new BatchDeletionMatcher(expected));
+}
+
 
 // Matcher that check whether the argument is a ColumnPath that refers to a
 // single table.
@@ -564,6 +822,15 @@ MATCHER_P(ColumnPathForTable, table, std::string("refers to table ")+table)
 {
   *result_listener << "refers to table " << arg.column_family;
   return (arg.column_family == table);
+}
+
+// Matcher that check whether the argument is a ColumnPath that refers to a
+// single table.
+MATCHER_P2(ColumnPath, table, column, std::string("refers to table ")+table)
+{
+  *result_listener << "refers to table " << arg.column_family;
+  *result_listener << "refers to column " << arg.column;
+  return ((arg.column_family == table) && (arg.column == column));
 }
 
 
@@ -590,6 +857,30 @@ MATCHER_P(SpecificColumns,
   if (expected_columns != actual_columns)
   {
     *result_listener << "specifies columns " << PrintToString(actual_columns);
+    return false;
+  }
+
+  return true;
+}
+
+// Matcher that checks whether a SlicePredicate specifies all columns
+MATCHER(AllColumns,
+          std::string("requests all columns: "))
+{
+  if (arg.__isset.column_names || !arg.__isset.slice_range)
+  {
+    *result_listener << "does not request a slice range"; return false;
+  }
+
+  if (arg.slice_range.start != "")
+  {
+    *result_listener << "has incorrect start (" << arg.slice_range.start << ")";
+    return false;
+  }
+
+  if (arg.slice_range.finish != "")
+  {
+    *result_listener << "has incorrect finish (" << arg.slice_range.finish << ")";
     return false;
   }
 
@@ -682,15 +973,23 @@ TEST_F(CacheRequestTest, PutIMSSubscriptionMainline)
 {
   CacheTestTransaction *trx = make_trx();
   Cache::Request* req =
-    _cache.create_PutIMSSubscription("kermit", "<xml>", RegistrationState::REGISTERED, 1000, 300);
+    _cache.create_PutIMSSubscription("kermit", "<xml>", RegistrationState::REGISTERED, IMPIS, 1000, 300);
 
-  std::map<std::string, std::string> columns;
-  columns["ims_subscription_xml"] = "<xml>";
-  columns["is_registered"] = "\x01";
+  std::vector<CFRowColumnValue> expected;
+
+  std::map<std::string, std::string> impu_columns;
+  impu_columns["ims_subscription_xml"] = "<xml>";
+  impu_columns["is_registered"] = "\x01";
+  impu_columns["associated_impi__somebody@example.com"] = "";
+
+  std::map<std::string, std::string> impi_columns;
+  impi_columns["associated_primary_impu__kermit"] = "";
+
+  expected.push_back(CFRowColumnValue("impu", "kermit", impu_columns));
+  expected.push_back(CFRowColumnValue("impi_mapping", "somebody@example.com", impi_columns));
 
   EXPECT_CALL(_client,
-              batch_mutate(
-                MutationMap("impu", "kermit", columns, 1000, 300), _));
+              batch_mutate(MutationMap(expected), _));
 
   do_successful_trx(trx, req);
 }
@@ -699,15 +998,23 @@ TEST_F(CacheRequestTest, PutIMSSubscriptionUnregistered)
 {
   CacheTestTransaction *trx = make_trx();
   Cache::Request* req =
-    _cache.create_PutIMSSubscription("kermit", "<xml>", RegistrationState::UNREGISTERED, 1000, 300);
+    _cache.create_PutIMSSubscription("kermit", "<xml>", RegistrationState::UNREGISTERED, IMPIS, 1000, 300);
+
+  std::vector<CFRowColumnValue> expected;
 
   std::map<std::string, std::string> columns;
   columns["ims_subscription_xml"] = "<xml>";
   columns["is_registered"] = std::string("\x00", 1);
+  columns["associated_impi__somebody@example.com"] = "";
+
+  std::map<std::string, std::string> impi_columns;
+  impi_columns["associated_primary_impu__kermit"] = "";
+
+  expected.push_back(CFRowColumnValue("impu", "kermit", columns));
+  expected.push_back(CFRowColumnValue("impi_mapping", "somebody@example.com", impi_columns));
 
   EXPECT_CALL(_client,
-              batch_mutate(
-                MutationMap("impu", "kermit", columns, 1000, 300), _));
+              batch_mutate(MutationMap(expected), _));
 
   do_successful_trx(trx, req);
 }
@@ -716,7 +1023,7 @@ TEST_F(CacheRequestTest, PutIMSSubscriptionUnchanged)
 {
   CacheTestTransaction *trx = make_trx();
   Cache::Request* req =
-    _cache.create_PutIMSSubscription("kermit", "<xml>", RegistrationState::UNCHANGED, 1000, 300);
+    _cache.create_PutIMSSubscription("kermit", "<xml>", RegistrationState::UNCHANGED, EMPTY_IMPIS, 1000, 300);
 
   std::map<std::string, std::string> columns;
   columns["ims_subscription_xml"] = "<xml>";
@@ -733,14 +1040,23 @@ TEST_F(CacheRequestTest, NoTTLOnPut)
 {
   CacheTestTransaction *trx = make_trx();
   Cache::Request* req =
-    _cache.create_PutIMSSubscription("kermit", "<xml>", RegistrationState::REGISTERED, 1000);
+    _cache.create_PutIMSSubscription("kermit", "<xml>", RegistrationState::REGISTERED, IMPIS, 1000);
+
+  std::vector<CFRowColumnValue> expected;
 
   std::map<std::string, std::string> columns;
   columns["ims_subscription_xml"] = "<xml>";
   columns["is_registered"] = "\x01";
+  columns["associated_impi__somebody@example.com"] = "";
 
-  EXPECT_CALL(_client, batch_mutate(
-                         MutationMap("impu", "kermit", columns, 1000), _));
+  std::map<std::string, std::string> impi_columns;
+  impi_columns["associated_primary_impu__kermit"] = "";
+
+  expected.push_back(CFRowColumnValue("impu", "kermit", columns));
+  expected.push_back(CFRowColumnValue("impi_mapping", "somebody@example.com", impi_columns));
+
+  EXPECT_CALL(_client,
+              batch_mutate(MutationMap(expected), _));
 
   do_successful_trx(trx, req);
 }
@@ -752,16 +1068,26 @@ TEST_F(CacheRequestTest, PutIMSSubMultipleIDs)
   ids.push_back("kermit");
   ids.push_back("miss piggy");
 
+  std::vector<CFRowColumnValue> expected;
+
   CacheTestTransaction *trx = make_trx();
   Cache::Request* req =
-    _cache.create_PutIMSSubscription(ids, "<xml>", RegistrationState::REGISTERED, 1000);
+    _cache.create_PutIMSSubscription(ids, "<xml>", RegistrationState::REGISTERED, IMPIS, 1000);
 
   std::map<std::string, std::string> columns;
   columns["ims_subscription_xml"] = "<xml>";
   columns["is_registered"] = "\x01";
+  columns["associated_impi__somebody@example.com"] = "";
 
-  EXPECT_CALL(_client, batch_mutate(
-                         MutationMap("impu", ids, columns, 1000), _));
+  std::map<std::string, std::string> impi_columns;
+  impi_columns["associated_primary_impu__kermit"] = "";
+
+  expected.push_back(CFRowColumnValue("impu", "kermit", columns));
+  expected.push_back(CFRowColumnValue("impu", "miss piggy", columns));
+  expected.push_back(CFRowColumnValue("impi_mapping", "somebody@example.com", impi_columns));
+
+  EXPECT_CALL(_client,
+              batch_mutate(MutationMap(expected), _));
 
   do_successful_trx(trx, req);
 }
@@ -771,7 +1097,7 @@ TEST_F(CacheRequestTest, PutTransportEx)
 {
   CacheTestTransaction *trx = make_trx();
   Cache::Request* req =
-    _cache.create_PutIMSSubscription("kermit", "<xml>", RegistrationState::REGISTERED, 1000);
+    _cache.create_PutIMSSubscription("kermit", "<xml>", RegistrationState::REGISTERED, IMPIS, 1000);
 
   apache::thrift::transport::TTransportException te;
   EXPECT_CALL(_client, batch_mutate(_, _)).WillOnce(Throw(te));
@@ -786,7 +1112,7 @@ TEST_F(CacheRequestTest, PutInvalidRequestException)
 {
   CacheTestTransaction *trx = make_trx();
   Cache::Request* req =
-    _cache.create_PutIMSSubscription("kermit", "<xml>", RegistrationState::REGISTERED, 1000);
+    _cache.create_PutIMSSubscription("kermit", "<xml>", RegistrationState::REGISTERED, IMPIS, 1000);
 
   cass::InvalidRequestException ire;
   EXPECT_CALL(_client, batch_mutate(_, _)).WillOnce(Throw(ire));
@@ -801,7 +1127,7 @@ TEST_F(CacheRequestTest, PutNotFoundException)
 {
   CacheTestTransaction *trx = make_trx();
   Cache::Request* req =
-    _cache.create_PutIMSSubscription("kermit", "<xml>", RegistrationState::REGISTERED, 1000);
+    _cache.create_PutIMSSubscription("kermit", "<xml>", RegistrationState::REGISTERED, IMPIS, 1000);
 
   cass::NotFoundException nfe;
   EXPECT_CALL(_client, batch_mutate(_, _)).WillOnce(Throw(nfe));
@@ -816,7 +1142,7 @@ TEST_F(CacheRequestTest, PutNoResultsException)
 {
   CacheTestTransaction *trx = make_trx();
   Cache::Request* req =
-    _cache.create_PutIMSSubscription("kermit", "<xml>", RegistrationState::REGISTERED, 1000);
+    _cache.create_PutIMSSubscription("kermit", "<xml>", RegistrationState::REGISTERED, IMPIS, 1000);
 
   Cache::NoResultsException rnfe("muppets", "kermit");
   EXPECT_CALL(_client, batch_mutate(_, _)).WillOnce(Throw(rnfe));
@@ -831,7 +1157,7 @@ TEST_F(CacheRequestTest, PutUnknownException)
 {
   CacheTestTransaction *trx = make_trx();
   Cache::Request* req =
-    _cache.create_PutIMSSubscription("kermit", "<xml>", RegistrationState::REGISTERED, 1000);
+    _cache.create_PutIMSSubscription("kermit", "<xml>", RegistrationState::REGISTERED, IMPIS, 1000);
 
   std::string ex("Made up exception");
   EXPECT_CALL(_client, batch_mutate(_, _)).WillOnce(Throw(ex));
@@ -846,7 +1172,7 @@ TEST_F(CacheRequestTest, PutsHaveConsistencyLevelOne)
 {
   CacheTestTransaction *trx = make_trx();
   Cache::Request* req =
-    _cache.create_PutIMSSubscription("kermit", "<xml>", RegistrationState::REGISTERED, 1000);
+    _cache.create_PutIMSSubscription("kermit", "<xml>", RegistrationState::REGISTERED, IMPIS, 1000);
 
   EXPECT_CALL(_client, batch_mutate(_, cass::ConsistencyLevel::ONE));
 
@@ -894,18 +1220,65 @@ TEST_F(CacheRequestTest, PutAsoocPublicIdMainline)
   do_successful_trx(trx, req);
 }
 
-
-TEST_F(CacheRequestTest, DeletePublicId)
+TEST_F(CacheRequestTest, PutAssocPublicIdTTL)
 {
   CacheTestTransaction *trx = make_trx();
   Cache::Request* req =
-    _cache.create_DeletePublicIDs("kermit", 1000);
+    _cache.create_PutAssociatedPublicID("gonzo", "kermit", 1000, 300);
+
+  std::map<std::string, std::string> columns;
+  columns["public_id_kermit"] = "";
 
   EXPECT_CALL(_client,
-              remove("kermit",
-                     ColumnPathForTable("impu"),
-                     1000,
-                     cass::ConsistencyLevel::ONE));
+              batch_mutate(MutationMap("impi", "gonzo", columns, 1000, 300), _));
+
+  do_successful_trx(trx, req);
+}
+
+
+TEST_F(CacheRequestTest, PutAssocPrivateIdMainline)
+{
+  CacheTestTransaction *trx = make_trx();
+  Cache::Request* req =
+    _cache.create_PutAssociatedPrivateID({"kermit", "miss piggy"}, "gonzo", 1000);
+
+  std::vector<CFRowColumnValue> expected;
+
+  std::map<std::string, std::string> impi_columns;
+  impi_columns["associated_primary_impu__kermit"] = "";
+
+  std::map<std::string, std::string> impu_columns;
+  impu_columns["associated_impi__gonzo"] = "";
+
+  expected.push_back(CFRowColumnValue("impu", "kermit", impu_columns));
+  expected.push_back(CFRowColumnValue("impu", "miss piggy", impu_columns));
+  expected.push_back(CFRowColumnValue("impi_mapping", "gonzo", impi_columns));
+
+  EXPECT_CALL(_client,
+              batch_mutate(MutationMap(expected), _));
+
+  do_successful_trx(trx, req);
+}
+
+
+TEST_F(CacheRequestTest, DeletePublicId)
+{
+  std::vector<CFRowColumnValue> expected;
+
+  CacheTestTransaction *trx = make_trx();
+  Cache::Request* req =
+    _cache.create_DeletePublicIDs("kermit", IMPIS, 1000);
+
+  // The "kermit" IMPU row should be deleted entirely
+  expected.push_back(CFRowColumnValue("impu", "kermit"));
+
+  // The "kermit" column should be deleted from the IMPI's row in the
+  // IMPI mapping table
+  std::map<std::string, std::string> deleted_impi_columns;
+  deleted_impi_columns["associated_primary_impu__kermit"] = "";
+  expected.push_back(CFRowColumnValue("impi_mapping", "somebody@example.com", deleted_impi_columns));
+
+  EXPECT_CALL(_client, batch_mutate(DeletionMap(expected), _));
 
   do_successful_trx(trx, req);
 }
@@ -913,6 +1286,8 @@ TEST_F(CacheRequestTest, DeletePublicId)
 
 TEST_F(CacheRequestTest, DeleteMultiPublicIds)
 {
+  std::vector<CFRowColumnValue> expected;
+
   std::vector<std::string> ids;
   ids.push_back("kermit");
   ids.push_back("gonzo");
@@ -920,11 +1295,20 @@ TEST_F(CacheRequestTest, DeleteMultiPublicIds)
 
   CacheTestTransaction *trx = make_trx();
   Cache::Request* req =
-    _cache.create_DeletePublicIDs(ids, 1000);
+    _cache.create_DeletePublicIDs(ids, IMPIS, 1000);
 
-  EXPECT_CALL(_client, remove("kermit", ColumnPathForTable("impu"), _, _));
-  EXPECT_CALL(_client, remove("gonzo", ColumnPathForTable("impu"), _, _));
-  EXPECT_CALL(_client, remove("miss piggy", ColumnPathForTable("impu"), _, _));
+  // The "kermit", "gonzo" and "miss piggy" IMPU rows should be deleted entirely
+  expected.push_back(CFRowColumnValue("impu", "kermit"));
+  expected.push_back(CFRowColumnValue("impu", "gonzo"));
+  expected.push_back(CFRowColumnValue("impu", "miss piggy"));
+
+  // Only the "kermit" column should be deleted from the IMPI's row in the
+  // IMPI mapping table
+  std::map<std::string, std::string> deleted_impi_columns;
+  deleted_impi_columns["associated_primary_impu__kermit"] = "";
+  expected.push_back(CFRowColumnValue("impi_mapping", "somebody@example.com", deleted_impi_columns));
+
+  EXPECT_CALL(_client, batch_mutate(DeletionMap(expected), _));
 
   do_successful_trx(trx, req);
 }
@@ -945,7 +1329,6 @@ TEST_F(CacheRequestTest, DeletePrivateId)
   do_successful_trx(trx, req);
 }
 
-
 TEST_F(CacheRequestTest, DeleteMultiPrivateIds)
 {
   std::vector<std::string> ids;
@@ -964,39 +1347,58 @@ TEST_F(CacheRequestTest, DeleteMultiPrivateIds)
   do_successful_trx(trx, req);
 }
 
+TEST_F(CacheRequestTest, DeleteIMPIMappings)
+{
+  std::vector<std::string> ids;
+  ids.push_back("kermit");
+  ids.push_back("gonzo");
+  ids.push_back("miss piggy");
+
+  CacheTestTransaction *trx = make_trx();
+  Cache::Request* req =
+    _cache.create_DeleteIMPIMapping(ids, 1000);
+
+  std::vector<CFRowColumnValue> expected;
+  expected.push_back(CFRowColumnValue("impi_mapping", "kermit"));
+  expected.push_back(CFRowColumnValue("impi_mapping", "gonzo"));
+  expected.push_back(CFRowColumnValue("impi_mapping", "miss piggy"));
+
+  EXPECT_CALL(_client, batch_mutate(DeletionMap(expected), _));
+
+  do_successful_trx(trx, req);
+}
+
+
 
 TEST_F(CacheRequestTest, DeletesHaveConsistencyLevelOne)
 {
   CacheTestTransaction *trx = make_trx();
   Cache::Request* req =
-    _cache.create_DeletePublicIDs("kermit", 1000);
+    _cache.create_DeletePublicIDs("kermit", IMPIS, 1000);
 
-  EXPECT_CALL(_client, remove(_, _, _, cass::ConsistencyLevel::ONE));
+  EXPECT_CALL(_client, batch_mutate(_, cass::ConsistencyLevel::ONE));
 
   do_successful_trx(trx, req);
 }
 
 TEST_F(CacheRequestTest, GetIMSSubscriptionMainline)
 {
-  std::vector<std::string> requested_columns;
-  requested_columns.push_back("ims_subscription_xml");
-  requested_columns.push_back("is_registered");
-
   std::map<std::string, std::string> columns;
   columns["ims_subscription_xml"] = "<howdy>";
   columns["is_registered"] = "\x01";
+  columns["associated_impi__somebody@example.com"] = "";
 
   std::vector<cass::ColumnOrSuperColumn> slice;
   make_slice(slice, columns);
 
-  ResultRecorder<Cache::GetIMSSubscription, std::pair<RegistrationState, std::string> > rec;
+  ResultRecorder<Cache::GetIMSSubscription, Cache::GetIMSSubscription::Result> rec;
   RecordingTransaction* trx = make_rec_trx(&rec);
   Cache::Request *req = _cache.create_GetIMSSubscription("kermit");
 
   EXPECT_CALL(_client, get_slice(_,
                                  "kermit",
                                  ColumnPathForTable("impu"),
-                                 SpecificColumns(requested_columns),
+                                 AllColumns(),
                                  _))
     .WillOnce(SetArgReferee<0>(slice));
 
@@ -1005,30 +1407,27 @@ TEST_F(CacheRequestTest, GetIMSSubscriptionMainline)
   _cache.send(trx, req);
   wait();
 
-  EXPECT_EQ(RegistrationState::REGISTERED, rec.result.first);
-  EXPECT_EQ("<howdy>", rec.result.second);
+  EXPECT_EQ(RegistrationState::REGISTERED, rec.result.state);
+  EXPECT_EQ("<howdy>", rec.result.xml);
+  EXPECT_EQ(IMPIS, rec.result.impis);
 }
 
 TEST_F(CacheRequestTest, GetIMSSubscriptionTTL)
 {
-  std::vector<std::string> requested_columns;
-  requested_columns.push_back("ims_subscription_xml");
-  requested_columns.push_back("is_registered");
-
   std::map<std::string, std::string> columns;
   columns["is_registered"] = "\x01";
 
   std::vector<cass::ColumnOrSuperColumn> slice;
   make_slice(slice, columns);
 
-  ResultRecorder<Cache::GetIMSSubscription, std::pair<RegistrationState, std::string> > rec;
+  ResultRecorder<Cache::GetIMSSubscription, Cache::GetIMSSubscription::Result> rec;
   RecordingTransaction* trx = make_rec_trx(&rec);
   Cache::Request *req = _cache.create_GetIMSSubscription("kermit");
 
   EXPECT_CALL(_client, get_slice(_,
                                  "kermit",
                                  ColumnPathForTable("impu"),
-                                 SpecificColumns(requested_columns),
+                                 AllColumns(),
                                  _))
     .WillOnce(SetArgReferee<0>(slice));
 
@@ -1037,32 +1436,30 @@ TEST_F(CacheRequestTest, GetIMSSubscriptionTTL)
   _cache.send(trx, req);
   wait();
 
-  EXPECT_EQ(RegistrationState::REGISTERED, rec.result.first);
-  EXPECT_EQ("", rec.result.second);
+  EXPECT_EQ(RegistrationState::REGISTERED, rec.result.state);
+  EXPECT_EQ("", rec.result.xml);
+  EXPECT_EQ(EMPTY_IMPIS, rec.result.impis);
 }
 
 TEST_F(CacheRequestTest, GetIMSSubscriptionUnregistered)
 {
-  std::vector<std::string> requested_columns;
-  requested_columns.push_back("ims_subscription_xml");
-  requested_columns.push_back("is_registered");
-
   std::map<std::string, std::string> columns;
   columns["ims_subscription_xml"] = "<howdy>";
   columns["is_registered"] = std::string("\x00", 1);
+  columns["associated_impi__somebody@example.com"] = "";
 
   std::vector<cass::ColumnOrSuperColumn> slice;
   // Test with a TTL of 3600
   make_slice(slice, columns, 3600);
 
-  ResultRecorder<Cache::GetIMSSubscription, std::pair<RegistrationState, std::string> > rec;
+  ResultRecorder<Cache::GetIMSSubscription, Cache::GetIMSSubscription::Result> rec;
   RecordingTransaction* trx = make_rec_trx(&rec);
   Cache::Request *req = _cache.create_GetIMSSubscription("kermit");
 
   EXPECT_CALL(_client, get_slice(_,
                                  "kermit",
                                  ColumnPathForTable("impu"),
-                                 SpecificColumns(requested_columns),
+                                 AllColumns(),
                                  _))
     .WillOnce(SetArgReferee<0>(slice));
 
@@ -1071,8 +1468,9 @@ TEST_F(CacheRequestTest, GetIMSSubscriptionUnregistered)
   _cache.send(trx, req);
   wait();
 
-  EXPECT_EQ(RegistrationState::UNREGISTERED, rec.result.first);
-  EXPECT_EQ("<howdy>", rec.result.second);
+  EXPECT_EQ(RegistrationState::UNREGISTERED, rec.result.state);
+  EXPECT_EQ("<howdy>", rec.result.xml);
+  EXPECT_EQ(IMPIS, rec.result.impis);
 }
 
 // If we have User-Data XML, but no explicit registration state, that should
@@ -1087,18 +1485,19 @@ TEST_F(CacheRequestTest, GetIMSSubscriptionNoRegState)
   std::map<std::string, std::string> columns;
   columns["ims_subscription_xml"] = "<howdy>";
   columns["is_registered"] = "";
+  columns["associated_impi__somebody@example.com"] = "";
 
   std::vector<cass::ColumnOrSuperColumn> slice;
   make_slice(slice, columns);
 
-  ResultRecorder<Cache::GetIMSSubscription, std::pair<RegistrationState, std::string> > rec;
+  ResultRecorder<Cache::GetIMSSubscription, Cache::GetIMSSubscription::Result> rec;
   RecordingTransaction* trx = make_rec_trx(&rec);
   Cache::Request *req = _cache.create_GetIMSSubscription("kermit");
 
   EXPECT_CALL(_client, get_slice(_,
                                  "kermit",
                                  ColumnPathForTable("impu"),
-                                 SpecificColumns(requested_columns),
+                                 AllColumns(),
                                  _))
     .WillOnce(SetArgReferee<0>(slice));
 
@@ -1107,18 +1506,16 @@ TEST_F(CacheRequestTest, GetIMSSubscriptionNoRegState)
   _cache.send(trx, req);
   wait();
 
-  EXPECT_EQ(RegistrationState::UNREGISTERED, rec.result.first);
-  EXPECT_EQ("<howdy>", rec.result.second);
+  EXPECT_EQ(RegistrationState::UNREGISTERED, rec.result.state);
+  EXPECT_EQ("<howdy>", rec.result.xml);
+  EXPECT_EQ(IMPIS, rec.result.impis);
+
 }
 
 // Invalid registration state is treated as NOT_REGISTERED
 
 TEST_F(CacheRequestTest, GetIMSSubscriptionInvalidRegState)
 {
-  std::vector<std::string> requested_columns;
-  requested_columns.push_back("ims_subscription_xml");
-  requested_columns.push_back("is_registered");
-
   std::map<std::string, std::string> columns;
   columns["ims_subscription_xml"] = "";
   columns["is_registered"] = "\x03";
@@ -1126,14 +1523,14 @@ TEST_F(CacheRequestTest, GetIMSSubscriptionInvalidRegState)
   std::vector<cass::ColumnOrSuperColumn> slice;
   make_slice(slice, columns);
 
-  ResultRecorder<Cache::GetIMSSubscription, std::pair<RegistrationState, std::string> > rec;
+  ResultRecorder<Cache::GetIMSSubscription, Cache::GetIMSSubscription::Result> rec;
   RecordingTransaction* trx = make_rec_trx(&rec);
   Cache::Request *req = _cache.create_GetIMSSubscription("kermit");
 
   EXPECT_CALL(_client, get_slice(_,
                                  "kermit",
                                  ColumnPathForTable("impu"),
-                                 SpecificColumns(requested_columns),
+                                 AllColumns(),
                                  _))
     .WillOnce(SetArgReferee<0>(slice));
 
@@ -1142,8 +1539,9 @@ TEST_F(CacheRequestTest, GetIMSSubscriptionInvalidRegState)
   _cache.send(trx, req);
   wait();
 
-  EXPECT_EQ(RegistrationState::NOT_REGISTERED, rec.result.first);
-  EXPECT_EQ("", rec.result.second);
+  EXPECT_EQ(RegistrationState::NOT_REGISTERED, rec.result.state);
+  EXPECT_EQ("", rec.result.xml);
+  EXPECT_EQ(EMPTY_IMPIS, rec.result.impis);
 }
 
 
@@ -1151,7 +1549,7 @@ TEST_F(CacheRequestTest, GetIMSSubscriptionNotFound)
 {
   Cache::Request* req =
     _cache.create_GetIMSSubscription("kermit");
-  ResultRecorder<Cache::GetIMSSubscription, std::pair<RegistrationState, std::string> > rec;
+  ResultRecorder<Cache::GetIMSSubscription, Cache::GetIMSSubscription::Result > rec;
   RecordingTransaction* trx = make_rec_trx(&rec);
 
   EXPECT_CALL(_client, get_slice(_, "kermit", _, _, _))
@@ -1162,8 +1560,9 @@ TEST_F(CacheRequestTest, GetIMSSubscriptionNotFound)
   _cache.send(trx, req);
   wait();
 
-  EXPECT_EQ("", rec.result.second);
-  EXPECT_EQ(RegistrationState::NOT_REGISTERED, rec.result.first);
+  EXPECT_EQ("", rec.result.xml);
+  EXPECT_EQ(RegistrationState::NOT_REGISTERED, rec.result.state);
+  EXPECT_EQ(EMPTY_IMPIS, rec.result.impis);
 }
 
 TEST_F(CacheRequestTest, GetAuthVectorAllColsReturned)
@@ -1441,13 +1840,65 @@ TEST_F(CacheRequestTest, GetAssocPublicIDsNoResults)
   EXPECT_EQ(expected_ids, rec.result);
 }
 
+TEST_F(CacheRequestTest, GetAssociatedPrimaryPublicIDs)
+{
+  std::map<std::string, std::string> columns;
+  columns["associated_primary_impu__kermit"] = "";
+  columns["associated_primary_impu__miss piggy"] = "";
+
+  std::vector<cass::ColumnOrSuperColumn> slice;
+  make_slice(slice, columns);
+
+  ResultRecorder<Cache::GetAssociatedPrimaryPublicIDs, std::vector<std::string>> rec;
+  RecordingTransaction* trx = make_rec_trx(&rec);
+  Cache::Request* req = _cache.create_GetAssociatedPrimaryPublicIDs("gonzo");
+
+  EXPECT_CALL(_client,
+              get_slice(_,
+                        "gonzo",
+                        ColumnPathForTable("impi_mapping"),
+                        ColumnsWithPrefix("associated_primary_impu__"),
+                        _))
+    .WillOnce(SetArgReferee<0>(slice));
+
+  EXPECT_CALL(*trx, on_success(_))
+    .WillOnce(Invoke(trx, &RecordingTransaction::record_result));
+  _cache.send(trx, req);
+  wait();
+
+  std::vector<std::string> expected_ids;
+  expected_ids.push_back("kermit");
+  expected_ids.push_back("miss piggy");
+  std::sort(expected_ids.begin(), expected_ids.end());
+  std::sort(rec.result.begin(), rec.result.end());
+
+  EXPECT_EQ(expected_ids, rec.result);
+}
+
+TEST_F(CacheRequestTest, GetAssociatedPrimaryPublicIDsNoReults)
+{
+  ResultRecorder<Cache::GetAssociatedPrimaryPublicIDs, std::vector<std::string>> rec;
+  RecordingTransaction* trx = make_rec_trx(&rec);
+  Cache::Request* req = _cache.create_GetAssociatedPrimaryPublicIDs("gonzo");
+
+  EXPECT_CALL(_client,
+              get_slice(_,
+                        "gonzo",
+                        ColumnPathForTable("impi_mapping"),
+                        ColumnsWithPrefix("associated_primary_impu__"),
+                        _))
+    .WillOnce(SetArgReferee<0>(empty_slice));
+
+  EXPECT_CALL(*trx, on_success(_))
+    .WillOnce(Invoke(trx, &RecordingTransaction::record_result));
+  _cache.send(trx, req);
+  wait();
+
+  EXPECT_TRUE(rec.result.empty());
+}
 
 TEST_F(CacheRequestTest, HaGetMainline)
 {
-  std::vector<std::string> requested_columns;
-  requested_columns.push_back("ims_subscription_xml");
-  requested_columns.push_back("is_registered");
-
   std::map<std::string, std::string> columns;
   columns["ims_subscription_xml"] = "<howdy>";
   columns["is_registered"] = "\x01";
@@ -1455,7 +1906,7 @@ TEST_F(CacheRequestTest, HaGetMainline)
   std::vector<cass::ColumnOrSuperColumn> slice;
   make_slice(slice, columns);
 
-  ResultRecorder<Cache::GetIMSSubscription, std::pair<RegistrationState, std::string> > rec;
+  ResultRecorder<Cache::GetIMSSubscription, Cache::GetIMSSubscription::Result> rec;
   RecordingTransaction* trx = make_rec_trx(&rec);
   Cache::Request* req = _cache.create_GetIMSSubscription("kermit");
 
@@ -1463,13 +1914,13 @@ TEST_F(CacheRequestTest, HaGetMainline)
   EXPECT_CALL(_client, get_slice(_,
                                  "kermit",
                                  ColumnPathForTable("impu"),
-                                 SpecificColumns(requested_columns),
+                                 AllColumns(),
                                  cass::ConsistencyLevel::ONE))
     .WillOnce(Throw(nfe));
   EXPECT_CALL(_client, get_slice(_,
                                  "kermit",
                                  ColumnPathForTable("impu"),
-                                 SpecificColumns(requested_columns),
+                                 AllColumns(),
                                  cass::ConsistencyLevel::QUORUM))
     .WillOnce(SetArgReferee<0>(slice));
 
@@ -1478,7 +1929,7 @@ TEST_F(CacheRequestTest, HaGetMainline)
   _cache.send(trx, req);
   wait();
 
-  EXPECT_EQ("<howdy>", rec.result.second);
+  EXPECT_EQ("<howdy>", rec.result.xml);
 }
 
 
@@ -1567,7 +2018,7 @@ TEST_F(CacheLatencyTest, PutRecordsLatency)
 {
   CacheTestTransaction *trx = make_trx();
   Cache::Request* req =
-    _cache.create_PutIMSSubscription("kermit", "<xml>", RegistrationState::REGISTERED, 1000, 300);
+    _cache.create_PutIMSSubscription("kermit", "<xml>", RegistrationState::REGISTERED, IMPIS, 1000, 300);
 
   std::map<std::string, std::string> columns;
   columns["ims_subscription_xml"] = "<xml>";
@@ -1584,9 +2035,9 @@ TEST_F(CacheLatencyTest, DeleteRecordsLatency)
 {
   CacheTestTransaction *trx = make_trx();
   Cache::Request* req =
-    _cache.create_DeletePublicIDs("kermit", 1000);
+    _cache.create_DeletePublicIDs("kermit", IMPIS, 1000);
 
-  EXPECT_CALL(_client, remove(_, _, _, _)).WillOnce(AdvanceTimeMs(13));
+  EXPECT_CALL(_client, batch_mutate(_, _)).WillRepeatedly(AdvanceTimeMs(13));
   EXPECT_CALL(*trx, on_success(_)).WillOnce(CheckLatency(trx, 13));
 
   _cache.send(trx, req);
@@ -1626,7 +2077,7 @@ TEST_F(CacheLatencyTest, ErrorRecordsLatency)
 {
   CacheTestTransaction *trx = make_trx();
   Cache::Request* req =
-    _cache.create_PutIMSSubscription("kermit", "<xml>", RegistrationState::REGISTERED, 1000, 300);
+    _cache.create_PutIMSSubscription("kermit", "<xml>", RegistrationState::REGISTERED, IMPIS, 1000, 300);
 
   cass::NotFoundException nfe;
   EXPECT_CALL(_client, batch_mutate(_, _))
@@ -1636,3 +2087,96 @@ TEST_F(CacheLatencyTest, ErrorRecordsLatency)
   _cache.send(trx, req);
   wait();
 }
+
+TEST_F(CacheRequestTest, DissociateImplicitRegistrationSetFromImpi)
+{
+  std::vector<CFRowColumnValue> expected;
+
+  std::map<std::string, std::string> impu_columns;
+  impu_columns["associated_impi__somebody@example.com"] = "";
+  impu_columns["associated_impi__gonzo"] = "";
+
+  std::map<std::string, std::string> deleted_impu_columns;
+  deleted_impu_columns["associated_impi__gonzo"] = "";
+
+  std::vector<cass::ColumnOrSuperColumn> impu_slice;
+  make_slice(impu_slice, impu_columns);
+
+  std::map<std::string, std::string> impi_columns;
+  impi_columns["associated_primary_impu__kermit"] = "";
+  impi_columns["associated_primary_impu__miss piggy"] = "";
+
+  std::map<std::string, std::string> deleted_impi_columns;
+  deleted_impi_columns["associated_primary_impu__kermit"] = "";
+
+  std::vector<cass::ColumnOrSuperColumn> impi_slice;
+  make_slice(impi_slice, impi_columns);
+
+  CacheTestTransaction* trx = make_trx();
+  Cache::Request* req = _cache.create_DissociateImplicitRegistrationSetFromImpi({"kermit", "robin"}, "gonzo", 1000);
+
+  expected.push_back(CFRowColumnValue("impi_mapping", "gonzo", deleted_impi_columns));
+
+  // Expect associated IMPI lookup
+
+  EXPECT_CALL(_client,
+              get_slice(_,
+                        "kermit",
+                        ColumnPathForTable("impu"),
+                        ColumnsWithPrefix("associated_impi__"),
+                        _))
+    .WillOnce(SetArgReferee<0>(impu_slice));
+
+  // Expect single-column removal, twice
+  expected.push_back(CFRowColumnValue("impu", "kermit", deleted_impu_columns));
+  expected.push_back(CFRowColumnValue("impu", "robin", deleted_impu_columns));
+
+  EXPECT_CALL(_client, batch_mutate(DeletionMap(expected), _));
+
+  do_successful_trx(trx, req);
+}
+
+
+TEST_F(CacheRequestTest, DissociateImplicitRegistrationSetFromImpiCausingDeletion)
+{
+  std::vector<CFRowColumnValue> expected;
+
+  std::map<std::string, std::string> impu_columns;
+  impu_columns["associated_impi__gonzo"] = "";
+
+  std::vector<cass::ColumnOrSuperColumn> impu_slice;
+  make_slice(impu_slice, impu_columns);
+
+
+  std::map<std::string, std::string> impi_columns;
+  impi_columns["associated_primary_impu__kermit"] = "";
+
+  std::vector<cass::ColumnOrSuperColumn> impi_slice;
+  make_slice(impi_slice, impi_columns);
+
+  CacheTestTransaction* trx = make_trx();
+  Cache::Request* req = _cache.create_DissociateImplicitRegistrationSetFromImpi({"kermit", "robin"}, "gonzo", 1000);
+
+  expected.push_back(CFRowColumnValue("impi_mapping", "gonzo", impi_columns));
+
+  // Expect associated IMPI lookup
+
+  EXPECT_CALL(_client,
+              get_slice(_,
+                        "kermit",
+                        ColumnPathForTable("impu"),
+                        ColumnsWithPrefix("associated_impi__"),
+                        _))
+    .WillOnce(SetArgReferee<0>(impu_slice));
+
+  // Expect full-column removal, twice
+
+  expected.push_back(CFRowColumnValue("impu", "kermit"));
+  expected.push_back(CFRowColumnValue("impu", "robin"));
+
+  EXPECT_CALL(_client, batch_mutate(DeletionMap(expected), _));
+
+  do_successful_trx(trx, req);
+}
+
+

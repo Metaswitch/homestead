@@ -138,7 +138,8 @@ public:
   // code and the UTs easier to write.
   class MockPutIMSSubscription : public PutIMSSubscription
   {
-    MockPutIMSSubscription() : PutIMSSubscription("", "", RegistrationState::REGISTERED, 0) {}
+    std::vector<std::string> impis;
+    MockPutIMSSubscription() : PutIMSSubscription("", "", RegistrationState::REGISTERED, impis, 0) {}
     virtual ~MockPutIMSSubscription() {}
   };
 
