@@ -1374,7 +1374,7 @@ TEST_F(CacheRequestTest, DeletesHaveConsistencyLevelOne)
 {
   CacheTestTransaction *trx = make_trx();
   Cache::Request* req =
-    _cache.create_DeletePublicIDs("kermit", 1000);
+    _cache.create_DeletePublicIDs("kermit", IMPIS, 1000);
 
   EXPECT_CALL(_client, batch_mutate(_, cass::ConsistencyLevel::ONE));
 
