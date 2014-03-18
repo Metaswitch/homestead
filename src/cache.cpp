@@ -578,6 +578,14 @@ ha_get_columns_with_prefix(const std::string& key,
 }
 
 void Cache::Request::
+ha_multiget_columns_with_prefix(const std::vector<std::string>& keys,
+                                const std::string& prefix,
+                                std::map<std::string, std::vector<ColumnOrSuperColumn> >& columns)
+{
+  HA(multiget_columns_with_prefix, keys, prefix, columns);
+}
+
+void Cache::Request::
 ha_get_all_columns(const std::string& key,
                    std::vector<ColumnOrSuperColumn>& columns)
 {
@@ -629,6 +637,39 @@ get_columns_with_prefix(const std::string& key,
 }
 
 void Cache::Request::
+multiget_columns_with_prefix(const std::vector<std::string>& keys,
+                             const std::string& prefix,
+                             std::map<std::string, std::vector<ColumnOrSuperColumn> >& columns,
+                             ConsistencyLevel::type consistency_level)
+{
+  // This slice range gets all columns with the specified prefix.
+  SliceRange sr;
+  sr.start = prefix;
+  // Increment the last character of the "finish" field.
+  sr.finish = prefix;
+  *sr.finish.rbegin() = (*sr.finish.rbegin() + 1);
+
+  SlicePredicate sp;
+  sp.slice_range = sr;
+  sp.__isset.slice_range = true;
+
+  issue_multiget_for_key(keys, sp, columns, consistency_level);
+
+  // Remove the prefix from the returned column names.
+  for (std::map<std::string, std::vector<ColumnOrSuperColumn> >::iterator it = columns.begin();
+       it != columns.end();
+       ++it)
+  {
+    for (std::vector<ColumnOrSuperColumn>::iterator it2 = it->second.begin();
+         it2 != it->second.end();
+         ++it2)
+    {
+      it2->column.name = it2->column.name.substr(prefix.length());
+    }
+  }
+}
+
+void Cache::Request::
 get_row(const std::string& key,
         std::vector<ColumnOrSuperColumn>& columns,
         ConsistencyLevel::type consistency_level)
@@ -665,6 +706,27 @@ issue_get_for_key(const std::string& key,
     throw row_not_found_ex;
   }
 }
+
+void Cache::Request::
+issue_multiget_for_key(const std::vector<std::string>& keys,
+                       const SlicePredicate& predicate,
+                       std::map<std::string, std::vector<ColumnOrSuperColumn> >& columns,
+                       ConsistencyLevel::type consistency_level)
+{
+  ColumnParent cparent;
+  cparent.column_family = _column_family;
+
+  _trx->start_timer();
+  _client->multiget_slice(columns, keys, cparent, predicate, consistency_level);
+  _trx->stop_timer();
+
+  if (columns.size() == 0)
+  {
+    Cache::NoResultsException row_not_found_ex(_column_family, keys.front());
+    throw row_not_found_ex;
+  }
+}
+
 
 //
 // DeleteRowsRequest methods
@@ -1155,38 +1217,51 @@ void Cache::GetAssociatedPublicIDs::get_result(std::vector<std::string>& ids)
 Cache::GetAssociatedPrimaryPublicIDs::
 GetAssociatedPrimaryPublicIDs(const std::string& private_id) :
   GetRequest(IMPI_MAPPING),
-  _private_id(private_id),
+  _private_ids(1, private_id),
+  _public_ids()
+{}
+
+Cache::GetAssociatedPrimaryPublicIDs::
+GetAssociatedPrimaryPublicIDs(const std::vector<std::string>& private_ids) :
+  GetRequest(IMPI_MAPPING),
+  _private_ids(private_ids),
   _public_ids()
 {}
 
 
 void Cache::GetAssociatedPrimaryPublicIDs::perform()
 {
-  std::vector<ColumnOrSuperColumn> columns;
+  std::set<std::string> public_ids_set;
+  std::map<std::string, std::vector<ColumnOrSuperColumn> > columns;
 
-  LOG_DEBUG("Looking for primary public IDs for private ID %s", _private_id.c_str());
+  LOG_DEBUG("Looking for primary public IDs for private ID %s and %d others", _private_ids.front().c_str(), _private_ids.size());
   try
   {
-    ha_get_columns_with_prefix(_private_id,
-                               IMPI_MAPPING_PREFIX,
-                               columns);
+    ha_multiget_columns_with_prefix(_private_ids,
+                                    IMPI_MAPPING_PREFIX,
+                                    columns);
   }
   catch(Cache::NoResultsException& nre)
   {
-    LOG_INFO("Couldn't find any public IDs for private ID %s", _private_id.c_str());
+    LOG_INFO("Couldn't find any public IDs");
   }
 
   // Convert the query results from a vector of columns to a vector containing
   // the column names. The public_id prefix has already been stripped, so this
   // is just a list of public IDs and can be passed directly to on_success.
-  for(std::vector<ColumnOrSuperColumn>::const_iterator column_it = columns.begin();
-      column_it != columns.end();
-      ++column_it)
+  for(std::map<std::string, std::vector<ColumnOrSuperColumn> >::const_iterator key_it = columns.begin();
+      key_it != columns.end();
+      ++key_it)
   {
-    LOG_DEBUG("Found associated public ID %s", column_it->column.name.c_str());
-    _public_ids.push_back(column_it->column.name);
+    for(std::vector<ColumnOrSuperColumn>::const_iterator column = key_it->second.begin();
+        column != key_it->second.end();
+        ++column)
+    {
+      LOG_DEBUG("Found associated public ID %s", column->column.name.c_str());
+      public_ids_set.insert(column->column.name);
+    }
   }
-
+  std::copy(public_ids_set.begin(), public_ids_set.end(), std::back_inserter(_public_ids));
   _trx->on_success(this);
 }
 
@@ -1438,8 +1513,18 @@ DissociateImplicitRegistrationSetFromImpi(const std::vector<std::string>& impus,
                                           const std::string& impi,
                                           int64_t timestamp) :
   DeleteRowsRequest(IMPU, timestamp),
+  _impus(impus)
+{
+  _impis.insert(impi);
+}
+
+Cache::DissociateImplicitRegistrationSetFromImpi::
+DissociateImplicitRegistrationSetFromImpi(const std::vector<std::string>& impus,
+                                          const std::set<std::string>& impis,
+                                          int64_t timestamp) :
+  DeleteRowsRequest(IMPU, timestamp),
   _impus(impus),
-  _impi(impi)
+  _impis(impis)
 {}
 
 void Cache::DissociateImplicitRegistrationSetFromImpi::perform()
@@ -1450,16 +1535,20 @@ void Cache::DissociateImplicitRegistrationSetFromImpi::perform()
 
   std::string primary_public_id = _impus.front();
 
-  LOG_DEBUG("Deleting column %s from row %s", std::string(IMPI_MAPPING_PREFIX + primary_public_id).c_str(), _impi.c_str());
-
   std::map<std::string, std::string> impi_columns_to_delete;
   std::map<std::string, std::string> impu_columns_to_delete;
 
   // Value doesn't matter for deletions
   impi_columns_to_delete[IMPI_MAPPING_PREFIX + primary_public_id] = "";
-  impu_columns_to_delete[IMPI_COLUMN_PREFIX + _impi] = "";
+  for (std::set<std::string>::const_iterator it = _impis.begin();
+       it != _impis.end();
+       ++it)
+  {
+    LOG_DEBUG("Deleting association between primary public ID %s and IMPI %s", primary_public_id.c_str(), it->c_str());
+    impu_columns_to_delete[IMPI_COLUMN_PREFIX + *it] = "";
+    to_delete.push_back(CFRowColumnValue(IMPI_MAPPING, *it, impi_columns_to_delete));
+  }
 
-  to_delete.push_back(CFRowColumnValue(IMPI_MAPPING, _impi, impi_columns_to_delete));
 
   // Check how many IMPIs are associated with this implicit
   // registration set (all the columns are the same, so we only need
@@ -1467,45 +1556,61 @@ void Cache::DissociateImplicitRegistrationSetFromImpi::perform()
 
   std::vector<cass::ColumnOrSuperColumn> columns;
   ha_get_columns_with_prefix(primary_public_id, IMPI_COLUMN_PREFIX, columns);
-  int associated_impis = columns.size();
-  bool impi_in_registration_set = false;
+  LOG_DEBUG("%d IMPIs are associated with this IRS", columns.size());
+
+  std::set<std::string> associated_impis_set;
 
   for (std::vector<cass::ColumnOrSuperColumn>::const_iterator it = columns.begin();
        it != columns.end();
        ++it)
   {
-    if (it->column.name == _impi)
-    {
-      impi_in_registration_set = true;
-      break;
-    }
+    associated_impis_set.insert(it->column.name);
   }
 
-  if (!impi_in_registration_set)
+
+  // Are any IMPIs in _impis but not in associated_impis_set? If so,
+  // warn.
+
+  std::vector<std::string> output;
+  std::set_difference(_impis.begin(),
+                      _impis.end(),
+                      associated_impis_set.begin(),
+                      associated_impis_set.end(),
+                      std::back_inserter(output));
+
+  LOG_DEBUG("Set difference: %d", output.size());
+
+  if (output.size() > 0)
   {
-    LOG_WARNING("DissociateImplicitRegistrationSetFromImpi was called but the provided IMPI is not associated with the IMPU");
+    LOG_WARNING("DissociateImplicitRegistrationSetFromImpi was called but not all the provided IMPIs are associated with the IMPU");
   }
 
-  LOG_DEBUG("%d IMPIs are associated with this IRS", associated_impis);
+  //  Are we deleting all the associated impis?
+
+  output.clear();
+  std::set_intersection(_impis.begin(),
+                        _impis.end(),
+                        associated_impis_set.begin(),
+                        associated_impis_set.end(),
+                        std::back_inserter(output));
+  LOG_DEBUG("Set intersection: %d %d", output.size(), associated_impis_set.size());
+
+  bool deleting_all_impis = (output.size() == associated_impis_set.size());
 
   for (std::vector<std::string>::const_iterator it = _impus.begin();
        it != _impus.end();
        ++it)
   {
-    // Is this the last IMPI associated with this IMPU? (This is false
-    // if the IMPI isn't associated with the IMPU).
-    if ((!impi_in_registration_set) || (associated_impis > 1))
+    if (!deleting_all_impis)
     {
-      // No - Go through IMPU table and delete the column
+      // Go through IMPU table and delete the column
       // specifically for this IMPI
       to_delete.push_back(CFRowColumnValue(_column_family, *it, impu_columns_to_delete));
     }
     else
     {
-      // Yes - delete all columns in the IMPU rows
-      impu_columns_to_delete[IMS_SUB_XML_COLUMN_NAME] = "";
-      impu_columns_to_delete[REG_STATE_COLUMN_NAME] = "";
-      to_delete.push_back(CFRowColumnValue(_column_family, *it, impu_columns_to_delete));
+      // Delete the IMPU rows completely by not specifying columns
+      to_delete.push_back(CFRowColumnValue(_column_family, *it));
     }
   }
 

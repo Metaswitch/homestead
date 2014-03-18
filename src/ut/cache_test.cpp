@@ -40,6 +40,7 @@
 #include "gmock/gmock.h"
 #include "test_utils.hpp"
 #include "test_interposer.hpp"
+#include "fakelogger.hpp"
 
 #include <cache.h>
 
@@ -70,6 +71,7 @@ public:
   MOCK_METHOD1(set_keyspace, void(const std::string& keyspace));
   MOCK_METHOD2(batch_mutate, void(const std::map<std::string, std::map<std::string, std::vector<cass::Mutation> > > & mutation_map, const cass::ConsistencyLevel::type consistency_level));
   MOCK_METHOD5(get_slice, void(std::vector<cass::ColumnOrSuperColumn> & _return, const std::string& key, const cass::ColumnParent& column_parent, const cass::SlicePredicate& predicate, const cass::ConsistencyLevel::type consistency_level));
+  MOCK_METHOD5(multiget_slice, void(std::map<std::string, std::vector<cass::ColumnOrSuperColumn> > & _return, const std::vector<std::string>& keys, const cass::ColumnParent& column_parent, const cass::SlicePredicate& predicate, const cass::ConsistencyLevel::type consistency_level));
   MOCK_METHOD4(remove, void(const std::string& key, const cass::ColumnPath& column_path, const int64_t timestamp, const cass::ConsistencyLevel::type consistency_level));
 };
 
@@ -261,6 +263,8 @@ public:
 
   // Semaphore that the main thread waits on while a transaction is outstanding.
   sem_t _sem;
+
+  FakeLogger _log;
 };
 
 class CacheLatencyTest : public CacheRequestTest
@@ -296,6 +300,10 @@ typedef std::map<std::string, std::map<std::string, std::vector<cass::Mutation>>
 typedef std::vector<cass::ColumnOrSuperColumn> slice_t;
 
 const slice_t empty_slice(0);
+
+typedef std::map<std::string, std::vector<cass::ColumnOrSuperColumn>> multiget_slice_t;
+
+const multiget_slice_t empty_slice_multiget;
 
 // utlity functions to make a slice from a map of column names => values.
 void make_slice(slice_t& slice,
@@ -1846,19 +1854,23 @@ TEST_F(CacheRequestTest, GetAssociatedPrimaryPublicIDs)
   columns["associated_primary_impu__kermit"] = "";
   columns["associated_primary_impu__miss piggy"] = "";
 
-  std::vector<cass::ColumnOrSuperColumn> slice;
-  make_slice(slice, columns);
+  std::vector<cass::ColumnOrSuperColumn> inner_slice;
+  make_slice(inner_slice, columns);
+  std::map<std::string, std::vector<cass::ColumnOrSuperColumn> > slice;
+  slice["gonzo"] = inner_slice;
 
   ResultRecorder<Cache::GetAssociatedPrimaryPublicIDs, std::vector<std::string>> rec;
   RecordingTransaction* trx = make_rec_trx(&rec);
   Cache::Request* req = _cache.create_GetAssociatedPrimaryPublicIDs("gonzo");
 
+  std::vector<std::string> impis = {"gonzo"};
+
   EXPECT_CALL(_client,
-              get_slice(_,
-                        "gonzo",
-                        ColumnPathForTable("impi_mapping"),
-                        ColumnsWithPrefix("associated_primary_impu__"),
-                        _))
+              multiget_slice(_,
+                             impis,
+                             ColumnPathForTable("impi_mapping"),
+                             ColumnsWithPrefix("associated_primary_impu__"),
+                             _))
     .WillOnce(SetArgReferee<0>(slice));
 
   EXPECT_CALL(*trx, on_success(_))
@@ -1875,19 +1887,64 @@ TEST_F(CacheRequestTest, GetAssociatedPrimaryPublicIDs)
   EXPECT_EQ(expected_ids, rec.result);
 }
 
-TEST_F(CacheRequestTest, GetAssociatedPrimaryPublicIDsNoReults)
+TEST_F(CacheRequestTest, GetAssociatedPrimaryPublicIDsMultipleIMPIs)
+{
+  std::map<std::string, std::string> columns;
+  std::map<std::string, std::string> columns2;
+  columns["associated_primary_impu__kermit"] = "";
+  columns2["associated_primary_impu__miss piggy"] = "";
+
+  std::vector<cass::ColumnOrSuperColumn> inner_slice;
+  make_slice(inner_slice, columns);
+  std::map<std::string, std::vector<cass::ColumnOrSuperColumn> > slice;
+  slice["gonzo"] = inner_slice;
+
+  std::vector<cass::ColumnOrSuperColumn> inner_slice2;
+  make_slice(inner_slice2, columns2);
+  slice["gonzo2"] = inner_slice2;
+
+  ResultRecorder<Cache::GetAssociatedPrimaryPublicIDs, std::vector<std::string>> rec;
+  RecordingTransaction* trx = make_rec_trx(&rec);
+  std::vector<std::string> impis = {"gonzo", "gonzo2"};
+  Cache::Request* req = _cache.create_GetAssociatedPrimaryPublicIDs(impis);
+
+  EXPECT_CALL(_client,
+              multiget_slice(_,
+                             impis,
+                             ColumnPathForTable("impi_mapping"),
+                             ColumnsWithPrefix("associated_primary_impu__"),
+                             _))
+    .WillOnce(SetArgReferee<0>(slice));
+
+  EXPECT_CALL(*trx, on_success(_))
+    .WillOnce(Invoke(trx, &RecordingTransaction::record_result));
+  _cache.send(trx, req);
+  wait();
+
+  std::vector<std::string> expected_ids;
+  expected_ids.push_back("kermit");
+  expected_ids.push_back("miss piggy");
+  std::sort(expected_ids.begin(), expected_ids.end());
+  std::sort(rec.result.begin(), rec.result.end());
+
+  EXPECT_EQ(expected_ids, rec.result);
+}
+
+TEST_F(CacheRequestTest, GetAssociatedPrimaryPublicIDsNoResults)
 {
   ResultRecorder<Cache::GetAssociatedPrimaryPublicIDs, std::vector<std::string>> rec;
   RecordingTransaction* trx = make_rec_trx(&rec);
   Cache::Request* req = _cache.create_GetAssociatedPrimaryPublicIDs("gonzo");
 
+  std::vector<std::string> impis = {"gonzo"};
+
   EXPECT_CALL(_client,
-              get_slice(_,
-                        "gonzo",
-                        ColumnPathForTable("impi_mapping"),
-                        ColumnsWithPrefix("associated_primary_impu__"),
-                        _))
-    .WillOnce(SetArgReferee<0>(empty_slice));
+              multiget_slice(_,
+                             impis,
+                             ColumnPathForTable("impi_mapping"),
+                             ColumnsWithPrefix("associated_primary_impu__"),
+                             _))
+    .WillOnce(SetArgReferee<0>(empty_slice_multiget));
 
   EXPECT_CALL(*trx, on_success(_))
     .WillOnce(Invoke(trx, &RecordingTransaction::record_result));
@@ -2136,6 +2193,60 @@ TEST_F(CacheRequestTest, DissociateImplicitRegistrationSetFromImpi)
   do_successful_trx(trx, req);
 }
 
+TEST_F(CacheRequestTest, DissociateImplicitRegistrationSetFromMultipleImpis)
+{
+  std::vector<CFRowColumnValue> expected;
+
+  std::map<std::string, std::string> impu_columns;
+  impu_columns["associated_impi__somebody@example.com"] = "";
+  impu_columns["associated_impi__gonzo"] = "";
+  impu_columns["associated_impi__gonzo2"] = "";
+
+  std::map<std::string, std::string> deleted_impu_columns;
+  deleted_impu_columns["associated_impi__gonzo"] = "";
+  deleted_impu_columns["associated_impi__gonzo2"] = "";
+
+  std::vector<cass::ColumnOrSuperColumn> impu_slice;
+  make_slice(impu_slice, impu_columns);
+
+  std::map<std::string, std::string> impi_columns;
+  impi_columns["associated_primary_impu__kermit"] = "";
+  impi_columns["associated_primary_impu__miss piggy"] = "";
+
+  std::map<std::string, std::string> deleted_impi_columns;
+  deleted_impi_columns["associated_primary_impu__kermit"] = "";
+
+  std::vector<cass::ColumnOrSuperColumn> impi_slice;
+  make_slice(impi_slice, impi_columns);
+
+  CacheTestTransaction* trx = make_trx();
+  std::set<std::string> impis;
+  impis.insert("gonzo");
+  impis.insert("gonzo2");
+  Cache::Request* req = _cache.create_DissociateImplicitRegistrationSetFromImpi({"kermit", "robin"}, impis, 1000);
+
+  expected.push_back(CFRowColumnValue("impi_mapping", "gonzo", deleted_impi_columns));
+  expected.push_back(CFRowColumnValue("impi_mapping", "gonzo2", deleted_impi_columns));
+
+  // Expect associated IMPI lookup
+
+  EXPECT_CALL(_client,
+              get_slice(_,
+                        "kermit",
+                        ColumnPathForTable("impu"),
+                        ColumnsWithPrefix("associated_impi__"),
+                        _))
+    .WillOnce(SetArgReferee<0>(impu_slice));
+
+  // Expect single-column removal, twice
+  expected.push_back(CFRowColumnValue("impu", "kermit", deleted_impu_columns));
+  expected.push_back(CFRowColumnValue("impu", "robin", deleted_impu_columns));
+
+  EXPECT_CALL(_client, batch_mutate(DeletionMap(expected), _));
+
+  do_successful_trx(trx, req);
+}
+
 
 TEST_F(CacheRequestTest, DissociateImplicitRegistrationSetFromImpiCausingDeletion)
 {
@@ -2177,6 +2288,55 @@ TEST_F(CacheRequestTest, DissociateImplicitRegistrationSetFromImpiCausingDeletio
   EXPECT_CALL(_client, batch_mutate(DeletionMap(expected), _));
 
   do_successful_trx(trx, req);
+}
+
+TEST_F(CacheRequestTest, DissociateImplicitRegistrationSetFromWrongImpi)
+{
+  std::vector<CFRowColumnValue> expected;
+
+  std::map<std::string, std::string> impu_columns;
+  impu_columns["associated_impi__somebody@example.com"] = "";
+  impu_columns["associated_impi__gonzo"] = "";
+
+  std::map<std::string, std::string> deleted_impu_columns;
+  deleted_impu_columns["associated_impi__gonzoooooo"] = "";
+
+  std::vector<cass::ColumnOrSuperColumn> impu_slice;
+  make_slice(impu_slice, impu_columns);
+
+  std::map<std::string, std::string> impi_columns;
+  impi_columns["associated_primary_impu__kermit"] = "";
+  impi_columns["associated_primary_impu__miss piggy"] = "";
+
+  std::map<std::string, std::string> deleted_impi_columns;
+  deleted_impi_columns["associated_primary_impu__kermit"] = "";
+
+  std::vector<cass::ColumnOrSuperColumn> impi_slice;
+  make_slice(impi_slice, impi_columns);
+
+  CacheTestTransaction* trx = make_trx();
+  Cache::Request* req = _cache.create_DissociateImplicitRegistrationSetFromImpi({"kermit", "robin"}, "gonzoooooo", 1000);
+
+  expected.push_back(CFRowColumnValue("impi_mapping", "gonzoooooo", deleted_impi_columns));
+
+  // Expect associated IMPI lookup
+
+  EXPECT_CALL(_client,
+              get_slice(_,
+                        "kermit",
+                        ColumnPathForTable("impu"),
+                        ColumnsWithPrefix("associated_impi__"),
+                        _))
+    .WillOnce(SetArgReferee<0>(impu_slice));
+
+  // Expect single-column removal, twice
+  expected.push_back(CFRowColumnValue("impu", "kermit", deleted_impu_columns));
+  expected.push_back(CFRowColumnValue("impu", "robin", deleted_impu_columns));
+
+  EXPECT_CALL(_client, batch_mutate(DeletionMap(expected), _));
+
+  do_successful_trx(trx, req);
+  EXPECT_TRUE(_log.contains("not all the provided IMPIs are associated with the IMPU"));
 }
 
 
