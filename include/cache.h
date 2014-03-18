@@ -72,11 +72,14 @@
 #include "utils.h"
 #include "reg_state.h"
 
-namespace cass = org::apache::cassandra;
+SCFRnamespace cass = org::apache::cassandra;
 
 // Simple data structure to allow specifying a set of column names and values for
 // a particular row and column family. Useful when batching operations
 // across multiple column families in one Thrift request.
+
+// Preferred over the raw Thrift data structures, as we don't have to
+// worry about per-column TTLs or other features we don't use.
 struct CFRowColumnValue
 {
   CFRowColumnValue(std::string cf,
@@ -945,6 +948,12 @@ public:
     return new GetAssociatedPrimaryPublicIDs(private_id);
   }
 
+  virtual GetAssociatedPrimaryPublicIDs* create_GetAssociatedPrimaryPublicIDs(
+    const std::vector<std::string>& private_ids)
+  {
+    return new GetAssociatedPrimaryPublicIDs(private_ids);
+  }
+
   class GetAuthVector : public GetRequest
   {
   public:
@@ -1141,6 +1150,14 @@ public:
     int64_t timestamp)
   {
     return new DissociateImplicitRegistrationSetFromImpi(impus, impi, timestamp);
+  }
+
+  virtual DissociateImplicitRegistrationSetFromImpi* create_DissociateImplicitRegistrationSetFromImpi(
+    const std::vector<std::string>& impus,
+    const std::set<std::string>& impis,
+    int64_t timestamp)
+  {
+    return new DissociateImplicitRegistrationSetFromImpi(impus, impis, timestamp);
   }
 };
 

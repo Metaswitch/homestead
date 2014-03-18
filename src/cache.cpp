@@ -1544,6 +1544,7 @@ void Cache::DissociateImplicitRegistrationSetFromImpi::perform()
        it != _impis.end();
        ++it)
   {
+    LOG_DEBUG("Deleting association between primary public ID %s and IMPI %s", primary_public_id.c_str(), it->c_str());
     impu_columns_to_delete[IMPI_COLUMN_PREFIX + *it] = "";
     to_delete.push_back(CFRowColumnValue(IMPI_MAPPING, *it, impi_columns_to_delete));
   }
@@ -1577,6 +1578,8 @@ void Cache::DissociateImplicitRegistrationSetFromImpi::perform()
                       associated_impis_set.end(),
                       std::back_inserter(output));
 
+  LOG_DEBUG("Set difference: %d", output.size());
+
   if (output.size() > 0)
   {
     LOG_WARNING("DissociateImplicitRegistrationSetFromImpi was called but not all the provided IMPIs are associated with the IMPU");
@@ -1590,7 +1593,9 @@ void Cache::DissociateImplicitRegistrationSetFromImpi::perform()
                         associated_impis_set.begin(),
                         associated_impis_set.end(),
                         std::back_inserter(output));
-  bool deleting_all_impis = (output.size() == _impis.size());
+  LOG_DEBUG("Set intersection: %d %d", output.size(), associated_impis_set.size());
+
+  bool deleting_all_impis = (output.size() == associated_impis_set.size());
 
   for (std::vector<std::string>::const_iterator it = _impus.begin();
        it != _impus.end();
