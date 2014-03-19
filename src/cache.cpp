@@ -1515,12 +1515,12 @@ DissociateImplicitRegistrationSetFromImpi(const std::vector<std::string>& impus,
   DeleteRowsRequest(IMPU, timestamp),
   _impus(impus)
 {
-  _impis.insert(impi);
+  _impis.push_back(impi);
 }
 
 Cache::DissociateImplicitRegistrationSetFromImpi::
 DissociateImplicitRegistrationSetFromImpi(const std::vector<std::string>& impus,
-                                          const std::set<std::string>& impis,
+                                          const std::vector<std::string>& impis,
                                           int64_t timestamp) :
   DeleteRowsRequest(IMPU, timestamp),
   _impus(impus),
@@ -1540,7 +1540,7 @@ void Cache::DissociateImplicitRegistrationSetFromImpi::perform()
 
   // Value doesn't matter for deletions
   impi_columns_to_delete[IMPI_MAPPING_PREFIX + primary_public_id] = "";
-  for (std::set<std::string>::const_iterator it = _impis.begin();
+  for (std::vector<std::string>::const_iterator it = _impis.begin();
        it != _impis.end();
        ++it)
   {

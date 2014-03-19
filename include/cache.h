@@ -72,7 +72,7 @@
 #include "utils.h"
 #include "reg_state.h"
 
-SCFRnamespace cass = org::apache::cassandra;
+namespace cass = org::apache::cassandra;
 
 // Simple data structure to allow specifying a set of column names and values for
 // a particular row and column family. Useful when batching operations
@@ -1133,13 +1133,13 @@ public:
                                               const std::string& impi,
                                               int64_t timestamp);
     DissociateImplicitRegistrationSetFromImpi(const std::vector<std::string>& impus,
-                                              const std::set<std::string>& impis,
+                                              const std::vector<std::string>& impis,
                                               int64_t timestamp);
     virtual ~DissociateImplicitRegistrationSetFromImpi() {};
 
   protected:
     std::vector<std::string> _impus;
-    std::set<std::string> _impis;
+    std::vector<std::string> _impis;
 
     void perform();
   };
@@ -1154,7 +1154,7 @@ public:
 
   virtual DissociateImplicitRegistrationSetFromImpi* create_DissociateImplicitRegistrationSetFromImpi(
     const std::vector<std::string>& impus,
-    const std::set<std::string>& impis,
+    const std::vector<std::string>& impis,
     int64_t timestamp)
   {
     return new DissociateImplicitRegistrationSetFromImpi(impus, impis, timestamp);
