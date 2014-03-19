@@ -2220,9 +2220,9 @@ TEST_F(CacheRequestTest, DissociateImplicitRegistrationSetFromMultipleImpis)
   make_slice(impi_slice, impi_columns);
 
   CacheTestTransaction* trx = make_trx();
-  std::set<std::string> impis;
-  impis.insert("gonzo");
-  impis.insert("gonzo2");
+  std::vector<std::string> impis;
+  impis.push_back("gonzo");
+  impis.push_back("gonzo2");
   Cache::Request* req = _cache.create_DissociateImplicitRegistrationSetFromImpi({"kermit", "robin"}, impis, 1000);
 
   expected.push_back(CFRowColumnValue("impi_mapping", "gonzo", deleted_impi_columns));
