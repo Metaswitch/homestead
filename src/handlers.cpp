@@ -370,6 +370,10 @@ void ImpiAvHandler::send_reply(const DigestAuthVector& av)
   rapidjson::StringBuffer sb;
   rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
 
+  // The qop value can be empty - in this case it should be replaced
+  // with 'auth'.
+  std::string qop_value = (!av.qop.empty()) ? av.qop : JSON_AUTH;
+
   writer.StartObject();
   {
     writer.String(JSON_DIGEST.c_str());
@@ -380,7 +384,7 @@ void ImpiAvHandler::send_reply(const DigestAuthVector& av)
       writer.String(JSON_REALM.c_str());
       writer.String(av.realm.c_str());
       writer.String(JSON_QOP.c_str());
-      writer.String(av.qop.c_str());
+      writer.String(qop_value.c_str());
     }
     writer.EndObject();
   }
