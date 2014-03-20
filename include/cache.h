@@ -690,7 +690,7 @@ public:
     return new PutIMSSubscription(public_id, xml, reg_state, impis, timestamp, ttl);
   }
 
-  virtual PutIMSSubscription* create_PutIMSSubscription(std::vector<std::string>& public_ids,
+  virtual PutIMSSubscription* create_PutIMSSubscription(const std::vector<std::string>& public_ids,
                                                         const std::string& xml,
                                                         const RegistrationState reg_state,
                                                         const std::vector<std::string>& impis,

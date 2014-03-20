@@ -40,6 +40,11 @@
 #include "rapidjson/writer.h"
 #include "rapidjson/stringbuffer.h"
 
+// JSON string constants
+const std::string SproutConnection::JSON_REGISTRATIONS = "registrations";
+const std::string SproutConnection::JSON_PRIMARY_IMPU = "primary-impu";
+const std::string SproutConnection::JSON_IMPI = "impi";
+
 SproutConnection::SproutConnection(HttpConnection* http) : _http(http)
 {
 }
@@ -50,10 +55,10 @@ SproutConnection::~SproutConnection()
   _http = NULL;
 }
 
-HTTPCode SproutConnection::send_delete(const bool& send_notifications,
-                                       const std::vector<std::string>& default_public_ids,
-                                       const std::vector<std::string>& impis,
-                                       SAS::TrailId trail)
+HTTPCode SproutConnection::deregister_bindings(const bool& send_notifications,
+                                               const std::vector<std::string>& default_public_ids,
+                                               const std::vector<std::string>& impis,
+                                               SAS::TrailId trail)
 {
   std::string path = "/registrations?send-notifications=";
   path += send_notifications ? "true" : "false";

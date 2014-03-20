@@ -190,14 +190,14 @@ ServerCapabilities UserAuthorizationAnswer::server_capabilities() const
   if (avps != end())
   {
     Diameter::AVP::iterator avps2 = avps->begin(((Cx::Dictionary*)dict())->MANDATORY_CAPABILITY);
-    while (avps2 != end())
+    while (avps2 != avps->end())
     {
       LOG_DEBUG("Found mandatory capability %d", avps2->val_i32());
       server_capabilities.mandatory_capabilities.push_back(avps2->val_i32());
       avps2++;
     }
     avps2 = avps->begin(((Cx::Dictionary*)dict())->OPTIONAL_CAPABILITY);
-    while (avps2 != end())
+    while (avps2 != avps->end())
     {
       LOG_DEBUG("Found optional capability %d", avps2->val_i32());
       server_capabilities.optional_capabilities.push_back(avps2->val_i32());
@@ -301,14 +301,14 @@ ServerCapabilities LocationInfoAnswer::server_capabilities() const
   if (avps != end())
   {
     Diameter::AVP::iterator avps2 = avps->begin(((Cx::Dictionary*)dict())->MANDATORY_CAPABILITY);
-    while (avps2 != end())
+    while (avps2 != avps->end())
     {
       LOG_DEBUG("Found mandatory capability %d", avps2->val_i32());
       server_capabilities.mandatory_capabilities.push_back(avps2->val_i32());
       avps2++;
     }
     avps2 = avps->begin(((Cx::Dictionary*)dict())->OPTIONAL_CAPABILITY);
-    while (avps2 != end())
+    while (avps2 != avps->end())
     {
       LOG_DEBUG("Found optional capability %d", avps2->val_i32());
       server_capabilities.optional_capabilities.push_back(avps2->val_i32());
@@ -356,10 +356,10 @@ std::string MultimediaAuthRequest::sip_auth_scheme() const
   Diameter::AVP::iterator avps = begin(((Cx::Dictionary*)dict())->SIP_AUTH_DATA_ITEM);
   if (avps != end())
   {
-    avps = avps->begin(((Cx::Dictionary*)dict())->SIP_AUTH_SCHEME);
-    if (avps != end())
+    Diameter::AVP::iterator avps2 = avps->begin(((Cx::Dictionary*)dict())->SIP_AUTH_SCHEME);
+    if (avps2 != avps->end())
     {
-      sip_auth_scheme = avps->val_str();
+      sip_auth_scheme = avps2->val_str();
       LOG_DEBUG("Got SIP-Auth-Scheme %s", sip_auth_scheme.c_str());
     }
   }
@@ -372,10 +372,10 @@ std::string MultimediaAuthRequest::sip_authorization() const
   Diameter::AVP::iterator avps = begin(((Cx::Dictionary*)dict())->SIP_AUTH_DATA_ITEM);
   if (avps != end())
   {
-    avps = avps->begin(((Cx::Dictionary*)dict())->SIP_AUTHORIZATION);
-    if (avps != end())
+    Diameter::AVP::iterator avps2 = avps->begin(((Cx::Dictionary*)dict())->SIP_AUTHORIZATION);
+    if (avps2 != avps->end())
     {
-      sip_authorization = avps->val_str();
+      sip_authorization = avps2->val_str();
       LOG_DEBUG("Got SIP-Authorization %s", sip_authorization.c_str());
     }
   }
@@ -415,10 +415,10 @@ std::string MultimediaAuthAnswer::sip_auth_scheme() const
   Diameter::AVP::iterator avps = begin(((Cx::Dictionary*)dict())->SIP_AUTH_DATA_ITEM);
   if (avps != end())
   {
-    avps = avps->begin(((Cx::Dictionary*)dict())->SIP_AUTH_SCHEME);
-    if (avps != end())
+    Diameter::AVP::iterator avps2 = avps->begin(((Cx::Dictionary*)dict())->SIP_AUTH_SCHEME);
+    if (avps != avps2->end())
     {
-      sip_auth_scheme = avps->val_str();
+      sip_auth_scheme = avps2->val_str();
       LOG_DEBUG("Got SIP-Auth-Scheme %s", sip_auth_scheme.c_str());
     }
   }
@@ -432,57 +432,57 @@ DigestAuthVector MultimediaAuthAnswer::digest_auth_vector() const
   Diameter::AVP::iterator avps = begin(((Cx::Dictionary*)dict())->SIP_AUTH_DATA_ITEM);
   if (avps != end())
   {
-    avps = avps->begin(((Cx::Dictionary*)dict())->SIP_DIGEST_AUTHENTICATE);
-    if (avps != end())
+    Diameter::AVP::iterator avps2 = avps->begin(((Cx::Dictionary*)dict())->SIP_DIGEST_AUTHENTICATE);
+    if (avps2 != avps->end())
     {
       // Look for the digest.
-      Diameter::AVP::iterator avps2 = avps->begin(((Cx::Dictionary*)dict())->CX_DIGEST_HA1);
-      if (avps2 != end())
+      Diameter::AVP::iterator avps3 = avps2->begin(((Cx::Dictionary*)dict())->CX_DIGEST_HA1);
+      if (avps3 != avps2->end())
       {
-        digest_auth_vector.ha1 = avps2->val_str();
+        digest_auth_vector.ha1 = avps3->val_str();
         LOG_DEBUG("Found Digest-HA1 %s", digest_auth_vector.ha1.c_str());
       }
       else
       {
         // Some HSSs (in particular OpenIMSCore), use non-3GPP Digest-HA1.  Check for this too.
-        avps2 = avps->begin(((Cx::Dictionary*)dict())->DIGEST_HA1);
-        if (avps2 != end())
+        avps3 = avps2->begin(((Cx::Dictionary*)dict())->DIGEST_HA1);
+        if (avps3 != avps2->end())
         {
-          digest_auth_vector.ha1 = avps2->val_str();
+          digest_auth_vector.ha1 = avps3->val_str();
           LOG_DEBUG("Found (non-3GPP) Digest-HA1 %s", digest_auth_vector.ha1.c_str());
         }
       }
       // Look for the realm.
-      avps2 = avps->begin(((Cx::Dictionary*)dict())->CX_DIGEST_REALM);
-      if (avps2 != end())
+      avps3 = avps2->begin(((Cx::Dictionary*)dict())->CX_DIGEST_REALM);
+      if (avps3 != avps2->end())
       {
-        digest_auth_vector.realm = avps2->val_str();
+        digest_auth_vector.realm = avps3->val_str();
         LOG_DEBUG("Found Digest-Realm %s", digest_auth_vector.realm.c_str());
       }
       else
       {
         // Some HSSs (in particular OpenIMSCore), use non-3GPP Digest-Realm.  Check for this too.
-        avps2 = avps->begin(((Cx::Dictionary*)dict())->DIGEST_REALM);
-        if (avps2 != end())
+        avps3 = avps2->begin(((Cx::Dictionary*)dict())->DIGEST_REALM);
+        if (avps3 != avps2->end())
         {
-          digest_auth_vector.realm = avps2->val_str();
+          digest_auth_vector.realm = avps3->val_str();
           LOG_DEBUG("Found (non-3GPP) Digest-Realm %s", digest_auth_vector.realm.c_str());
         }
       }
       // Look for the QoP.
-      avps2 = avps->begin(((Cx::Dictionary*)dict())->CX_DIGEST_QOP);
-      if (avps2 != end())
+      avps3 = avps2->begin(((Cx::Dictionary*)dict())->CX_DIGEST_QOP);
+      if (avps3 != avps2->end())
       {
-        digest_auth_vector.qop = avps2->val_str();
+        digest_auth_vector.qop = avps3->val_str();
         LOG_DEBUG("Found Digest-QoP %s", digest_auth_vector.qop.c_str());
       }
       else
       {
         // Some HSSs (in particular OpenIMSCore), use non-3GPP Digest-QoP.  Check for this too.
-        avps2 = avps->begin(((Cx::Dictionary*)dict())->DIGEST_QOP);
-        if (avps2 != end())
+        avps3 = avps2->begin(((Cx::Dictionary*)dict())->DIGEST_QOP);
+        if (avps3 != avps2->end())
         {
-          digest_auth_vector.qop = avps2->val_str();
+          digest_auth_vector.qop = avps3->val_str();
           LOG_DEBUG("Found (non-3GPP) Digest-QoP %s", digest_auth_vector.qop.c_str());
         }
       }
@@ -500,7 +500,7 @@ AKAAuthVector MultimediaAuthAnswer::aka_auth_vector() const
   {
     // Look for the challenge.
     Diameter::AVP::iterator avps2 = avps->begin(((Cx::Dictionary*)dict())->SIP_AUTHENTICATE);
-    if (avps2 != end())
+    if (avps2 != avps->end())
     {
       size_t len;
       const uint8_t* data = avps2->val_os(len);
@@ -509,7 +509,7 @@ AKAAuthVector MultimediaAuthAnswer::aka_auth_vector() const
     }
     // Look for the response.
     avps2 = avps->begin(((Cx::Dictionary*)dict())->SIP_AUTHORIZATION);
-    if (avps2 != end())
+    if (avps2 != avps->end())
     {
       size_t len;
       const uint8_t* data = avps2->val_os(len);
@@ -518,7 +518,7 @@ AKAAuthVector MultimediaAuthAnswer::aka_auth_vector() const
     }
     // Look for the encryption key.
     avps2 = avps->begin(((Cx::Dictionary*)dict())->CONFIDENTIALITY_KEY);
-    if (avps2 != end())
+    if (avps2 != avps->end())
     {
       size_t len;
       const uint8_t* data = avps2->val_os(len);
@@ -527,7 +527,7 @@ AKAAuthVector MultimediaAuthAnswer::aka_auth_vector() const
     }
     // Look for the integrity key.
     avps2 = avps->begin(((Cx::Dictionary*)dict())->INTEGRITY_KEY);
-    if (avps2 != end())
+    if (avps2 != avps->end())
     {
       size_t len;
       const uint8_t* data = avps2->val_os(len);
@@ -652,7 +652,7 @@ std::vector<std::string> RegistrationTerminationRequest::associated_identities()
   if (avps != end())
   {
     Diameter::AVP::iterator avps2 = avps->begin(dict()->USER_NAME);
-    while (avps2 != end())
+    while (avps2 != avps->end())
     {
       LOG_DEBUG("Found User-Name %s", avps2->val_str().c_str());
       associated_identities.push_back(avps2->val_str());
@@ -684,10 +684,10 @@ int32_t RegistrationTerminationRequest::deregistration_reason() const
   Diameter::AVP::iterator avps = begin(((Cx::Dictionary*)dict())->DEREGISTRATION_REASON);
   if (avps != end())
   {
-    avps = avps->begin(((Cx::Dictionary*)dict())->REASON_CODE);
-    if (avps != end())
+    Diameter::AVP::iterator avps2 = avps->begin(((Cx::Dictionary*)dict())->REASON_CODE);
+    if (avps2 != avps->end())
     {
-      deregistration_reason = avps->val_i32();
+      deregistration_reason = avps2->val_i32();
       LOG_DEBUG("Got Deregistration Reason-Code %d", deregistration_reason);
     }
   }
@@ -732,7 +732,7 @@ std::vector<std::string> RegistrationTerminationAnswer::associated_identities() 
   if (avps != end())
   {
     Diameter::AVP::iterator avps2 = avps->begin(dict()->USER_NAME);
-    while (avps2 != end())
+    while (avps2 != avps->end())
     {
       LOG_DEBUG("Found User-Name %s", avps2->val_str().c_str());
       associated_identities.push_back(avps2->val_str());
@@ -770,57 +770,57 @@ DigestAuthVector PushProfileRequest::digest_auth_vector() const
   Diameter::AVP::iterator avps = begin(((Cx::Dictionary*)dict())->SIP_AUTH_DATA_ITEM);
   if (avps != end())
   {
-    avps = avps->begin(((Cx::Dictionary*)dict())->SIP_DIGEST_AUTHENTICATE);
-    if (avps != end())
+    Diameter::AVP::iterator avps2 = avps->begin(((Cx::Dictionary*)dict())->SIP_DIGEST_AUTHENTICATE);
+    if (avps2 != avps->end())
     {
       // Look for the digest.
-      Diameter::AVP::iterator avps2 = avps->begin(((Cx::Dictionary*)dict())->CX_DIGEST_HA1);
-      if (avps2 != end())
+      Diameter::AVP::iterator avps3 = avps2->begin(((Cx::Dictionary*)dict())->CX_DIGEST_HA1);
+      if (avps3 != avps2->end())
       {
-        digest_auth_vector.ha1 = avps2->val_str();
+        digest_auth_vector.ha1 = avps3->val_str();
         LOG_DEBUG("Found Digest-HA1 %s", digest_auth_vector.ha1.c_str());
       }
       else
       {
         // Some HSSs (in particular OpenIMSCore), use non-3GPP Digest-HA1.  Check for this too.
-        avps2 = avps->begin(((Cx::Dictionary*)dict())->DIGEST_HA1);
-        if (avps2 != end())
+        avps3 = avps2->begin(((Cx::Dictionary*)dict())->DIGEST_HA1);
+        if (avps3 != avps2->end())
         {
-          digest_auth_vector.ha1 = avps2->val_str();
+          digest_auth_vector.ha1 = avps3->val_str();
           LOG_DEBUG("Found (non-3GPP) Digest-HA1 %s", digest_auth_vector.ha1.c_str());
         }
       }
       // Look for the realm.
-      avps2 = avps->begin(((Cx::Dictionary*)dict())->CX_DIGEST_REALM);
-      if (avps2 != end())
+      avps3 = avps2->begin(((Cx::Dictionary*)dict())->CX_DIGEST_REALM);
+      if (avps3 != avps2->end())
       {
-        digest_auth_vector.realm = avps2->val_str();
+        digest_auth_vector.realm = avps3->val_str();
         LOG_DEBUG("Found Digest-Realm %s", digest_auth_vector.realm.c_str());
       }
       else
       {
         // Some HSSs (in particular OpenIMSCore), use non-3GPP Digest-Realm.  Check for this too.
-        avps2 = avps->begin(((Cx::Dictionary*)dict())->DIGEST_REALM);
-        if (avps2 != end())
+        avps3 = avps2->begin(((Cx::Dictionary*)dict())->DIGEST_REALM);
+        if (avps3 != avps2->end())
         {
-          digest_auth_vector.realm = avps2->val_str();
+          digest_auth_vector.realm = avps3->val_str();
           LOG_DEBUG("Found (non-3GPP) Digest-Realm %s", digest_auth_vector.realm.c_str());
         }
       }
       // Look for the QoP.
-      avps2 = avps->begin(((Cx::Dictionary*)dict())->CX_DIGEST_QOP);
-      if (avps2 != end())
+      avps3 = avps2->begin(((Cx::Dictionary*)dict())->CX_DIGEST_QOP);
+      if (avps3 != avps2->end())
       {
-        digest_auth_vector.qop = avps2->val_str();
+        digest_auth_vector.qop = avps3->val_str();
         LOG_DEBUG("Found Digest-QoP %s", digest_auth_vector.qop.c_str());
       }
       else
       {
         // Some HSSs (in particular OpenIMSCore), use non-3GPP Digest-QoP.  Check for this too.
-        avps2 = avps->begin(((Cx::Dictionary*)dict())->DIGEST_QOP);
-        if (avps2 != end())
+        avps3 = avps2->begin(((Cx::Dictionary*)dict())->DIGEST_QOP);
+        if (avps3 != avps2->end())
         {
-          digest_auth_vector.qop = avps2->val_str();
+          digest_auth_vector.qop = avps3->val_str();
           LOG_DEBUG("Found (non-3GPP) Digest-QoP %s", digest_auth_vector.qop.c_str());
         }
       }

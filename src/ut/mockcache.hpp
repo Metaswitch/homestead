@@ -72,11 +72,30 @@ public:
                                    const int64_t timestamp,
                                    const int32_t ttl));
   MOCK_METHOD5(create_PutIMSSubscription,
-               PutIMSSubscription*(std::vector<std::string>& public_ids,
+               PutIMSSubscription*(const std::vector<std::string>& public_ids,
                                    const std::string& xml,
                                    const RegistrationState reg_state,
                                    const int64_t timestamp,
                                    const int32_t ttl));
+  MOCK_METHOD6(create_PutIMSSubscription,
+               PutIMSSubscription*(const std::string& public_id,
+                                   const std::string& xml,
+                                   const RegistrationState reg_state,
+                                   const std::vector<std::string>& impis,
+                                   const int64_t timestamp,
+                                   const int32_t ttl));
+  MOCK_METHOD6(create_PutIMSSubscription,
+               PutIMSSubscription*(const std::vector<std::string>& public_ids,
+                                   const std::string& xml,
+                                   const RegistrationState reg_state,
+                                   const std::vector<std::string>& impis,
+                                   const int64_t timestamp,
+                                   const int32_t ttl));
+  MOCK_METHOD4(create_PutAssociatedPrivateID,
+               PutAssociatedPrivateID*(const std::vector<std::string>& impus,
+                                       const std::string& impi,
+                                       const int64_t timestamp,
+                                       const int32_t ttl));
   MOCK_METHOD4(create_PutAssociatedPublicID,
                PutAssociatedPublicID*(const std::string& private_id,
                                       const std::string& assoc_public_id,
@@ -95,6 +114,8 @@ public:
                GetAssociatedPublicIDs*(const std::vector<std::string>& private_ids));
   MOCK_METHOD1(create_GetAssociatedPrimaryPublicIDs,
                GetAssociatedPrimaryPublicIDs*(const std::string& private_id));
+  MOCK_METHOD1(create_GetAssociatedPrimaryPublicIDs,
+               GetAssociatedPrimaryPublicIDs*(const std::vector<std::string>& private_ids));
   MOCK_METHOD1(create_GetAuthVector,
                GetAuthVector*(const std::string& private_id));
   MOCK_METHOD2(create_GetAuthVector,
@@ -120,6 +141,10 @@ public:
   MOCK_METHOD3(create_DissociateImplicitRegistrationSetFromImpi,
                DissociateImplicitRegistrationSetFromImpi*(const std::vector<std::string>& impus,
                                                           const std::string& impi,
+                                                          int64_t timestamp));
+  MOCK_METHOD3(create_DissociateImplicitRegistrationSetFromImpi,
+               DissociateImplicitRegistrationSetFromImpi*(const std::vector<std::string>& impus,
+                                                          const std::vector<std::string>& impis,
                                                           int64_t timestamp));
 
   // Mock request objects.
@@ -149,20 +174,25 @@ public:
   // code and the UTs easier to write.
   class MockPutIMSSubscription : public PutIMSSubscription
   {
-    std::vector<std::string> impis;
-    MockPutIMSSubscription() : PutIMSSubscription("", "", RegistrationState::REGISTERED, impis, 0) {}
+    MockPutIMSSubscription() : PutIMSSubscription("", "", RegistrationState::REGISTERED, {}, 0, 0) {}
     virtual ~MockPutIMSSubscription() {}
+  };
+
+  class MockPutAssociatedPrivateID : public PutAssociatedPrivateID
+  {
+    MockPutAssociatedPrivateID() : PutAssociatedPrivateID({}, "", 0, 0) {}
+    virtual ~MockPutAssociatedPrivateID() {}
   };
 
   class MockPutAssociatedPublicID : public PutAssociatedPublicID
   {
-    MockPutAssociatedPublicID() : PutAssociatedPublicID("", "", 0) {}
+    MockPutAssociatedPublicID() : PutAssociatedPublicID("", "", 0, 0) {}
     virtual ~MockPutAssociatedPublicID() {}
   };
 
   class MockPutAuthVector : public PutAuthVector
   {
-    MockPutAuthVector() : PutAuthVector("", mock_digest_av, 0) {}
+    MockPutAuthVector() : PutAuthVector("", mock_digest_av, 0, 0) {}
     virtual ~MockPutAuthVector() {}
   };
 
@@ -220,7 +250,7 @@ public:
 
   class MockDissociateImplicitRegistrationSetFromImpi : public DissociateImplicitRegistrationSetFromImpi
   {
-    MockDissociateImplicitRegistrationSetFromImpi() : DissociateImplicitRegistrationSetFromImpi({}, {}, 0) {}
+    MockDissociateImplicitRegistrationSetFromImpi() : DissociateImplicitRegistrationSetFromImpi({}, "", 0) {}
     virtual ~MockDissociateImplicitRegistrationSetFromImpi() {}
   };
 };

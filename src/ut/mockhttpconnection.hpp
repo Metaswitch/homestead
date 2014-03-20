@@ -1,5 +1,5 @@
 /**
- * @file sproutconnection.h 
+ * @file mockhttpconnection.h Mock HTTP connection.
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2013  Metaswitch Networks Ltd
@@ -34,31 +34,19 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#ifndef SPROUTCONNECTION_H__
-#define SPROUTCONNECTION_H__
+#ifndef MOCKHTTPCONNECTION_H__
+#define MOCKHTTPCONNECTION_H__
 
+#include "gmock/gmock.h"
 #include "httpconnection.h"
 
-class SproutConnection
+class MockHttpConnection : public HttpConnection
 {
 public:
-  SproutConnection(HttpConnection *http);
-  virtual ~SproutConnection();
+  MockHttpConnection() : HttpConnection("", false, 0) {};
+  virtual ~MockHttpConnection() {};
 
-  virtual HTTPCode deregister_bindings(const bool& send_notifications,
-                                       const std::vector<std::string>& default_public_ids,
-                                       const std::vector<std::string>& impis,
-                                       SAS::TrailId trail);
-
-  // JSON string constants
-  static const std::string JSON_REGISTRATIONS;
-  static const std::string JSON_PRIMARY_IMPU;
-  static const std::string JSON_IMPI;
- 
-private:
-  std::string create_body(const std::vector<std::string>& default_public_ids,
-                          const std::vector<std::string>& impis);
-
-  HttpConnection* _http;
+  MOCK_METHOD3(send_delete, long(const std::string& path, const std::string& body, SAS::TrailId trail));
 };
+
 #endif

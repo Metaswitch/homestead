@@ -62,6 +62,7 @@ struct options
   std::string server_name;
   int impu_cache_ttl;
   int hss_reregistration_time;
+  std::string sprout_http_name;
   std::string scheme_unknown;
   std::string scheme_digest;
   std::string scheme_aka;
@@ -182,6 +183,10 @@ int init_options(int argc, char**argv, struct options& options)
       options.hss_reregistration_time = atoi(optarg);
       break;
 
+    case 'j':
+      options.sprout_http_name = std::string(optarg);
+      break;
+
     case SCHEME_UNKNOWN:
       options.scheme_unknown = std::string(optarg);
       break;
@@ -268,6 +273,7 @@ int main(int argc, char**argv)
   options.access_log_enabled = false;
   options.impu_cache_ttl = 0;
   options.hss_reregistration_time = 1800;
+  options.sprout_http_name = "sprout-http-name.unknown";
   options.log_to_file = false;
   options.log_level = 0;
 
@@ -315,7 +321,7 @@ int main(int argc, char**argv)
     exit(2);
   }
 
-  HttpConnection* http = new HttpConnection(options.server_name + ":9888",
+  HttpConnection* http = new HttpConnection(options.sprout_http_name,
                                             false,
                                             SASEvent::TX_HSS_BASE);
   SproutConnection* sprout_conn = new SproutConnection(http);

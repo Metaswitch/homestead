@@ -506,18 +506,18 @@ private:
   int32_t _deregistration_reason;
   std::vector<std::string> _impis;
   std::vector<std::string> _impus;
-  std::vector<std::string> _impis_copy;
   std::vector<std::string> _associated_impis;
   std::vector<std::vector<std::string>> _registration_sets;
 
-  void get_associated_primary_public_ids(Cache::Request* request);
-  void get_associated_primary_public_ids_failure(Cache::Request* request,
-                                                 Cache::ResultCode error,
-                                                 std::string& text);
-  void get_registration_sets(Cache::Request* request);
-  void get_registration_sets_failure(Cache::Request* request,
-                                     Cache::ResultCode error,
-                                     std::string& text);
+  void get_assoc_primary_public_ids_success(Cache::Request* request);
+  void get_assoc_primary_public_ids_failure(Cache::Request* request,
+                                            Cache::ResultCode error,
+                                            std::string& text);
+  void get_registration_sets();
+  void get_registration_set_success(Cache::Request* request);
+  void get_registration_set_failure(Cache::Request* request,
+                                    Cache::ResultCode error,
+                                    std::string& text);
   void delete_registrations();
   void dissociate_implicit_registration_sets();
   void delete_impi_mappings();

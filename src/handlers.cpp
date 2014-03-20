@@ -804,7 +804,7 @@ std::string regstate_to_str(RegistrationState state)
   case NOT_REGISTERED:
     return "NOT_REGISTERED";
   default:
-    return "???";
+    return "???"; // LCOV_EXCL_LINE - unreachable
   }
 }
 
@@ -818,7 +818,7 @@ void ImpuRegDataHandler::on_get_ims_subscription_success(Cache::Request* request
   get_ims_sub->get_xml(_xml, ttl);
   get_ims_sub->get_registration_state(old_state, ttl);
   get_ims_sub->get_associated_impis(associated_impis);
-  bool new_binding = true;
+  bool new_binding = false;
   LOG_DEBUG("TTL for this database record is %d, IMS Subscription XML is %s, and registration state is %s",
             ttl,
             _xml.empty() ? "empty" : "not empty",
@@ -836,183 +836,239 @@ void ImpuRegDataHandler::on_get_ims_subscription_success(Cache::Request* request
     return;
   }
 
-  // Sprout didn't specify a private Id on the request, but we may
+  // If Sprout didn't specify a private Id on the request, we may
   // have one embedded in the cached User-Data which we can retrieve.
+  // If Sprout did specify a private Id on the request, check whether
+  // we have a record of this binding.
   if (_impi.empty())
   {
     _impi = XmlUtils::get_private_id(_xml);
   }
-  else if ((_cfg->hss_configured) &&
-           (!_xml.empty()) &&
+  else if ((!_xml.empty()) &&
            ((associated_impis.empty()) ||
             (std::find(associated_impis.begin(), associated_impis.end(), _impi) == associated_impis.end())))
   {
-    LOG_DEBUG("Associating private identity %s to IRS for %s", _impi.c_str(), _impu.c_str());
-    std::vector<std::string> public_ids = XmlUtils::get_public_ids(_xml);
-    Cache::Request* put_associated_private_id =
-      _cache->create_PutAssociatedPrivateID(public_ids,
-                                            _impi,
-                                            Cache::generate_timestamp(),
-                                            (2 * _cfg->hss_reregistration_time));
-    CacheTransaction* tsx = new CacheTransaction(NULL);
-    _cache->send(tsx, put_associated_private_id);
+    LOG_DEBUG("Subscriber registering with new binding");
     new_binding = true;
   }
 
-  if (_type == RequestType::REG)
+  // Split the processing depending on whether an HSS is configured.
+  if (_cfg->hss_configured)
   {
-    // This message was based on a REGISTER request from Sprout. Check
-    // the subscriber's state in Cassandra to determine whether this
-    // is an initial registration or a re-registration. The public
-    // identity may be registering with a new private identity, so also
-    // check if this is a new binding (in which case we need to notify
-    // the HSS).
-    if ((old_state == RegistrationState::REGISTERED) && (!new_binding))
+    // If the subscriber is registering with a new binding, store
+    // the private Id in the cache.
+    if (new_binding)
     {
-      _new_state = RegistrationState::REGISTERED;
-      LOG_DEBUG("Handling re-registration");
+      LOG_DEBUG("Associating private identity %s to IRS for %s",
+                _impi.c_str(),
+                _impu.c_str());
+      std::vector<std::string> public_ids = XmlUtils::get_public_ids(_xml);
+      Cache::Request* put_associated_private_id =
+        _cache->create_PutAssociatedPrivateID(public_ids,
+                                              _impi,
+                                              Cache::generate_timestamp(),
+                                              (2 * _cfg->hss_reregistration_time));
+      CacheTransaction* tsx = new CacheTransaction(NULL);
+      _cache->send(tsx, put_associated_private_id);
+    }
 
-      // We set the record's TTL to be double the --hss-reregistration-time
-      // option - once half that time has elapsed, it's time to
-      // re-notify the HSS.
-      if ((ttl < _cfg->hss_reregistration_time) && _cfg->hss_configured)
+    if (_type == RequestType::REG)
+    {
+      // This message was based on a REGISTER request from Sprout. Check
+      // the subscriber's state in Cassandra to determine whether this
+      // is an initial registration or a re-registration. If this subscriber
+      // is already registered but is registering with a new binding, we
+      // still need to tell the HSS.
+      if ((old_state == RegistrationState::REGISTERED) && (!new_binding))
       {
-        LOG_DEBUG("Sending re-registration to HSS as %d seconds have passed", _cfg->hss_reregistration_time);
-        send_server_assignment_request(Cx::ServerAssignmentType::RE_REGISTRATION);
+        LOG_DEBUG("Handling re-registration");
+        _new_state = RegistrationState::REGISTERED;
+
+        // We set the record's TTL to be double the --hss-reregistration-time
+        // option - once half that time has elapsed, it's time to
+        // re-notify the HSS.
+        if (ttl < _cfg->hss_reregistration_time)
+        {
+          LOG_DEBUG("Sending re-registration to HSS as %d seconds have passed",
+                    _cfg->hss_reregistration_time);
+          send_server_assignment_request(Cx::ServerAssignmentType::RE_REGISTRATION);
+        }
+        else
+        {
+          // No state changes are required for a re-register if we're
+          // not notifying a HSS - just respond.
+          send_reply();
+          delete this;
+          return;
+        }
       }
       else
       {
-        // No state changes are required for a re-register if we're
-        // not notifying a HSS - just respond.
-        send_reply();
-        delete this;
-        return;
-      }
-    }
-    else
-    {
-      LOG_DEBUG("Handling initial registration");
-      if (_cfg->hss_configured)
-      {
-        // If we have a HSS, we should process an initial registration
-        // by sending a Server-Assignment-Request and caching the response.
+        // Send a Server-Assignment-Request and cache the response.
+        LOG_DEBUG("Handling initial registration");
         _new_state = RegistrationState::REGISTERED;
         send_server_assignment_request(Cx::ServerAssignmentType::REGISTRATION);
       }
-      else if (old_state == RegistrationState::UNREGISTERED)
-      {
-        // No HSS, but we have been locally provisioned with this
-        // subscriber, so put it into REGISTERED state.
-        _new_state = RegistrationState::REGISTERED;
-        put_in_cache();
-        send_reply();
-        delete this;
-        return;
-      }
-      else
-      {
-        // We have no HSS and no record of this subscriber, so they
-        // don't exist.
-        _req.send_reply(404);
-        delete this;
-        return;
-      }
     }
-  }
-  else if (_type == RequestType::CALL)
-  {
-    // This message was based on an initial non-REGISTER request
-    // (INVITE, PUBLISH, MESSAGE etc.).
-    LOG_DEBUG("Handling call");
-    if (old_state == RegistrationState::NOT_REGISTERED)
+    else if (_type == RequestType::CALL)
     {
-      // We don't know anything about this subscriber. If we have a
-      // HSS, this means we should send a Server-Assignment-Request to
-      // provide unregistered service; if we don't have a HSS, reject
-      // the request.
-      if (_cfg->hss_configured)
+      // This message was based on an initial non-REGISTER request
+      // (INVITE, PUBLISH, MESSAGE etc.).
+      LOG_DEBUG("Handling call");
+
+      if (old_state == RegistrationState::NOT_REGISTERED)
       {
+        // We don't know anything about this subscriber. Send a
+        // Server-Assignment-Request to provide unregistered service for
+        // this subscriber.
         LOG_DEBUG("Moving to unregistered state");
         _new_state = RegistrationState::UNREGISTERED;
         send_server_assignment_request(Cx::ServerAssignmentType::UNREGISTERED_USER);
       }
       else
       {
-        _req.send_reply(404);
-        delete this;
-        return;
-      }
-    }
-    else
-    {
-      // We're already assigned to handle this subscriber - respond
-      // with the iFCs anfd whether they're in registered state or not.
-      send_reply();
-      delete this;
-      return;
-    }
-  }
-  else if (is_deregistration_request(_type))
-  {
-    // Sprout wants to deregister this subscriber (because of a
-    // REGISTER with Expires: 0, a timeout of all bindings, a failed
-    // app server, etc.).
-    if (old_state == RegistrationState::REGISTERED)
-    {
-      LOG_DEBUG("Handling deregistration");
-      if (_cfg->hss_configured)
-      {
-        // If we have a HSS, we should forget about this subscriber
-        // entirely and send an appropriate SAR.
-        _new_state = RegistrationState::NOT_REGISTERED;
-        send_server_assignment_request(sar_type_for_request(_type));
-      }
-      else
-      {
-        // We don't have a HSS - we should just move the subscriber
-        // into unregistered state (but retain the data, as it's not
-        // stored anywhere else).
-        _new_state = RegistrationState::UNREGISTERED;
-        put_in_cache();
+        // We're already assigned to handle this subscriber - respond
+        // with the iFCs anfd whether they're in registered state or not.
         send_reply();
         delete this;
         return;
       }
     }
+    else if (is_deregistration_request(_type))
+    {
+      // Sprout wants to deregister this subscriber (because of a
+      // REGISTER with Expires: 0, a timeout of all bindings, a failed
+      // app server, etc.).
+      if (old_state == RegistrationState::REGISTERED)
+      {
+        // Forget about this subscriber entirely and send an appropriate SAR.
+        LOG_DEBUG("Handling deregistration");
+        _new_state = RegistrationState::NOT_REGISTERED;
+        send_server_assignment_request(sar_type_for_request(_type));
+      }
+      else
+      {
+        // We treat a deregistration for a deregistered user as an error
+        // - this is useful for preventing loops, where we try and
+        // continually deregister a user.
+        LOG_DEBUG("Rejecting deregistration for user who was not registered");
+        _req.send_reply(400);
+        delete this;
+        return;
+      }
+    }
+    else if (is_auth_failure_request(_type))
+    {
+      // Authentication failures don't change our state (if a user's
+      // already registered, failing to log in with a new binding
+      // shouldn't deregister them - if they're not registered and fail
+      // to log in, they're already in the right state).
+
+      // Notify the HSS, so that it removes the Auth-Pending flag.
+      LOG_DEBUG("Handling authentication failure/timeout");
+      send_server_assignment_request(sar_type_for_request(_type));
+    }
     else
     {
-      // We treat a deregistration for a deregistered user as an error
-      // - this is useful for preventing loops, where we try and
-      // continually deregister a user
-
-      LOG_DEBUG("Rejecting deregistration for user who was not registered");
-      _req.send_reply(400);
+      // LCOV_EXCL_START - unreachable
+      LOG_ERROR("Invalid type %d", _type);
       delete this;
       return;
-    }
-  }
-  else if (is_auth_failure_request(_type))
-  {
-    // Authentication failures don't change our state (if a user's
-    // already registered, failing to log in with a new binding
-    // shouldn't deregister them - if they're not registered and fail
-    // to log in, they're already in the right state).
-
-    // If we have a HSS, we do need to notify it so that it removes
-    // the Auth-Pending flag.
-    LOG_DEBUG("Handling authentication failure/timeout");
-    if (_cfg->hss_configured)
-    {
-      send_server_assignment_request(sar_type_for_request(_type));
+      // LCOV_EXCL_STOP - unreachable
     }
   }
   else
   {
-    // LCOV_EXCL_START - unreachable
-    LOG_ERROR("Invalid type %d", _type);
+    // No HSS
+    if (_type == RequestType::REG)
+    {
+      // This message was based on a REGISTER request from Sprout. Check
+      // the subscriber's state in Cassandra to determine whether this
+      // is an initial registration or a re-registration.
+      switch (old_state)
+      {
+      case RegistrationState::REGISTERED:
+        // No state changes in the cache are required for a re-register -
+        // just respond.
+        LOG_DEBUG("Handling re-registration");
+        _new_state = RegistrationState::REGISTERED;
+        send_reply();
+        break;
+
+      case RegistrationState::UNREGISTERED:
+        // We have been locally provisioned with this subscriber, so
+        // put it into REGISTERED state.
+        LOG_DEBUG("Handling initial registration");
+        _new_state = RegistrationState::REGISTERED;
+        put_in_cache();
+        send_reply();
+        break;
+
+      default:
+        // We have no record of this subscriber, so they don't exist.
+        LOG_DEBUG("Unrecognised subscriber");
+        _req.send_reply(404);
+        break;
+      }
+    }
+    else if (_type == RequestType::CALL)
+    {
+      // This message was based on an initial non-REGISTER request
+      // (INVITE, PUBLISH, MESSAGE etc.).
+      LOG_DEBUG("Handling call");
+
+      if (old_state == RegistrationState::NOT_REGISTERED)
+      {
+        // We don't know anything about this subscriber so reject
+        // the request.
+        _req.send_reply(404);
+      }
+      else
+      {
+        // We're already assigned to handle this subscriber - respond
+        // with the iFCs and whether they're in registered state or not.
+        send_reply();
+      }
+    }
+    else if (is_deregistration_request(_type))
+    {
+      // Sprout wants to deregister this subscriber (because of a
+      // REGISTER with Expires: 0, a timeout of all bindings, a failed
+      // app server, etc.).
+      if (old_state == RegistrationState::REGISTERED)
+      {
+        // Move the subscriber into unregistered state (but retain the
+        // data, as it's not stored anywhere else).
+        LOG_DEBUG("Handling deregistration");
+        _new_state = RegistrationState::UNREGISTERED;
+        put_in_cache();
+        send_reply();
+      }
+      else
+      {
+        // We treat a deregistration for a deregistered user as an error
+        // - this is useful for preventing loops, where we try and
+        // continually deregister a user
+        LOG_DEBUG("Rejecting deregistration for user who was not registered");
+        _req.send_reply(400);
+      }
+    }
+    else if (is_auth_failure_request(_type))
+    {
+      // Authentication failures don't change our state (if a user's
+      // already registered, failing to log in with a new binding
+      // shouldn't deregister them - if they're not registered and fail
+      // to log in, they're already in the right state).
+      LOG_DEBUG("Handling authentication failure/timeout");
+      _req.send_reply(200);
+    }
+    else
+    {
+      // LCOV_EXCL_START - unreachable
+      LOG_ERROR("Invalid type %d", _type);
+      // LCOV_EXCL_STOP - unreachable
+    }
     delete this;
-    return;
-    // LCOV_EXCL_STOP - unreachable
   }
 }
 
@@ -1118,7 +1174,6 @@ void ImpuRegDataHandler::on_sar_response(Diameter::Message& rsp)
   Cx::ServerAssignmentAnswer saa(rsp);
   int32_t result_code = 0;
   saa.result_code(result_code);
-  saa.user_data(_xml);
   LOG_DEBUG("Received Server-Assignment answer with result code %d", result_code);
 
   // Even if the HSS rejects our deregistration request, we should
@@ -1155,6 +1210,7 @@ void ImpuRegDataHandler::on_sar_response(Diameter::Message& rsp)
       if (!is_deregistration_request(_type) && !is_auth_failure_request(_type))
       {
         LOG_DEBUG("Getting User-Data from SAA for cache");
+        saa.user_data(_xml);
         put_in_cache();
       }
       send_reply();
@@ -1241,16 +1297,19 @@ void RegistrationTerminationHandler::run()
   LOG_INFO("Received Regestration-Termination request with dereg reason %d",
            _deregistration_reason);
 
-  if (((_impus.empty()) && ((_deregistration_reason == PERMANENT_TERMINATION) ||
-                            (_deregistration_reason == REMOVE_SCSCF))) ||
-      (_deregistration_reason == SERVER_CHANGE))
+  if ((_impus.empty()) && ((_deregistration_reason == PERMANENT_TERMINATION) ||
+                           (_deregistration_reason == REMOVE_SCSCF) ||
+                           (_deregistration_reason == SERVER_CHANGE)))
   {
     // Find all the default public identities associated with the
-    // private identities specified on the request. Create a copy of
-    // our private identities so that we can keep track of which ones
-    // we've made cache requests for.
-    _impis_copy = _impis;
-    get_associated_primary_public_ids(NULL);
+    // private identities specified on the request.
+    std::string impis_string = boost::algorithm::join(_impis, ", ");
+    LOG_DEBUG("Finding associated default public identities for impis %s", impis_string.c_str());
+    Cache::Request* get_associated_impus = _cfg->cache->create_GetAssociatedPrimaryPublicIDs(_impis);
+    CacheTransaction* tsx = new CacheTransaction(this);
+    tsx->set_success_clbk(&RegistrationTerminationHandler::get_assoc_primary_public_ids_success);
+    tsx->set_failure_clbk(&RegistrationTerminationHandler::get_assoc_primary_public_ids_failure);
+    _cfg->cache->send(tsx, get_associated_impus);
   }
   else if ((!_impus.empty()) && ((_deregistration_reason == PERMANENT_TERMINATION) ||
                                  (_deregistration_reason == REMOVE_SCSCF) ||
@@ -1258,7 +1317,7 @@ void RegistrationTerminationHandler::run()
   {
     // Find information about the registration sets for the public
     // identities specified on the request.
-    get_registration_sets(NULL);
+    get_registration_sets();
   }
   else
   {
@@ -1267,108 +1326,52 @@ void RegistrationTerminationHandler::run()
     // are errors.
     LOG_ERROR("Unexpected Registration-Termination request received with deregistration reason %d",
               _deregistration_reason);
+    send_rta(DIAMETER_REQ_FAILURE);
+    delete this;
   }
 }
 
-void RegistrationTerminationHandler::get_associated_primary_public_ids(Cache::Request* request)
+void RegistrationTerminationHandler::get_assoc_primary_public_ids_success(Cache::Request* request)
 {
-  // This is a recursive function. It makes cache requests and sets itself
-  // as the callback. The function creates a list of all the default public
-  // identities associated with the private identities specified on the RTR.
-  if (request != NULL)
-  {
-    // Add the default public identities returned by the cache to _impus.
-    Cache::GetAssociatedPrimaryPublicIDs* get_associated_impus_result =
-      (Cache::GetAssociatedPrimaryPublicIDs*)request;
-    std::vector<std::string> associated_primary_public_ids;
-    get_associated_impus_result->get_result(associated_primary_public_ids);
-    _impus.insert(_impus.end(),
-                  associated_primary_public_ids.begin(),
-                  associated_primary_public_ids.end());
+  // Get the default public identities returned by the cache.
+  Cache::GetAssociatedPrimaryPublicIDs* get_associated_impus_result =
+    (Cache::GetAssociatedPrimaryPublicIDs*)request;
+  get_associated_impus_result->get_result(_impus);
 
-    // We have now finished with the last element of the copy vector, so
-    // get rid of it.
-     _impis_copy.pop_back();
-  }
-
-  if (!_impis_copy.empty())
-  {
-    std::string impi = _impis_copy.back();
-    LOG_DEBUG("Finding associated default public identities for impi %s", impi.c_str());
-    Cache::Request* get_associated_impus = _cfg->cache->create_GetAssociatedPrimaryPublicIDs(impi);
-    CacheTransaction* tsx = new CacheTransaction(this);
-    tsx->set_success_clbk(&RegistrationTerminationHandler::get_associated_primary_public_ids);
-    tsx->set_failure_clbk(&RegistrationTerminationHandler::get_associated_primary_public_ids_failure);
-    _cfg->cache->send(tsx, get_associated_impus);
-  }
-  else
-  {
-    // We now have all the default public identities. Find their registration sets.
-    // Remove any duplicates first.
-    sort(_impus.begin(), _impus.end());
-    _impus.erase(unique(_impus.begin(), _impus.end()), _impus.end());
-    get_registration_sets(NULL);
-  }
+  // We now have all the default public identities. Find their registration sets.
+  // Remove any duplicates first. We do this by sorting the vector, using unique
+  // to move the unique values to the front and erasing everything after the last
+  // unique value.
+  sort(_impus.begin(), _impus.end());
+  _impus.erase(unique(_impus.begin(), _impus.end()), _impus.end());
+  get_registration_sets();
 }
 
-void RegistrationTerminationHandler::get_associated_primary_public_ids_failure(Cache::Request* request,
-                                                                               Cache::ResultCode error,
-                                                                               std::string& text)
+void RegistrationTerminationHandler::get_assoc_primary_public_ids_failure(Cache::Request* request,
+                                                                          Cache::ResultCode error,
+                                                                          std::string& text)
 {
   // We don't worry too much about this. Just move on to the next private ID.
-  LOG_DEBUG("Failed to get associated default public identities for impi %s", _impis_copy.back().c_str());
-  _impis_copy.pop_back();
-  get_associated_primary_public_ids(NULL);
+  LOG_DEBUG("Failed to get associated default public identities");
+  send_rta(DIAMETER_REQ_FAILURE);
+  delete this;
 }
 
-void RegistrationTerminationHandler::get_registration_sets(Cache::Request* request)
+void RegistrationTerminationHandler::get_registration_sets()
 {
-  // This is a recursive function. It makes cache requests and sets itself
-  // as the callback. The function creates a list of all the registration sets
-  // associated with this RTR. It can also save off a list of private identities
-  // associated with our public identities.
-  if (request != NULL)
-  {
-    Cache::GetIMSSubscription* get_ims_sub_result = (Cache::GetIMSSubscription*)request;
-    std::string ims_sub;
-    int32_t temp;
-    get_ims_sub_result->get_xml(ims_sub, temp);
-
-    // Add the list of public identities in the IMS subscription to
-    // the list of registration sets and remove the last element of
-    // _impus so that we can keep track of which public identities
-    // we've looked up.
-    std::vector<std::string> public_ids = XmlUtils::get_public_ids(ims_sub);
-    if (!public_ids.empty())
-    {
-      _registration_sets.push_back(XmlUtils::get_public_ids(ims_sub));
-    }
-    _impus.pop_back();
-
-    if ((_deregistration_reason == SERVER_CHANGE) ||
-        (_deregistration_reason == NEW_SERVER_ASSIGNED))
-    {
-      // GetIMSSubscription also returns a list of associated private
-      // identities. Save these off.
-      std::vector<std::string> associated_impis;
-      get_ims_sub_result->get_associated_impis(associated_impis);
-      std::string associated_impis_string = boost::algorithm::join(associated_impis, ", ");
-      LOG_DEBUG("GetIMSSubscription returned associated identites: %s",
-                associated_impis_string.c_str());
-      _associated_impis.insert(_associated_impis.end(),
-                               associated_impis.begin(),
-                               associated_impis.end());
-    }
-  }
-
+  // This function issues a GetIMSSubscription cache request for a public identity
+  // on the list of IMPUs and then removes that public identity from the list. It
+  // should get called again after the cache response by the callback functions.
+  // Once there are no public identities remaining, it deletes the registrations.
   if (!_impus.empty())
   {
     std::string impu = _impus.back();
+    _impus.pop_back();
     LOG_DEBUG("Finding registration set for public identity %s", impu.c_str());
     Cache::Request* get_ims_sub = _cfg->cache->create_GetIMSSubscription(impu);
     CacheTransaction* tsx = new CacheTransaction(this);
-    tsx->set_success_clbk(&RegistrationTerminationHandler::get_registration_sets);
-    tsx->set_failure_clbk(&RegistrationTerminationHandler::get_registration_sets_failure);
+    tsx->set_success_clbk(&RegistrationTerminationHandler::get_registration_set_success);
+    tsx->set_failure_clbk(&RegistrationTerminationHandler::get_registration_set_failure);
     _cfg->cache->send(tsx, get_ims_sub);
   }
   else
@@ -1378,19 +1381,53 @@ void RegistrationTerminationHandler::get_registration_sets(Cache::Request* reque
   }
 }
 
-void RegistrationTerminationHandler::get_registration_sets_failure(Cache::Request* request,
-                                                                   Cache::ResultCode error,
-                                                                   std::string& text)
+void RegistrationTerminationHandler::get_registration_set_success(Cache::Request* request)
 {
-  // We don't worry too much about this. Just move on to the next public ID.
-  LOG_DEBUG("Failed to get registration set for public identity %s", _impus.back().c_str());
-  _impus.pop_back();
-  get_registration_sets(NULL);
+  Cache::GetIMSSubscription* get_ims_sub_result = (Cache::GetIMSSubscription*)request;
+  std::string ims_sub;
+  int32_t temp;
+  get_ims_sub_result->get_xml(ims_sub, temp);
+
+  // Add the list of public identities in the IMS subscription to
+  // the list of registration sets..
+  std::vector<std::string> public_ids = XmlUtils::get_public_ids(ims_sub);
+  if (!public_ids.empty())
+  {
+    _registration_sets.push_back(XmlUtils::get_public_ids(ims_sub));
+  }
+
+  if ((_deregistration_reason == SERVER_CHANGE) ||
+      (_deregistration_reason == NEW_SERVER_ASSIGNED))
+  {
+    // GetIMSSubscription also returns a list of associated private
+    // identities. Save these off.
+    std::vector<std::string> associated_impis;
+    get_ims_sub_result->get_associated_impis(associated_impis);
+    std::string associated_impis_string = boost::algorithm::join(associated_impis, ", ");
+    LOG_DEBUG("GetIMSSubscription returned associated identites: %s",
+              associated_impis_string.c_str());
+    _associated_impis.insert(_associated_impis.end(),
+                             associated_impis.begin(),
+                             associated_impis.end());
+  }
+
+  // Call back into get_registration_sets
+  get_registration_sets();
+}
+
+void RegistrationTerminationHandler::get_registration_set_failure(Cache::Request* request,
+                                                                  Cache::ResultCode error,
+                                                                  std::string& text)
+{
+  LOG_DEBUG("Failed to get a registration set");
+
+  // Call back into get_registration_sets
+  get_registration_sets();
 }
 
 void RegistrationTerminationHandler::delete_registrations()
 {
-  // No real SAS implementation yet.
+  // No real SAS implementation yet. TODO.
   SAS::TrailId fake_trail = 0;
   HTTPCode ret_code = 0;
   std::vector<std::string> empty_vector;
@@ -1410,21 +1447,32 @@ void RegistrationTerminationHandler::delete_registrations()
   switch (_deregistration_reason)
   {
   case PERMANENT_TERMINATION:
-    ret_code = _cfg->sprout_conn->send_delete(false, default_public_identities, _impis, fake_trail);
+    ret_code = _cfg->sprout_conn->deregister_bindings(false,
+                                                      default_public_identities,
+                                                      _impis,
+                                                      fake_trail);
     break;
 
   case REMOVE_SCSCF:
   case SERVER_CHANGE:
-    ret_code = _cfg->sprout_conn->send_delete(true, default_public_identities, empty_vector, fake_trail);
+    ret_code = _cfg->sprout_conn->deregister_bindings(true,
+                                                      default_public_identities,
+                                                      empty_vector,
+                                                      fake_trail);
     break;
 
   case NEW_SERVER_ASSIGNED:
-    ret_code = _cfg->sprout_conn->send_delete(false, default_public_identities, empty_vector, fake_trail);
+    ret_code = _cfg->sprout_conn->deregister_bindings(false,
+                                                      default_public_identities,
+                                                      empty_vector,
+                                                      fake_trail);
     break;
 
   default:
+    // LCOV_EXCL_START - We can't get here because we've already filtered these out.
     LOG_ERROR("Unexpected deregistration reason %d on RTR", _deregistration_reason);
     break;
+    // LCOV_EXCL_STOP
   }
 
   switch (ret_code)
@@ -1462,29 +1510,29 @@ void RegistrationTerminationHandler::delete_registrations()
 
 void RegistrationTerminationHandler::dissociate_implicit_registration_sets()
 {
-  // Dissociate each private identity from each registration set.
-  for (std::vector<std::string>::iterator i = _impis.begin();
-       i != _impis.end();
+  // Dissociate the private identities from each registration set.
+  for (std::vector<std::vector<std::string>>::iterator i = _registration_sets.begin();
+       i != _registration_sets.end();
        i++)
   {
-    for (std::vector<std::vector<std::string>>::iterator j = _registration_sets.begin();
-         j != _registration_sets.end();
-         j++)
-    {
-      Cache::Request* dissociate_reg_set =
-        _cfg->cache->create_DissociateImplicitRegistrationSetFromImpi(*j, *i, Cache::generate_timestamp());
-      CacheTransaction* tsx = new CacheTransaction(this);
-      _cfg->cache->send(tsx, dissociate_reg_set);
-    }
+    Cache::Request* dissociate_reg_set =
+      _cfg->cache->create_DissociateImplicitRegistrationSetFromImpi(*i, _impis, Cache::generate_timestamp());
+    CacheTransaction* tsx = new CacheTransaction(this);
+    _cfg->cache->send(tsx, dissociate_reg_set);
   }
 }
 
 void RegistrationTerminationHandler::delete_impi_mappings()
 {
   // Delete rows from the IMPI table for all associated IMPIs. First remove any
-  // duplicates in the list of _associated_impis.
+  // duplicates in the list of _associated_impis. We do this by sorting the vector,
+  // using unique to move the unique values to the front and erasing everything
+  // after the last unique value.
   sort(_associated_impis.begin(), _associated_impis.end());
   _associated_impis.erase(unique(_associated_impis.begin(), _associated_impis.end()), _associated_impis.end());
+  std::string associated_impis_string = boost::algorithm::join(_associated_impis, ", ");
+  LOG_DEBUG("Deleting IMPI mappings for the following IMPIs: %s",
+            associated_impis_string.c_str());
   Cache::Request* delete_impis = _cfg->cache->create_DeleteIMPIMapping(_associated_impis, Cache::generate_timestamp());
   CacheTransaction* tsx = new CacheTransaction(this);
   _cfg->cache->send(tsx, delete_impis);

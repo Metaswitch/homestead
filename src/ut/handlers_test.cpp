@@ -62,9 +62,11 @@
 #include "mockdiameterstack.hpp"
 #include "mockhttpstack.hpp"
 #include "mockcache.hpp"
+#include "mockhttpconnection.hpp"
 #include "handlers.h"
 #include "mockstatisticsmanager.hpp"
 #include "fakelogger.hpp"
+#include "sproutconnection.h"
 
 using ::testing::Return;
 using ::testing::SetArgReferee;
@@ -87,6 +89,7 @@ public:
   static const std::string IMPI;
   static const std::string IMPU;
   static std::vector<std::string> IMPU_IN_VECTOR;
+  static std::vector<std::string> IMPI_IN_VECTOR;
   static const std::string IMS_SUBSCRIPTION;
   static const std::string REGDATA_RESULT;
   static const std::string REGDATA_RESULT_UNREG;
@@ -98,18 +101,37 @@ public:
   static const ServerCapabilities CAPABILITIES;
   static const ServerCapabilities NO_CAPABILITIES;
   static const int32_t AUTH_SESSION_STATE;
+  static const std::string ASSOCIATED_IDENTITY1;
+  static const std::string ASSOCIATED_IDENTITY2;
   static std::vector<std::string> ASSOCIATED_IDENTITIES;
+  static const std::string IMPU2;
+  static const std::string IMPU3;
+  static const std::string IMPU4;
   static std::vector<std::string> IMPUS;
+  static std::vector<std::string> ASSOCIATED_IDENTITY1_IN_VECTOR;
+  static std::vector<std::string> IMPU_REG_SET;
+  static std::vector<std::string> IMPU3_REG_SET;
+  static const std::string IMPU_IMS_SUBSCRIPTION;
+  static const std::string IMPU3_IMS_SUBSCRIPTION;
   static const std::string SCHEME_UNKNOWN;
   static const std::string SCHEME_DIGEST;
   static const std::string SCHEME_AKA;
   static const std::string SIP_AUTHORIZATION;
+  static const std::string HTTP_PATH_REG_TRUE;
+  static const std::string HTTP_PATH_REG_FALSE;
+  static std::vector<std::string> EMPTY_VECTOR;
+  static const std::string DEREG_BODY_PAIRINGS;
+  static const std::string DEREG_BODY_LIST;
+  static const std::string DEREG_BODY_PAIRINGS2;
+  static const std::string DEREG_BODY_LIST2;
 
   static Diameter::Stack* _real_stack;
   static MockDiameterStack* _mock_stack;
   static Cx::Dictionary* _cx_dict;
   static MockCache* _cache;
   static MockHttpStack* _httpstack;
+  static MockHttpConnection* _mock_http_conn;
+  static SproutConnection* _sprout_conn;
 
   // Two mock stats managers, so we can choose whether to ignore stats or not.
   static NiceMock<MockStatisticsManager>* _nice_stats;
@@ -139,6 +161,8 @@ public:
     _cx_dict = new Cx::Dictionary();
     _cache = new MockCache();
     _httpstack = new MockHttpStack();
+    _mock_http_conn = new MockHttpConnection();
+    _sprout_conn = new SproutConnection(_mock_http_conn);
 
     _stats = new StrictMock<MockStatisticsManager>;
     _nice_stats = new NiceMock<MockStatisticsManager>;
@@ -164,6 +188,7 @@ public:
     delete _mock_stack; _mock_stack = NULL;
     delete _cache; _cache = NULL;
     delete _httpstack; _httpstack = NULL;
+    delete _sprout_conn; _sprout_conn = NULL;
     _real_stack->stop();
     _real_stack->wait_stopped();
     _real_stack = NULL;
@@ -294,7 +319,7 @@ public:
                                        std::string expected_result = REGDATA_RESULT_DEREG,
                                        RegistrationState expected_new_state = RegistrationState::NOT_REGISTERED)
   {
-    reg_data_template(request_type, use_impi, db_regstate, expected_type, db_ttl, expected_result, expected_new_state, true);
+    reg_data_template(request_type, use_impi, false, db_regstate, expected_type, db_ttl, expected_result, expected_new_state, true);
   }
 
   // Test function for the case where we have a HSS. Feeds a request
@@ -302,6 +327,7 @@ public:
   // database delete or insert, and then verifies the response.
   void reg_data_template(std::string request_type,
                          bool use_impi,
+                         bool new_binding,
                          RegistrationState db_regstate,
                          int expected_type,
                          int db_ttl = 3600,
@@ -334,9 +360,31 @@ public:
     Cache::Transaction* t = mock_req.get_trx();
     ASSERT_FALSE(t == NULL);
     EXPECT_CALL(mock_req, get_xml(_, _))
-      .WillRepeatedly(DoAll(SetArgReferee<0>(IMS_SUBSCRIPTION), SetArgReferee<1>(db_ttl)));
+      .WillRepeatedly(DoAll(SetArgReferee<0>(IMPU_IMS_SUBSCRIPTION), SetArgReferee<1>(db_ttl)));
     EXPECT_CALL(mock_req, get_registration_state(_, _))
       .WillRepeatedly(DoAll(SetArgReferee<0>(db_regstate), SetArgReferee<1>(db_ttl)));
+
+    // If we have the new_binding flag set, return a list of associated IMPIs
+    // not containing the IMPI specified on the request. Add IMPI to the list
+    // if this isn't a new binding.
+    std::vector<std::string> associated_identities = ASSOCIATED_IDENTITIES;
+    if (!new_binding)
+    {
+      associated_identities.push_back(IMPI);
+    }
+    EXPECT_CALL(mock_req, get_associated_impis(_))
+      .WillRepeatedly(SetArgReferee<0>(associated_identities));
+
+    // If this is a new binding, we expect to put the new associated
+    // IMPI in the cache.
+    MockCache::MockPutAssociatedPrivateID mock_req2;
+    if (new_binding)
+    {
+      EXPECT_CALL(*_cache, create_PutAssociatedPrivateID(IMPU_REG_SET, IMPI, _, 7200))
+        .WillOnce(Return(&mock_req2));
+      EXPECT_CALL(*_cache, send(_, &mock_req2))
+        .WillOnce(WithArgs<0>(Invoke(&mock_req2, &Cache::Request::set_trx)));
+    }
 
     // A Server-Assignment-Request should be generated for this
     // test. Check for it, and check that its properties are as expected.
@@ -346,6 +394,11 @@ public:
 
     t->on_success(&mock_req);
 
+    if ((new_binding) && (use_impi))
+    {
+      t = mock_req2.get_trx();
+      ASSERT_FALSE(t == NULL);
+    }
     ASSERT_FALSE(_caught_diam_tsx == NULL);
     Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
     Cx::ServerAssignmentRequest sar(msg);
@@ -365,7 +418,7 @@ public:
     Cx::ServerAssignmentAnswer saa(_cx_dict,
                                    _mock_stack,
                                    DIAMETER_SUCCESS,
-                                   IMS_SUBSCRIPTION);
+                                   IMPU_IMS_SUBSCRIPTION);
 
     if (!expect_deletion)
     {
@@ -376,16 +429,16 @@ public:
 
       // Once we simulate the Diameter response, check that the
       // database is updated and a 200 OK is sent.
-      MockCache::MockPutIMSSubscription mock_req2;
-      EXPECT_CALL(*_cache, create_PutIMSSubscription(IMPU_IN_VECTOR, IMS_SUBSCRIPTION, expected_new_state, _, 7200))
-        .WillOnce(Return(&mock_req2));
-      EXPECT_CALL(*_cache, send(_, &mock_req2))
-        .WillOnce(WithArgs<0>(Invoke(&mock_req2, &Cache::Request::set_trx)));
+      MockCache::MockPutIMSSubscription mock_req3;
+      EXPECT_CALL(*_cache, create_PutIMSSubscription(IMPU_REG_SET, IMPU_IMS_SUBSCRIPTION, expected_new_state, IMPI_IN_VECTOR, _, 7200))
+        .WillOnce(Return(&mock_req3));
+      EXPECT_CALL(*_cache, send(_, &mock_req3))
+        .WillOnce(WithArgs<0>(Invoke(&mock_req3, &Cache::Request::set_trx)));
 
       EXPECT_CALL(*_httpstack, send_reply(_, 200));
       _caught_diam_tsx->on_response(saa);
 
-      t = mock_req2.get_trx();
+      t = mock_req3.get_trx();
       ASSERT_FALSE(t == NULL);
     }
     else
@@ -394,16 +447,16 @@ public:
       // the database after the SAA. Check that they are, and that a
       // 200 OK HTTP response is sent.
 
-      MockCache::MockDeletePublicIDs mock_req2;
-      EXPECT_CALL(*_cache, create_DeletePublicIDs(IMPU_IN_VECTOR, _))
-        .WillOnce(Return(&mock_req2));
-      EXPECT_CALL(*_cache, send(_, &mock_req2))
-        .WillOnce(WithArgs<0>(Invoke(&mock_req2, &Cache::Request::set_trx)));
+      MockCache::MockDeletePublicIDs mock_req3;
+      EXPECT_CALL(*_cache, create_DeletePublicIDs(IMPU_REG_SET, IMPI_IN_VECTOR, _))
+        .WillOnce(Return(&mock_req3));
+      EXPECT_CALL(*_cache, send(_, &mock_req3))
+        .WillOnce(WithArgs<0>(Invoke(&mock_req3, &Cache::Request::set_trx)));
 
       EXPECT_CALL(*_httpstack, send_reply(_, 200));
       _caught_diam_tsx->on_response(saa);
 
-      t = mock_req2.get_trx();
+      t = mock_req3.get_trx();
       ASSERT_FALSE(t == NULL);
     }
 
@@ -448,9 +501,11 @@ public:
     Cache::Transaction* t = mock_req.get_trx();
     ASSERT_FALSE(t == NULL);
     EXPECT_CALL(mock_req, get_xml(_, _))
-      .WillRepeatedly(DoAll(SetArgReferee<0>(IMS_SUBSCRIPTION), SetArgReferee<1>(db_ttl)));
+      .WillRepeatedly(DoAll(SetArgReferee<0>(IMPU_IMS_SUBSCRIPTION), SetArgReferee<1>(db_ttl)));
     EXPECT_CALL(mock_req, get_registration_state(_, _))
       .WillRepeatedly(DoAll(SetArgReferee<0>(db_regstate), SetArgReferee<1>(db_ttl)));
+    EXPECT_CALL(mock_req, get_associated_impis(_))
+            .WillRepeatedly(SetArgReferee<0>(IMPI_IN_VECTOR));
 
     // No SAR was generated, so there shouldn't be any effect on the
     // database - just check that we send back a response.
@@ -466,6 +521,7 @@ public:
   // Server-Assignment-Request, but not update the database.
   void reg_data_template_no_write(std::string body,
                                   bool use_impi,
+                                  bool hss_configured,
                                   RegistrationState db_regstate,
                                   int expected_type,
                                   int db_ttl = 3600,
@@ -477,7 +533,7 @@ public:
                                use_impi ? "?private_id=" + IMPI : "",
                                "{\"reqtype\": \"" + body +"\"}",
                                htp_method_PUT);
-    ImpuRegDataHandler::Config cfg(true, 3600);
+    ImpuRegDataHandler::Config cfg(hss_configured, 3600);
     ImpuRegDataHandler* handler = new ImpuRegDataHandler(req, &cfg);
 
     MockCache::MockGetIMSSubscription mock_req;
@@ -490,36 +546,50 @@ public:
     Cache::Transaction* t = mock_req.get_trx();
     ASSERT_FALSE(t == NULL);
     EXPECT_CALL(mock_req, get_xml(_, _))
-      .WillRepeatedly(DoAll(SetArgReferee<0>(IMS_SUBSCRIPTION), SetArgReferee<1>(db_ttl)));
+      .WillRepeatedly(DoAll(SetArgReferee<0>(IMPU_IMS_SUBSCRIPTION), SetArgReferee<1>(db_ttl)));
     EXPECT_CALL(mock_req, get_registration_state(_, _))
       .WillRepeatedly(DoAll(SetArgReferee<0>(db_regstate), SetArgReferee<1>(db_ttl)));
-    EXPECT_CALL(*_mock_stack, send(_, _, 200))
-      .Times(1)
-      .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
+    EXPECT_CALL(mock_req, get_associated_impis(_))
+          .WillRepeatedly(SetArgReferee<0>(IMPI_IN_VECTOR));
+
+    if (hss_configured)
+    {
+      EXPECT_CALL(*_mock_stack, send(_, _, 200))
+        .Times(1)
+        .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
+    }
+    else
+    {
+      EXPECT_CALL(*_httpstack, send_reply(_, 200));
+    }
 
     t->on_success(&mock_req);
 
-    ASSERT_FALSE(_caught_diam_tsx == NULL);
-    Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
-    Cx::ServerAssignmentRequest sar(msg);
-    EXPECT_TRUE(sar.get_str_from_avp(_cx_dict->DESTINATION_REALM, test_str));
-    EXPECT_EQ(DEST_REALM, test_str);
-    EXPECT_TRUE(sar.get_str_from_avp(_cx_dict->DESTINATION_HOST, test_str));
-    EXPECT_EQ(DEST_HOST, test_str);
-    EXPECT_EQ(IMPI, sar.impi());
-    EXPECT_EQ(IMPU, sar.impu());
-    EXPECT_TRUE(sar.server_name(test_str));
-    EXPECT_EQ(DEFAULT_SERVER_NAME, test_str);
-    EXPECT_TRUE(sar.server_assignment_type(test_i32));
-    EXPECT_EQ(expected_type, test_i32);
+    if (hss_configured)
+    {
+      ASSERT_FALSE(_caught_diam_tsx == NULL);
+      Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
+      Cx::ServerAssignmentRequest sar(msg);
+      EXPECT_TRUE(sar.get_str_from_avp(_cx_dict->DESTINATION_REALM, test_str));
+      EXPECT_EQ(DEST_REALM, test_str);
+      EXPECT_TRUE(sar.get_str_from_avp(_cx_dict->DESTINATION_HOST, test_str));
+      EXPECT_EQ(DEST_HOST, test_str);
+      EXPECT_EQ(IMPI, sar.impi());
+      EXPECT_EQ(IMPU, sar.impu());
+      EXPECT_TRUE(sar.server_name(test_str));
+      EXPECT_EQ(DEFAULT_SERVER_NAME, test_str);
+      EXPECT_TRUE(sar.server_assignment_type(test_i32));
+      EXPECT_EQ(expected_type, test_i32);
 
-    Cx::ServerAssignmentAnswer saa(_cx_dict,
-                                   _mock_stack,
-                                   DIAMETER_SUCCESS,
-                                   IMS_SUBSCRIPTION);
+      Cx::ServerAssignmentAnswer saa(_cx_dict,
+                                     _mock_stack,
+                                     DIAMETER_SUCCESS,
+                                     IMPU_IMS_SUBSCRIPTION);
 
-    EXPECT_CALL(*_httpstack, send_reply(_, 200));
-    _caught_diam_tsx->on_response(saa);
+      EXPECT_CALL(*_httpstack, send_reply(_, 200));
+      _caught_diam_tsx->on_response(saa);
+    }
+
     // Build the expected response and check it's correct
     EXPECT_EQ(expected_result, req.content());
     _caught_fd_msg = NULL;
@@ -560,18 +630,25 @@ public:
     Cache::Transaction* t = mock_req.get_trx();
     ASSERT_FALSE(t == NULL);
     EXPECT_CALL(mock_req, get_xml(_, _))
-      .WillRepeatedly(DoAll(SetArgReferee<0>(IMS_SUBSCRIPTION), SetArgReferee<1>(db_ttl)));
+      .WillRepeatedly(DoAll(SetArgReferee<0>(IMPU_IMS_SUBSCRIPTION), SetArgReferee<1>(db_ttl)));
     EXPECT_CALL(mock_req, get_registration_state(_, _))
       .WillRepeatedly(DoAll(SetArgReferee<0>(db_regstate), SetArgReferee<1>(db_ttl)));
+    EXPECT_CALL(mock_req, get_associated_impis(_));
 
     if (expect_update)
     {
       // If we expect the subscriber's registration state to be updated,
       // check that an appropriate database write is made.
       MockCache::MockPutIMSSubscription mock_req2;
+      std::vector<std::string> no_associated_impis;
 
       // We should never set a TTL in the non-HSS case
-      EXPECT_CALL(*_cache, create_PutIMSSubscription(IMPU_IN_VECTOR, IMS_SUBSCRIPTION, expected_new_state, _, 0))
+      EXPECT_CALL(*_cache, create_PutIMSSubscription(IMPU_REG_SET,
+                                                     IMPU_IMS_SUBSCRIPTION,
+                                                     expected_new_state,
+                                                     no_associated_impis,
+                                                     _,
+                                                     0))
         .WillOnce(Return(&mock_req2));
       EXPECT_CALL(*_cache, send(_, &mock_req2))
         .WillOnce(WithArgs<0>(Invoke(&mock_req2, &Cache::Request::set_trx)));
@@ -591,6 +668,45 @@ public:
     }
     // Build the expected response and check it's correct
     EXPECT_EQ(expected_result, req.content());
+  }
+
+  void reg_data_template_invalid_dereg(bool hss_configured)
+  {
+    MockHttpStack::Request req(_httpstack,
+                               "/impu/" + IMPU + "/reg-data",
+                               "",
+                               "?private_id=" + IMPI,
+                               "{\"reqtype\": \"dereg-user\"}",
+                               htp_method_PUT);
+    ImpuRegDataHandler::Config cfg(hss_configured, 3600);
+    ImpuRegDataHandler* handler = new ImpuRegDataHandler(req, &cfg);
+
+    MockCache::MockGetIMSSubscription mock_req;
+    EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU))
+      .WillOnce(Return(&mock_req));
+    EXPECT_CALL(*_cache, send(_, &mock_req))
+      .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
+    handler->run();
+
+    Cache::Transaction* t = mock_req.get_trx();
+    ASSERT_FALSE(t == NULL);
+    EXPECT_CALL(mock_req, get_xml(_, _))
+      .WillRepeatedly(SetArgReferee<0>(IMS_SUBSCRIPTION));
+    EXPECT_CALL(mock_req, get_associated_impis(_))
+      .WillRepeatedly(SetArgReferee<0>(IMPI_IN_VECTOR));
+
+    // Ensure that the database returns NOT_REGISTERED.
+    EXPECT_CALL(mock_req, get_registration_state(_, _))
+      .WillRepeatedly(SetArgReferee<0>(RegistrationState::NOT_REGISTERED));
+
+    // A 400 error should be sent as a result.
+    EXPECT_CALL(*_httpstack, send_reply(_, 400));
+    t->on_success(&mock_req);
+
+    EXPECT_EQ("", req.content());
+
+    _caught_diam_tsx = NULL;
+    _caught_fd_msg = NULL;
   }
 
   // Template functions to test our processing when various error codes are returned by the HSS
@@ -669,6 +785,289 @@ public:
     EXPECT_EQ("", req.content());
   }
 
+  void rtr_template(int32_t dereg_reason,
+                    std::string http_path,
+                    std::string body,
+                    HTTPCode http_ret_code)
+  {
+    // This is a template function for an RTR test.
+    Cx::RegistrationTerminationRequest rtr(_cx_dict,
+                                           _mock_stack,
+                                           dereg_reason,
+                                           IMPI,
+                                           ASSOCIATED_IDENTITIES,
+                                           IMPUS,
+                                           AUTH_SESSION_STATE);
+
+    // The free_on_delete flag controls whether we want to free the underlying
+    // fd_msg structure when we delete this RTR. We don't, since this will be
+    // freed when the answer is freed later in the test. If we leave this flag set
+    // then the request will be freed twice.
+    rtr._free_on_delete = false;
+
+    RegistrationTerminationHandler::Config cfg(_cache, _cx_dict, _sprout_conn, 0);
+    RegistrationTerminationHandler* handler = new RegistrationTerminationHandler(_cx_dict, &rtr._fd_msg, &cfg);
+
+    // We have to make sure the message is pointing at the mock stack.
+    handler->_msg._stack = _mock_stack;
+
+    // Once the handler's run function is called, we expect a cache request for
+    // the IMS subscription of the final public identity in IMPUS.
+    MockCache::MockGetIMSSubscription mock_req;
+    EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU2))
+      .WillOnce(Return(&mock_req));
+    EXPECT_CALL(*_cache, send(_, &mock_req))
+      .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
+
+    handler->run();
+
+    // The cache successfully returns the correct IMS subscription.
+    Cache::Transaction* t = mock_req.get_trx();
+    ASSERT_FALSE(t == NULL);
+    EXPECT_CALL(mock_req, get_xml(_, _))
+      .WillRepeatedly(DoAll(SetArgReferee<0>(IMPU3_IMS_SUBSCRIPTION), SetArgReferee<1>(0)));
+
+    // Sometimes we're interested in the associated identities returned by
+    // this cache request.
+    if (dereg_reason == NEW_SERVER_ASSIGNED)
+    {
+      EXPECT_CALL(mock_req, get_associated_impis(_))
+        .WillRepeatedly(SetArgReferee<0>(ASSOCIATED_IDENTITIES));
+    }
+
+    // Expect another cache request for the IMS subscription of the next
+    // public identity in IMPUS.
+    MockCache::MockGetIMSSubscription mock_req2;
+    EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU))
+      .WillOnce(Return(&mock_req2));
+    EXPECT_CALL(*_cache, send(_, &mock_req2))
+      .WillOnce(WithArgs<0>(Invoke(&mock_req2, &Cache::Request::set_trx)));
+
+    t->on_success(&mock_req);
+
+    // The cache successfully returns the correct IMS subscription.
+    t = mock_req2.get_trx();
+    ASSERT_FALSE(t == NULL);
+    EXPECT_CALL(mock_req2, get_xml(_, _))
+      .WillRepeatedly(DoAll(SetArgReferee<0>(IMPU_IMS_SUBSCRIPTION), SetArgReferee<1>(0)));
+
+    // Sometimes we're interested in the associated identities returned by
+    // this cache request.
+    if (dereg_reason == NEW_SERVER_ASSIGNED)
+    {
+      EXPECT_CALL(mock_req2, get_associated_impis(_))
+        .WillRepeatedly(SetArgReferee<0>(ASSOCIATED_IDENTITIES));
+    }
+
+    // Expect a delete to be sent to Sprout.
+    EXPECT_CALL(*_mock_http_conn, send_delete(http_path, body, 0))
+      .Times(1)
+      .WillOnce(Return(http_ret_code));
+
+    // Expect to receive a diameter message.
+    EXPECT_CALL(*_mock_stack, send(_))
+      .Times(1)
+      .WillOnce(WithArgs<0>(Invoke(store_msg)));
+
+    // We also expect to receive cache requests for each registration set. Catch these.
+    std::vector<std::string> impis{IMPI, ASSOCIATED_IDENTITY1, ASSOCIATED_IDENTITY2};
+    MockCache::MockDissociateImplicitRegistrationSetFromImpi mock_req3;
+    EXPECT_CALL(*_cache, create_DissociateImplicitRegistrationSetFromImpi(IMPU_REG_SET, impis, _))
+      .WillOnce(Return(&mock_req3));
+    EXPECT_CALL(*_cache, send(_, &mock_req3))
+      .WillOnce(WithArgs<0>(Invoke(&mock_req3, &Cache::Request::set_trx)));
+
+    MockCache::MockDissociateImplicitRegistrationSetFromImpi mock_req4;
+    EXPECT_CALL(*_cache, create_DissociateImplicitRegistrationSetFromImpi(IMPU3_REG_SET, impis, _))
+      .WillOnce(Return(&mock_req4));
+    EXPECT_CALL(*_cache, send(_, &mock_req4))
+      .WillOnce(WithArgs<0>(Invoke(&mock_req4, &Cache::Request::set_trx)));
+
+    // Sometimes we want to delete entire IMPI rows.
+    MockCache::MockDeleteIMPIMapping mock_req5;
+    if (dereg_reason == NEW_SERVER_ASSIGNED)
+    {
+      EXPECT_CALL(*_cache, create_DeleteIMPIMapping(ASSOCIATED_IDENTITIES, _))
+        .WillOnce(Return(&mock_req5));
+      EXPECT_CALL(*_cache, send(_, &mock_req5))
+        .WillOnce(WithArgs<0>(Invoke(&mock_req5, &Cache::Request::set_trx)));
+    }
+
+    t->on_success(&mock_req2);
+
+    // Turn the caught Diameter msg structure into a RTA and confirm it's contents.
+    Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
+    Cx::RegistrationTerminationAnswer rta(msg);
+    EXPECT_TRUE(rta.result_code(test_i32));
+    if (http_ret_code == HTTP_OK)
+    {
+      EXPECT_EQ(DIAMETER_SUCCESS, test_i32);
+    }
+    else
+    {
+      EXPECT_EQ(DIAMETER_UNABLE_TO_COMPLY, test_i32);
+    }
+    EXPECT_EQ(impis, rta.associated_identities());
+    EXPECT_EQ(AUTH_SESSION_STATE, rta.auth_session_state());
+
+    // Check the cache requests have transactions.
+    t = mock_req3.get_trx();
+    ASSERT_FALSE(t == NULL);
+    t = mock_req4.get_trx();
+    ASSERT_FALSE(t == NULL);
+    if (dereg_reason == NEW_SERVER_ASSIGNED)
+    {
+      t = mock_req5.get_trx();
+      ASSERT_FALSE(t == NULL);
+    }
+  }
+
+  void rtr_template_no_impus(int32_t dereg_reason,
+                             std::string http_path,
+                             std::string body)
+  {
+    // This is a template function for an RTR test where no public identities
+    // are specified on the request.
+    Cx::RegistrationTerminationRequest rtr(_cx_dict,
+                                           _mock_stack,
+                                           dereg_reason,
+                                           IMPI,
+                                           ASSOCIATED_IDENTITIES,
+                                           EMPTY_VECTOR,
+                                           AUTH_SESSION_STATE);
+
+    // The free_on_delete flag controls whether we want to free the underlying
+    // fd_msg structure when we delete this RTR. We don't, since this will be
+    // freed when the answer is freed later in the test. If we leave this flag set
+    // then the request will be freed twice.
+    rtr._free_on_delete = false;
+
+    RegistrationTerminationHandler::Config cfg(_cache, _cx_dict, _sprout_conn, 0);
+    RegistrationTerminationHandler* handler = new RegistrationTerminationHandler(_cx_dict, &rtr._fd_msg, &cfg);
+
+    // We have to make sure the message is pointing at the mock stack.
+    handler->_msg._stack = _mock_stack;
+
+    // No public identities, so once the handler's run function is called, we
+    // expect a cache request for associated default public identities.
+    std::vector<std::string> impis{IMPI, ASSOCIATED_IDENTITY1, ASSOCIATED_IDENTITY2};
+    MockCache::MockGetAssociatedPrimaryPublicIDs mock_req;
+    EXPECT_CALL(*_cache, create_GetAssociatedPrimaryPublicIDs(impis))
+      .WillOnce(Return(&mock_req));
+    EXPECT_CALL(*_cache, send(_, &mock_req))
+      .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
+
+    handler->run();
+
+    // The cache successfully returns a list of public identities.
+    Cache::Transaction* t = mock_req.get_trx();
+    ASSERT_FALSE(t == NULL);
+    EXPECT_CALL(mock_req, get_result(_))
+      .WillRepeatedly(SetArgReferee<0>(IMPUS));
+
+    // Next expect a cache request for the IMS subscription of the final
+    // public identity in IMPUS.
+    MockCache::MockGetIMSSubscription mock_req2;
+    EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU))
+      .WillOnce(Return(&mock_req2));
+    EXPECT_CALL(*_cache, send(_, &mock_req2))
+      .WillOnce(WithArgs<0>(Invoke(&mock_req2, &Cache::Request::set_trx)));
+
+    t->on_success(&mock_req);
+
+    // The cache successfully returns the correct IMS subscription.
+    t = mock_req2.get_trx();
+    ASSERT_FALSE(t == NULL);
+    EXPECT_CALL(mock_req2, get_xml(_, _))
+      .WillRepeatedly(DoAll(SetArgReferee<0>(IMPU_IMS_SUBSCRIPTION), SetArgReferee<1>(0)));
+
+    // Sometimes we're interested in the associated identities returned by
+    // this cache request.
+    if (dereg_reason == SERVER_CHANGE)
+    {
+      EXPECT_CALL(mock_req2, get_associated_impis(_))
+        .WillRepeatedly(SetArgReferee<0>(ASSOCIATED_IDENTITIES));
+    }
+
+    // Expect another cache request for the IMS subscription of the next
+    // public identity in IMPUS.
+    MockCache::MockGetIMSSubscription mock_req3;
+    EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU2))
+      .WillOnce(Return(&mock_req3));
+    EXPECT_CALL(*_cache, send(_, &mock_req3))
+      .WillOnce(WithArgs<0>(Invoke(&mock_req3, &Cache::Request::set_trx)));
+
+    t->on_success(&mock_req2);
+
+    // The cache successfully returns the correct IMS subscription.
+    t = mock_req3.get_trx();
+    ASSERT_FALSE(t == NULL);
+    EXPECT_CALL(mock_req3, get_xml(_, _))
+      .WillRepeatedly(DoAll(SetArgReferee<0>(IMPU3_IMS_SUBSCRIPTION), SetArgReferee<1>(0)));
+
+    // Sometimes we're interested in the associated identities returned by
+    // this cache request.
+    if (dereg_reason == SERVER_CHANGE)
+    {
+      EXPECT_CALL(mock_req3, get_associated_impis(_))
+        .WillRepeatedly(SetArgReferee<0>(ASSOCIATED_IDENTITIES));
+    }
+
+    // Expect a delete to be sent to Sprout.
+    EXPECT_CALL(*_mock_http_conn, send_delete(http_path, body, 0))
+      .Times(1)
+      .WillOnce(Return(HTTP_OK));
+
+    // Expect to receive a diameter message.
+    EXPECT_CALL(*_mock_stack, send(_))
+      .Times(1)
+      .WillOnce(WithArgs<0>(Invoke(store_msg)));
+
+    // We also expect to receive cache requests for each registration set. Catch these.
+    MockCache::MockDissociateImplicitRegistrationSetFromImpi mock_req4;
+    EXPECT_CALL(*_cache, create_DissociateImplicitRegistrationSetFromImpi(IMPU_REG_SET, impis, _))
+      .WillOnce(Return(&mock_req4));
+    EXPECT_CALL(*_cache, send(_, &mock_req4))
+      .WillOnce(WithArgs<0>(Invoke(&mock_req4, &Cache::Request::set_trx)));
+
+    MockCache::MockDissociateImplicitRegistrationSetFromImpi mock_req5;
+    EXPECT_CALL(*_cache, create_DissociateImplicitRegistrationSetFromImpi(IMPU3_REG_SET, impis, _))
+      .WillOnce(Return(&mock_req5));
+    EXPECT_CALL(*_cache, send(_, &mock_req5))
+      .WillOnce(WithArgs<0>(Invoke(&mock_req5, &Cache::Request::set_trx)));
+
+    // Sometimes we want to delete entire IMPI rows.
+    MockCache::MockDeleteIMPIMapping mock_req6;
+    if (dereg_reason == SERVER_CHANGE)
+    {
+      EXPECT_CALL(*_cache, create_DeleteIMPIMapping(ASSOCIATED_IDENTITIES, _))
+        .WillOnce(Return(&mock_req6));
+      EXPECT_CALL(*_cache, send(_, &mock_req6))
+        .WillOnce(WithArgs<0>(Invoke(&mock_req6, &Cache::Request::set_trx)));
+    }
+
+    t->on_success(&mock_req3);
+
+    // Turn the caught Diameter msg structure into a RTA and confirm it's contents.
+    Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
+    Cx::RegistrationTerminationAnswer rta(msg);
+    EXPECT_TRUE(rta.result_code(test_i32));
+    EXPECT_EQ(DIAMETER_SUCCESS, test_i32);
+    EXPECT_EQ(impis, rta.associated_identities());
+    EXPECT_EQ(AUTH_SESSION_STATE, rta.auth_session_state());
+
+    // Check the cache requests have transactions.
+    t = mock_req4.get_trx();
+    ASSERT_FALSE(t == NULL);
+    t = mock_req5.get_trx();
+    ASSERT_FALSE(t == NULL);
+    if (dereg_reason == SERVER_CHANGE)
+    {
+      t = mock_req6.get_trx();
+      ASSERT_FALSE(t == NULL);
+    }
+  }
+
   static void ignore_stats(bool ignore)
   {
     if (ignore)
@@ -689,13 +1088,11 @@ const std::string HandlersTest::DEFAULT_SERVER_NAME = "sprout";
 const std::string HandlersTest::SERVER_NAME = "scscf";
 const std::string HandlersTest::IMPI = "impi@example.com";
 const std::string HandlersTest::IMPU = "sip:impu@example.com";
-const std::string HandlersTest::IMS_SUBSCRIPTION = "<?xml version=\"1.0\"?><IMSSubscription><PrivateID>" + IMPI + "</PrivateID><ServiceProfile><PublicIdentity><Identity>" +
-                                                   IMPU +
-  "</Identity></PublicIdentity></ServiceProfile></IMSSubscription>";
-const std::string HandlersTest::REGDATA_RESULT = "<ClearwaterRegData>\n\t<RegistrationState>REGISTERED</RegistrationState>\n\t<IMSSubscription>\n\t\t<PrivateID>impi@example.com</PrivateID>\n\t\t<ServiceProfile>\n\t\t\t<PublicIdentity>\n\t\t\t\t<Identity>sip:impu@example.com</Identity>\n\t\t\t</PublicIdentity>\n\t\t</ServiceProfile>\n\t</IMSSubscription>\n</ClearwaterRegData>\n\n";
-const std::string HandlersTest::REGDATA_RESULT_DEREG = "<ClearwaterRegData>\n\t<RegistrationState>NOT_REGISTERED</RegistrationState>\n\t<IMSSubscription>\n\t\t<PrivateID>impi@example.com</PrivateID>\n\t\t<ServiceProfile>\n\t\t\t<PublicIdentity>\n\t\t\t\t<Identity>sip:impu@example.com</Identity>\n\t\t\t</PublicIdentity>\n\t\t</ServiceProfile>\n\t</IMSSubscription>\n</ClearwaterRegData>\n\n";
+const std::string HandlersTest::IMS_SUBSCRIPTION = "<?xml version=\"1.0\"?><IMSSubscription><PrivateID>" + IMPI + "</PrivateID><ServiceProfile><PublicIdentity><Identity>" + IMPU + "</Identity></PublicIdentity></ServiceProfile></IMSSubscription>";
+const std::string HandlersTest::REGDATA_RESULT = "<ClearwaterRegData>\n\t<RegistrationState>REGISTERED</RegistrationState>\n\t<IMSSubscription>\n\t\t<PrivateID>impi@example.com</PrivateID>\n\t\t<ServiceProfile>\n\t\t\t<PublicIdentity>\n\t\t\t\t<Identity>sip:impu@example.com</Identity>\n\t\t\t</PublicIdentity>\n\t\t\t<PublicIdentity>\n\t\t\t\t<Identity>sip:impu4@example.com</Identity>\n\t\t\t</PublicIdentity>\n\t\t</ServiceProfile>\n\t</IMSSubscription>\n</ClearwaterRegData>\n\n";
+const std::string HandlersTest::REGDATA_RESULT_DEREG = "<ClearwaterRegData>\n\t<RegistrationState>NOT_REGISTERED</RegistrationState>\n\t<IMSSubscription>\n\t\t<PrivateID>impi@example.com</PrivateID>\n\t\t<ServiceProfile>\n\t\t\t<PublicIdentity>\n\t\t\t\t<Identity>sip:impu@example.com</Identity>\n\t\t\t</PublicIdentity>\n\t\t\t<PublicIdentity>\n\t\t\t\t<Identity>sip:impu4@example.com</Identity>\n\t\t\t</PublicIdentity>\n\t\t</ServiceProfile>\n\t</IMSSubscription>\n</ClearwaterRegData>\n\n";
 const std::string HandlersTest::REGDATA_BLANK_RESULT_DEREG = "<ClearwaterRegData>\n\t<RegistrationState>NOT_REGISTERED</RegistrationState>\n</ClearwaterRegData>\n\n";
-const std::string HandlersTest::REGDATA_RESULT_UNREG = "<ClearwaterRegData>\n\t<RegistrationState>UNREGISTERED</RegistrationState>\n\t<IMSSubscription>\n\t\t<PrivateID>impi@example.com</PrivateID>\n\t\t<ServiceProfile>\n\t\t\t<PublicIdentity>\n\t\t\t\t<Identity>sip:impu@example.com</Identity>\n\t\t\t</PublicIdentity>\n\t\t</ServiceProfile>\n\t</IMSSubscription>\n</ClearwaterRegData>\n\n";
+const std::string HandlersTest::REGDATA_RESULT_UNREG = "<ClearwaterRegData>\n\t<RegistrationState>UNREGISTERED</RegistrationState>\n\t<IMSSubscription>\n\t\t<PrivateID>impi@example.com</PrivateID>\n\t\t<ServiceProfile>\n\t\t\t<PublicIdentity>\n\t\t\t\t<Identity>sip:impu@example.com</Identity>\n\t\t\t</PublicIdentity>\n\t\t\t<PublicIdentity>\n\t\t\t\t<Identity>sip:impu4@example.com</Identity>\n\t\t\t</PublicIdentity>\n\t\t</ServiceProfile>\n\t</IMSSubscription>\n</ClearwaterRegData>\n\n";
 const std::string HandlersTest::VISITED_NETWORK = "visited-network.com";
 const std::string HandlersTest::AUTH_TYPE_DEREG = "DEREG";
 const std::string HandlersTest::AUTH_TYPE_CAPAB = "CAPAB";
@@ -705,20 +1102,63 @@ const std::vector<int32_t> no_capabilities = {};
 const ServerCapabilities HandlersTest::CAPABILITIES(mandatory_capabilities, optional_capabilities);
 const ServerCapabilities HandlersTest::NO_CAPABILITIES(no_capabilities, no_capabilities);
 const int32_t HandlersTest::AUTH_SESSION_STATE = 1;
-std::vector<std::string> HandlersTest::ASSOCIATED_IDENTITIES = {"impi456", "impi478"};
-std::vector<std::string> HandlersTest::IMPUS = {"impu456", "impu478"};
+const std::string HandlersTest::ASSOCIATED_IDENTITY1 = "impi1@example.com";
+const std::string HandlersTest::ASSOCIATED_IDENTITY2 = "impi2@example.com";
+std::vector<std::string> HandlersTest::ASSOCIATED_IDENTITIES = {ASSOCIATED_IDENTITY1, ASSOCIATED_IDENTITY2};
+const std::string HandlersTest::IMPU2 = "sip:impu2@example.com";
+const std::string HandlersTest::IMPU3 = "sip:impu3@example.com";
+const std::string HandlersTest::IMPU4 = "sip:impu4@example.com";
+std::vector<std::string> HandlersTest::IMPUS = {IMPU, IMPU2};
 std::vector<std::string> HandlersTest::IMPU_IN_VECTOR = {IMPU};
-
+std::vector<std::string> HandlersTest::IMPI_IN_VECTOR = {IMPI};
+std::vector<std::string> HandlersTest::ASSOCIATED_IDENTITY1_IN_VECTOR = {ASSOCIATED_IDENTITY1};
+std::vector<std::string> HandlersTest::IMPU_REG_SET = {IMPU, IMPU4};
+std::vector<std::string> HandlersTest::IMPU3_REG_SET = {IMPU3, IMPU2};
+const std::string HandlersTest::IMPU_IMS_SUBSCRIPTION = "<?xml version=\"1.0\"?><IMSSubscription><PrivateID>" +
+                                                        IMPI +
+                                                        "</PrivateID><ServiceProfile><PublicIdentity><Identity>" +
+                                                        IMPU +
+                                                        "</Identity></PublicIdentity><PublicIdentity><Identity>" +
+                                                        IMPU4 +
+                                                        "</Identity></PublicIdentity></ServiceProfile></IMSSubscription>";
+const std::string HandlersTest::IMPU3_IMS_SUBSCRIPTION = "<?xml version=\"1.0\"?><IMSSubscription><PrivateID>" +
+                                                         IMPI +
+                                                         "</PrivateID><ServiceProfile><PublicIdentity><Identity>" +
+                                                         IMPU3 +
+                                                         "</Identity></PublicIdentity><PublicIdentity><Identity>" +
+                                                         IMPU2 +
+                                                         "</Identity></PublicIdentity></ServiceProfile></IMSSubscription>";
+std::vector<std::string> HandlersTest::EMPTY_VECTOR = {};
+const std::string HandlersTest::DEREG_BODY_PAIRINGS = "{\"registrations\":[{\"primary-impu\":\"" + IMPU3 + "\"},{\"impi\":\"" + IMPI +
+                                                                      "\"},{\"primary-impu\":\"" + IMPU3 + "\"},{\"impi\":\"" + ASSOCIATED_IDENTITY1 +
+                                                                      "\"},{\"primary-impu\":\"" + IMPU3 + "\"},{\"impi\":\"" + ASSOCIATED_IDENTITY2 +
+                                                                      "\"},{\"primary-impu\":\"" + IMPU + "\"},{\"impi\":\"" + IMPI +
+                                                                      "\"},{\"primary-impu\":\"" + IMPU + "\"},{\"impi\":\"" + ASSOCIATED_IDENTITY1 +
+                                                                      "\"},{\"primary-impu\":\"" + IMPU + "\"},{\"impi\":\"" + ASSOCIATED_IDENTITY2 + "\"}]}";
+const std::string HandlersTest::DEREG_BODY_LIST = "{\"registrations\":[{\"primary-impu\":\"" + IMPU3 + "\"},{\"primary-impu\":\"" + IMPU + "\"}]}";
+// These are effectively the same as above, but depending on the exact code path the ordering of IMPUS can be different.
+const std::string HandlersTest::DEREG_BODY_PAIRINGS2 = "{\"registrations\":[{\"primary-impu\":\"" + IMPU + "\"},{\"impi\":\"" + IMPI +
+                                                                       "\"},{\"primary-impu\":\"" + IMPU + "\"},{\"impi\":\"" + ASSOCIATED_IDENTITY1 +
+                                                                       "\"},{\"primary-impu\":\"" + IMPU + "\"},{\"impi\":\"" + ASSOCIATED_IDENTITY2 +
+                                                                       "\"},{\"primary-impu\":\"" + IMPU3 + "\"},{\"impi\":\"" + IMPI +
+                                                                       "\"},{\"primary-impu\":\"" + IMPU3 + "\"},{\"impi\":\"" + ASSOCIATED_IDENTITY1 +
+                                                                       "\"},{\"primary-impu\":\"" + IMPU3 + "\"},{\"impi\":\"" + ASSOCIATED_IDENTITY2 + "\"}]}";
+const std::string HandlersTest::DEREG_BODY_LIST2 = "{\"registrations\":[{\"primary-impu\":\"" + IMPU + "\"},{\"primary-impu\":\"" + IMPU3 + "\"}]}";
 const std::string HandlersTest::SCHEME_UNKNOWN = "Unknwon";
 const std::string HandlersTest::SCHEME_DIGEST = "SIP Digest";
 const std::string HandlersTest::SCHEME_AKA = "Digest-AKAv1-MD5";
 const std::string HandlersTest::SIP_AUTHORIZATION = "Authorization";
+
+const std::string HandlersTest::HTTP_PATH_REG_TRUE = "/registrations?send-notifications=true";
+const std::string HandlersTest::HTTP_PATH_REG_FALSE = "/registrations?send-notifications=false";
 
 Diameter::Stack* HandlersTest::_real_stack = NULL;
 MockDiameterStack* HandlersTest::_mock_stack = NULL;
 Cx::Dictionary* HandlersTest::_cx_dict = NULL;
 MockCache* HandlersTest::_cache = NULL;
 MockHttpStack* HandlersTest::_httpstack = NULL;
+MockHttpConnection* HandlersTest::_mock_http_conn = NULL;
+SproutConnection* HandlersTest::_sprout_conn = NULL;
 NiceMock<MockStatisticsManager>* HandlersTest::_nice_stats = NULL;
 StrictMock<MockStatisticsManager>* HandlersTest::_stats = NULL;
 struct msg* HandlersTest::_caught_fd_msg = NULL;
@@ -1217,9 +1657,8 @@ TEST_F(HandlersTest, DigestNoCachedIMPUs)
   // returned on the expected call for the cache request's results.
   Cache::Transaction* t = mock_req.get_trx();
   ASSERT_FALSE(t == NULL);
-  std::vector<std::string> empty_impus = {};
   EXPECT_CALL(mock_req, get_result(_))
-    .WillRepeatedly(SetArgReferee<0>(empty_impus));
+    .WillRepeatedly(SetArgReferee<0>(EMPTY_VECTOR));
 
   // Expect a 404 HTTP response.
   EXPECT_CALL(*_httpstack, send_reply(_, 404));
@@ -1468,14 +1907,14 @@ TEST_F(HandlersTest, AkaNoIMPU)
 
 TEST_F(HandlersTest, IMSSubscriptionHSS_InitialRegister)
 {
-  reg_data_template("reg", true, RegistrationState::NOT_REGISTERED, 1);
+  reg_data_template("reg", true, false, RegistrationState::NOT_REGISTERED, 1);
 }
 
 // Initial registration from UNREGISTERED state
 
 TEST_F(HandlersTest, IMSSubscriptionHSS_InitialRegisterFromUnreg)
 {
-  reg_data_template("reg", true, RegistrationState::UNREGISTERED, 1);
+  reg_data_template("reg", true, false, RegistrationState::UNREGISTERED, 1);
 }
 
 // Re-registration when the database record is old enough (500s - less
@@ -1483,7 +1922,14 @@ TEST_F(HandlersTest, IMSSubscriptionHSS_InitialRegisterFromUnreg)
 
 TEST_F(HandlersTest, IMSSubscriptionHSS_ReregWithSAR)
 {
-  reg_data_template("reg", true, RegistrationState::REGISTERED, 2, 500);
+  reg_data_template("reg", true, false, RegistrationState::REGISTERED, 2, 500);
+}
+
+// Re-registration with a new binding.
+
+TEST_F(HandlersTest, IMSSubscriptionHSS_ReregNewBinding)
+{
+  reg_data_template("reg", true, true, RegistrationState::REGISTERED, 1);
 }
 
 // Re-registration when the database record is not old enough to
@@ -1514,7 +1960,7 @@ TEST_F(HandlersTest, IMSSubscriptionCallHSSUnregisteredService)
 
 TEST_F(HandlersTest, IMSSubscriptionCallHSSNewUnregisteredService)
 {
-  reg_data_template("call", true, RegistrationState::NOT_REGISTERED, 3, 0, REGDATA_RESULT_UNREG, RegistrationState::UNREGISTERED);
+  reg_data_template("call", true, false, RegistrationState::NOT_REGISTERED, 3, 0, REGDATA_RESULT_UNREG, RegistrationState::UNREGISTERED);
 }
 
 // Test the three types of deregistration flows
@@ -1549,17 +1995,22 @@ TEST_F(HandlersTest, IMSSubscriptionDeregUseCacheIMPI)
 
 TEST_F(HandlersTest, IMSSubscriptionAuthFailRegistered)
 {
-  reg_data_template_no_write("dereg-auth-failed", false, RegistrationState::REGISTERED, 9, 3600, REGDATA_RESULT);
+  reg_data_template_no_write("dereg-auth-failed", false, true, RegistrationState::REGISTERED, 9, 3600, REGDATA_RESULT);
+}
+
+TEST_F(HandlersTest, IMSSubscriptionAuthFailRegisteredNoHSS)
+{
+  reg_data_template_no_write("dereg-auth-failed", false, false, RegistrationState::REGISTERED, 9, 3600, "");
 }
 
 TEST_F(HandlersTest, IMSSubscriptionAuthFail)
 {
-  reg_data_template_no_write("dereg-auth-failed", false, RegistrationState::NOT_REGISTERED, 9, 3600, REGDATA_RESULT_DEREG);
+  reg_data_template_no_write("dereg-auth-failed", false, true, RegistrationState::NOT_REGISTERED, 9, 3600, REGDATA_RESULT_DEREG);
 }
 
 TEST_F(HandlersTest, IMSSubscriptionAuthTimeout)
 {
-  reg_data_template_no_write("dereg-auth-timeout", false, RegistrationState::NOT_REGISTERED, 10, 3600, REGDATA_RESULT_DEREG);
+  reg_data_template_no_write("dereg-auth-timeout", false, true, RegistrationState::NOT_REGISTERED, 10, 3600, REGDATA_RESULT_DEREG);
 }
 
 // Test that an attempt to deregister a subscriber who is not in
@@ -1567,39 +2018,16 @@ TEST_F(HandlersTest, IMSSubscriptionAuthTimeout)
 
 TEST_F(HandlersTest, IMSSubscriptionInvalidDereg)
 {
-  MockHttpStack::Request req(_httpstack,
-                             "/impu/" + IMPU + "/reg-data",
-                             "",
-                             "?private_id=" + IMPI,
-                             "{\"reqtype\": \"dereg-user\"}",
-                             htp_method_PUT);
-  ImpuRegDataHandler::Config cfg(false, 3600);
-  ImpuRegDataHandler* handler = new ImpuRegDataHandler(req, &cfg);
+  reg_data_template_invalid_dereg(false);
+}
 
-  MockCache::MockGetIMSSubscription mock_req;
-  EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU))
-    .WillOnce(Return(&mock_req));
-  EXPECT_CALL(*_cache, send(_, &mock_req))
-    .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
-  handler->run();
+// Test that an attempt to deregister a subscriber who is not in
+// REGISTERED state results in a 400 Bad Request with an HSS
+// configured
 
-  Cache::Transaction* t = mock_req.get_trx();
-  ASSERT_FALSE(t == NULL);
-  EXPECT_CALL(mock_req, get_xml(_, _))
-    .WillRepeatedly(SetArgReferee<0>(IMS_SUBSCRIPTION));
-
-  // Ensure that the database returns NOT_REGISTERED.
-  EXPECT_CALL(mock_req, get_registration_state(_, _))
-    .WillRepeatedly(SetArgReferee<0>(RegistrationState::NOT_REGISTERED));
-
-  // A 400 error should be sent as a result.
-  EXPECT_CALL(*_httpstack, send_reply(_, 400));
-  t->on_success(&mock_req);
-
-  EXPECT_EQ("", req.content());
-
-  _caught_diam_tsx = NULL;
-  _caught_fd_msg = NULL;
+TEST_F(HandlersTest, IMSSubscriptionHSSInvalidDereg)
+{
+  reg_data_template_invalid_dereg(true);
 }
 
 // Test that proper database flows happen when we don't have a HSS.
@@ -1661,6 +2089,7 @@ TEST_F(HandlersTest, IMSSubscriptionNoHSSUnknown)
     .WillRepeatedly(SetArgReferee<0>(""));
   EXPECT_CALL(mock_req, get_registration_state(_, _))
     .WillRepeatedly(SetArgReferee<0>(RegistrationState::NOT_REGISTERED));
+  EXPECT_CALL(mock_req, get_associated_impis(_));
   EXPECT_CALL(*_httpstack, send_reply(_, 404));
   t->on_success(&mock_req);
 
@@ -1695,6 +2124,7 @@ TEST_F(HandlersTest, IMSSubscriptionNoHSSUnknownCall)
     .WillRepeatedly(SetArgReferee<0>(""));
   EXPECT_CALL(mock_req, get_registration_state(_, _))
     .WillRepeatedly(SetArgReferee<0>(RegistrationState::NOT_REGISTERED));
+  EXPECT_CALL(mock_req, get_associated_impis(_));
   EXPECT_CALL(*_httpstack, send_reply(_, 404));
   t->on_success(&mock_req);
 
@@ -1729,6 +2159,7 @@ TEST_F(HandlersTest, LegacyIMSSubscriptionNoHSS)
     .WillRepeatedly(SetArgReferee<0>(IMS_SUBSCRIPTION));
   EXPECT_CALL(mock_req, get_registration_state(_, _))
     .WillRepeatedly(SetArgReferee<0>(RegistrationState::REGISTERED));
+  EXPECT_CALL(mock_req, get_associated_impis(_));
   EXPECT_CALL(*_httpstack, send_reply(_, 200));
   t->on_success(&mock_req);
 
@@ -1762,6 +2193,7 @@ TEST_F(HandlersTest, LegacyIMSSubscriptionNoHSS_NotFound)
   EXPECT_CALL(mock_req, get_registration_state(_, _))
     .WillRepeatedly(SetArgReferee<0>(RegistrationState::NOT_REGISTERED));
   EXPECT_CALL(*_httpstack, send_reply(_, 404));
+  EXPECT_CALL(mock_req, get_associated_impis(_));
   t->on_success(&mock_req);
 
   // Build the expected response and check it's correct
@@ -1828,9 +2260,10 @@ TEST_F(HandlersTest, IMSSubscriptionGet)
   Cache::Transaction* t = mock_req.get_trx();
   ASSERT_FALSE(t == NULL);
   EXPECT_CALL(mock_req, get_xml(_, _))
-    .WillRepeatedly(SetArgReferee<0>(IMS_SUBSCRIPTION));
+    .WillRepeatedly(SetArgReferee<0>(IMPU_IMS_SUBSCRIPTION));
   EXPECT_CALL(mock_req, get_registration_state(_, _))
     .WillRepeatedly(SetArgReferee<0>(RegistrationState::REGISTERED));
+  EXPECT_CALL(mock_req, get_associated_impis(_));
 
   // HTTP response is sent straight back - no state is changed.
   EXPECT_CALL(*_httpstack, send_reply(_, 200));
@@ -1883,7 +2316,7 @@ TEST_F(HandlersTest, IMSSubscriptionUserUnknownDereg)
   MockHttpStack::Request req(_httpstack,
                              "/impu/" + IMPU + "/reg-data",
                              "",
-                             "?private_id=" + IMPI,
+                             "?private_id=" + ASSOCIATED_IDENTITY1,
                              "{\"reqtype\": \"dereg-timeout\"}",
                              htp_method_PUT);
   ImpuRegDataHandler::Config cfg(true, 3600);
@@ -1899,12 +2332,14 @@ TEST_F(HandlersTest, IMSSubscriptionUserUnknownDereg)
   Cache::Transaction* t = mock_req.get_trx();
   ASSERT_FALSE(t == NULL);
   EXPECT_CALL(mock_req, get_xml(_, _))
-    .WillRepeatedly(SetArgReferee<0>(IMS_SUBSCRIPTION));
+    .WillRepeatedly(SetArgReferee<0>(IMPU_IMS_SUBSCRIPTION));
   EXPECT_CALL(mock_req, get_registration_state(_, _))
     .WillRepeatedly(SetArgReferee<0>(RegistrationState::REGISTERED));
+  EXPECT_CALL(mock_req, get_associated_impis(_))
+    .WillRepeatedly(SetArgReferee<0>(ASSOCIATED_IDENTITY1_IN_VECTOR));
 
   MockCache::MockDeletePublicIDs mock_req2;
-  EXPECT_CALL(*_cache, create_DeletePublicIDs(IMPU_IN_VECTOR, _))
+  EXPECT_CALL(*_cache, create_DeletePublicIDs(IMPU_REG_SET, _, _))
     .WillOnce(Return(&mock_req2));
   EXPECT_CALL(*_cache, send(_, &mock_req2))
     .WillOnce(WithArgs<0>(Invoke(&mock_req2, &Cache::Request::set_trx)));
@@ -1958,9 +2393,11 @@ TEST_F(HandlersTest, IMSSubscriptionOtherErrorCallReg)
   Cache::Transaction* t = mock_req.get_trx();
   ASSERT_FALSE(t == NULL);
   EXPECT_CALL(mock_req, get_xml(_, _))
-    .WillRepeatedly(SetArgReferee<0>(IMS_SUBSCRIPTION));
+    .WillRepeatedly(SetArgReferee<0>(IMPU_IMS_SUBSCRIPTION));
   EXPECT_CALL(mock_req, get_registration_state(_, _))
     .WillRepeatedly(SetArgReferee<0>(RegistrationState::NOT_REGISTERED));
+  EXPECT_CALL(mock_req, get_associated_impis(_))
+    .WillRepeatedly(SetArgReferee<0>(IMPI_IN_VECTOR));
 
   EXPECT_CALL(*_mock_stack, send(_, _, 200))
     .Times(1)
@@ -2407,156 +2844,61 @@ TEST_F(HandlersTest, LocationInfoNoHSS)
 // Registration Termination tests
 //
 
-TEST_F(HandlersTest, RegistrationTerminationNoImpus)
+TEST_F(HandlersTest, RegistrationTerminationPermanentTermination)
 {
-  // Build an RTR and create a Registration Termination Handler with this message. This RTR
-  // contains no IMPUS, an IMPI and some associated private identities.
-  std::vector<std::string> no_impus;
-  Cx::RegistrationTerminationRequest rtr(_cx_dict,
-                                         _mock_stack,
-                                         IMPI,
-                                         ASSOCIATED_IDENTITIES,
-                                         no_impus,
-                                         AUTH_SESSION_STATE);
-
-  // The free_on_delete flag controls whether we want to free the underlying
-  // fd_msg structure when we delete this RTR. We don't, since this will be
-  // freed when the answer is freed later in the test. If we leave this flag set
-  // then the request will be freed twice.
-  rtr._free_on_delete = false;
-
-  RegistrationTerminationHandler::Config cfg(_cache, _cx_dict, 0);
-  RegistrationTerminationHandler* handler = new RegistrationTerminationHandler(rtr, &cfg);
-
-  // Once the handler's run function is called, we expect a cache request to find out the
-  // public identities associated with the private identities specified on the RTR. First
-  // build a vector of these private identities from the IMPI and associated identities.
-  std::vector<std::string> associated_identities{IMPI};
-  associated_identities.insert(associated_identities.end(), ASSOCIATED_IDENTITIES.begin(), ASSOCIATED_IDENTITIES.end());
-
-  MockCache::MockGetAssociatedPublicIDs mock_req;
-  EXPECT_CALL(*_cache, create_GetAssociatedPublicIDs(associated_identities))
-    .WillOnce(Return(&mock_req));
-  EXPECT_CALL(*_cache, send(_, &mock_req))
-    .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
-
-  handler->run();
-
-  // Confirm the transaction is not NULL, and specify a list of IMPUS to be returned on
-  // the expected call for the cache request's results.
-  Cache::Transaction* t = mock_req.get_trx();
-  ASSERT_FALSE(t == NULL);
-  EXPECT_CALL(mock_req, get_result(_))
-    .WillRepeatedly(SetArgReferee<0>(IMPUS));
-
-  // Once the captured cache transaction's on_success callback is called, we
-  // expect several things to happen. We expect calls to the cache to delete
-  // both the public IDs and private IDs associated with the RTR. We also expect
-  // an RTA to be sent back to the diameter stack.
-  MockCache::MockDeletePublicIDs mock_req2;
-  EXPECT_CALL(*_cache, create_DeletePublicIDs(IMPUS, _))
-    .WillOnce(Return(&mock_req2));
-  EXPECT_CALL(*_cache, send(_, &mock_req2))
-    .WillOnce(WithArgs<0>(Invoke(&mock_req2, &Cache::Request::set_trx)));
-
-  MockCache::MockDeletePrivateIDs mock_req3;
-  EXPECT_CALL(*_cache, create_DeletePrivateIDs(associated_identities, _))
-    .WillOnce(Return(&mock_req3));
-  EXPECT_CALL(*_cache, send(_, &mock_req3))
-    .WillOnce(WithArgs<0>(Invoke(&mock_req3, &Cache::Request::set_trx)));
-
-  EXPECT_CALL(*_mock_stack, send(_))
-    .Times(1)
-    .WillOnce(WithArgs<0>(Invoke(store_msg)));
-
-  t->on_success(&mock_req);
-
-  // Confirm both cache transactions are not NULL.
-  t = mock_req2.get_trx();
-  ASSERT_FALSE(t == NULL);
-  t = mock_req3.get_trx();
-  ASSERT_FALSE(t == NULL);
-
-  // Turn the caught Diameter msg structure into a RTA and confirm it's contents.
-  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
-  Cx::RegistrationTerminationAnswer rta(msg);
-  EXPECT_TRUE(rta.result_code(test_i32));
-  EXPECT_EQ(DIAMETER_SUCCESS, test_i32);
-  EXPECT_EQ(associated_identities, rta.associated_identities());
-  EXPECT_EQ(AUTH_SESSION_STATE, rta.auth_session_state());
+  rtr_template(PERMANENT_TERMINATION, HTTP_PATH_REG_FALSE, DEREG_BODY_PAIRINGS, HTTP_OK);
 }
 
-TEST_F(HandlersTest, RegistrationTerminationCacheFailure)
+TEST_F(HandlersTest, RegistrationTerminationRemoveSCSCF)
 {
-  // Build an RTR and create a Registration Termination Handler with this message. This RTR
-  // contains no IMPUS, an IMPI and some associated private identities.
-  std::vector<std::string> no_impus;
-  Cx::RegistrationTerminationRequest rtr(_cx_dict,
-                                         _mock_stack,
-                                         IMPI,
-                                         ASSOCIATED_IDENTITIES,
-                                         no_impus,
-                                         AUTH_SESSION_STATE);
-
-  // The free_on_delete flag controls whether we want to free the underlying
-  // fd_msg structure when we delete this RTR. We don't, since this will be
-  // freed when the answer is freed later in the test. If we leave this flag set
-  // then the request will be freed twice.
-  rtr._free_on_delete = false;
-
-  RegistrationTerminationHandler::Config cfg(_cache, _cx_dict, 0);
-  RegistrationTerminationHandler* handler = new RegistrationTerminationHandler(rtr, &cfg);
-
-  // Once the handler's run function is called, we expect a cache request to find out the
-  // public identities associated with the private identities specified on the RTR. First
-  // build a vector of these private identities from the IMPI and associated identities.
-  std::vector<std::string> associated_identities{IMPI};
-  associated_identities.insert(associated_identities.end(), ASSOCIATED_IDENTITIES.begin(), ASSOCIATED_IDENTITIES.end());
-
-  MockCache::MockGetAssociatedPublicIDs mock_req;
-  EXPECT_CALL(*_cache, create_GetAssociatedPublicIDs(associated_identities))
-    .WillOnce(Return(&mock_req));
-  EXPECT_CALL(*_cache, send(_, &mock_req))
-    .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
-
-  handler->run();
-
-  // Confirm the transaction is not NULL, and specify a list of IMPUS to be returned on
-  // the expected call for the cache request's results.
-  Cache::Transaction* t = mock_req.get_trx();
-  ASSERT_FALSE(t == NULL);
-
-  // Create a vector of private IDs from the IMPI and associated identities.
-  MockCache::MockDeletePrivateIDs mock_req2;
-  EXPECT_CALL(*_cache, create_DeletePrivateIDs(associated_identities, _))
-    .WillOnce(Return(&mock_req2));
-  EXPECT_CALL(*_cache, send(_, &mock_req2))
-    .WillOnce(WithArgs<0>(Invoke(&mock_req2, &Cache::Request::set_trx)));
-
-  EXPECT_CALL(*_mock_stack, send(_))
-    .Times(1)
-    .WillOnce(WithArgs<0>(Invoke(store_msg)));
-
-  std::string errtext = "error";
-  t->on_failure(&mock_req, Cache::NOT_FOUND, errtext);
-
-  // Turn the caught Diameter msg structure into a RTA and confirm it's contents.
-  // Change the _free_on_delete flag to false, or we will try and
-  // free this message twice.
-  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
-  Cx::RegistrationTerminationAnswer rta(msg);
-  EXPECT_TRUE(rta.result_code(test_i32));
-  EXPECT_EQ(DIAMETER_SUCCESS, test_i32);
-  EXPECT_EQ(associated_identities, rta.associated_identities());
-  EXPECT_EQ(AUTH_SESSION_STATE, rta.auth_session_state());
+  rtr_template(REMOVE_SCSCF, HTTP_PATH_REG_TRUE, DEREG_BODY_LIST, HTTP_OK);
 }
 
-TEST_F(HandlersTest, RegistrationTermination)
+TEST_F(HandlersTest, RegistrationTerminationPermanentTerminationNoIMPUs)
 {
-  // Build an RTR and create a Registration Termination Handler with this message. This RTR
-  // contains a list of IMPUS, an IMPI and some associated private identities.
+  rtr_template_no_impus(PERMANENT_TERMINATION, HTTP_PATH_REG_FALSE, DEREG_BODY_PAIRINGS2);
+}
+
+TEST_F(HandlersTest, RegistrationTerminationRemoveSCSCFNoIMPUS)
+{
+  rtr_template_no_impus(REMOVE_SCSCF, HTTP_PATH_REG_TRUE, DEREG_BODY_LIST2);
+}
+
+TEST_F(HandlersTest, RegistrationTerminationServerChange)
+{
+  rtr_template_no_impus(SERVER_CHANGE, HTTP_PATH_REG_TRUE, DEREG_BODY_LIST2);
+}
+
+TEST_F(HandlersTest, RegistrationTerminationNewServerAssigned)
+{
+  rtr_template(NEW_SERVER_ASSIGNED, HTTP_PATH_REG_FALSE, DEREG_BODY_LIST, HTTP_OK);
+}
+
+TEST_F(HandlersTest, RegistrationTerminationHTTPBadMethod)
+{
+  rtr_template(PERMANENT_TERMINATION, HTTP_PATH_REG_FALSE, DEREG_BODY_PAIRINGS, HTTP_BADMETHOD);
+}
+
+TEST_F(HandlersTest, RegistrationTerminationHTTPBadResult)
+{
+  rtr_template(PERMANENT_TERMINATION, HTTP_PATH_REG_FALSE, DEREG_BODY_PAIRINGS, HTTP_BAD_RESULT);
+}
+
+TEST_F(HandlersTest, RegistrationTerminationHTTPServerError)
+{
+  rtr_template(PERMANENT_TERMINATION, HTTP_PATH_REG_FALSE, DEREG_BODY_PAIRINGS, HTTP_SERVER_ERROR);
+}
+
+TEST_F(HandlersTest, RegistrationTerminationHTTPUnknownError)
+{
+  rtr_template(PERMANENT_TERMINATION, HTTP_PATH_REG_FALSE, DEREG_BODY_PAIRINGS, 999);
+}
+
+TEST_F(HandlersTest, RegistrationTerminationInvalidDeregReason)
+{
   Cx::RegistrationTerminationRequest rtr(_cx_dict,
                                          _mock_stack,
+                                         5,
                                          IMPI,
                                          ASSOCIATED_IDENTITIES,
                                          IMPUS,
@@ -2568,48 +2910,63 @@ TEST_F(HandlersTest, RegistrationTermination)
   // then the request will be freed twice.
   rtr._free_on_delete = false;
 
-  RegistrationTerminationHandler::Config cfg(_cache, _cx_dict, 0);
-  RegistrationTerminationHandler* handler = new RegistrationTerminationHandler(rtr, &cfg);
+  RegistrationTerminationHandler::Config cfg(_cache, _cx_dict, _sprout_conn, 0);
+  RegistrationTerminationHandler* handler = new RegistrationTerminationHandler(_cx_dict, &rtr._fd_msg, &cfg);
+  handler->_msg._stack = _mock_stack;
 
-  // Once the handler's run function is called, we expect several things to happen.
-  // We expect calls to the cache to delete both the public IDs and private IDs associated
-  // with the RTR. We also expect an RTA to be sent back to the diameter stack.
-  MockCache::MockDeletePublicIDs mock_req;
-  EXPECT_CALL(*_cache, create_DeletePublicIDs(IMPUS, _))
-    .WillOnce(Return(&mock_req));
-  EXPECT_CALL(*_cache, send(_, &mock_req))
-    .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
-
-  // Create a vector of private IDs from the IMPI and associated identities.
-  std::vector<std::string> associated_identities{IMPI};
-  associated_identities.insert(associated_identities.end(), ASSOCIATED_IDENTITIES.begin(), ASSOCIATED_IDENTITIES.end());
-  MockCache::MockDeletePrivateIDs mock_req2;
-  EXPECT_CALL(*_cache, create_DeletePrivateIDs(associated_identities, _))
-    .WillOnce(Return(&mock_req2));
-  EXPECT_CALL(*_cache, send(_, &mock_req2))
-    .WillOnce(WithArgs<0>(Invoke(&mock_req2, &Cache::Request::set_trx)));
-
+  // We expect to receive a diameter message.
   EXPECT_CALL(*_mock_stack, send(_))
     .Times(1)
     .WillOnce(WithArgs<0>(Invoke(store_msg)));
 
   handler->run();
 
-  // Confirm both cache transactions are not NULL.
-  Cache::Transaction* t = mock_req.get_trx();
-  ASSERT_FALSE(t == NULL);
-  t = mock_req2.get_trx();
-  ASSERT_FALSE(t == NULL);
-
   // Turn the caught Diameter msg structure into a RTA and confirm it's contents.
+  std::vector<std::string> impis{IMPI, ASSOCIATED_IDENTITY1, ASSOCIATED_IDENTITY2};
   Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
   Cx::RegistrationTerminationAnswer rta(msg);
   EXPECT_TRUE(rta.result_code(test_i32));
-  EXPECT_EQ(DIAMETER_SUCCESS, test_i32);
-  EXPECT_EQ(associated_identities, rta.associated_identities());
+  EXPECT_EQ(DIAMETER_UNABLE_TO_COMPLY, test_i32);
+  EXPECT_EQ(impis, rta.associated_identities());
   EXPECT_EQ(AUTH_SESSION_STATE, rta.auth_session_state());
 }
 
+TEST_F(HandlersTest, RegistrationTerminationNewServerNoIMPUs)
+{
+  Cx::RegistrationTerminationRequest rtr(_cx_dict,
+                                         _mock_stack,
+                                         NEW_SERVER_ASSIGNED,
+                                         IMPI,
+                                         ASSOCIATED_IDENTITIES,
+                                         EMPTY_VECTOR,
+                                         AUTH_SESSION_STATE);
+
+  // The free_on_delete flag controls whether we want to free the underlying
+  // fd_msg structure when we delete this RTR. We don't, since this will be
+  // freed when the answer is freed later in the test. If we leave this flag set
+  // then the request will be freed twice.
+  rtr._free_on_delete = false;
+
+  RegistrationTerminationHandler::Config cfg(_cache, _cx_dict, _sprout_conn, 0);
+  RegistrationTerminationHandler* handler = new RegistrationTerminationHandler(_cx_dict, &rtr._fd_msg, &cfg);
+  handler->_msg._stack = _mock_stack;
+
+  // We expect to receive a diameter message.
+  EXPECT_CALL(*_mock_stack, send(_))
+    .Times(1)
+    .WillOnce(WithArgs<0>(Invoke(store_msg)));
+
+  handler->run();
+
+  // Turn the caught Diameter msg structure into a RTA and confirm it's contents.
+  std::vector<std::string> impis{IMPI, ASSOCIATED_IDENTITY1, ASSOCIATED_IDENTITY2};
+  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
+  Cx::RegistrationTerminationAnswer rta(msg);
+  EXPECT_TRUE(rta.result_code(test_i32));
+  EXPECT_EQ(DIAMETER_UNABLE_TO_COMPLY, test_i32);
+  EXPECT_EQ(impis, rta.associated_identities());
+  EXPECT_EQ(AUTH_SESSION_STATE, rta.auth_session_state());
+}
 //
 // Push Profile tests
 //
@@ -2637,7 +2994,8 @@ TEST_F(HandlersTest, PushProfile)
   ppr._free_on_delete = false;
 
   PushProfileHandler::Config cfg(_cache, _cx_dict, 0, 3600);
-  PushProfileHandler* handler = new PushProfileHandler(ppr, &cfg);
+  PushProfileHandler* handler = new PushProfileHandler(_cx_dict, &ppr._fd_msg, &cfg);
+  handler->_msg._stack = _mock_stack;
 
   // Once the handler's run function is called, we expect several things to happen.
   // We expect calls to the cache for both the AV and the IMS subscription. We also
@@ -2900,10 +3258,11 @@ TEST_F(HandlerStatsTest, IMSSubscriptionReregHSS)
   // Check the cache get latency is recorded.
   Cache::Transaction* t = mock_req.get_trx();
   ASSERT_FALSE(t == NULL);
-    EXPECT_CALL(mock_req, get_xml(_, _))
-      .WillRepeatedly(DoAll(SetArgReferee<0>(""), SetArgReferee<1>(0)));
-    EXPECT_CALL(mock_req, get_registration_state(_, _))
-      .WillRepeatedly(DoAll(SetArgReferee<0>(RegistrationState::NOT_REGISTERED), SetArgReferee<1>(0)));
+  EXPECT_CALL(mock_req, get_xml(_, _))
+    .WillRepeatedly(DoAll(SetArgReferee<0>(""), SetArgReferee<1>(0)));
+  EXPECT_CALL(mock_req, get_registration_state(_, _))
+    .WillRepeatedly(DoAll(SetArgReferee<0>(RegistrationState::NOT_REGISTERED), SetArgReferee<1>(0)));
+  EXPECT_CALL(mock_req, get_associated_impis(_));
 
   t->start_timer();
   cwtest_advance_time_ms(10);
@@ -2936,7 +3295,7 @@ TEST_F(HandlerStatsTest, IMSSubscriptionReregHSS)
 
   MockCache::MockPutIMSSubscription mock_req2;
   std::vector<std::string> impus{IMPU};
-  EXPECT_CALL(*_cache, create_PutIMSSubscription(impus, IMS_SUBSCRIPTION, _, _, 3600))
+  EXPECT_CALL(*_cache, create_PutIMSSubscription(impus, IMS_SUBSCRIPTION, _, _, _, 3600))
     .WillOnce(Return(&mock_req2));
   EXPECT_CALL(*_cache, send(_, &mock_req2))
     .WillOnce(WithArgs<0>(Invoke(&mock_req2, &Cache::Request::set_trx)));
