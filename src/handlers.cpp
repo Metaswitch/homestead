@@ -1346,9 +1346,18 @@ void RegistrationTerminationHandler::get_assoc_primary_public_ids_success(Cache:
   // Remove any duplicates first. We do this by sorting the vector, using unique
   // to move the unique values to the front and erasing everything after the last
   // unique value.
-  sort(_impus.begin(), _impus.end());
-  _impus.erase(unique(_impus.begin(), _impus.end()), _impus.end());
-  get_registration_sets();
+  if (_impus.empty())
+  {
+    LOG_DEBUG("No registered IMPUs to deregister found");
+    send_rta(DIAMETER_REQ_SUCCESS);
+    delete this;
+  }
+  else
+  {
+    sort(_impus.begin(), _impus.end());
+    _impus.erase(unique(_impus.begin(), _impus.end()), _impus.end());
+    get_registration_sets();
+  }
 }
 
 void RegistrationTerminationHandler::get_assoc_primary_public_ids_failure(Cache::Request* request,
@@ -1377,6 +1386,12 @@ void RegistrationTerminationHandler::get_registration_sets()
     tsx->set_success_clbk(&RegistrationTerminationHandler::get_registration_set_success);
     tsx->set_failure_clbk(&RegistrationTerminationHandler::get_registration_set_failure);
     _cfg->cache->send(tsx, get_ims_sub);
+  }
+  else if (_registration_sets.empty())
+  {
+    LOG_DEBUG("No registered IMPUs to deregister found");
+    send_rta(DIAMETER_REQ_SUCCESS);
+    delete this;
   }
   else
   {
@@ -1423,10 +1438,9 @@ void RegistrationTerminationHandler::get_registration_set_failure(Cache::Request
                                                                   Cache::ResultCode error,
                                                                   std::string& text)
 {
-  LOG_DEBUG("Failed to get a registration set");
-
-  // Call back into get_registration_sets
-  get_registration_sets();
+  LOG_DEBUG("Failed to get a registration set - report failure to HSS");
+  send_rta(DIAMETER_REQ_FAILURE);
+  delete this;
 }
 
 void RegistrationTerminationHandler::delete_registrations()

@@ -90,6 +90,8 @@ void usage(void)
        "                            IMPU cache time-to-live in seconds (default: 0)\n"
        " -I, --hss-reregistration-time <secs>\n"
        "                            How often a RE_REGISTRATION SAR should be sent to the HSS in seconds (default: 1800)\n"
+       " -j, --http-sprout-name <name>\n"
+       "                            Set HTTP address to send deregistration information from RTRs\n"
        "     --scheme-unknown <string>\n"
        "                            String to use to specify unknown SIP-Auth-Scheme (default: Unknown)\n"
        "     --scheme-digest <string>\n"
@@ -127,6 +129,7 @@ int init_options(int argc, char**argv, struct options& options)
     {"server-name",             required_argument, NULL, 's'},
     {"impu-cache-ttl",          required_argument, NULL, 'i'},
     {"hss-reregistration-time", required_argument, NULL, 'I'},
+    {"sprout-http-name",        required_argument, NULL, 'j'},
     {"scheme-unknown",          required_argument, NULL, SCHEME_UNKNOWN},
     {"scheme-digest",           required_argument, NULL, SCHEME_DIGEST},
     {"scheme-aka",              required_argument, NULL, SCHEME_AKA},
