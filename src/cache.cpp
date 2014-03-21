@@ -769,22 +769,20 @@ delete_columns_from_multiple_cfs(const std::vector<CFRowColumnValue>& to_rm,
        it != to_rm.end();
        ++it)
   {
-    std::vector<Mutation> mutations;
-    Mutation mutation;
-    Deletion deletion;
-    SlicePredicate what;
-
     if (it->columns.empty())
     {
-      SliceRange sr;
-      sr.start = "";
-      sr.finish = "";
-
-      what.__set_slice_range(sr);
       LOG_DEBUG("Deleting row %s:%s", it->cf.c_str(), it->row.c_str());
+      ColumnPath cp;
+      cp.__set_column_family(it->cf);
+      _client->remove(it->row, cp, timestamp, ConsistencyLevel::ONE);
     }
     else
     {
+      std::vector<Mutation> mutations;
+      Mutation mutation;
+      Deletion deletion;
+      SlicePredicate what;
+
       std::vector<std::string> column_names;
 
       for (std::map<std::string, std::string>::const_iterator col = it->columns.begin();
@@ -797,20 +795,24 @@ delete_columns_from_multiple_cfs(const std::vector<CFRowColumnValue>& to_rm,
 
       what.__set_column_names(column_names);
       LOG_DEBUG("Deleting %d columns from %s:%s", what.column_names.size(), it->cf.c_str(), it->row.c_str());
-    }
-    deletion.__set_predicate(what);
-    deletion.__set_timestamp(timestamp);
-    mutation.__set_deletion(deletion);
-    mutations.push_back(mutation);
 
-    mutmap[it->row][it->cf] = mutations;
+      deletion.__set_predicate(what);
+      deletion.__set_timestamp(timestamp);
+      mutation.__set_deletion(deletion);
+      mutations.push_back(mutation);
+
+      mutmap[it->row][it->cf] = mutations;
+
+    }
   }
 
-  // Execute the database operation.
-  LOG_DEBUG("Executing delete request operation");
-  _trx->start_timer();
-  _client->batch_mutate(mutmap, ConsistencyLevel::ONE);
-  _trx->stop_timer();
+  // Execute the batch delete operation if we've constructed one.
+  if (!mutmap.empty()) {
+    LOG_DEBUG("Executing delete request operation");
+    _trx->start_timer();
+    _client->batch_mutate(mutmap, ConsistencyLevel::ONE);
+    _trx->stop_timer();
+  }
 }
 
 
