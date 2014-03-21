@@ -674,7 +674,7 @@ get_row(const std::string& key,
         std::vector<ColumnOrSuperColumn>& columns,
         ConsistencyLevel::type consistency_level)
 {
-  // This slice range gets all columns with the specified prefix.
+  // This slice range gets all columns in the row
   SliceRange sr;
   sr.start = "";
   sr.finish = "";
@@ -773,18 +773,31 @@ delete_columns_from_multiple_cfs(const std::vector<CFRowColumnValue>& to_rm,
     Mutation mutation;
     Deletion deletion;
     SlicePredicate what;
-    std::vector<std::string> column_names;
 
-    for (std::map<std::string, std::string>::const_iterator col = it->columns.begin();
-         col != it->columns.end();
-         ++col)
+    if (it->columns.empty())
     {
-      // Vector of mutations (one per column being modified).
-      column_names.push_back(col->first);
-    }
+      SliceRange sr;
+      sr.start = "";
+      sr.finish = "";
 
-    what.__set_column_names(column_names);
-    LOG_DEBUG("Deleting %d columns from %s:%s", what.column_names.size(), it->cf.c_str(), it->row.c_str());
+      what.__set_slice_range(sr);
+      LOG_DEBUG("Deleting row %s:%s", it->cf.c_str(), it->row.c_str());
+    }
+    else
+    {
+      std::vector<std::string> column_names;
+
+      for (std::map<std::string, std::string>::const_iterator col = it->columns.begin();
+           col != it->columns.end();
+           ++col)
+      {
+        // Vector of mutations (one per column being modified).
+        column_names.push_back(col->first);
+      }
+
+      what.__set_column_names(column_names);
+      LOG_DEBUG("Deleting %d columns from %s:%s", what.column_names.size(), it->cf.c_str(), it->row.c_str());
+    }
     deletion.__set_predicate(what);
     deletion.__set_timestamp(timestamp);
     mutation.__set_deletion(deletion);
