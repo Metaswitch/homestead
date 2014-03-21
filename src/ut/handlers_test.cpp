@@ -2942,6 +2942,236 @@ TEST_F(HandlersTest, RegistrationTerminationHTTPUnknownError)
   rtr_template(PERMANENT_TERMINATION, HTTP_PATH_REG_FALSE, DEREG_BODY_PAIRINGS, 999);
 }
 
+TEST_F(HandlersTest, RegistrationTerminationNoRegSets)
+{
+  Cx::RegistrationTerminationRequest rtr(_cx_dict,
+                                         _mock_stack,
+                                         PERMANENT_TERMINATION,
+                                         IMPI,
+                                         ASSOCIATED_IDENTITIES,
+                                         IMPUS,
+                                         AUTH_SESSION_STATE);
+
+  // The free_on_delete flag controls whether we want to free the underlying
+  // fd_msg structure when we delete this RTR. We don't, since this will be
+  // freed when the answer is freed later in the test. If we leave this flag set
+  // then the request will be freed twice.
+  rtr._free_on_delete = false;
+
+  RegistrationTerminationHandler::Config cfg(_cache, _cx_dict, _sprout_conn, 0);
+  RegistrationTerminationHandler* handler = new RegistrationTerminationHandler(_cx_dict, &rtr._fd_msg, &cfg);
+
+  // We have to make sure the message is pointing at the mock stack.
+  handler->_msg._stack = _mock_stack;
+
+  // Once the handler's run function is called, we expect a cache request for
+  // the IMS subscription of the final public identity in IMPUS.
+  MockCache::MockGetIMSSubscription mock_req;
+  EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU2))
+    .WillOnce(Return(&mock_req));
+  EXPECT_CALL(*_cache, send(_, &mock_req))
+    .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
+
+  handler->run();
+
+  // The cache indicates success, but couldn't find any IMS subscription
+  // information.
+  Cache::Transaction* t = mock_req.get_trx();
+  ASSERT_FALSE(t == NULL);
+  EXPECT_CALL(mock_req, get_xml(_, _))
+    .WillRepeatedly(DoAll(SetArgReferee<0>(""), SetArgReferee<1>(0)));
+
+  // Expect another cache request for the IMS subscription of the next
+  // public identity in IMPUS.
+  MockCache::MockGetIMSSubscription mock_req2;
+  EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU))
+    .WillOnce(Return(&mock_req2));
+  EXPECT_CALL(*_cache, send(_, &mock_req2))
+    .WillOnce(WithArgs<0>(Invoke(&mock_req2, &Cache::Request::set_trx)));
+
+  t->on_success(&mock_req);
+
+  // The cache indicates success, but couldn't find any IMS subscription
+  // information.
+  t = mock_req2.get_trx();
+  ASSERT_FALSE(t == NULL);
+  EXPECT_CALL(mock_req2, get_xml(_, _))
+    .WillRepeatedly(DoAll(SetArgReferee<0>(""), SetArgReferee<1>(0)));
+
+  // Expect to receive a diameter message.
+  EXPECT_CALL(*_mock_stack, send(_))
+    .Times(1)
+    .WillOnce(WithArgs<0>(Invoke(store_msg)));
+
+  t->on_success(&mock_req2);
+
+  // Turn the caught Diameter msg structure into a RTA and confirm the result
+  // code is correct.
+  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
+  Cx::RegistrationTerminationAnswer rta(msg);
+  EXPECT_TRUE(rta.result_code(test_i32));
+  EXPECT_EQ(DIAMETER_SUCCESS, test_i32);
+}
+
+TEST_F(HandlersTest, RegistrationTerminationRegSetsCacheFailure)
+{
+  Cx::RegistrationTerminationRequest rtr(_cx_dict,
+                                         _mock_stack,
+                                         PERMANENT_TERMINATION,
+                                         IMPI,
+                                         ASSOCIATED_IDENTITIES,
+                                         IMPUS,
+                                         AUTH_SESSION_STATE);
+
+  // The free_on_delete flag controls whether we want to free the underlying
+  // fd_msg structure when we delete this RTR. We don't, since this will be
+  // freed when the answer is freed later in the test. If we leave this flag set
+  // then the request will be freed twice.
+  rtr._free_on_delete = false;
+
+  RegistrationTerminationHandler::Config cfg(_cache, _cx_dict, _sprout_conn, 0);
+  RegistrationTerminationHandler* handler = new RegistrationTerminationHandler(_cx_dict, &rtr._fd_msg, &cfg);
+
+  // We have to make sure the message is pointing at the mock stack.
+  handler->_msg._stack = _mock_stack;
+
+  // Once the handler's run function is called, we expect a cache request for
+  // the IMS subscription of the final public identity in IMPUS.
+  MockCache::MockGetIMSSubscription mock_req;
+  EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU2))
+    .WillOnce(Return(&mock_req));
+  EXPECT_CALL(*_cache, send(_, &mock_req))
+    .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
+
+  handler->run();
+
+  // The cache request fails.
+  Cache::Transaction* t = mock_req.get_trx();
+  ASSERT_FALSE(t == NULL);
+
+  // Expect to receive a diameter message.
+  EXPECT_CALL(*_mock_stack, send(_))
+    .Times(1)
+    .WillOnce(WithArgs<0>(Invoke(store_msg)));
+
+  std::string error_text = "error";
+  t->on_failure(&mock_req, Cache::INVALID_REQUEST, error_text);
+
+  // Turn the caught Diameter msg structure into a RTA and confirm the result
+  // code is correct.
+  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
+  Cx::RegistrationTerminationAnswer rta(msg);
+  EXPECT_TRUE(rta.result_code(test_i32));
+  EXPECT_EQ(DIAMETER_UNABLE_TO_COMPLY, test_i32);
+}
+
+TEST_F(HandlersTest, RegistrationTerminationNoAssocIMPUs)
+{
+  Cx::RegistrationTerminationRequest rtr(_cx_dict,
+                                         _mock_stack,
+                                         PERMANENT_TERMINATION,
+                                         IMPI,
+                                         ASSOCIATED_IDENTITIES,
+                                         EMPTY_VECTOR,
+                                         AUTH_SESSION_STATE);
+
+  // The free_on_delete flag controls whether we want to free the underlying
+  // fd_msg structure when we delete this RTR. We don't, since this will be
+  // freed when the answer is freed later in the test. If we leave this flag set
+  // then the request will be freed twice.
+  rtr._free_on_delete = false;
+
+  RegistrationTerminationHandler::Config cfg(_cache, _cx_dict, _sprout_conn, 0);
+  RegistrationTerminationHandler* handler = new RegistrationTerminationHandler(_cx_dict, &rtr._fd_msg, &cfg);
+
+  // We have to make sure the message is pointing at the mock stack.
+  handler->_msg._stack = _mock_stack;
+
+  // No public identities, so once the handler's run function is called, we
+  // expect a cache request for associated default public identities.
+  std::vector<std::string> impis{IMPI, ASSOCIATED_IDENTITY1, ASSOCIATED_IDENTITY2};
+  MockCache::MockGetAssociatedPrimaryPublicIDs mock_req;
+  EXPECT_CALL(*_cache, create_GetAssociatedPrimaryPublicIDs(impis))
+    .WillOnce(Return(&mock_req));
+  EXPECT_CALL(*_cache, send(_, &mock_req))
+    .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
+
+  handler->run();
+
+  // The cache indicates success but returns an empty list of IMPUs.
+  Cache::Transaction* t = mock_req.get_trx();
+  ASSERT_FALSE(t == NULL);
+  EXPECT_CALL(mock_req, get_result(_))
+    .WillRepeatedly(SetArgReferee<0>(EMPTY_VECTOR));
+
+  // Expect to receive a diameter message.
+  EXPECT_CALL(*_mock_stack, send(_))
+    .Times(1)
+    .WillOnce(WithArgs<0>(Invoke(store_msg)));
+
+  t->on_success(&mock_req);
+
+  // Turn the caught Diameter msg structure into a RTA and confirm the result
+  // code is correct.
+  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
+  Cx::RegistrationTerminationAnswer rta(msg);
+  EXPECT_TRUE(rta.result_code(test_i32));
+  EXPECT_EQ(DIAMETER_SUCCESS, test_i32);
+}
+
+TEST_F(HandlersTest, RegistrationTerminationAssocIMPUsCacheFailure)
+{
+  Cx::RegistrationTerminationRequest rtr(_cx_dict,
+                                         _mock_stack,
+                                         PERMANENT_TERMINATION,
+                                         IMPI,
+                                         ASSOCIATED_IDENTITIES,
+                                         EMPTY_VECTOR,
+                                         AUTH_SESSION_STATE);
+
+  // The free_on_delete flag controls whether we want to free the underlying
+  // fd_msg structure when we delete this RTR. We don't, since this will be
+  // freed when the answer is freed later in the test. If we leave this flag set
+  // then the request will be freed twice.
+  rtr._free_on_delete = false;
+
+  RegistrationTerminationHandler::Config cfg(_cache, _cx_dict, _sprout_conn, 0);
+  RegistrationTerminationHandler* handler = new RegistrationTerminationHandler(_cx_dict, &rtr._fd_msg, &cfg);
+
+  // We have to make sure the message is pointing at the mock stack.
+  handler->_msg._stack = _mock_stack;
+
+  // No public identities, so once the handler's run function is called, we
+  // expect a cache request for associated default public identities.
+  std::vector<std::string> impis{IMPI, ASSOCIATED_IDENTITY1, ASSOCIATED_IDENTITY2};
+  MockCache::MockGetAssociatedPrimaryPublicIDs mock_req;
+  EXPECT_CALL(*_cache, create_GetAssociatedPrimaryPublicIDs(impis))
+    .WillOnce(Return(&mock_req));
+  EXPECT_CALL(*_cache, send(_, &mock_req))
+    .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
+
+  handler->run();
+
+  // The cache request fails.
+  Cache::Transaction* t = mock_req.get_trx();
+  ASSERT_FALSE(t == NULL);
+
+  // Expect to receive a diameter message.
+  EXPECT_CALL(*_mock_stack, send(_))
+    .Times(1)
+    .WillOnce(WithArgs<0>(Invoke(store_msg)));
+
+  std::string error_text = "error";
+  t->on_failure(&mock_req, Cache::INVALID_REQUEST, error_text);
+
+  // Turn the caught Diameter msg structure into a RTA and confirm the result
+  // code is correct.
+  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
+  Cx::RegistrationTerminationAnswer rta(msg);
+  EXPECT_TRUE(rta.result_code(test_i32));
+  EXPECT_EQ(DIAMETER_UNABLE_TO_COMPLY, test_i32);
+}
+
 TEST_F(HandlersTest, RegistrationTerminationInvalidDeregReason)
 {
   Cx::RegistrationTerminationRequest rtr(_cx_dict,
