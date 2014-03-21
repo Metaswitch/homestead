@@ -759,12 +759,12 @@ void Cache::DeleteRowsRequest::
 delete_columns_from_multiple_cfs(const std::vector<CFRowColumnValue>& to_rm,
                                  int64_t timestamp)
 {
+  _trx->start_timer();
   // The mutation map is of the form {"key": {"column_family": [mutations] } }
   std::map<std::string, std::map<std::string, std::vector<Mutation> > > mutmap;
 
   // Populate the mutations vector.
   LOG_DEBUG("Constructing cache delete request with timestamp %lld", timestamp);
-
   for (std::vector<CFRowColumnValue>::const_iterator it = to_rm.begin();
        it != to_rm.end();
        ++it)
@@ -773,7 +773,8 @@ delete_columns_from_multiple_cfs(const std::vector<CFRowColumnValue>& to_rm,
     {
       LOG_DEBUG("Deleting row %s:%s", it->cf.c_str(), it->row.c_str());
       ColumnPath cp;
-      cp.__set_column_family(it->cf);
+      cp.column_family = it->cf;
+
       _client->remove(it->row, cp, timestamp, ConsistencyLevel::ONE);
     }
     else
@@ -809,10 +810,9 @@ delete_columns_from_multiple_cfs(const std::vector<CFRowColumnValue>& to_rm,
   // Execute the batch delete operation if we've constructed one.
   if (!mutmap.empty()) {
     LOG_DEBUG("Executing delete request operation");
-    _trx->start_timer();
     _client->batch_mutate(mutmap, ConsistencyLevel::ONE);
-    _trx->stop_timer();
   }
+  _trx->stop_timer();
 }
 
 
