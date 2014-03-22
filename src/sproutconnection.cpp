@@ -108,10 +108,6 @@ std::string SproutConnection::create_body(const std::vector<std::string>& defaul
           {
             writer.String(JSON_PRIMARY_IMPU.c_str());
             writer.String((*i).c_str());
-          }
-          writer.EndObject();
-          writer.StartObject();
-          {
             writer.String(JSON_IMPI.c_str());
             writer.String((*j).c_str());
           }

@@ -831,14 +831,6 @@ public:
     EXPECT_CALL(mock_req, get_xml(_, _))
       .WillRepeatedly(DoAll(SetArgReferee<0>(IMPU3_IMS_SUBSCRIPTION), SetArgReferee<1>(0)));
 
-    // Sometimes we're interested in the associated identities returned by
-    // this cache request.
-    if (dereg_reason == NEW_SERVER_ASSIGNED)
-    {
-      EXPECT_CALL(mock_req, get_associated_impis(_))
-        .WillRepeatedly(SetArgReferee<0>(ASSOCIATED_IDENTITIES));
-    }
-
     // Expect another cache request for the IMS subscription of the next
     // public identity in IMPUS.
     MockCache::MockGetIMSSubscription mock_req2;
@@ -854,14 +846,6 @@ public:
     ASSERT_FALSE(t == NULL);
     EXPECT_CALL(mock_req2, get_xml(_, _))
       .WillRepeatedly(DoAll(SetArgReferee<0>(IMPU_IMS_SUBSCRIPTION), SetArgReferee<1>(0)));
-
-    // Sometimes we're interested in the associated identities returned by
-    // this cache request.
-    if (dereg_reason == NEW_SERVER_ASSIGNED)
-    {
-      EXPECT_CALL(mock_req2, get_associated_impis(_))
-        .WillRepeatedly(SetArgReferee<0>(ASSOCIATED_IDENTITIES));
-    }
 
     // Expect a delete to be sent to Sprout.
     EXPECT_CALL(*_mock_http_conn, send_delete(http_path, body, 0))
@@ -887,16 +871,6 @@ public:
     EXPECT_CALL(*_cache, send(_, &mock_req4))
       .WillOnce(WithArgs<0>(Invoke(&mock_req4, &Cache::Request::set_trx)));
 
-    // Sometimes we want to delete entire IMPI rows.
-    MockCache::MockDeleteIMPIMapping mock_req5;
-    if (dereg_reason == NEW_SERVER_ASSIGNED)
-    {
-      EXPECT_CALL(*_cache, create_DeleteIMPIMapping(ASSOCIATED_IDENTITIES, _))
-        .WillOnce(Return(&mock_req5));
-      EXPECT_CALL(*_cache, send(_, &mock_req5))
-        .WillOnce(WithArgs<0>(Invoke(&mock_req5, &Cache::Request::set_trx)));
-    }
-
     t->on_success(&mock_req2);
 
     // Turn the caught Diameter msg structure into a RTA and confirm it's contents.
@@ -919,11 +893,6 @@ public:
     ASSERT_FALSE(t == NULL);
     t = mock_req4.get_trx();
     ASSERT_FALSE(t == NULL);
-    if (dereg_reason == NEW_SERVER_ASSIGNED)
-    {
-      t = mock_req5.get_trx();
-      ASSERT_FALSE(t == NULL);
-    }
   }
 
   void rtr_template_no_impus(int32_t dereg_reason,
@@ -987,7 +956,8 @@ public:
 
     // Sometimes we're interested in the associated identities returned by
     // this cache request.
-    if (dereg_reason == SERVER_CHANGE)
+    if ((dereg_reason == SERVER_CHANGE) ||
+        (dereg_reason == NEW_SERVER_ASSIGNED))
     {
       EXPECT_CALL(mock_req2, get_associated_impis(_))
         .WillRepeatedly(SetArgReferee<0>(ASSOCIATED_IDENTITIES));
@@ -1011,7 +981,8 @@ public:
 
     // Sometimes we're interested in the associated identities returned by
     // this cache request.
-    if (dereg_reason == SERVER_CHANGE)
+    if ((dereg_reason == SERVER_CHANGE) ||
+        (dereg_reason == NEW_SERVER_ASSIGNED))
     {
       EXPECT_CALL(mock_req3, get_associated_impis(_))
         .WillRepeatedly(SetArgReferee<0>(ASSOCIATED_IDENTITIES));
@@ -1042,9 +1013,10 @@ public:
 
     // Sometimes we want to delete entire IMPI rows.
     MockCache::MockDeleteIMPIMapping mock_req6;
-    if (dereg_reason == SERVER_CHANGE)
+    if ((dereg_reason == SERVER_CHANGE) ||
+        (dereg_reason == NEW_SERVER_ASSIGNED))
     {
-      EXPECT_CALL(*_cache, create_DeleteIMPIMapping(ASSOCIATED_IDENTITIES, _))
+      EXPECT_CALL(*_cache, create_DeleteIMPIMapping(impis, _))
         .WillOnce(Return(&mock_req6));
       EXPECT_CALL(*_cache, send(_, &mock_req6))
         .WillOnce(WithArgs<0>(Invoke(&mock_req6, &Cache::Request::set_trx)));
@@ -1065,7 +1037,8 @@ public:
     ASSERT_FALSE(t == NULL);
     t = mock_req5.get_trx();
     ASSERT_FALSE(t == NULL);
-    if (dereg_reason == SERVER_CHANGE)
+    if ((dereg_reason == SERVER_CHANGE) ||
+        (dereg_reason == NEW_SERVER_ASSIGNED))
     {
       t = mock_req6.get_trx();
       ASSERT_FALSE(t == NULL);
@@ -1090,13 +1063,16 @@ const std::string HandlersTest::DEST_REALM = "dest-realm";
 const std::string HandlersTest::DEST_HOST = "dest-host";
 const std::string HandlersTest::DEFAULT_SERVER_NAME = "sprout";
 const std::string HandlersTest::SERVER_NAME = "scscf";
-const std::string HandlersTest::IMPI = "impi@example.com";
+const std::string HandlersTest::IMPI = "_impi@example.com";
 const std::string HandlersTest::IMPU = "sip:impu@example.com";
+const std::string HandlersTest::IMPU2 = "sip:impu2@example.com";
+const std::string HandlersTest::IMPU3 = "sip:impu3@example.com";
+const std::string HandlersTest::IMPU4 = "sip:impu4@example.com";
 const std::string HandlersTest::IMS_SUBSCRIPTION = "<?xml version=\"1.0\"?><IMSSubscription><PrivateID>" + IMPI + "</PrivateID><ServiceProfile><PublicIdentity><Identity>" + IMPU + "</Identity></PublicIdentity></ServiceProfile></IMSSubscription>";
-const std::string HandlersTest::REGDATA_RESULT = "<ClearwaterRegData>\n\t<RegistrationState>REGISTERED</RegistrationState>\n\t<IMSSubscription>\n\t\t<PrivateID>impi@example.com</PrivateID>\n\t\t<ServiceProfile>\n\t\t\t<PublicIdentity>\n\t\t\t\t<Identity>sip:impu@example.com</Identity>\n\t\t\t</PublicIdentity>\n\t\t\t<PublicIdentity>\n\t\t\t\t<Identity>sip:impu4@example.com</Identity>\n\t\t\t</PublicIdentity>\n\t\t</ServiceProfile>\n\t</IMSSubscription>\n</ClearwaterRegData>\n\n";
-const std::string HandlersTest::REGDATA_RESULT_DEREG = "<ClearwaterRegData>\n\t<RegistrationState>NOT_REGISTERED</RegistrationState>\n\t<IMSSubscription>\n\t\t<PrivateID>impi@example.com</PrivateID>\n\t\t<ServiceProfile>\n\t\t\t<PublicIdentity>\n\t\t\t\t<Identity>sip:impu@example.com</Identity>\n\t\t\t</PublicIdentity>\n\t\t\t<PublicIdentity>\n\t\t\t\t<Identity>sip:impu4@example.com</Identity>\n\t\t\t</PublicIdentity>\n\t\t</ServiceProfile>\n\t</IMSSubscription>\n</ClearwaterRegData>\n\n";
+const std::string HandlersTest::REGDATA_RESULT = "<ClearwaterRegData>\n\t<RegistrationState>REGISTERED</RegistrationState>\n\t<IMSSubscription>\n\t\t<PrivateID>" + IMPI + "</PrivateID>\n\t\t<ServiceProfile>\n\t\t\t<PublicIdentity>\n\t\t\t\t<Identity>" + IMPU + "</Identity>\n\t\t\t</PublicIdentity>\n\t\t\t<PublicIdentity>\n\t\t\t\t<Identity>" + IMPU4 + "</Identity>\n\t\t\t</PublicIdentity>\n\t\t</ServiceProfile>\n\t</IMSSubscription>\n</ClearwaterRegData>\n\n";
+const std::string HandlersTest::REGDATA_RESULT_DEREG = "<ClearwaterRegData>\n\t<RegistrationState>NOT_REGISTERED</RegistrationState>\n\t<IMSSubscription>\n\t\t<PrivateID>" + IMPI + "</PrivateID>\n\t\t<ServiceProfile>\n\t\t\t<PublicIdentity>\n\t\t\t\t<Identity>" + IMPU + "</Identity>\n\t\t\t</PublicIdentity>\n\t\t\t<PublicIdentity>\n\t\t\t\t<Identity>" + IMPU4 + "</Identity>\n\t\t\t</PublicIdentity>\n\t\t</ServiceProfile>\n\t</IMSSubscription>\n</ClearwaterRegData>\n\n";
 const std::string HandlersTest::REGDATA_BLANK_RESULT_DEREG = "<ClearwaterRegData>\n\t<RegistrationState>NOT_REGISTERED</RegistrationState>\n</ClearwaterRegData>\n\n";
-const std::string HandlersTest::REGDATA_RESULT_UNREG = "<ClearwaterRegData>\n\t<RegistrationState>UNREGISTERED</RegistrationState>\n\t<IMSSubscription>\n\t\t<PrivateID>impi@example.com</PrivateID>\n\t\t<ServiceProfile>\n\t\t\t<PublicIdentity>\n\t\t\t\t<Identity>sip:impu@example.com</Identity>\n\t\t\t</PublicIdentity>\n\t\t\t<PublicIdentity>\n\t\t\t\t<Identity>sip:impu4@example.com</Identity>\n\t\t\t</PublicIdentity>\n\t\t</ServiceProfile>\n\t</IMSSubscription>\n</ClearwaterRegData>\n\n";
+const std::string HandlersTest::REGDATA_RESULT_UNREG = "<ClearwaterRegData>\n\t<RegistrationState>UNREGISTERED</RegistrationState>\n\t<IMSSubscription>\n\t\t<PrivateID>" + IMPI + "</PrivateID>\n\t\t<ServiceProfile>\n\t\t\t<PublicIdentity>\n\t\t\t\t<Identity>" + IMPU + "</Identity>\n\t\t\t</PublicIdentity>\n\t\t\t<PublicIdentity>\n\t\t\t\t<Identity>" + IMPU4 + "</Identity>\n\t\t\t</PublicIdentity>\n\t\t</ServiceProfile>\n\t</IMSSubscription>\n</ClearwaterRegData>\n\n";
 const std::string HandlersTest::VISITED_NETWORK = "visited-network.com";
 const std::string HandlersTest::AUTH_TYPE_DEREG = "DEREG";
 const std::string HandlersTest::AUTH_TYPE_CAPAB = "CAPAB";
@@ -1106,47 +1082,32 @@ const std::vector<int32_t> no_capabilities = {};
 const ServerCapabilities HandlersTest::CAPABILITIES(mandatory_capabilities, optional_capabilities);
 const ServerCapabilities HandlersTest::NO_CAPABILITIES(no_capabilities, no_capabilities);
 const int32_t HandlersTest::AUTH_SESSION_STATE = 1;
-const std::string HandlersTest::ASSOCIATED_IDENTITY1 = "impi1@example.com";
-const std::string HandlersTest::ASSOCIATED_IDENTITY2 = "impi2@example.com";
+const std::string HandlersTest::ASSOCIATED_IDENTITY1 = "associated_identity1@example.com";
+const std::string HandlersTest::ASSOCIATED_IDENTITY2 = "associated_identity2@example.com";
 std::vector<std::string> HandlersTest::ASSOCIATED_IDENTITIES = {ASSOCIATED_IDENTITY1, ASSOCIATED_IDENTITY2};
-const std::string HandlersTest::IMPU2 = "sip:impu2@example.com";
-const std::string HandlersTest::IMPU3 = "sip:impu3@example.com";
-const std::string HandlersTest::IMPU4 = "sip:impu4@example.com";
 std::vector<std::string> HandlersTest::IMPUS = {IMPU, IMPU2};
 std::vector<std::string> HandlersTest::IMPU_IN_VECTOR = {IMPU};
 std::vector<std::string> HandlersTest::IMPI_IN_VECTOR = {IMPI};
 std::vector<std::string> HandlersTest::ASSOCIATED_IDENTITY1_IN_VECTOR = {ASSOCIATED_IDENTITY1};
 std::vector<std::string> HandlersTest::IMPU_REG_SET = {IMPU, IMPU4};
 std::vector<std::string> HandlersTest::IMPU3_REG_SET = {IMPU3, IMPU2};
-const std::string HandlersTest::IMPU_IMS_SUBSCRIPTION = "<?xml version=\"1.0\"?><IMSSubscription><PrivateID>" +
-                                                        IMPI +
-                                                        "</PrivateID><ServiceProfile><PublicIdentity><Identity>" +
-                                                        IMPU +
-                                                        "</Identity></PublicIdentity><PublicIdentity><Identity>" +
-                                                        IMPU4 +
-                                                        "</Identity></PublicIdentity></ServiceProfile></IMSSubscription>";
-const std::string HandlersTest::IMPU3_IMS_SUBSCRIPTION = "<?xml version=\"1.0\"?><IMSSubscription><PrivateID>" +
-                                                         IMPI +
-                                                         "</PrivateID><ServiceProfile><PublicIdentity><Identity>" +
-                                                         IMPU3 +
-                                                         "</Identity></PublicIdentity><PublicIdentity><Identity>" +
-                                                         IMPU2 +
-                                                         "</Identity></PublicIdentity></ServiceProfile></IMSSubscription>";
+const std::string HandlersTest::IMPU_IMS_SUBSCRIPTION = "<?xml version=\"1.0\"?><IMSSubscription><PrivateID>" + IMPI + "</PrivateID><ServiceProfile><PublicIdentity><Identity>" + IMPU + "</Identity></PublicIdentity><PublicIdentity><Identity>" + IMPU4 + "</Identity></PublicIdentity></ServiceProfile></IMSSubscription>";
+const std::string HandlersTest::IMPU3_IMS_SUBSCRIPTION = "<?xml version=\"1.0\"?><IMSSubscription><PrivateID>" + IMPI + "</PrivateID><ServiceProfile><PublicIdentity><Identity>" + IMPU3 + "</Identity></PublicIdentity><PublicIdentity><Identity>" + IMPU2 + "</Identity></PublicIdentity></ServiceProfile></IMSSubscription>";
 std::vector<std::string> HandlersTest::EMPTY_VECTOR = {};
-const std::string HandlersTest::DEREG_BODY_PAIRINGS = "{\"registrations\":[{\"primary-impu\":\"" + IMPU3 + "\"},{\"impi\":\"" + IMPI +
-                                                                      "\"},{\"primary-impu\":\"" + IMPU3 + "\"},{\"impi\":\"" + ASSOCIATED_IDENTITY1 +
-                                                                      "\"},{\"primary-impu\":\"" + IMPU3 + "\"},{\"impi\":\"" + ASSOCIATED_IDENTITY2 +
-                                                                      "\"},{\"primary-impu\":\"" + IMPU + "\"},{\"impi\":\"" + IMPI +
-                                                                      "\"},{\"primary-impu\":\"" + IMPU + "\"},{\"impi\":\"" + ASSOCIATED_IDENTITY1 +
-                                                                      "\"},{\"primary-impu\":\"" + IMPU + "\"},{\"impi\":\"" + ASSOCIATED_IDENTITY2 + "\"}]}";
+const std::string HandlersTest::DEREG_BODY_PAIRINGS = "{\"registrations\":[{\"primary-impu\":\"" + IMPU3 + "\",\"impi\":\"" + IMPI +
+                                                                      "\"},{\"primary-impu\":\"" + IMPU3 + "\",\"impi\":\"" + ASSOCIATED_IDENTITY1 +
+                                                                      "\"},{\"primary-impu\":\"" + IMPU3 + "\",\"impi\":\"" + ASSOCIATED_IDENTITY2 +
+                                                                      "\"},{\"primary-impu\":\"" + IMPU + "\",\"impi\":\"" + IMPI +
+                                                                      "\"},{\"primary-impu\":\"" + IMPU + "\",\"impi\":\"" + ASSOCIATED_IDENTITY1 +
+                                                                      "\"},{\"primary-impu\":\"" + IMPU + "\",\"impi\":\"" + ASSOCIATED_IDENTITY2 + "\"}]}";
 const std::string HandlersTest::DEREG_BODY_LIST = "{\"registrations\":[{\"primary-impu\":\"" + IMPU3 + "\"},{\"primary-impu\":\"" + IMPU + "\"}]}";
 // These are effectively the same as above, but depending on the exact code path the ordering of IMPUS can be different.
-const std::string HandlersTest::DEREG_BODY_PAIRINGS2 = "{\"registrations\":[{\"primary-impu\":\"" + IMPU + "\"},{\"impi\":\"" + IMPI +
-                                                                       "\"},{\"primary-impu\":\"" + IMPU + "\"},{\"impi\":\"" + ASSOCIATED_IDENTITY1 +
-                                                                       "\"},{\"primary-impu\":\"" + IMPU + "\"},{\"impi\":\"" + ASSOCIATED_IDENTITY2 +
-                                                                       "\"},{\"primary-impu\":\"" + IMPU3 + "\"},{\"impi\":\"" + IMPI +
-                                                                       "\"},{\"primary-impu\":\"" + IMPU3 + "\"},{\"impi\":\"" + ASSOCIATED_IDENTITY1 +
-                                                                       "\"},{\"primary-impu\":\"" + IMPU3 + "\"},{\"impi\":\"" + ASSOCIATED_IDENTITY2 + "\"}]}";
+const std::string HandlersTest::DEREG_BODY_PAIRINGS2 = "{\"registrations\":[{\"primary-impu\":\"" + IMPU + "\",\"impi\":\"" + IMPI +
+                                                                       "\"},{\"primary-impu\":\"" + IMPU + "\",\"impi\":\"" + ASSOCIATED_IDENTITY1 +
+                                                                       "\"},{\"primary-impu\":\"" + IMPU + "\",\"impi\":\"" + ASSOCIATED_IDENTITY2 +
+                                                                       "\"},{\"primary-impu\":\"" + IMPU3 + "\",\"impi\":\"" + IMPI +
+                                                                       "\"},{\"primary-impu\":\"" + IMPU3 + "\",\"impi\":\"" + ASSOCIATED_IDENTITY1 +
+                                                                       "\"},{\"primary-impu\":\"" + IMPU3 + "\",\"impi\":\"" + ASSOCIATED_IDENTITY2 + "\"}]}";
 const std::string HandlersTest::DEREG_BODY_LIST2 = "{\"registrations\":[{\"primary-impu\":\"" + IMPU + "\"},{\"primary-impu\":\"" + IMPU3 + "\"}]}";
 const std::string HandlersTest::SCHEME_UNKNOWN = "Unknwon";
 const std::string HandlersTest::SCHEME_DIGEST = "SIP Digest";
@@ -2919,7 +2880,7 @@ TEST_F(HandlersTest, RegistrationTerminationServerChange)
 
 TEST_F(HandlersTest, RegistrationTerminationNewServerAssigned)
 {
-  rtr_template(NEW_SERVER_ASSIGNED, HTTP_PATH_REG_FALSE, DEREG_BODY_LIST, HTTP_OK);
+  rtr_template_no_impus(NEW_SERVER_ASSIGNED, HTTP_PATH_REG_FALSE, DEREG_BODY_LIST2);
 }
 
 TEST_F(HandlersTest, RegistrationTerminationHTTPBadMethod)
@@ -3209,42 +3170,6 @@ TEST_F(HandlersTest, RegistrationTerminationInvalidDeregReason)
   EXPECT_EQ(AUTH_SESSION_STATE, rta.auth_session_state());
 }
 
-TEST_F(HandlersTest, RegistrationTerminationNewServerNoIMPUs)
-{
-  Cx::RegistrationTerminationRequest rtr(_cx_dict,
-                                         _mock_stack,
-                                         NEW_SERVER_ASSIGNED,
-                                         IMPI,
-                                         ASSOCIATED_IDENTITIES,
-                                         EMPTY_VECTOR,
-                                         AUTH_SESSION_STATE);
-
-  // The free_on_delete flag controls whether we want to free the underlying
-  // fd_msg structure when we delete this RTR. We don't, since this will be
-  // freed when the answer is freed later in the test. If we leave this flag set
-  // then the request will be freed twice.
-  rtr._free_on_delete = false;
-
-  RegistrationTerminationHandler::Config cfg(_cache, _cx_dict, _sprout_conn, 0);
-  RegistrationTerminationHandler* handler = new RegistrationTerminationHandler(_cx_dict, &rtr._fd_msg, &cfg);
-  handler->_msg._stack = _mock_stack;
-
-  // We expect to receive a diameter message.
-  EXPECT_CALL(*_mock_stack, send(_))
-    .Times(1)
-    .WillOnce(WithArgs<0>(Invoke(store_msg)));
-
-  handler->run();
-
-  // Turn the caught Diameter msg structure into a RTA and confirm it's contents.
-  std::vector<std::string> impis{IMPI, ASSOCIATED_IDENTITY1, ASSOCIATED_IDENTITY2};
-  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
-  Cx::RegistrationTerminationAnswer rta(msg);
-  EXPECT_TRUE(rta.result_code(test_i32));
-  EXPECT_EQ(DIAMETER_UNABLE_TO_COMPLY, test_i32);
-  EXPECT_EQ(impis, rta.associated_identities());
-  EXPECT_EQ(AUTH_SESSION_STATE, rta.auth_session_state());
-}
 //
 // Push Profile tests
 //

@@ -1290,11 +1290,13 @@ void RegistrationTerminationHandler::run()
   _impis.push_back(impi);
   std::vector<std::string> associated_identities = rtr.associated_identities();
   _impis.insert(_impis.end(), associated_identities.begin(), associated_identities.end());
-  if (_deregistration_reason != SERVER_CHANGE)
+  if ((_deregistration_reason != SERVER_CHANGE) &&
+      (_deregistration_reason != NEW_SERVER_ASSIGNED))
   {
     // We're not interested in the public identities on the request
-    // if deregistration reason is SERVER_CHANGE. We'll find some
-    // public identities later, and we want _impus to be empty for now.
+    // if deregistration reason is SERVER_CHANGE or NEW_SERVER_ASSIGNED.
+    // We'll find some public identities later, and we want _impus to be empty
+    // for now.
     _impus = rtr.impus();
   }
 
@@ -1303,7 +1305,8 @@ void RegistrationTerminationHandler::run()
 
   if ((_impus.empty()) && ((_deregistration_reason == PERMANENT_TERMINATION) ||
                            (_deregistration_reason == REMOVE_SCSCF) ||
-                           (_deregistration_reason == SERVER_CHANGE)))
+                           (_deregistration_reason == SERVER_CHANGE) ||
+                           (_deregistration_reason == NEW_SERVER_ASSIGNED)))
   {
     // Find all the default public identities associated with the
     // private identities specified on the request.
@@ -1316,8 +1319,7 @@ void RegistrationTerminationHandler::run()
     _cfg->cache->send(tsx, get_associated_impus);
   }
   else if ((!_impus.empty()) && ((_deregistration_reason == PERMANENT_TERMINATION) ||
-                                 (_deregistration_reason == REMOVE_SCSCF) ||
-                                 (_deregistration_reason == NEW_SERVER_ASSIGNED)))
+                                 (_deregistration_reason == REMOVE_SCSCF)))
   {
     // Find information about the registration sets for the public
     // identities specified on the request.
@@ -1325,10 +1327,8 @@ void RegistrationTerminationHandler::run()
   }
   else
   {
-    // This is either an invalid deregistration reason, or no public
-    // identities specified on a NEW_SERVER_ASSIGNED RTR. Both of these
-    // are errors.
-    LOG_ERROR("Unexpected Registration-Termination request received with deregistration reason %d",
+    // This is either an invalid deregistration reason.
+    LOG_ERROR("Registration-Termination request received with invalid deregistration reason %d",
               _deregistration_reason);
     send_rta(DIAMETER_REQ_FAILURE);
     delete this;
@@ -1342,10 +1342,6 @@ void RegistrationTerminationHandler::get_assoc_primary_public_ids_success(Cache:
     (Cache::GetAssociatedPrimaryPublicIDs*)request;
   get_associated_impus_result->get_result(_impus);
 
-  // We now have all the default public identities. Find their registration sets.
-  // Remove any duplicates first. We do this by sorting the vector, using unique
-  // to move the unique values to the front and erasing everything after the last
-  // unique value.
   if (_impus.empty())
   {
     LOG_DEBUG("No registered IMPUs to deregister found");
@@ -1354,6 +1350,10 @@ void RegistrationTerminationHandler::get_assoc_primary_public_ids_success(Cache:
   }
   else
   {
+    // We now have all the default public identities. Find their registration sets.
+    // Remove any duplicates first. We do this by sorting the vector, using unique
+    // to move the unique values to the front and erasing everything after the last
+    // unique value.
     sort(_impus.begin(), _impus.end());
     _impus.erase(unique(_impus.begin(), _impus.end()), _impus.end());
     get_registration_sets();
@@ -1364,7 +1364,6 @@ void RegistrationTerminationHandler::get_assoc_primary_public_ids_failure(Cache:
                                                                           Cache::ResultCode error,
                                                                           std::string& text)
 {
-  // We don't worry too much about this. Just move on to the next private ID.
   LOG_DEBUG("Failed to get associated default public identities");
   send_rta(DIAMETER_REQ_FAILURE);
   delete this;
@@ -1396,6 +1395,12 @@ void RegistrationTerminationHandler::get_registration_sets()
   else
   {
     // We now have all the registration sets, and we can delete the registrations.
+    // First remove any duplicates in the list of _impis. We do this
+    // by sorting the vector, using unique to move the unique values to the front
+    // and erasing everything after the last unique value.
+    sort(_impis.begin(), _impis.end());
+    _impis.erase(unique(_impis.begin(), _impis.end()), _impis.end());
+
     delete_registrations();
   }
 }
@@ -1425,9 +1430,9 @@ void RegistrationTerminationHandler::get_registration_set_success(Cache::Request
     std::string associated_impis_string = boost::algorithm::join(associated_impis, ", ");
     LOG_DEBUG("GetIMSSubscription returned associated identites: %s",
               associated_impis_string.c_str());
-    _associated_impis.insert(_associated_impis.end(),
-                             associated_impis.begin(),
-                             associated_impis.end());
+    _impis.insert(_impis.end(),
+                  associated_impis.begin(),
+                  associated_impis.end());
   }
 
   // Call back into get_registration_sets
@@ -1542,16 +1547,11 @@ void RegistrationTerminationHandler::dissociate_implicit_registration_sets()
 
 void RegistrationTerminationHandler::delete_impi_mappings()
 {
-  // Delete rows from the IMPI table for all associated IMPIs. First remove any
-  // duplicates in the list of _associated_impis. We do this by sorting the vector,
-  // using unique to move the unique values to the front and erasing everything
-  // after the last unique value.
-  sort(_associated_impis.begin(), _associated_impis.end());
-  _associated_impis.erase(unique(_associated_impis.begin(), _associated_impis.end()), _associated_impis.end());
-  std::string associated_impis_string = boost::algorithm::join(_associated_impis, ", ");
+  // Delete rows from the IMPI table for all associated IMPIs.
+  std::string _impis_string = boost::algorithm::join(_impis, ", ");
   LOG_DEBUG("Deleting IMPI mappings for the following IMPIs: %s",
-            associated_impis_string.c_str());
-  Cache::Request* delete_impis = _cfg->cache->create_DeleteIMPIMapping(_associated_impis, Cache::generate_timestamp());
+            _impis_string.c_str());
+  Cache::Request* delete_impis = _cfg->cache->create_DeleteIMPIMapping(_impis, Cache::generate_timestamp());
   CacheTransaction* tsx = new CacheTransaction(this);
   _cfg->cache->send(tsx, delete_impis);
 }
