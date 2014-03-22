@@ -1605,8 +1605,7 @@ void PushProfileHandler::update_av()
                                                                       _digest_av,
                                                                       Cache::generate_timestamp(),
                                                                       _cfg->impu_cache_ttl);
-  HssCacheHandler::CacheTransaction<PushProfileHandler>* tsx =
-    new HssCacheHandler::CacheTransaction<PushProfileHandler>(NULL);
+  CacheTransaction* tsx = new CacheTransaction(this);
   tsx->set_success_clbk(&PushProfileHandler::update_av_success);
   tsx->set_failure_clbk(&PushProfileHandler::update_av_failure);
   _cfg->cache->send(tsx, put_auth_vector);
@@ -1645,8 +1644,7 @@ void PushProfileHandler::update_ims_subscription()
                                            state,
                                            Cache::generate_timestamp(),
                                            (2 * _cfg->hss_reregistration_time));
-  HssCacheHandler::CacheTransaction<PushProfileHandler>* tsx =
-    new HssCacheHandler::CacheTransaction<PushProfileHandler>(NULL);
+  CacheTransaction* tsx = new CacheTransaction(this);
   tsx->set_success_clbk(&PushProfileHandler::update_ims_subscription_success);
   tsx->set_failure_clbk(&PushProfileHandler::update_ims_subscription_failure);
   _cfg->cache->send(tsx, put_ims_subscription);

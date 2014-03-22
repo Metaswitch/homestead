@@ -550,6 +550,8 @@ public:
 
   void run();
 
+  typedef HssCacheHandler::CacheTransaction<PushProfileHandler> CacheTransaction;
+
 private:
   const Config* _cfg;
   std::string _impi;
