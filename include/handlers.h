@@ -552,5 +552,20 @@ public:
 
 private:
   const Config* _cfg;
+  std::string _impi;
+  DigestAuthVector _digest_av;
+  std::string _ims_subscription;
+
+  void update_av();
+  void update_av_success(Cache::Request* request);
+  void update_av_failure(Cache::Request* request,
+                         Cache::ResultCode error,
+                         std::string& text);
+  void update_ims_subscription();
+  void update_ims_subscription_success(Cache::Request* request);
+  void update_ims_subscription_failure(Cache::Request* request,
+                                       Cache::ResultCode error,
+                                       std::string& text);
+  void send_ppa(const std::string result_code);
 };
 #endif

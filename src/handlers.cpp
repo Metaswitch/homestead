@@ -1551,7 +1551,8 @@ void RegistrationTerminationHandler::delete_impi_mappings()
   std::string _impis_string = boost::algorithm::join(_impis, ", ");
   LOG_DEBUG("Deleting IMPI mappings for the following IMPIs: %s",
             _impis_string.c_str());
-  Cache::Request* delete_impis = _cfg->cache->create_DeleteIMPIMapping(_impis, Cache::generate_timestamp());
+  Cache::Request* delete_impis =
+    _cfg->cache->create_DeleteIMPIMapping(_impis, Cache::generate_timestamp());
   CacheTransaction* tsx = new CacheTransaction(this);
   _cfg->cache->send(tsx, delete_impis);
 }
@@ -1576,47 +1577,103 @@ void PushProfileHandler::run()
   // Received a Push Profile Request. We may need to update a digest in the cache. We may
   // need to update an IMS subscription in the cache.
   Cx::PushProfileRequest ppr(_msg);
+  _impi = ppr.impi();
+  _digest_av = ppr.digest_auth_vector();
+  ppr.user_data(_ims_subscription);
 
   // If we have a private ID and a digest specified on the PPR, update the digest for this impi
-  // in the cache.
-  std::string impi = ppr.impi();
-  DigestAuthVector digest_auth_vector = ppr.digest_auth_vector();
-  if ((!impi.empty()) && (!digest_auth_vector.ha1.empty()))
+  // in the cache. If we have an IMS subscription, update the IMPU table for each public ID.
+  // Otherwise just reply to the HSS.
+  if ((!_impi.empty()) && (!_digest_av.ha1.empty()))
   {
-    LOG_INFO("Updating digest for private ID %s from PPR", impi.c_str());
-    Cache::Request* put_auth_vector = _cfg->cache->create_PutAuthVector(impi, digest_auth_vector, Cache::generate_timestamp(), _cfg->impu_cache_ttl);
-    HssCacheHandler::CacheTransaction<PushProfileHandler>* tsx = new HssCacheHandler::CacheTransaction<PushProfileHandler>(NULL);
-    _cfg->cache->send(tsx, put_auth_vector);
+    update_av();
   }
-
-  // If the PPR contains a User-Data AVP containing IMS subscription, update the impu table in the
-  // cache with this IMS subscription for each public ID mentioned.
-  std::string user_data;
-  if (ppr.user_data(user_data))
+  else if (!_ims_subscription.empty())
   {
-    LOG_INFO("Updating IMS subscription from PPR");
-    std::vector<std::string> impus = XmlUtils::get_public_ids(user_data);
-    RegistrationState state = RegistrationState::UNCHANGED;
-    Cache::Request* put_ims_subscription = _cfg->cache->create_PutIMSSubscription(impus,
-                                                                                  user_data,
-                                                                                  state,
-                                                                                  Cache::generate_timestamp(),
-                                                                                  (2 * _cfg->hss_reregistration_time));
-    HssCacheHandler::CacheTransaction<PushProfileHandler>* tsx = new HssCacheHandler::CacheTransaction<PushProfileHandler>(NULL);
-    _cfg->cache->send(tsx, put_ims_subscription);
+    update_ims_subscription();
   }
+  else
+  {
+    send_ppa(DIAMETER_REQ_SUCCESS);
+  }
+}
 
-  // Get the Auth-Session-State. PPRs are required to have an Auth-Session-State, so
-  // this AVP will be present.
-  int32_t auth_session_state = ppr.auth_session_state();
+void PushProfileHandler::update_av()
+{
+  LOG_INFO("Updating digest for private ID %s from PPR", _impi.c_str());
+  Cache::Request* put_auth_vector = _cfg->cache->create_PutAuthVector(_impi,
+                                                                      _digest_av,
+                                                                      Cache::generate_timestamp(),
+                                                                      _cfg->impu_cache_ttl);
+  HssCacheHandler::CacheTransaction<PushProfileHandler>* tsx =
+    new HssCacheHandler::CacheTransaction<PushProfileHandler>(NULL);
+  tsx->set_success_clbk(&PushProfileHandler::update_av_success);
+  tsx->set_failure_clbk(&PushProfileHandler::update_av_failure);
+  _cfg->cache->send(tsx, put_auth_vector);
+}
 
+void PushProfileHandler::update_av_success(Cache::Request* request)
+{
+  // If we also need to update an IMS subscription, do that. Otherwise send a
+  // successful response to the HSS.
+  if (!_ims_subscription.empty())
+  {
+    update_ims_subscription();
+  }
+  else
+  {
+    send_ppa(DIAMETER_REQ_SUCCESS);
+  }
+}
+
+void PushProfileHandler::update_av_failure(Cache::Request* request,
+                                           Cache::ResultCode error,
+                                           std::string& text)
+{
+  LOG_DEBUG("Failed to update AV for %s - report failure to HSS", _impi.c_str());
+  send_ppa(DIAMETER_REQ_FAILURE);
+}
+
+void PushProfileHandler::update_ims_subscription()
+{
+  LOG_INFO("Updating IMS subscription from PPR");
+  std::vector<std::string> impus = XmlUtils::get_public_ids(_ims_subscription);
+  RegistrationState state = RegistrationState::UNCHANGED;
+  Cache::Request* put_ims_subscription =
+    _cfg->cache->create_PutIMSSubscription(impus,
+                                           _ims_subscription,
+                                           state,
+                                           Cache::generate_timestamp(),
+                                           (2 * _cfg->hss_reregistration_time));
+  HssCacheHandler::CacheTransaction<PushProfileHandler>* tsx =
+    new HssCacheHandler::CacheTransaction<PushProfileHandler>(NULL);
+  tsx->set_success_clbk(&PushProfileHandler::update_ims_subscription_success);
+  tsx->set_failure_clbk(&PushProfileHandler::update_ims_subscription_failure);
+  _cfg->cache->send(tsx, put_ims_subscription);
+}
+
+void PushProfileHandler::update_ims_subscription_success(Cache::Request* request)
+{
+  // Send a successful response to the HSS.
+  send_ppa(DIAMETER_REQ_SUCCESS);
+}
+
+void PushProfileHandler::update_ims_subscription_failure(Cache::Request* request,
+                                                         Cache::ResultCode error,
+                                                         std::string& text)
+{
+  LOG_DEBUG("Failed to update IMS subscription - report failure to HSS");
+  send_ppa(DIAMETER_REQ_FAILURE);
+}
+
+void PushProfileHandler::send_ppa(const std::string result_code)
+{
   // Use our Cx layer to create a PPA object and add the correct AVPs. The PPA is
-  // created from the PPR. We currently always return DIAMETER_SUCCESS. We may want
-  // to return DIAMETER_UNABLE_TO_COMPLY for failures in future.
+  // created from the PPR.
   Cx::PushProfileAnswer ppa(_msg,
                             _cfg->dict,
-                            DIAMETER_REQ_SUCCESS,
-                            auth_session_state);
+                            result_code,
+                            _msg.auth_session_state());
 
   // Send the PPA back to the HSS.
   LOG_INFO("Ready to send PPA");
