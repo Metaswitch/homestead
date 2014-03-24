@@ -386,7 +386,7 @@ public:
       EXPECT_CALL(*_cache, send(_, &mock_req2))
         .WillOnce(WithArgs<0>(Invoke(&mock_req2, &Cache::Request::set_trx)));
 
-      EXPECT_CALL(*_httpstack, send_reply(_, 200));
+      EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
       _caught_diam_tsx->on_response(saa);
 
       t = mock_req2.get_trx();
@@ -404,7 +404,7 @@ public:
       EXPECT_CALL(*_cache, send(_, &mock_req2))
         .WillOnce(WithArgs<0>(Invoke(&mock_req2, &Cache::Request::set_trx)));
 
-      EXPECT_CALL(*_httpstack, send_reply(_, 200));
+      EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
       _caught_diam_tsx->on_response(saa);
 
       t = mock_req2.get_trx();
@@ -458,7 +458,7 @@ public:
 
     // No SAR was generated, so there shouldn't be any effect on the
     // database - just check that we send back a response.
-    EXPECT_CALL(*_httpstack, send_reply(_, 200));
+    EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
     t->on_success(&mock_req);
 
     // Build the expected response and check it's correct
@@ -522,7 +522,7 @@ public:
                                    DIAMETER_SUCCESS,
                                    IMS_SUBSCRIPTION);
 
-    EXPECT_CALL(*_httpstack, send_reply(_, 200));
+    EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
     _caught_diam_tsx->on_response(saa);
     // Build the expected response and check it's correct
     EXPECT_EQ(expected_result, req.content());
@@ -580,7 +580,7 @@ public:
       EXPECT_CALL(*_cache, send(_, &mock_req2))
         .WillOnce(WithArgs<0>(Invoke(&mock_req2, &Cache::Request::set_trx)));
 
-      EXPECT_CALL(*_httpstack, send_reply(_, 200));
+      EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
       t->on_success(&mock_req);
 
       t = mock_req2.get_trx();
@@ -590,7 +590,7 @@ public:
     {
       // If we're not expecting a database update, just check that we
       // return 200 OK.
-      EXPECT_CALL(*_httpstack, send_reply(_, 200));
+      EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
       t->on_success(&mock_req);
     }
     // Build the expected response and check it's correct
@@ -627,7 +627,7 @@ public:
                                     hss_experimental_rc,
                                     "",
                                     NO_CAPABILITIES);
-    EXPECT_CALL(*_httpstack, send_reply(_, http_rc));
+    EXPECT_CALL(*_httpstack, send_reply(_, http_rc, _));
     _caught_diam_tsx->on_response(uaa);
     fd_msg_free(_caught_fd_msg); _caught_fd_msg = NULL;
     delete _caught_diam_tsx; _caught_diam_tsx = NULL;
@@ -664,7 +664,7 @@ public:
                                hss_experimental_rc,
                                "",
                                NO_CAPABILITIES);
-    EXPECT_CALL(*_httpstack, send_reply(_, http_rc));
+    EXPECT_CALL(*_httpstack, send_reply(_, http_rc, _));
     _caught_diam_tsx->on_response(lia);
     fd_msg_free(_caught_fd_msg); _caught_fd_msg = NULL;
     delete _caught_diam_tsx; _caught_diam_tsx = NULL;
@@ -735,7 +735,7 @@ Diameter::Transaction* HandlersTest::_caught_diam_tsx = NULL;
 TEST_F(HandlersTest, SimpleMainline)
 {
   MockHttpStack::Request req(_httpstack, "/", "ping");
-  EXPECT_CALL(*_httpstack, send_reply(_, 200));
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
   PingHandler* handler = new PingHandler(req);
   handler->run();
   EXPECT_EQ("OK", req.content());
@@ -782,7 +782,7 @@ TEST_F(HandlersTest, DigestCache)
   // an HTTP reply.
   EXPECT_CALL(mock_req, get_result(_))
     .WillRepeatedly(SetArgReferee<0>(digest));
-  EXPECT_CALL(*_httpstack, send_reply(_, 200));
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
   t->on_success(&mock_req);
 
   // Build the expected response and check it's correct.
@@ -817,7 +817,7 @@ TEST_F(HandlersTest, DigestCacheFailure)
   ASSERT_FALSE(t == NULL);
 
   // Expect a 502 HTTP response once the cache returns an error to the handler.
-  EXPECT_CALL(*_httpstack, send_reply(_, 502));
+  EXPECT_CALL(*_httpstack, send_reply(_, 502, _));
 
   std::string error_text = "error";
   t->on_failure(&mock_req, Cache::NOT_FOUND, error_text);
@@ -878,7 +878,7 @@ TEST_F(HandlersTest, DigestHSS)
   EXPECT_CALL(*_cache, send(_, &mock_req))
     .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
 
-  EXPECT_CALL(*_httpstack, send_reply(_, 200));
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
   _caught_diam_tsx->on_response(maa);
   _caught_fd_msg = NULL;
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
@@ -930,7 +930,7 @@ TEST_F(HandlersTest, DigestHSSTimeout)
   digest.qop = "qop";
   AKAAuthVector aka;
 
-  EXPECT_CALL(*_httpstack, send_reply(_, 503));
+  EXPECT_CALL(*_httpstack, send_reply(_, 503, _));
   _caught_diam_tsx->on_timeout();
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
 }
@@ -1010,7 +1010,7 @@ TEST_F(HandlersTest, DigestHSSNoIMPU)
   EXPECT_CALL(*_cache, send(_, &mock_req2))
     .WillOnce(WithArgs<0>(Invoke(&mock_req2, &Cache::Request::set_trx)));
 
-  EXPECT_CALL(*_httpstack, send_reply(_, 200));
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
   _caught_diam_tsx->on_response(maa);
   _caught_fd_msg = NULL;
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
@@ -1060,7 +1060,7 @@ TEST_F(HandlersTest, DigestHSSUserUnknown)
                                aka);
 
   // Once the handler recieves the MAA, expect a 404 HTTP response.
-  EXPECT_CALL(*_httpstack, send_reply(_, 404));
+  EXPECT_CALL(*_httpstack, send_reply(_, 404, _));
   _caught_diam_tsx->on_response(maa);
   fd_msg_free(_caught_fd_msg); _caught_fd_msg = NULL;
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
@@ -1103,7 +1103,7 @@ TEST_F(HandlersTest, DigestHSSOtherError)
                                aka);
 
   // Once the handler recieves the MAA, expect a 500 HTTP response.
-  EXPECT_CALL(*_httpstack, send_reply(_, 500));
+  EXPECT_CALL(*_httpstack, send_reply(_, 500, _));
   _caught_diam_tsx->on_response(maa);
   fd_msg_free(_caught_fd_msg); _caught_fd_msg = NULL;
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
@@ -1146,7 +1146,7 @@ TEST_F(HandlersTest, DigestHSSUnkownScheme)
                                aka);
 
   // Once the handler recieves the MAA, expect a 404 HTTP response.
-  EXPECT_CALL(*_httpstack, send_reply(_, 404));
+  EXPECT_CALL(*_httpstack, send_reply(_, 404, _));
   _caught_diam_tsx->on_response(maa);
   fd_msg_free(_caught_fd_msg); _caught_fd_msg = NULL;
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
@@ -1189,7 +1189,7 @@ TEST_F(HandlersTest, DigestHSSAKAReturned)
                                aka);
 
   // Once the handler recieves the MAA, expect a 404 HTTP response.
-  EXPECT_CALL(*_httpstack, send_reply(_, 404));
+  EXPECT_CALL(*_httpstack, send_reply(_, 404, _));
   _caught_diam_tsx->on_response(maa);
   fd_msg_free(_caught_fd_msg); _caught_fd_msg = NULL;
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
@@ -1226,7 +1226,7 @@ TEST_F(HandlersTest, DigestNoCachedIMPUs)
     .WillRepeatedly(SetArgReferee<0>(empty_impus));
 
   // Expect a 404 HTTP response.
-  EXPECT_CALL(*_httpstack, send_reply(_, 404));
+  EXPECT_CALL(*_httpstack, send_reply(_, 404, _));
   t->on_success(&mock_req);
 }
 
@@ -1259,7 +1259,7 @@ TEST_F(HandlersTest, DigestIMPUNotFound)
 
   // Once the cache transaction's failure callback is called, expect a 404 HTTP
   // response.
-  EXPECT_CALL(*_httpstack, send_reply(_, 404));
+  EXPECT_CALL(*_httpstack, send_reply(_, 404, _));
   std::string error_text = "error";
   t->on_failure(&mock_req, Cache::NOT_FOUND, error_text);
 }
@@ -1293,7 +1293,7 @@ TEST_F(HandlersTest, DigestNoIMPUCacheFailure)
 
   // Once the cache transaction's failure callback is called, expect a 502 HTTP
   // response.
-  EXPECT_CALL(*_httpstack, send_reply(_, 502));
+  EXPECT_CALL(*_httpstack, send_reply(_, 502, _));
   std::string error_text = "error";
   t->on_failure(&mock_req, Cache::UNKNOWN_ERROR, error_text);
 }
@@ -1332,7 +1332,7 @@ TEST_F(HandlersTest, AvCache)
   ASSERT_FALSE(t == NULL);
   EXPECT_CALL(mock_req, get_result(_))
     .WillRepeatedly(SetArgReferee<0>(digest));
-  EXPECT_CALL(*_httpstack, send_reply(_, 200));
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
 
   t->on_success(&mock_req);
 
@@ -1376,7 +1376,7 @@ TEST_F(HandlersTest, AvEmptyQoP)
   ASSERT_FALSE(t == NULL);
   EXPECT_CALL(mock_req, get_result(_))
     .WillRepeatedly(SetArgReferee<0>(digest));
-  EXPECT_CALL(*_httpstack, send_reply(_, 200));
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
 
   t->on_success(&mock_req);
 
@@ -1452,7 +1452,7 @@ TEST_F(HandlersTest, AvNoPublicIDHSSAKA)
                                aka);
 
   // Once it receives the MAA, check that a successful HTTP response is sent.
-  EXPECT_CALL(*_httpstack, send_reply(_, 200));
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
   _caught_diam_tsx->on_response(maa);
   _caught_fd_msg = NULL;
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
@@ -1480,7 +1480,7 @@ TEST_F(HandlersTest, AuthInvalidScheme)
   ImpiAvHandler* handler = new ImpiAvHandler(req, &cfg);
 
   // Once the handler's run function is called, expect a 404 HTTP response.
-  EXPECT_CALL(*_httpstack, send_reply(_, 404));
+  EXPECT_CALL(*_httpstack, send_reply(_, 404, _));
   handler->run();
 }
 
@@ -1497,7 +1497,7 @@ TEST_F(HandlersTest, AkaNoIMPU)
   ImpiAvHandler* handler = new ImpiAvHandler(req, &cfg);
 
   // Once the handler's run function is called, expect a 404 HTTP response.
-  EXPECT_CALL(*_httpstack, send_reply(_, 404));
+  EXPECT_CALL(*_httpstack, send_reply(_, 404, _));
   std::string error_text = "error";
   handler->run();
 }
@@ -1641,7 +1641,7 @@ TEST_F(HandlersTest, IMSSubscriptionInvalidDereg)
     .WillRepeatedly(SetArgReferee<0>(RegistrationState::NOT_REGISTERED));
 
   // A 400 error should be sent as a result.
-  EXPECT_CALL(*_httpstack, send_reply(_, 400));
+  EXPECT_CALL(*_httpstack, send_reply(_, 400, _));
   t->on_success(&mock_req);
 
   EXPECT_EQ("", req.content());
@@ -1709,7 +1709,7 @@ TEST_F(HandlersTest, IMSSubscriptionNoHSSUnknown)
     .WillRepeatedly(SetArgReferee<0>(""));
   EXPECT_CALL(mock_req, get_registration_state(_, _))
     .WillRepeatedly(SetArgReferee<0>(RegistrationState::NOT_REGISTERED));
-  EXPECT_CALL(*_httpstack, send_reply(_, 404));
+  EXPECT_CALL(*_httpstack, send_reply(_, 404, _));
   t->on_success(&mock_req);
 
   // Build the expected response and check it's correct
@@ -1743,7 +1743,7 @@ TEST_F(HandlersTest, IMSSubscriptionNoHSSUnknownCall)
     .WillRepeatedly(SetArgReferee<0>(""));
   EXPECT_CALL(mock_req, get_registration_state(_, _))
     .WillRepeatedly(SetArgReferee<0>(RegistrationState::NOT_REGISTERED));
-  EXPECT_CALL(*_httpstack, send_reply(_, 404));
+  EXPECT_CALL(*_httpstack, send_reply(_, 404, _));
   t->on_success(&mock_req);
 
   // Build the expected response and check it's correct
@@ -1777,7 +1777,7 @@ TEST_F(HandlersTest, LegacyIMSSubscriptionNoHSS)
     .WillRepeatedly(SetArgReferee<0>(IMS_SUBSCRIPTION));
   EXPECT_CALL(mock_req, get_registration_state(_, _))
     .WillRepeatedly(SetArgReferee<0>(RegistrationState::REGISTERED));
-  EXPECT_CALL(*_httpstack, send_reply(_, 200));
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
   t->on_success(&mock_req);
 
   // Build the expected response and check it's correct
@@ -1809,7 +1809,7 @@ TEST_F(HandlersTest, LegacyIMSSubscriptionNoHSS_NotFound)
     .WillRepeatedly(SetArgReferee<0>(""));
   EXPECT_CALL(mock_req, get_registration_state(_, _))
     .WillRepeatedly(SetArgReferee<0>(RegistrationState::NOT_REGISTERED));
-  EXPECT_CALL(*_httpstack, send_reply(_, 404));
+  EXPECT_CALL(*_httpstack, send_reply(_, 404, _));
   t->on_success(&mock_req);
 
   // Build the expected response and check it's correct
@@ -1842,7 +1842,7 @@ TEST_F(HandlersTest, LegacyIMSSubscriptionNoHSS_Unregistered)
     .WillRepeatedly(SetArgReferee<0>(IMS_SUBSCRIPTION));
   EXPECT_CALL(mock_req, get_registration_state(_, _))
     .WillRepeatedly(SetArgReferee<0>(RegistrationState::UNREGISTERED));
-  EXPECT_CALL(*_httpstack, send_reply(_, 200));
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
   t->on_success(&mock_req);
 
   // Build the expected response and check it's correct
@@ -1881,7 +1881,7 @@ TEST_F(HandlersTest, IMSSubscriptionGet)
     .WillRepeatedly(SetArgReferee<0>(RegistrationState::REGISTERED));
 
   // HTTP response is sent straight back - no state is changed.
-  EXPECT_CALL(*_httpstack, send_reply(_, 200));
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
   t->on_success(&mock_req);
 
   // Build the expected response and check it's correct
@@ -1903,7 +1903,7 @@ TEST_F(HandlersTest, IMSSubscriptionInvalidType)
   ImpuRegDataHandler::Config cfg(false, 3600);
   ImpuRegDataHandler* handler = new ImpuRegDataHandler(req, &cfg);
 
-  EXPECT_CALL(*_httpstack, send_reply(_, 400));
+  EXPECT_CALL(*_httpstack, send_reply(_, 400, _));
   handler->run();
 }
 
@@ -1920,7 +1920,7 @@ TEST_F(HandlersTest, IMSSubscriptionWrongMethod)
   ImpuRegDataHandler::Config cfg(false, 3600);
   ImpuRegDataHandler* handler = new ImpuRegDataHandler(req, &cfg);
 
-  EXPECT_CALL(*_httpstack, send_reply(_, 405));
+  EXPECT_CALL(*_httpstack, send_reply(_, 405, _));
   handler->run();
 }
 
@@ -1972,7 +1972,7 @@ TEST_F(HandlersTest, IMSSubscriptionUserUnknownDereg)
                                  DIAMETER_ERROR_USER_UNKNOWN,
                                  "");
 
-  EXPECT_CALL(*_httpstack, send_reply(_, 404));
+  EXPECT_CALL(*_httpstack, send_reply(_, 404, _));
   _caught_diam_tsx->on_response(saa);
 
   Cache::Transaction* t2 = mock_req2.get_trx();
@@ -2025,7 +2025,7 @@ TEST_F(HandlersTest, IMSSubscriptionOtherErrorCallReg)
                                  0,
                                  "");
 
-  EXPECT_CALL(*_httpstack, send_reply(_, 500));
+  EXPECT_CALL(*_httpstack, send_reply(_, 500, _));
   _caught_diam_tsx->on_response(saa);
 
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
@@ -2064,7 +2064,7 @@ TEST_F(HandlersTest, IMSSubscriptionCacheFailureNoHSSInvalidType)
   ASSERT_FALSE(t == NULL);
 
   // Expect a 502 HTTP response once the cache returns an error to the handler.
-  EXPECT_CALL(*_httpstack, send_reply(_, 502));
+  EXPECT_CALL(*_httpstack, send_reply(_, 502, _));
 
   std::string error_text = "error";
   t->on_failure(&mock_req, Cache::NOT_FOUND, error_text);
@@ -2092,7 +2092,7 @@ TEST_F(HandlersTest, RegistrationStatusHSSTimeout)
   ASSERT_FALSE(_caught_diam_tsx == NULL);
 
   // Expect a 503 response once we notify the handler about the timeout error.
-  EXPECT_CALL(*_httpstack, send_reply(_, 503));
+  EXPECT_CALL(*_httpstack, send_reply(_, 503, _));
   _caught_diam_tsx->on_timeout();
   fd_msg_free(_caught_fd_msg); _caught_fd_msg = NULL;
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
@@ -2139,7 +2139,7 @@ TEST_F(HandlersTest, RegistrationStatus)
                                   0,
                                   SERVER_NAME,
                                   CAPABILITIES);
-  EXPECT_CALL(*_httpstack, send_reply(_, 200));
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
   _caught_diam_tsx->on_response(uaa);
   _caught_fd_msg = NULL;
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
@@ -2192,7 +2192,7 @@ TEST_F(HandlersTest, RegistrationStatusOptParamsSubseqRegCapabs)
                                   DIAMETER_SUBSEQUENT_REGISTRATION,
                                   "",
                                   CAPABILITIES);
-  EXPECT_CALL(*_httpstack, send_reply(_, 200));
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
   _caught_diam_tsx->on_response(uaa);
   _caught_fd_msg = NULL;
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
@@ -2245,7 +2245,7 @@ TEST_F(HandlersTest, RegistrationStatusFirstRegNoCapabs)
                                   DIAMETER_FIRST_REGISTRATION,
                                   "",
                                   NO_CAPABILITIES);
-  EXPECT_CALL(*_httpstack, send_reply(_, 200));
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
   _caught_diam_tsx->on_response(uaa);
   _caught_fd_msg = NULL;
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
@@ -2298,7 +2298,7 @@ TEST_F(HandlersTest, RegistrationStatusNoHSS)
   ImpiRegistrationStatusHandler* handler = new ImpiRegistrationStatusHandler(req, &cfg);
 
   // Once the handler's run function is called, expect a successful HTTP response.
-  EXPECT_CALL(*_httpstack, send_reply(_, 200));
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
   handler->run();
 
   // Build the expected JSON response and check it's correct.
@@ -2347,7 +2347,7 @@ TEST_F(HandlersTest, LocationInfo)
                              0,
                              SERVER_NAME,
                              CAPABILITIES);
-  EXPECT_CALL(*_httpstack, send_reply(_, 200));
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
 
   _caught_diam_tsx->on_response(lia);
   _caught_fd_msg = NULL;
@@ -2401,7 +2401,7 @@ TEST_F(HandlersTest, LocationInfoOptParamsUnregisteredService)
                              DIAMETER_UNREGISTERED_SERVICE,
                              "",
                              CAPABILITIES);
-  EXPECT_CALL(*_httpstack, send_reply(_, 200));
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
   _caught_diam_tsx->on_response(lia);
   _caught_fd_msg = NULL;
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
@@ -2444,7 +2444,7 @@ TEST_F(HandlersTest, LocationInfoNoHSS)
   ImpuLocationInfoHandler* handler = new ImpuLocationInfoHandler(req, &cfg);
 
   // Once the handler's run function is called, expect a successful HTTP response.
-  EXPECT_CALL(*_httpstack, send_reply(_, 200));
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
   handler->run();
 
   // Build the expected JSON response and check it's correct.
@@ -2787,7 +2787,7 @@ TEST_F(HandlerStatsTest, DigestCache)
   EXPECT_CALL(*_stats, update_H_cache_latency_us(12000));
   EXPECT_CALL(mock_req, get_result(_))
     .WillRepeatedly(SetArgReferee<0>(digest));
-  EXPECT_CALL(*_httpstack, send_reply(_, _));
+  EXPECT_CALL(*_httpstack, send_reply(_, _, _));
   t->on_success(&mock_req);
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
 }
@@ -2822,7 +2822,7 @@ TEST_F(HandlerStatsTest, DigestCacheFailure)
   t->stop_timer();
 
   // Cache latency stats are updated when the transaction fails.
-  EXPECT_CALL(*_httpstack, send_reply(_, _));
+  EXPECT_CALL(*_httpstack, send_reply(_, _, _));
   EXPECT_CALL(*_stats, update_H_cache_latency_us(12000));
 
   std::string error_text = "error";
@@ -2881,7 +2881,7 @@ TEST_F(HandlerStatsTest, DigestHSS)
   EXPECT_CALL(*_cache, send(_, &mock_req))
     .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
 
-  EXPECT_CALL(*_httpstack, send_reply(_, _));
+  EXPECT_CALL(*_httpstack, send_reply(_, _, _));
   _caught_diam_tsx->on_response(maa);
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
 }
@@ -2917,7 +2917,7 @@ TEST_F(HandlerStatsTest, DigestHSSTimeout)
   EXPECT_CALL(*_stats, update_H_hss_latency_us(13000));
   EXPECT_CALL(*_stats, update_H_hss_digest_latency_us(13000));
 
-  EXPECT_CALL(*_httpstack, send_reply(_, _));
+  EXPECT_CALL(*_httpstack, send_reply(_, _, _));
   _caught_diam_tsx->on_timeout();
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
 }
@@ -2993,7 +2993,7 @@ TEST_F(HandlerStatsTest, IMSSubscriptionReregHSS)
   EXPECT_CALL(*_stats, update_H_hss_latency_us(20000));
   EXPECT_CALL(*_stats, update_H_hss_subscription_latency_us(20000));
 
-  EXPECT_CALL(*_httpstack, send_reply(_, _));
+  EXPECT_CALL(*_httpstack, send_reply(_, _, _));
   _caught_diam_tsx->on_response(saa);
 
   // Check the cache put latency is recorded.
@@ -3044,7 +3044,7 @@ TEST_F(HandlerStatsTest, RegistrationStatus)
                                   0,
                                   SERVER_NAME,
                                   CAPABILITIES);
-  EXPECT_CALL(*_httpstack, send_reply(_, _));
+  EXPECT_CALL(*_httpstack, send_reply(_, _, _));
   EXPECT_CALL(*_stats, update_H_hss_latency_us(13000));
   EXPECT_CALL(*_stats, update_H_hss_subscription_latency_us(13000));
   _caught_diam_tsx->on_response(uaa);
@@ -3085,7 +3085,7 @@ TEST_F(HandlerStatsTest, LocationInfo)
                              0,
                              SERVER_NAME,
                              CAPABILITIES);
-  EXPECT_CALL(*_httpstack, send_reply(_, _));
+  EXPECT_CALL(*_httpstack, send_reply(_, _, _));
   EXPECT_CALL(*_stats, update_H_hss_latency_us(16000));
   EXPECT_CALL(*_stats, update_H_hss_subscription_latency_us(16000));
 
@@ -3130,7 +3130,7 @@ TEST_F(HandlerStatsTest, LocationInfoOverload)
                              SERVER_NAME,
                              CAPABILITIES);
   EXPECT_CALL(*_httpstack, record_penalty());
-  EXPECT_CALL(*_httpstack, send_reply(_, _));
+  EXPECT_CALL(*_httpstack, send_reply(_, _, _));
   EXPECT_CALL(*_stats, update_H_hss_latency_us(17000));
   EXPECT_CALL(*_stats, update_H_hss_subscription_latency_us(17000));
 

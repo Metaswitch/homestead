@@ -50,7 +50,7 @@
 void PingHandler::run()
 {
   _req.add_content("OK");
-  _req.send_reply(200);
+  send_http_reply(200);
   delete this;
 }
 
@@ -102,7 +102,7 @@ void HssCacheHandler::configure_stats(StatisticsManager* stats_manager)
 
 void HssCacheHandler::on_diameter_timeout()
 {
-  _req.send_reply(503);
+  send_http_reply(503);
   delete this;
 }
 
@@ -126,7 +126,7 @@ void ImpiHandler::run()
   }
   else
   {
-    _req.send_reply(404);
+    send_http_reply(404);
     delete this;
   }
 }
@@ -154,7 +154,7 @@ void ImpiHandler::on_get_av_success(Cache::Request* request)
 void ImpiHandler::on_get_av_failure(Cache::Request* request, Cache::ResultCode error, std::string& text)
 {
   LOG_DEBUG("Cache query failed - reject request");
-  _req.send_reply(502);
+  send_http_reply(502);
   delete this;
 }
 
@@ -167,7 +167,7 @@ void ImpiHandler::get_av()
       // If the requested scheme is AKA, there's no point in looking up the cached public ID.
       // Even if we find it, we can't use it due to restrictions in the AKA protocol.
       LOG_INFO("Public ID unknown and requested scheme AKA - reject");
-      _req.send_reply(404);
+      send_http_reply(404);
       delete this;
     }
     else
@@ -207,7 +207,7 @@ void ImpiHandler::on_get_impu_success(Cache::Request* request)
   else
   {
     LOG_INFO("No cached public ID found for private ID %s - reject", _impi.c_str());
-    _req.send_reply(404);
+    send_http_reply(404);
     delete this;
   }
 }
@@ -217,12 +217,12 @@ void ImpiHandler::on_get_impu_failure(Cache::Request* request, Cache::ResultCode
   if (error == Cache::NOT_FOUND)
   {
     LOG_DEBUG("No cached public ID found for private ID %s - reject", _impi.c_str());
-    _req.send_reply(404);
+    send_http_reply(404);
   }
   else
   {
     LOG_DEBUG("Cache query failed with rc %d", error);
-    _req.send_reply(502);
+    send_http_reply(502);
   }
   delete this;
 }
@@ -278,17 +278,17 @@ void ImpiHandler::on_mar_response(Diameter::Message& rsp)
       }
       else
       {
-        _req.send_reply(404);
+        send_http_reply(404);
       }
     }
     break;
     case 5001:
       LOG_INFO("Multimedia-Auth answer with result code %d - reject", result_code);
-      _req.send_reply(404);
+      send_http_reply(404);
       break;
     default:
       LOG_INFO("Multimedia-Auth answer with result code %d - reject", result_code);
-      _req.send_reply(500);
+      send_http_reply(500);
       break;
   }
 
@@ -321,14 +321,14 @@ void ImpiDigestHandler::send_reply(const DigestAuthVector& av)
   writer.String(av.ha1.c_str());
   writer.EndObject();
   _req.add_content(sb.GetString());
-  _req.send_reply(200);
+  send_http_reply(200);
 }
 
 void ImpiDigestHandler::send_reply(const AKAAuthVector& av)
 {
   // It is an error to request AKA authentication through the digest URL.
   LOG_INFO("Digest requested but AKA received - reject");
-  _req.send_reply(404);
+  send_http_reply(404);
 }
 
 //
@@ -391,7 +391,7 @@ void ImpiAvHandler::send_reply(const DigestAuthVector& av)
   writer.EndObject();
 
   _req.add_content(sb.GetString());
-  _req.send_reply(200);
+  send_http_reply(200);
 }
 
 void ImpiAvHandler::send_reply(const AKAAuthVector& av)
@@ -418,7 +418,7 @@ void ImpiAvHandler::send_reply(const AKAAuthVector& av)
   writer.EndObject();
 
   _req.add_content(sb.GetString());
-  _req.send_reply(200);
+  send_http_reply(200);
 }
 
 //
@@ -467,7 +467,7 @@ void ImpiRegistrationStatusHandler::run()
     writer.String(_server_name.c_str());
     writer.EndObject();
     _req.add_content(sb.GetString());
-    _req.send_reply(200);
+    send_http_reply(200);
     delete this;
   }
 }
@@ -506,30 +506,30 @@ void ImpiRegistrationStatusHandler::on_uar_response(Diameter::Message& rsp)
     }
     writer.EndObject();
     _req.add_content(sb.GetString());
-    _req.send_reply(200);
+    send_http_reply(200);
   }
   else if ((experimental_result_code == DIAMETER_ERROR_USER_UNKNOWN) ||
            (experimental_result_code == DIAMETER_ERROR_IDENTITIES_DONT_MATCH))
   {
     LOG_INFO("User unknown or public/private ID conflict - reject");
-    _req.send_reply(404);
+    send_http_reply(404);
   }
   else if ((result_code == DIAMETER_AUTHORIZATION_REJECTED) ||
            (experimental_result_code == DIAMETER_ERROR_ROAMING_NOT_ALLOWED))
   {
     LOG_INFO("Authorization rejected due to roaming not allowed - reject");
-    _req.send_reply(403);
+    send_http_reply(403);
   }
   else if (result_code == DIAMETER_TOO_BUSY)
   {
     LOG_INFO("HSS busy - reject");
-    _req.send_reply(503);
+    send_http_reply(503);
   }
   else
   {
     LOG_INFO("User-Authorization answer with result %d/%d - reject",
              result_code, experimental_result_code);
-    _req.send_reply(500);
+    send_http_reply(500);
   }
   delete this;
 }
@@ -575,7 +575,7 @@ void ImpuLocationInfoHandler::run()
     writer.String(_server_name.c_str());
     writer.EndObject();
     _req.add_content(sb.GetString());
-    _req.send_reply(200);
+    send_http_reply(200);
     delete this;
   }
 }
@@ -614,24 +614,24 @@ void ImpuLocationInfoHandler::on_lir_response(Diameter::Message& rsp)
     }
     writer.EndObject();
     _req.add_content(sb.GetString());
-    _req.send_reply(200);
+    send_http_reply(200);
   }
   else if ((experimental_result_code == DIAMETER_ERROR_USER_UNKNOWN) ||
            (experimental_result_code == DIAMETER_ERROR_IDENTITY_NOT_REGISTERED))
   {
     LOG_INFO("User unknown or public/private ID conflict - reject");
-    _req.send_reply(404);
+    send_http_reply(404);
   }
   else if (result_code == DIAMETER_TOO_BUSY)
   {
     LOG_INFO("HSS busy - reject");
-    _req.send_reply(503);
+    send_http_reply(503);
   }
   else
   {
     LOG_INFO("Location-Info answer with result %d/%d - reject",
              result_code, experimental_result_code);
-    _req.send_reply(500);
+    send_http_reply(500);
   }
   delete this;
 }
@@ -769,14 +769,14 @@ void ImpuRegDataHandler::run()
     if (_type == RequestType::UNKNOWN)
     {
       LOG_ERROR("HTTP request contains invalid value %s for type", _req.body().c_str());
-      _req.send_reply(400);
+      send_http_reply(400);
       delete this;
       return;
     }
   } else if (method == htp_method_GET) {
     _type = RequestType::UNKNOWN;
   } else {
-    _req.send_reply(405);
+    send_http_reply(405);
     delete this;
     return;
   }
@@ -891,7 +891,7 @@ void ImpuRegDataHandler::on_get_ims_subscription_success(Cache::Request* request
       {
         // We have no HSS and no record of this subscriber, so they
         // don't exist.
-        _req.send_reply(404);
+        send_http_reply(404);
         delete this;
         return;
       }
@@ -916,7 +916,7 @@ void ImpuRegDataHandler::on_get_ims_subscription_success(Cache::Request* request
       }
       else
       {
-        _req.send_reply(404);
+        send_http_reply(404);
         delete this;
         return;
       }
@@ -964,7 +964,7 @@ void ImpuRegDataHandler::on_get_ims_subscription_success(Cache::Request* request
       // continually deregister a user
 
       LOG_DEBUG("Rejecting deregistration for user who was not registered");
-      _req.send_reply(400);
+      send_http_reply(400);
       delete this;
       return;
     }
@@ -998,13 +998,13 @@ void ImpuRegDataHandler::send_reply()
 {
   LOG_DEBUG("Building 200 OK response to send (body was %s)", _req.body().c_str());
   _req.add_content(XmlUtils::build_ClearwaterRegData_xml(_new_state, _xml));
-  _req.send_reply(200);
+  send_http_reply(200);
 }
 
 void ImpuRegDataHandler::on_get_ims_subscription_failure(Cache::Request* request, Cache::ResultCode error, std::string& text)
 {
   LOG_DEBUG("IMS subscription cache query failed: %u, %s", error, text.c_str());
-  _req.send_reply(502);
+  send_http_reply(502);
   delete this;
 }
 
@@ -1116,11 +1116,11 @@ void ImpuRegDataHandler::on_sar_response(Diameter::Message& rsp)
     break;
     case 5001:
       LOG_INFO("Server-Assignment answer with result code %d - reject", result_code);
-      _req.send_reply(404);
+      send_http_reply(404);
       break;
     default:
       LOG_INFO("Server-Assignment answer with result code %d - reject", result_code);
-      _req.send_reply(500);
+      send_http_reply(500);
   }
   delete this;
   return;
@@ -1164,12 +1164,12 @@ void ImpuIMSSubscriptionHandler::send_reply()
   {
     LOG_DEBUG("Building 200 OK response to send");
     _req.add_content(_xml);
-    _req.send_reply(200);
+    send_http_reply(200);
   }
   else
   {
     LOG_DEBUG("No XML User-Data available, returning 404");
-    _req.send_reply(404);
+    send_http_reply(404);
   }
 }
 

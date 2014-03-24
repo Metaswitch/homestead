@@ -86,7 +86,7 @@ public:
   MOCK_METHOD0(start, void());
   MOCK_METHOD0(stop, void());
   MOCK_METHOD0(wait_stopped, void());
-  MOCK_METHOD2(send_reply, void(HttpStack::Request&, int));
+  MOCK_METHOD3(send_reply, void(HttpStack::Request&, int, SAS::TrailId));
   MOCK_METHOD0(record_penalty, void());
 };
 

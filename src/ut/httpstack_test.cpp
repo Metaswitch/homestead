@@ -155,7 +155,7 @@ public:
   void run()
   {
     _req.add_content("OK");
-    _req.send_reply(200);
+    send_http_reply(200);
     delete this;
   }
 };
@@ -171,7 +171,7 @@ public:
   void run()
   {
     cwtest_advance_time_ms(DELAY_MS);
-    _req.send_reply(200);
+    send_http_reply(200);
     delete this;
   }
 };
@@ -183,7 +183,7 @@ public:
   void run()
   {
     _req.record_penalty();
-    _req.send_reply(200);
+    send_http_reply(200);
     delete this;
   }
 };
