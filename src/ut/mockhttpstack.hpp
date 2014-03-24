@@ -46,7 +46,12 @@ public:
   class Request : public HttpStack::Request
   {
   public:
-    Request(HttpStack* stack, std::string path, std::string file, std::string query = "", std::string body = "", htp_method method = htp_method_GET) : HttpStack::Request(stack, evhtp_request(path, file, query)), _body(body), _method(method) {}
+    Request(HttpStack* stack, std::string path, std::string file, std::string query = "", std::string body = "", htp_method method = htp_method_GET) : HttpStack::Request(stack, evhtp_request(path, file, query))
+    {
+      _body = body;
+      _method = method;
+      _method_set = true;
+    }
     ~Request()
     {
       evhtp_connection_t* conn = _req->conn;
@@ -58,12 +63,8 @@ public:
       size_t len = evbuffer_get_length(_req->buffer_out);
       return std::string((char*)evbuffer_pullup(_req->buffer_out, len), len);
     }
-    std::string body() { return _body; };
-    htp_method method() {return _method; };
 
   private:
-    std::string _body;
-    htp_method _method;
     static evhtp_request_t* evhtp_request(std::string path, std::string file, std::string query = "")
     {
       evhtp_request_t* req = evhtp_request_new(NULL, NULL);
