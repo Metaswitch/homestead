@@ -55,7 +55,7 @@ class DiameterTestTransaction : public Diameter::Transaction
 {
 public:
   DiameterTestTransaction(Diameter::Dictionary* dict) :
-    Diameter::Transaction(dict)
+    Diameter::Transaction(dict, 0)
   {}
 
   virtual ~DiameterTestTransaction() {}

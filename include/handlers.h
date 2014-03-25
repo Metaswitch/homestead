@@ -122,7 +122,7 @@ public:
     DiameterTransaction(Cx::Dictionary* dict,
                         H* handler,
                         StatsFlags stat_updates) :
-      Diameter::Transaction(dict),
+      Diameter::Transaction(dict, handler->trail()),
       _handler(handler),
       _timeout_clbk(&HssCacheHandler::on_diameter_timeout),
       _response_clbk(NULL),
