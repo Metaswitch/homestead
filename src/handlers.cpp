@@ -1256,7 +1256,7 @@ void RegistrationTerminationHandler::delete_identities()
 
   // Send the RTA back to the HSS.
   LOG_INFO("Ready to send RTA");
-  rta.send();
+  rta.send(trail());
 
   delete this;
 }
@@ -1310,7 +1310,7 @@ void PushProfileHandler::run()
 
   // Send the PPA back to the HSS.
   LOG_INFO("Ready to send PPA");
-  ppa.send();
+  ppa.send(trail());
 
   delete this;
 }
