@@ -50,7 +50,7 @@ public:
     {
       _body = body;
       _method = method;
-      _method_set = true;
+      _body_set = true;
     }
     ~Request()
     {
