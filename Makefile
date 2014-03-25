@@ -10,13 +10,13 @@ INSTALL_DIR ?= ${PREFIX}
 MODULE_DIR := ${ROOT}/modules
 
 DEB_COMPONENT := homestead
-DEB_MAJOR_VERSION := 1.0
+DEB_MAJOR_VERSION := 1.0${DEB_VERSION_QUALIFIER}
 DEB_NAMES := homestead-libs homestead-libs-dbg homestead homestead-dbg
 
 INCLUDE_DIR := ${INSTALL_DIR}/include
 LIB_DIR := ${INSTALL_DIR}/lib
 
-SUBMODULES := libevhtp freeDiameter thrift cassandra
+SUBMODULES := libevhtp freeDiameter thrift cassandra sas-client
 
 include $(patsubst %, ${MK_DIR}/%.mk, ${SUBMODULES})
 include ${MK_DIR}/homestead.mk

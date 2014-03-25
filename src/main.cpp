@@ -47,6 +47,8 @@
 #include "handlers.h"
 #include "logger.h"
 #include "cache.h"
+#include "sasevent.h"
+#include "sproutconnection.h"
 
 struct options
 {
@@ -60,6 +62,7 @@ struct options
   std::string server_name;
   int impu_cache_ttl;
   int hss_reregistration_time;
+  std::string sprout_http_name;
   std::string scheme_unknown;
   std::string scheme_digest;
   std::string scheme_aka;
@@ -87,6 +90,8 @@ void usage(void)
        "                            IMPU cache time-to-live in seconds (default: 0)\n"
        " -I, --hss-reregistration-time <secs>\n"
        "                            How often a RE_REGISTRATION SAR should be sent to the HSS in seconds (default: 1800)\n"
+       " -j, --http-sprout-name <name>\n"
+       "                            Set HTTP address to send deregistration information from RTRs\n"
        "     --scheme-unknown <string>\n"
        "                            String to use to specify unknown SIP-Auth-Scheme (default: Unknown)\n"
        "     --scheme-digest <string>\n"
@@ -124,6 +129,7 @@ int init_options(int argc, char**argv, struct options& options)
     {"server-name",             required_argument, NULL, 's'},
     {"impu-cache-ttl",          required_argument, NULL, 'i'},
     {"hss-reregistration-time", required_argument, NULL, 'I'},
+    {"sprout-http-name",        required_argument, NULL, 'j'},
     {"scheme-unknown",          required_argument, NULL, SCHEME_UNKNOWN},
     {"scheme-digest",           required_argument, NULL, SCHEME_DIGEST},
     {"scheme-aka",              required_argument, NULL, SCHEME_AKA},
@@ -178,6 +184,10 @@ int init_options(int argc, char**argv, struct options& options)
 
     case 'I':
       options.hss_reregistration_time = atoi(optarg);
+      break;
+
+    case 'j':
+      options.sprout_http_name = std::string(optarg);
       break;
 
     case SCHEME_UNKNOWN:
@@ -266,6 +276,7 @@ int main(int argc, char**argv)
   options.access_log_enabled = false;
   options.impu_cache_ttl = 0;
   options.hss_reregistration_time = 1800;
+  options.sprout_http_name = "sprout-http-name.unknown";
   options.log_to_file = false;
   options.log_level = 0;
 
@@ -313,8 +324,13 @@ int main(int argc, char**argv)
     exit(2);
   }
 
+  HttpConnection* http = new HttpConnection(options.sprout_http_name,
+                                            false,
+                                            SASEvent::TX_HSS_BASE);
+  SproutConnection* sprout_conn = new SproutConnection(http);
+
   Diameter::Stack* diameter_stack = Diameter::Stack::get_instance();
-  RegistrationTerminationHandler::Config rt_handler_config(NULL, NULL, 0);
+  RegistrationTerminationHandler::Config rt_handler_config(NULL, NULL, NULL, 0);
   PushProfileHandler::Config pp_handler_config(NULL, NULL, 0, 0);
   Diameter::Stack::ConfiguredHandlerFactory<RegistrationTerminationHandler, RegistrationTerminationHandler::Config> rtr_handler_factory(NULL, NULL);
   Diameter::Stack::ConfiguredHandlerFactory<PushProfileHandler, PushProfileHandler::Config> ppr_handler_factory(NULL, NULL);
@@ -325,7 +341,7 @@ int main(int argc, char**argv)
     diameter_stack->configure(options.diameter_conf);
     dict = new Cx::Dictionary();
     diameter_stack->advertize_application(dict->TGPP, dict->CX);
-    rt_handler_config = RegistrationTerminationHandler::Config(cache, dict, options.hss_reregistration_time);
+    rt_handler_config = RegistrationTerminationHandler::Config(cache, dict, sprout_conn, options.hss_reregistration_time);
     pp_handler_config = PushProfileHandler::Config(cache, dict, options.impu_cache_ttl, options.hss_reregistration_time);
     rtr_handler_factory = Diameter::Stack::ConfiguredHandlerFactory<RegistrationTerminationHandler, RegistrationTerminationHandler::Config>(dict, &rt_handler_config);
     ppr_handler_factory = Diameter::Stack::ConfiguredHandlerFactory<PushProfileHandler, PushProfileHandler::Config>(dict, &pp_handler_config);
@@ -430,6 +446,8 @@ int main(int argc, char**argv)
     LOG_ERROR("Failed to stop Diameter stack - function %s, rc %d", e._func, e._rc);
   }
   delete dict;
+
+  delete sprout_conn; sprout_conn = NULL;
 
   delete stats_manager; stats_manager = NULL;
   delete load_monitor; load_monitor = NULL;

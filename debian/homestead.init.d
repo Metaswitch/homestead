@@ -91,6 +91,7 @@ get_settings()
         impu_cache_ttl=0
         hss_reregistration_time=1800
         server_name=sip:$(python /usr/share/clearwater/bin/bracket_ipv6_address.py $sprout_hostname):$scscf
+        sprout_http_name=$(python /usr/share/clearwater/bin/bracket_ipv6_address.py $sprout_hostname):9888
         [ -r /etc/clearwater/user_settings ] && . /etc/clearwater/user_settings
 
         # Work out which features are enabled.
@@ -133,6 +134,7 @@ do_start()
                      --server-name $server_name
                      --impu-cache-ttl $impu_cache_ttl
                      --hss-reregistration-time $hss_reregistration_time
+                     --sprout-http-name $sprout_http_name
                      $scheme_unknown_arg
                      -a $log_directory
                      -F $log_directory

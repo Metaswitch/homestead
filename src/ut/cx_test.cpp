@@ -672,6 +672,7 @@ TEST_F(CxTest, RTTest)
 {
   Cx::RegistrationTerminationRequest rtr(_cx_dict,
                                          _mock_stack,
+                                         PERMANENT_TERMINATION,
                                          IMPI,
                                          ASSOCIATED_IDENTITIES,
                                          IMPUS,
@@ -679,6 +680,7 @@ TEST_F(CxTest, RTTest)
   launder_message(rtr);
   EXPECT_TRUE(rtr.get_i32_from_avp(_cx_dict->AUTH_SESSION_STATE, test_i32));
   EXPECT_EQ(AUTH_SESSION_STATE, test_i32);
+  EXPECT_EQ(PERMANENT_TERMINATION, rtr.deregistration_reason());
   EXPECT_EQ(IMPI, rtr.impi());
   EXPECT_EQ(ASSOCIATED_IDENTITIES, rtr.associated_identities());
   EXPECT_EQ(IMPUS, rtr.impus());
@@ -701,6 +703,7 @@ TEST_F(CxTest, RTTestNoIMPUsNoAssocatedIdentities)
 {
   Cx::RegistrationTerminationRequest rtr(_cx_dict,
                                          _mock_stack,
+                                         SERVER_CHANGE,
                                          IMPI,
                                          EMPTY_STRING_VECTOR,
                                          EMPTY_STRING_VECTOR,
@@ -708,6 +711,7 @@ TEST_F(CxTest, RTTestNoIMPUsNoAssocatedIdentities)
   launder_message(rtr);
   EXPECT_TRUE(rtr.get_i32_from_avp(_cx_dict->AUTH_SESSION_STATE, test_i32));
   EXPECT_EQ(AUTH_SESSION_STATE, test_i32);
+  EXPECT_EQ(SERVER_CHANGE, rtr.deregistration_reason());
   EXPECT_EQ(IMPI, rtr.impi());
   EXPECT_EQ(EMPTY_STRING_VECTOR, rtr.associated_identities());
   EXPECT_EQ(EMPTY_STRING_VECTOR, rtr.impus());
