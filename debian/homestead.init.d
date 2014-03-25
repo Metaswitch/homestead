@@ -81,6 +81,7 @@ log_directory=/var/log/$NAME
 get_settings()
 {
         # Set up defaults and then pull in the settings for this node.
+        sas_server=0.0.0.0
         hss_hostname=0.0.0.0
         scscf=5054
         . /etc/clearwater/config
@@ -136,7 +137,8 @@ do_start()
                      $scheme_unknown_arg
                      -a $log_directory
                      -F $log_directory
-                     -L $log_level"
+                     -L $log_level
+                     --sas $sas_server,$NAME@$public_hostname"
 
         start-stop-daemon --start --quiet --background --make-pidfile --pidfile $PIDFILE --exec $DAEMON --chuid $NAME --chdir $HOME -- $DAEMON_ARGS \
                 || return 2
