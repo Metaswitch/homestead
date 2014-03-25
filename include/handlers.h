@@ -44,6 +44,7 @@
 #include "cache.h"
 #include "httpstack.h"
 #include "statisticsmanager.h"
+#include "sas.h"
 
 // Result-Code AVP constants
 const int DIAMETER_SUCCESS = 2001;
@@ -122,7 +123,8 @@ public:
     DiameterTransaction(Cx::Dictionary* dict,
                         H* handler,
                         StatsFlags stat_updates) :
-      Diameter::Transaction(dict, handler->trail()),
+      Diameter::Transaction(dict,
+                            ((handler != NULL) ? handler->trail() : 0)),
       _handler(handler),
       _timeout_clbk(&HssCacheHandler::on_diameter_timeout),
       _response_clbk(NULL),
@@ -208,7 +210,7 @@ public:
   {
   public:
     CacheTransaction(H* handler) :
-      Cache::Transaction(),
+      Cache::Transaction((handler != NULL) ? handler->trail() : 0),
       _handler(handler),
       _success_clbk(NULL),
       _failure_clbk(NULL)
