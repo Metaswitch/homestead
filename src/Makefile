@@ -41,7 +41,8 @@ TARGET_SOURCES_TEST := test_main.cpp \
                        handlers_test.cpp \
                        httpstack_test.cpp \
                        fakelogger.cpp \
-                       mockfreediameter.cpp
+                       mockfreediameter.cpp \
+                       mock_sas.cpp
 
 TARGET_EXTRA_OBJS_TEST := gmock-all.o \
                           gtest-all.o
@@ -104,8 +105,10 @@ LDFLAGS += -lthrift \
            -levent_pthreads \
            -levent \
            -lpthread \
-           -lsas \
            -lcurl
+
+# Only use the real SAS library in the production build.
+LDFLAGS_BUILD += -lsas
 
 # Test build uses just-built libraries, which may not be installed
 LDFLAGS_TEST += -Wl,-rpath=$(ROOT)/usr/lib

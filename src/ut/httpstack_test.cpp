@@ -43,6 +43,7 @@
 
 #include "mockloadmonitor.hpp"
 #include "mockstatisticsmanager.hpp"
+#include "mock_sas.h"
 
 using ::testing::Return;
 using ::testing::StrictMock;
@@ -248,6 +249,7 @@ TEST_F(HttpStackTest, SimpleHandler)
 // Check that the stack copes with receiving a SAS correltion header.
 TEST_F(HttpStackTest, SASCorrelationHeader)
 {
+  mock_sas_collect_messages(true);
   start_stack();
 
   HttpStack::HandlerFactory<BasicHandler> basic_handler_factory;
@@ -263,7 +265,13 @@ TEST_F(HttpStackTest, SASCorrelationHeader)
   ASSERT_EQ(200, status);
   ASSERT_EQ("OK", response);
 
+  MockSASMessage* marker = mock_sas_find_marker(MARKER_ID_VIA_BRANCH_PARAM);
+  EXPECT_TRUE(marker != NULL);
+  EXPECT_EQ(marker->var_params.size(), 1u);
+  EXPECT_EQ(marker->var_params[0], "12345678-1234-1234-1234-123456789ABC");
+
   stop_stack();
+  mock_sas_collect_messages(false);
 }
 
 
