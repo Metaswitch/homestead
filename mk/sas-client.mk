@@ -1,4 +1,4 @@
-# included mk file for the sas-client  module
+# Included mk file for the sas-client module
 
 SAS_CLIENT_DIR := ${MODULE_DIR}/sas-client
 

@@ -75,6 +75,35 @@
 
 namespace cass = org::apache::cassandra;
 
+// Simple data structure to allow specifying a set of column names and values for
+// a particular row and column family. Useful when batching operations
+// across multiple column families in one Thrift request.
+
+// Preferred over the raw Thrift data structures, as we don't have to
+// worry about per-column TTLs or other features we don't use.
+struct CFRowColumnValue
+{
+  CFRowColumnValue(std::string cf,
+                   std::string row,
+                   std::map<std::string, std::string> columns) :
+    cf(cf),
+    row(row),
+    columns(columns)
+  {};
+
+  CFRowColumnValue(std::string cf,
+                   std::string row) :
+    cf(cf),
+    row(row),
+    columns()
+  {};
+
+  std::string cf;
+  std::string row;
+  std::map<std::string, std::string> columns;
+
+};
+
 /// @class Cache
 ///
 /// Singleton class representing a cassandra-backed subscriber cache.
@@ -110,7 +139,7 @@ public:
   };
 
   /// @return the singleton cache instance.
-  static inline Cache* get_instance() { return INSTANCE; }
+  static inline Cache* get_instance() {return INSTANCE;}
 
   /// Initialize the cache.
   virtual void initialize();
@@ -169,9 +198,22 @@ public:
   public:
     virtual ~CacheClientInterface() {}
     virtual void set_keyspace(const std::string& keyspace) = 0;
-    virtual void batch_mutate(const std::map<std::string, std::map<std::string, std::vector<cass::Mutation> > > & mutation_map, const cass::ConsistencyLevel::type consistency_level) = 0;
-    virtual void get_slice(std::vector<cass::ColumnOrSuperColumn> & _return, const std::string& key, const cass::ColumnParent& column_parent, const cass::SlicePredicate& predicate, const cass::ConsistencyLevel::type consistency_level) = 0;
-    virtual void remove(const std::string& key, const cass::ColumnPath& column_path, const int64_t timestamp, const cass::ConsistencyLevel::type consistency_level) = 0;
+    virtual void batch_mutate(const std::map<std::string, std::map<std::string, std::vector<cass::Mutation> > >& mutation_map,
+                              const cass::ConsistencyLevel::type consistency_level) = 0;
+    virtual void get_slice(std::vector<cass::ColumnOrSuperColumn>& _return,
+                           const std::string& key,
+                           const cass::ColumnParent& column_parent,
+                           const cass::SlicePredicate& predicate,
+                           const cass::ConsistencyLevel::type consistency_level) = 0;
+    virtual void multiget_slice(std::map<std::string, std::vector<cass::ColumnOrSuperColumn> >& _return,
+                                const std::vector<std::string>& key,
+                                const cass::ColumnParent& column_parent,
+                                const cass::SlicePredicate& predicate,
+                                const cass::ConsistencyLevel::type consistency_level) = 0;
+    virtual void remove(const std::string& key,
+                        const cass::ColumnPath& column_path,
+                        const int64_t timestamp,
+                        const cass::ConsistencyLevel::type consistency_level) = 0;
   };
 
   /// @class CacheClient
@@ -199,14 +241,28 @@ public:
       cass::CassandraClient::set_keyspace(keyspace);
     }
 
-    void batch_mutate(const std::map<std::string, std::map<std::string, std::vector<cass::Mutation> > > & mutation_map, const cass::ConsistencyLevel::type consistency_level)
+    void batch_mutate(const std::map<std::string, std::map<std::string, std::vector<cass::Mutation> > >& mutation_map,
+                      const cass::ConsistencyLevel::type consistency_level)
     {
       cass::CassandraClient::batch_mutate(mutation_map, consistency_level);
     }
 
-    void get_slice(std::vector<cass::ColumnOrSuperColumn> & _return, const std::string& key, const cass::ColumnParent& column_parent, const cass::SlicePredicate& predicate, const cass::ConsistencyLevel::type consistency_level)
+    void get_slice(std::vector<cass::ColumnOrSuperColumn>& _return,
+                   const std::string& key,
+                   const cass::ColumnParent& column_parent,
+                   const cass::SlicePredicate& predicate,
+                   const cass::ConsistencyLevel::type consistency_level)
     {
       cass::CassandraClient::get_slice(_return, key, column_parent, predicate, consistency_level);
+    }
+
+    void multiget_slice(std::map<std::string, std::vector<cass::ColumnOrSuperColumn> >& _return,
+                        const std::vector<std::string>& keys,
+                        const cass::ColumnParent& column_parent,
+                        const cass::SlicePredicate& predicate,
+                        const cass::ConsistencyLevel::type consistency_level)
+    {
+      cass::CassandraClient::multiget_slice(_return, keys, column_parent, predicate, consistency_level);
     }
 
     void remove(const std::string& key, const cass::ColumnPath& column_path, const int64_t timestamp, const cass::ConsistencyLevel::type consistency_level)
@@ -223,16 +279,16 @@ private:
   ///
   /// The thread pool used by the cache.  This is a simple subclass of
   /// ThreadPool that also stores a pointer back to the cache.
-  class CacheThreadPool : public ThreadPool<Cache::Request *>
+  class CacheThreadPool : public ThreadPool<Cache::Request*>
   {
   public:
-    CacheThreadPool(Cache *cache,
+    CacheThreadPool(Cache* cache,
                     unsigned int num_threads,
                     unsigned int max_queue = 0);
     virtual ~CacheThreadPool();
 
   private:
-    Cache *_cache;
+    Cache* _cache;
 
     void process_work(Request*&);
   };
@@ -254,7 +310,7 @@ private:
   // are used when creating the thread pool in the call to start().
   unsigned int _num_threads;
   unsigned int _max_queue;
-  CacheThreadPool *_thread_pool;
+  CacheThreadPool* _thread_pool;
 
   // Cassandra connection management.
   //
@@ -271,14 +327,14 @@ private:
 
   virtual CacheClientInterface* get_client();
   virtual void release_client();
-  static void delete_client(void *client);
+  static void delete_client(void* client);
 
   // The constructors and assignment operation are protected to prevent multiple
   // instances of the class from being created.
 protected:
   Cache();
-  Cache(Cache const &);
-  void operator=(Cache const &);
+  Cache(Cache const&);
+  void operator=(Cache const&);
 
 public:
   /// @class NoResultsException exception that is thrown to indicate that a
@@ -293,8 +349,8 @@ public:
 
     virtual ~NoResultsException() {} ;
 
-    std::string& get_column_family() { return _column_family; };
-    std::string& get_key() { return _key; };
+    std::string& get_column_family() {return _column_family; };
+    std::string& get_key() {return _key; };
 
   private:
     std::string _column_family;
@@ -378,8 +434,110 @@ public:
     ///   complete).
     virtual void run(CacheClientInterface* client);
 
-    virtual void set_trx(Transaction* trx) { _trx = trx; }
-    virtual Transaction* get_trx() { return _trx; }
+    virtual void set_trx(Transaction* trx) {_trx = trx; }
+    virtual Transaction* get_trx() {return _trx; }
+
+    // The get_* methods live in Request rather than GetRequest -
+    // classes like PutRequest and DeleteRequest may need to get data
+    // to fulfil their purpose (whereas the delete_* and put_* methods
+    // should stay in the subclasss, as a GetRequest should never need
+    // to put or delete data).
+
+    // After growing a cluster, Cassandra does not pro-actively populate the
+    // new nodes with their data (the nodes are expected to use `nodetool
+    // repair` if they need to get their data).  Combining this with
+    // the fact that we generally use consistency ONE when reading data, the
+    // behaviour on new nodes is to return NotFoundException or empty result
+    // sets to queries, even though the other nodes have a copy of the data.
+    //
+    // To resolve this issue, we define ha_ versions of various get methods.
+    // These attempt a QUORUM read in the event that a ONE read returns
+    // no data.  If the QUORUM read fails due to unreachable nodes, the
+    // original result will be used.
+    //
+    // To implement this, the non-HA versions must take the consistency level as
+    // their last parameter.
+
+    /// HA get an entire row.
+    ///
+    /// @param key row key
+    /// @param columns (out) columns in the row
+    void ha_get_row(const std::string& key,
+                    std::vector<cass::ColumnOrSuperColumn>& columns);
+
+    /// HA get specific columns in a row.
+    ///
+    /// Note that if a requested row does not exist in cassandra, this method
+    /// will return only the rows that do exist. It will not throw an exception
+    /// in this case.
+    ///
+    /// @param key row key
+    /// @param names the names of the columns to retrieve
+    /// @param columns (out) the retrieved columns
+    void ha_get_columns(const std::string& key,
+                        const std::vector<std::string>& names,
+                        std::vector<cass::ColumnOrSuperColumn>& columns);
+
+    /// HA get all columns in a row
+    /// This is useful when working with dynamic columns.
+    ///
+    /// @param key row key
+    /// @param columns (out) the retrieved columns.
+    void ha_get_all_columns(const std::string& key,
+                            std::vector<cass::ColumnOrSuperColumn>& columns);
+
+    /// HA get all columns in a row that have a particular prefix to their name.
+    /// This is useful when working with dynamic columns.
+    ///
+    /// @param key row key
+    /// @param prefix the prefix
+    /// @param columns (out) the retrieved columns. NOTE: the column names have
+    ///   their prefix removed.
+    void ha_get_columns_with_prefix(const std::string& key,
+                                    const std::string& prefix,
+                                    std::vector<cass::ColumnOrSuperColumn>& columns);
+    void ha_multiget_columns_with_prefix(const std::vector<std::string>& keys,
+                                         const std::string& prefix,
+                                         std::map<std::string, std::vector<cass::ColumnOrSuperColumn> >& columns);
+
+    /// Get an entire row (non-HA).
+    /// @param consistency_level cassandra consistency level.
+    void get_row(const std::string& key,
+                 std::vector<cass::ColumnOrSuperColumn>& columns,
+                 cass::ConsistencyLevel::type consistency_level);
+
+    /// Get specific columns in a row (non-HA).
+    /// @param consistency_level cassandra consistency level.
+    void get_columns(const std::string& key,
+                     const std::vector<std::string>& names,
+                     std::vector<cass::ColumnOrSuperColumn>& columns,
+                     cass::ConsistencyLevel::type consistency_level);
+
+    /// Get columns whose names begin with the specified prefix. (non-HA).
+    /// @param consistency_level cassandra consistency level.
+    void get_columns_with_prefix(const std::string& key,
+                                 const std::string& prefix,
+                                 std::vector<cass::ColumnOrSuperColumn>& columns,
+                                 cass::ConsistencyLevel::type consistency_level);
+    void multiget_columns_with_prefix(const std::vector<std::string>& key,
+                                      const std::string& prefix,
+                                      std::map<std::string, std::vector<cass::ColumnOrSuperColumn> >& columns,
+                                      cass::ConsistencyLevel::type consistency_level);
+
+    /// Utility method to issue a get request for a particular key.
+    ///
+    /// @param key row key
+    /// @param predicate slice predicate specifying what columns to get.
+    /// @param columns (out) the retrieved columns.
+    /// @param consistency_level cassandra consistency level.
+    void issue_get_for_key(const std::string& key,
+                           const cass::SlicePredicate& predicate,
+                           std::vector<cass::ColumnOrSuperColumn>& columns,
+                           cass::ConsistencyLevel::type consistency_level);
+    void issue_multiget_for_key(const std::vector<std::string>& keys,
+                                const cass::SlicePredicate& predicate,
+                                std::map<std::string, std::vector<cass::ColumnOrSuperColumn> >& columns,
+                                cass::ConsistencyLevel::type consistency_level);
 
     /// Method that contains the business logic of the request.
     ///
@@ -389,8 +547,8 @@ public:
     virtual void perform() {};
 
     std::string _column_family;
-    CacheClientInterface *_client;
-    Transaction *_trx;
+    CacheClientInterface* _client;
+    Transaction* _trx;
   };
 
   /// @class ModificationRequest a request to modify the cache (e.g. write
@@ -436,6 +594,10 @@ public:
                      int64_t timestamp,
                      int32_t ttl);
 
+    void put_columns_to_multiple_cfs(const std::vector<CFRowColumnValue>& to_put,
+                                     int64_t timestamp,
+                                     int32_t ttl);
+
   };
 
   /// @class GetRequest a request to read data from the cache.
@@ -447,82 +609,6 @@ public:
     virtual ~GetRequest();
 
   protected:
-    // After growing a cluster, Cassandra does not pro-actively populate the
-    // new nodes with their data (the nodes are expected to use `nodetool
-    // repair` if they need to get their data).  Combining this with
-    // the fact that we generally use consistency ONE when reading data, the
-    // behaviour on new nodes is to return NotFoundException or empty result
-    // sets to queries, even though the other nodes have a copy of the data.
-    //
-    // To resolve this issue, we define ha_ versions of various get methods.
-    // These attempt a QUORUM read in the event that a ONE read returns
-    // no data.  If the QUORUM read fails due to unreachable nodes, the
-    // original result will be used.
-    //
-    // To implement this, the non-HA versions must take the consistency level as
-    // their last parameter.
-
-    /// HA get an entire row.
-    ///
-    /// @param key row key
-    /// @param columns (out) columns in the row
-    void ha_get_row(const std::string& key,
-                    std::vector<cass::ColumnOrSuperColumn>& columns);
-
-    /// HA get specific columns in a row.
-    ///
-    /// Note that if a requested row does not exist in cassandra, this method
-    /// will return only the rows that do exist. It will not throw an exception
-    /// in this case.
-    ///
-    /// @param key row key
-    /// @param names the names of the columns to retrieve
-    /// @param columns (out) the retrieved columns
-    void ha_get_columns(const std::string& key,
-                        const std::vector<std::string>& names,
-                        std::vector<cass::ColumnOrSuperColumn>& columns);
-
-    /// HA get all columns in a row that have a particular prefix to their name.
-    /// This is useful when working with dynamic columns.
-    ///
-    /// @param key row key
-    /// @param prefix the prefix
-    /// @param columns (out) the retrieved columns. NOTE: the column names have
-    ///   their prefix removed.
-    void ha_get_columns_with_prefix(const std::string& key,
-                                    const std::string& prefix,
-                                    std::vector<cass::ColumnOrSuperColumn>& columns);
-
-    /// Get an entire row (non-HA).
-    /// @param consistency_level cassandra consistency level.
-    void get_row(const std::string& key,
-                 std::vector<cass::ColumnOrSuperColumn>& columns,
-                 cass::ConsistencyLevel::type consistency_level);
-
-    /// Get specific columns in a row (non-HA).
-    /// @param consistency_level cassandra consistency level.
-    void get_columns(const std::string& key,
-                     const std::vector<std::string>& names,
-                     std::vector<cass::ColumnOrSuperColumn>& columns,
-                     cass::ConsistencyLevel::type consistency_level);
-
-    /// Get columns whose names begin with the specified prefix. (non-HA).
-    /// @param consistency_level cassandra consistency level.
-    void get_columns_with_prefix(const std::string& key,
-                                 const std::string& prefix,
-                                 std::vector<cass::ColumnOrSuperColumn>& columns,
-                                 cass::ConsistencyLevel::type consistency_level);
-
-    /// Utility method to issue a get request for a particular key.
-    ///
-    /// @param key row key
-    /// @param predicate slice predicate specifying what columns to get.
-    /// @param columns (out) the retrieved columns.
-    /// @param consistency_level cassandra consistency level.
-    void issue_get_for_key(const std::string& key,
-                           const cass::SlicePredicate& predicate,
-                           std::vector<cass::ColumnOrSuperColumn>& columns,
-                           cass::ConsistencyLevel::type consistency_level);
   };
 
   /// @class DeleteRowsRequest a request to delete one or more rows from the
@@ -540,6 +626,17 @@ public:
     /// @param key key of the row to delete
     void delete_row(const std::string& key,
                     int64_t timestamp);
+
+    // Deletes a set of columns from arbitrary rows in arbitrary
+    // column familes, as specified by the CFRowColumnValue vector.
+
+    // Useful for batching up delete operations into a single Thrift request.
+    void delete_columns_from_multiple_cfs(const std::vector<CFRowColumnValue>& to_rm,
+                                          int64_t timestamp);
+    void batch_delete(const std::vector<CFRowColumnValue>& to_rm,
+                      int64_t timestamp)
+    {delete_columns_from_multiple_cfs(to_rm, timestamp);};
+
   };
 
   /// @class PutIMSSubscription write the IMS subscription XML for a public ID.
@@ -550,9 +647,13 @@ public:
     ///
     /// @param public_id the public ID.
     /// @param xml the subscription XML.
+    /// @param reg_state The new registration state
+    /// @param impis A set of private IDs to associate with this
+    /// public ID
     PutIMSSubscription(const std::string& public_id,
                        const std::string& xml,
                        const RegistrationState reg_state,
+                       const std::vector<std::string>& impis,
                        const int64_t timestamp,
                        const int32_t ttl = 0);
 
@@ -561,15 +662,21 @@ public:
     ///
     /// @param public_ids a vector of public IDs to set the XML for.
     /// @param xml the subscription XML.
+    /// @param reg_state The new registration state
+    /// @param impis A set of private IDs to associate with these
+    /// public IDs
     PutIMSSubscription(const std::vector<std::string>& public_ids,
                        const std::string& xml,
                        const RegistrationState reg_state,
+                       const std::vector<std::string>& impis,
                        const int64_t timestamp,
                        const int32_t ttl = 0);
+
     virtual ~PutIMSSubscription();
 
   protected:
     std::vector<std::string> _public_ids;
+    std::vector<std::string> _impis;
     std::string _xml;
     RegistrationState _reg_state;
     int32_t _ttl;
@@ -577,24 +684,73 @@ public:
     void perform();
   };
 
-  virtual PutIMSSubscription*
-    create_PutIMSSubscription(const std::string& public_id,
-                              const std::string& xml,
-                              const RegistrationState reg_state,
-                              const int64_t timestamp,
-                              const int32_t ttl = 0)
+  virtual PutIMSSubscription* create_PutIMSSubscription(const std::string& public_id,
+                                                        const std::string& xml,
+                                                        const RegistrationState reg_state,
+                                                        const std::vector<std::string>& impis,
+                                                        const int64_t timestamp,
+                                                        const int32_t ttl = 0)
   {
-    return new PutIMSSubscription(public_id, xml, reg_state, timestamp, ttl);
+    return new PutIMSSubscription(public_id, xml, reg_state, impis, timestamp, ttl);
   }
 
-  virtual PutIMSSubscription*
-    create_PutIMSSubscription(std::vector<std::string>& public_ids,
-                              const std::string& xml,
-                              const RegistrationState reg_state,
-                              const int64_t timestamp,
-                              const int32_t ttl = 0)
+  virtual PutIMSSubscription* create_PutIMSSubscription(const std::vector<std::string>& public_ids,
+                                                        const std::string& xml,
+                                                        const RegistrationState reg_state,
+                                                        const std::vector<std::string>& impis,
+                                                        const int64_t timestamp,
+                                                        const int32_t ttl = 0)
   {
-    return new PutIMSSubscription(public_ids, xml, reg_state, timestamp, ttl);
+    return new PutIMSSubscription(public_ids, xml, reg_state, impis, timestamp, ttl);
+  }
+
+  virtual PutIMSSubscription* create_PutIMSSubscription(const std::vector<std::string>& public_ids,
+                                                        const std::string& xml,
+                                                        const RegistrationState reg_state,
+                                                        const int64_t timestamp,
+                                                        const int32_t ttl = 0)
+  {
+    std::vector<std::string> no_impis;
+    return new PutIMSSubscription(public_ids, xml, reg_state, no_impis, timestamp, ttl);
+  }
+
+  virtual PutIMSSubscription* create_PutIMSSubscription(const std::string& public_id,
+                                                        const std::string& xml,
+                                                        const RegistrationState reg_state,
+                                                        const int64_t timestamp,
+                                                        const int32_t ttl = 0)
+  {
+    std::vector<std::string> no_impis;
+    return new PutIMSSubscription(public_id, xml, reg_state, no_impis, timestamp, ttl);
+  }
+
+  class PutAssociatedPrivateID : public PutRequest
+  {
+  public:
+    /// Give a set of public IDs (representing an implicit registration set) an associated private ID.
+    ///
+    /// @param impus The public IDs.
+    /// @param impi the private ID to associate with them.
+    PutAssociatedPrivateID(const std::vector<std::string>& impus,
+                           const std::string& impi,
+                           const int64_t timestamp,
+                           const int32_t ttl = 0);
+    virtual ~PutAssociatedPrivateID();
+
+  protected:
+    std::vector<std::string> _impus;
+    std::string _impi;
+
+    void perform();
+  };
+
+  virtual PutAssociatedPrivateID* create_PutAssociatedPrivateID(
+    const std::vector<std::string>& impus,
+    const std::string& impi,
+    const int64_t timestamp,
+    const int32_t ttl = 0)
+  {
+    return new PutAssociatedPrivateID(impus, impi, timestamp, ttl);
   }
 
   class PutAssociatedPublicID : public PutRequest
@@ -617,11 +773,10 @@ public:
     void perform();
   };
 
-  virtual PutAssociatedPublicID*
-    create_PutAssociatedPublicID(const std::string& private_id,
-                                 const std::string& assoc_public_id,
-                                 const int64_t timestamp,
-                                 const int32_t ttl = 0)
+  virtual PutAssociatedPublicID* create_PutAssociatedPublicID(const std::string& private_id,
+                                                              const std::string& assoc_public_id,
+                                                              const int64_t timestamp,
+                                                              const int32_t ttl = 0)
   {
     return new PutAssociatedPublicID(private_id, assoc_public_id, timestamp, ttl);
   }
@@ -649,11 +804,10 @@ public:
     void perform();
   };
 
-  virtual PutAuthVector*
-    create_PutAuthVector(const std::string& private_id,
-                         const DigestAuthVector& auth_vector,
-                         const int64_t timestamp,
-                         const int32_t ttl = 0)
+  virtual PutAuthVector* create_PutAuthVector(const std::string& private_id,
+                                              const DigestAuthVector& auth_vector,
+                                              const int64_t timestamp,
+                                              const int32_t ttl = 0)
   {
     return new PutAuthVector(private_id, auth_vector, timestamp, ttl);
   }
@@ -680,6 +834,19 @@ public:
     /// @param ttl the column's time-to-live.
     virtual void get_registration_state(RegistrationState& reg_state, int32_t& ttl);
 
+    /// Access the result of the request.
+    ///
+    /// @param impis The IMPIs associated with this IMS Subscription
+    virtual void get_associated_impis(std::vector<std::string>& impis);
+
+    struct Result
+    {
+      std::string xml;
+      RegistrationState state;
+      std::vector<std::string> impis;
+    };
+    virtual void get_result(Result& result);
+
   protected:
     // Request parameters.
     std::string _public_id;
@@ -689,15 +856,22 @@ public:
     RegistrationState _reg_state;
     int32_t _xml_ttl;
     int32_t _reg_state_ttl;
+    std::vector<std::string> _impis;
 
     void perform();
   };
 
-  virtual GetIMSSubscription*
-    create_GetIMSSubscription(const std::string& public_id)
+  virtual GetIMSSubscription* create_GetIMSSubscription(const std::string& public_id)
   {
     return new GetIMSSubscription(public_id);
   }
+
+  /// Get all the public IDs that are associated with one or more
+  /// private IDs.
+
+  // Only used when subscribers are locally provisioned - for the
+  // database operation that stores associations between IMPIs and
+  // primary public IDs for use in handling RTRs, see GetAssociatedPrimaryPublicIDs.
 
   class GetAssociatedPublicIDs : public GetRequest
   {
@@ -728,16 +902,60 @@ public:
     void perform();
   };
 
-  virtual GetAssociatedPublicIDs*
-    create_GetAssociatedPublicIDs(const std::string& private_id)
+  virtual GetAssociatedPublicIDs* create_GetAssociatedPublicIDs(const std::string& private_id)
   {
     return new GetAssociatedPublicIDs(private_id);
   }
 
-  virtual GetAssociatedPublicIDs*
-    create_GetAssociatedPublicIDs(const std::vector<std::string>& private_ids)
+  virtual GetAssociatedPublicIDs* create_GetAssociatedPublicIDs(
+    const std::vector<std::string>& private_ids)
   {
     return new GetAssociatedPublicIDs(private_ids);
+  }
+
+  /// Retrieves the primary public IDs which a particular IMPI has been
+  /// used to authenticate, by querying the "impi_mapping" table.
+
+  /// Note that this operates on the "impi_mapping" table (storing data
+  /// needed to handle Registration-Termination-Requests, and only used
+  /// when we have a HSS) not the "impi" table (storing the SIP digest
+  /// HA1 and all the public IDs associated with this IMPI, and only
+  /// used when subscribers are locally provisioned).
+  class GetAssociatedPrimaryPublicIDs : public GetRequest
+  {
+  public:
+    /// Get the primary public Ids that are associated with a single private ID.
+    ///
+    /// @param private_id the private ID.
+    GetAssociatedPrimaryPublicIDs(const std::string& private_id);
+    GetAssociatedPrimaryPublicIDs(const std::vector<std::string>& private_ids);
+    virtual ~GetAssociatedPrimaryPublicIDs() {};
+
+    /// Access the result of the request.
+    ///
+    /// @param public_ids A vector of public IDs associated with the private ID.
+    virtual void get_result(std::vector<std::string>& public_ids);
+
+  protected:
+    // Request parameters.
+    std::vector<std::string> _private_ids;
+
+    // Result.
+    std::vector<std::string> _public_ids;
+
+    void perform();
+  };
+
+  virtual GetAssociatedPrimaryPublicIDs* create_GetAssociatedPrimaryPublicIDs(
+    const std::string& private_id)
+  {
+    return new GetAssociatedPrimaryPublicIDs(private_id);
+  }
+
+  virtual GetAssociatedPrimaryPublicIDs* create_GetAssociatedPrimaryPublicIDs(
+    const std::vector<std::string>& private_ids)
+  {
+    return new GetAssociatedPrimaryPublicIDs(private_ids);
   }
 
   class GetAuthVector : public GetRequest
@@ -774,15 +992,13 @@ public:
     void perform();
   };
 
-  virtual GetAuthVector*
-    create_GetAuthVector(const std::string& private_id)
+  virtual GetAuthVector* create_GetAuthVector(const std::string& private_id)
   {
     return new GetAuthVector(private_id);
   }
 
-  virtual GetAuthVector*
-    create_GetAuthVector(const std::string& private_id,
-                         const std::string& public_id)
+  virtual GetAuthVector* create_GetAuthVector(const std::string& private_id,
+                                              const std::string& public_id)
   {
     return new GetAuthVector(private_id, public_id);
   }
@@ -790,36 +1006,50 @@ public:
   class DeletePublicIDs : public DeleteRowsRequest
   {
   public:
-    /// Delete an single public ID from the cache.
-    ///
-    /// @param public_id the public ID to delete.
-    DeletePublicIDs(const std::string& public_id, int64_t timestamp);
-
-    /// Delete several public IDs from the cache.
+    /// Delete several public IDs from the cache, and also dissociate
+    /// the primary public ID (the first one in the vector) from the
+    /// given IMPIs.
     ///
     /// @param public_ids the public IDs to delete.
+    /// @param impis the IMPIs to dissociate from this implicit
+    ///              registration set.
     DeletePublicIDs(const std::vector<std::string>& public_ids,
+                    const std::vector<std::string>& impis,
                     int64_t timestamp);
+
+    /// Delete a public ID from the cache, and also dissociate
+    /// it from the given IMPIs.
+    ///
+    /// @param public_id the public ID to delete.
+    /// @param impis the IMPIs to dissociate from this implicit
+    ///              registration set.
+    DeletePublicIDs(const std::string& public_id,
+                    const std::vector<std::string>& impis,
+                    int64_t timestamp);
+
     virtual ~DeletePublicIDs();
 
   protected:
     std::vector<std::string> _public_ids;
+    std::vector<std::string> _impis;
 
     void perform();
   };
 
-  virtual DeletePublicIDs*
-    create_DeletePublicIDs(const std::string& public_id,
-                           int64_t timestamp)
+  virtual DeletePublicIDs* create_DeletePublicIDs(
+    const std::vector<std::string>& public_ids,
+    const std::vector<std::string>& impis,
+    int64_t timestamp)
   {
-    return new DeletePublicIDs(public_id, timestamp);
+    return new DeletePublicIDs(public_ids, impis, timestamp);
   }
 
-  virtual DeletePublicIDs*
-    create_DeletePublicIDs(const std::vector<std::string>& public_ids,
-                           int64_t timestamp)
+  virtual DeletePublicIDs* create_DeletePublicIDs(
+    const std::string& public_id,
+    const std::vector<std::string>& impis,
+    int64_t timestamp)
   {
-    return new DeletePublicIDs(public_ids, timestamp);
+    return new DeletePublicIDs(public_id, impis, timestamp);
   }
 
   class DeletePrivateIDs : public DeleteRowsRequest
@@ -843,18 +1073,95 @@ public:
     void perform();
   };
 
-  virtual DeletePrivateIDs*
-    create_DeletePrivateIDs(const std::string& private_id,
-                            int64_t timestamp)
+  virtual DeletePrivateIDs* create_DeletePrivateIDs(const std::string& private_id,
+                                                    int64_t timestamp)
   {
     return new DeletePrivateIDs(private_id, timestamp);
   }
 
-  virtual DeletePrivateIDs*
-    create_DeletePrivateIDs(const std::vector<std::string>& private_ids,
-                            int64_t timestamp)
+  virtual DeletePrivateIDs* create_DeletePrivateIDs(const std::vector<std::string>& private_ids,
+                                                    int64_t timestamp)
   {
     return new DeletePrivateIDs(private_ids, timestamp);
+  }
+
+  /// DeleteIMPIMapping operates on the "impi_mapping" Cassandra table,
+  /// and deletes whole rows - effectively causing the cache to
+  /// "forget" that a particular IMPI has been used to authenticate any
+  /// IMPUs.
+
+  /// The main use-case is for Registration-Termination-Requests, which
+  /// may specify a private ID and require the S-CSCF to clear all data
+  /// and bindings associated with it.
+
+  class DeleteIMPIMapping : public DeleteRowsRequest
+  {
+  public:
+    /// Delete a mapping from private IDs to the IMPUs they have authenticated.
+    ///
+    DeleteIMPIMapping(const std::vector<std::string>& private_ids,
+                      int64_t timestamp);
+    virtual ~DeleteIMPIMapping() {};
+
+  protected:
+    std::vector<std::string> _private_ids;
+
+    void perform();
+  };
+
+  virtual DeleteIMPIMapping* create_DeleteIMPIMapping(const std::vector<std::string>& private_ids,
+                                                      int64_t timestamp)
+  {
+    return new DeleteIMPIMapping(private_ids, timestamp);
+  }
+
+  /// DeleteIMPIMapping operates on the "impi_mapping" and "impu"
+  /// Cassandra tables. It takes a vector of public IDs (representing
+  /// the IDs in an implicit registration set) and a private ID, and
+  /// removes the association between them:
+  ///   * Each public ID's row in the IMPU table is updated to remove
+  ///     this private ID. If this is the last private ID, the row is deleted.
+  ///   * The private ID's row in the IMPI mapping table is updated to
+  ///     remove the primary public ID. If this was the last prmary
+  ///     public ID, the row is left empty for Cassandra to eventually
+  ///     delete.
+
+  /// The main use-case is for Registration-Termination-Requests.
+
+  class DissociateImplicitRegistrationSetFromImpi : public DeleteRowsRequest
+  {
+  public:
+    /// Delete a mapping from private IDs to the IMPUs they have authenticated.
+    ///
+    DissociateImplicitRegistrationSetFromImpi(const std::vector<std::string>& impus,
+                                              const std::string& impi,
+                                              int64_t timestamp);
+    DissociateImplicitRegistrationSetFromImpi(const std::vector<std::string>& impus,
+                                              const std::vector<std::string>& impis,
+                                              int64_t timestamp);
+    virtual ~DissociateImplicitRegistrationSetFromImpi() {};
+
+  protected:
+    std::vector<std::string> _impus;
+    std::vector<std::string> _impis;
+
+    void perform();
+  };
+
+  virtual DissociateImplicitRegistrationSetFromImpi* create_DissociateImplicitRegistrationSetFromImpi(
+    const std::vector<std::string>& impus,
+    const std::string& impi,
+    int64_t timestamp)
+  {
+    return new DissociateImplicitRegistrationSetFromImpi(impus, impi, timestamp);
+  }
+
+  virtual DissociateImplicitRegistrationSetFromImpi* create_DissociateImplicitRegistrationSetFromImpi(
+    const std::vector<std::string>& impus,
+    const std::vector<std::string>& impis,
+    int64_t timestamp)
+  {
+    return new DissociateImplicitRegistrationSetFromImpi(impus, impis, timestamp);
   }
 };
 

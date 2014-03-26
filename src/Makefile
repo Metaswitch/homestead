@@ -18,16 +18,17 @@ TARGET_SOURCES := accesslogger.cpp \
                   cx.cpp \
                   diameterstack.cpp \
                   handlers.cpp \
+                  httpconnection.cpp \
                   httpstack.cpp \
                   load_monitor.cpp \
                   logger.cpp \
                   log.cpp \
+                  sproutconnection.cpp \
                   statistic.cpp \
                   statisticsmanager.cpp \
                   utils.cpp \
-                  zmq_lvc.cpp \
-                  log.cpp \
-                  xmlutils.cpp
+                  xmlutils.cpp \
+                  zmq_lvc.cpp
 
 TARGET_SOURCES_BUILD := main.cpp
 
@@ -103,7 +104,8 @@ LDFLAGS += -lthrift \
            -levent_pthreads \
            -levent \
            -lpthread \
-           -lsas
+           -lsas \
+           -lcurl
 
 # Test build uses just-built libraries, which may not be installed
 LDFLAGS_TEST += -Wl,-rpath=$(ROOT)/usr/lib
