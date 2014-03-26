@@ -85,15 +85,31 @@ public:
     _stack = NULL;
   }
 
-  int get(const std::string& path, int& status, std::string& response)
+  int get(const std::string& path,
+          int& status,
+          std::string& response,
+          std::list<std::string>* headers=NULL)
   {
     std::string url = _url_prefix + path;
+    struct curl_slist *extra_headers = NULL;
+
     curl_global_init(CURL_GLOBAL_DEFAULT);
     CURL* curl = curl_easy_init();
 
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, &string_store);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+
+    if (headers && headers->size() > 0)
+    {
+      for(std::list<std::string>::iterator hdr = headers->begin();
+          hdr != headers->end();
+          ++hdr)
+      {
+        extra_headers = curl_slist_append(extra_headers, hdr->c_str());
+      }
+      curl_easy_setopt(curl, CURLOPT_HTTPHEADER, extra_headers);
+    }
 
     int rc = curl_easy_perform(curl);
 
@@ -225,6 +241,27 @@ TEST_F(HttpStackTest, SimpleHandler)
   rc = get("/NoHandler", status, response);
   ASSERT_EQ(CURLE_OK, rc);
   ASSERT_EQ(404, status);
+
+  stop_stack();
+}
+
+// Check that the stack copes with receiving a SAS correltion header.
+TEST_F(HttpStackTest, SASCorrelationHeader)
+{
+  start_stack();
+
+  HttpStack::HandlerFactory<BasicHandler> basic_handler_factory;
+  _stack->register_handler("^/BasicHandler$", &basic_handler_factory);
+
+  int status;
+  std::string response;
+  std::list<std::string> hdrs;
+  hdrs.push_back("X-SAS-HTTP-Branch-ID: 12345678-1234-1234-1234-123456789ABC");
+
+  int rc = get("/BasicHandler", status, response, &hdrs);
+  ASSERT_EQ(CURLE_OK, rc);
+  ASSERT_EQ(200, status);
+  ASSERT_EQ("OK", response);
 
   stop_stack();
 }
