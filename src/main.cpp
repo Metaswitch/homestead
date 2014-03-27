@@ -49,6 +49,7 @@
 #include "cache.h"
 #include "sas.h"
 #include "sasevent.h"
+#include "saslogger.h"
 #include "sproutconnection.h"
 
 struct options
@@ -340,7 +341,7 @@ int main(int argc, char**argv)
             "homestead",
             SASEvent::CURRENT_RESOURCE_BUNDLE,
             options.sas_server,
-            SAS::discard_logs);  // TODO fill in the cpp-common log callback here.
+            sas_write);
 
   StatisticsManager* stats_manager = new StatisticsManager();
   LoadMonitor* load_monitor = new LoadMonitor(100000, // Initial target latency (us)

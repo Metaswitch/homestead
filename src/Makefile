@@ -23,6 +23,7 @@ TARGET_SOURCES := accesslogger.cpp \
                   load_monitor.cpp \
                   logger.cpp \
                   log.cpp \
+                  saslogger.cpp \
                   sproutconnection.cpp \
                   statistic.cpp \
                   statisticsmanager.cpp \
