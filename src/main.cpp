@@ -340,7 +340,7 @@ int main(int argc, char**argv)
             "homestead",
             SASEvent::CURRENT_RESOURCE_BUNDLE,
             options.sas_server,
-            NULL);  // TODO fill in the cpp-common log callback here.
+            SAS::discard_logs);  // TODO fill in the cpp-common log callback here.
 
   StatisticsManager* stats_manager = new StatisticsManager();
   LoadMonitor* load_monitor = new LoadMonitor(100000, // Initial target latency (us)
