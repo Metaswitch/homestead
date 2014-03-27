@@ -47,6 +47,7 @@
 #include "handlers.h"
 #include "logger.h"
 #include "cache.h"
+#include "saslogger.h"
 #include "sas.h"
 #include "sasevent.h"
 #include "saslogger.h"
