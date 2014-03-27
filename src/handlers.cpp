@@ -134,6 +134,10 @@ void ImpiHandler::run()
 void ImpiHandler::query_cache_av()
 {
   LOG_DEBUG("Querying cache for authentication vector for %s/%s", _impi.c_str(), _impu.c_str());
+  SAS::Event event(this->trail(), SASEvent::CACHE_GET_AV, 0);
+  event.add_var_param(_impi);
+  event.add_var_param(_impu);
+  SAS::report_event(event);
   Cache::Request* get_av = _cache->create_GetAuthVector(_impi, _impu);
   CacheTransaction* tsx = new CacheTransaction(this);
   tsx->set_success_clbk(&ImpiHandler::on_get_av_success);
@@ -143,6 +147,8 @@ void ImpiHandler::query_cache_av()
 
 void ImpiHandler::on_get_av_success(Cache::Request* request)
 {
+  SAS::Event event(this->trail(), SASEvent::CACHE_GET_AV_SUCCESS, 0);
+  SAS::report_event(event);
   Cache::GetAuthVector* get_av = (Cache::GetAuthVector*)request;
   DigestAuthVector av;
   get_av->get_result(av);
@@ -154,6 +160,8 @@ void ImpiHandler::on_get_av_success(Cache::Request* request)
 void ImpiHandler::on_get_av_failure(Cache::Request* request, Cache::ResultCode error, std::string& text)
 {
   LOG_DEBUG("Cache query failed - reject request");
+  SAS::Event event(this->trail(), SASEvent::NO_AV_CACHE, 0);
+  SAS::report_event(event);
   send_http_reply(502);
   delete this;
 }
@@ -167,6 +175,8 @@ void ImpiHandler::get_av()
       // If the requested scheme is AKA, there's no point in looking up the cached public ID.
       // Even if we find it, we can't use it due to restrictions in the AKA protocol.
       LOG_INFO("Public ID unknown and requested scheme AKA - reject");
+      SAS::Event event(this->trail(), SASEvent::NO_IMPU_AKA, 0);
+      SAS::report_event(event);
       send_http_reply(404);
       delete this;
     }
@@ -185,6 +195,9 @@ void ImpiHandler::get_av()
 void ImpiHandler::query_cache_impu()
 {
   LOG_DEBUG("Querying cache to find public IDs associated with %s", _impi.c_str());
+  SAS::Event event(this->trail(), SASEvent::CACHE_GET_ASSOC_IMPU, 0);
+  event.add_var_param(_impi);
+  SAS::report_event(event);
   Cache::Request* get_public_ids = _cache->create_GetAssociatedPublicIDs(_impi);
   CacheTransaction* tsx = new CacheTransaction(this);
   tsx->set_success_clbk(&ImpiHandler::on_get_impu_success);
@@ -200,6 +213,9 @@ void ImpiHandler::on_get_impu_success(Cache::Request* request)
   if (!ids.empty())
   {
     _impu = ids[0];
+    SAS::Event event(this->trail(), SASEvent::CACHE_GET_ASSOC_IMPU_SUCCESS, 0);
+    event.add_var_param(_impu);
+    SAS::report_event(event);
     LOG_DEBUG("Found cached public ID %s for private ID %s - now send Multimedia-Auth request",
               _impu.c_str(), _impi.c_str());
     send_mar();
@@ -207,6 +223,8 @@ void ImpiHandler::on_get_impu_success(Cache::Request* request)
   else
   {
     LOG_INFO("No cached public ID found for private ID %s - reject", _impi.c_str());
+    SAS::Event event(this->trail(), SASEvent::CACHE_GET_ASSOC_IMPU_FAIL, 0);
+    SAS::report_event(event);
     send_http_reply(404);
     delete this;
   }
@@ -214,6 +232,8 @@ void ImpiHandler::on_get_impu_success(Cache::Request* request)
 
 void ImpiHandler::on_get_impu_failure(Cache::Request* request, Cache::ResultCode error, std::string& text)
 {
+  SAS::Event event(this->trail(), SASEvent::CACHE_GET_ASSOC_IMPU_FAIL, 0);
+  SAS::report_event(event);
   if (error == Cache::NOT_FOUND)
   {
     LOG_DEBUG("No cached public ID found for private ID %s - reject", _impi.c_str());
@@ -263,6 +283,10 @@ void ImpiHandler::on_mar_response(Diameter::Message& rsp)
         {
           LOG_DEBUG("Caching that private ID %s includes public ID %s",
                     _impi.c_str(), _impu.c_str());
+          SAS::Event event(this->trail(), SASEvent::CACHE_PUT_ASSOC_IMPU, 0);
+          event.add_var_param(_impi);
+          event.add_var_param(_impu);
+          SAS::report_event(event);
           Cache::Request* put_public_id =
             _cache->create_PutAssociatedPublicID(_impi,
                                                  _impu,
@@ -283,11 +307,19 @@ void ImpiHandler::on_mar_response(Diameter::Message& rsp)
     }
     break;
     case 5001:
+    {
       LOG_INFO("Multimedia-Auth answer with result code %d - reject", result_code);
+      SAS::Event event(this->trail(), SASEvent::NO_AV_HSS, 0);
+      event.add_static_param(result_code);
+      SAS::report_event(event);
       send_http_reply(404);
-      break;
+    }
+    break;
     default:
       LOG_INFO("Multimedia-Auth answer with result code %d - reject", result_code);
+      SAS::Event event(this->trail(), SASEvent::NO_AV_HSS, 0);
+      event.add_static_param(result_code);
+      SAS::report_event(event);
       send_http_reply(500);
       break;
   }
@@ -357,6 +389,8 @@ bool ImpiAvHandler::parse_request()
   else
   {
     LOG_INFO("Couldn't parse scheme %s", scheme.c_str());
+    SAS::Event event(this->trail(), SASEvent::INVALID_SCHEME, 0);
+    SAS::report_event(event);
     return false;
   }
   _impu = _req.param("impu");
@@ -458,6 +492,8 @@ void ImpiRegistrationStatusHandler::run()
   else
   {
     LOG_DEBUG("No HSS configured - fake response for server %s", _server_name.c_str());
+    SAS::Event event(this->trail(), SASEvent::ICSCF_NO_HSS, 0);
+    SAS::report_event(event);
     rapidjson::StringBuffer sb;
     rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
     writer.StartObject();
@@ -512,26 +548,37 @@ void ImpiRegistrationStatusHandler::on_uar_response(Diameter::Message& rsp)
            (experimental_result_code == DIAMETER_ERROR_IDENTITIES_DONT_MATCH))
   {
     LOG_INFO("User unknown or public/private ID conflict - reject");
+    sas_log_hss_failure(experimental_result_code);
     send_http_reply(404);
   }
   else if ((result_code == DIAMETER_AUTHORIZATION_REJECTED) ||
            (experimental_result_code == DIAMETER_ERROR_ROAMING_NOT_ALLOWED))
   {
     LOG_INFO("Authorization rejected due to roaming not allowed - reject");
+    sas_log_hss_failure(result_code ? result_code : experimental_result_code);
     send_http_reply(403);
   }
   else if (result_code == DIAMETER_TOO_BUSY)
   {
     LOG_INFO("HSS busy - reject");
+    sas_log_hss_failure(result_code);
     send_http_reply(503);
   }
   else
   {
     LOG_INFO("User-Authorization answer with result %d/%d - reject",
              result_code, experimental_result_code);
+    sas_log_hss_failure(result_code ? result_code : experimental_result_code);
     send_http_reply(500);
   }
   delete this;
+}
+
+void ImpiRegistrationStatusHandler::sas_log_hss_failure(int32_t result_code)
+{
+  SAS::Event event(this->trail(), SASEvent::REG_STATUS_HSS_FAIL, 0);
+  event.add_static_param(result_code);
+  SAS::report_event(event);
 }
 
 //
@@ -566,6 +613,8 @@ void ImpuLocationInfoHandler::run()
   else
   {
     LOG_DEBUG("No HSS configured - fake response for server %s", _server_name.c_str());
+    SAS::Event event(this->trail(), SASEvent::ICSCF_NO_HSS, 0);
+    SAS::report_event(event);
     rapidjson::StringBuffer sb;
     rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
     writer.StartObject();
@@ -620,20 +669,30 @@ void ImpuLocationInfoHandler::on_lir_response(Diameter::Message& rsp)
            (experimental_result_code == DIAMETER_ERROR_IDENTITY_NOT_REGISTERED))
   {
     LOG_INFO("User unknown or public/private ID conflict - reject");
+    sas_log_hss_failure(experimental_result_code);
     send_http_reply(404);
   }
   else if (result_code == DIAMETER_TOO_BUSY)
   {
     LOG_INFO("HSS busy - reject");
+    sas_log_hss_failure(result_code);
     send_http_reply(503);
   }
   else
   {
     LOG_INFO("Location-Info answer with result %d/%d - reject",
              result_code, experimental_result_code);
+    sas_log_hss_failure(result_code ? result_code : experimental_result_code);
     send_http_reply(500);
   }
   delete this;
+}
+
+void ImpuLocationInfoHandler::sas_log_hss_failure(int32_t result_code)
+{
+  SAS::Event event(this->trail(), SASEvent::LOC_INFO_HSS_FAIL, 0);
+  event.add_static_param(result_code);
+  SAS::report_event(event);
 }
 
 //
@@ -769,6 +828,8 @@ void ImpuRegDataHandler::run()
     if (_type == RequestType::UNKNOWN)
     {
       LOG_ERROR("HTTP request contains invalid value %s for type", _req.body().c_str());
+      SAS::Event event(this->trail(), SASEvent::INVALID_REG_TYPE, 0);
+      SAS::report_event(event);
       send_http_reply(400);
       delete this;
       return;
@@ -790,6 +851,9 @@ void ImpuRegDataHandler::run()
   // need to return the iFCs to Sprout.
 
   LOG_DEBUG ("Try to find IMS Subscription information in the cache");
+  SAS::Event event(this->trail(), SASEvent::CACHE_GET_IMS_SUB, 0);
+  event.add_var_param(_impu);
+  SAS::report_event(event);
   Cache::Request* get_ims_sub = _cache->create_GetIMSSubscription(_impu);
   CacheTransaction* tsx = new CacheTransaction(this);
   tsx->set_success_clbk(&ImpuRegDataHandler::on_get_ims_subscription_success);
@@ -827,6 +891,12 @@ void ImpuRegDataHandler::on_get_ims_subscription_success(Cache::Request* request
             ttl,
             _xml.empty() ? "empty" : "not empty",
             regstate_to_str(old_state).c_str());
+  SAS::Event event(this->trail(), SASEvent::CACHE_GET_IMS_SUB_SUCCESS, 0);
+  event.add_var_param(_xml);
+  event.add_static_param(old_state);
+  std::string associated_impis_str = boost::algorithm::join(associated_impis, ", ");
+  event.add_var_param(associated_impis_str);
+  SAS::report_event(event);
 
   // By default, we should remain in the existing state.
   _new_state = old_state;
@@ -956,6 +1026,8 @@ void ImpuRegDataHandler::on_get_ims_subscription_success(Cache::Request* request
         // - this is useful for preventing loops, where we try and
         // continually deregister a user.
         LOG_DEBUG("Rejecting deregistration for user who was not registered");
+        SAS::Event event(this->trail(), SASEvent::SUB_NOT_REG, 0);
+        SAS::report_event(event);
         send_http_reply(400);
         delete this;
         return;
@@ -1011,6 +1083,8 @@ void ImpuRegDataHandler::on_get_ims_subscription_success(Cache::Request* request
       default:
         // We have no record of this subscriber, so they don't exist.
         LOG_DEBUG("Unrecognised subscriber");
+        SAS::Event event(this->trail(), SASEvent::NO_SUB_CACHE, 0);
+        SAS::report_event(event);
         send_http_reply(404);
         break;
       }
@@ -1086,6 +1160,8 @@ void ImpuRegDataHandler::send_reply()
 void ImpuRegDataHandler::on_get_ims_subscription_failure(Cache::Request* request, Cache::ResultCode error, std::string& text)
 {
   LOG_DEBUG("IMS subscription cache query failed: %u, %s", error, text.c_str());
+  SAS::Event event(this->trail(), SASEvent::NO_REG_DATA_CACHE, 0);
+  SAS::report_event(event);
   send_http_reply(502);
   delete this;
 }
@@ -1161,6 +1237,14 @@ void ImpuRegDataHandler::put_in_cache()
       associated_private_ids = get_associated_private_ids();
     }
 
+    SAS::Event event(this->trail(), SASEvent::CACHE_PUT_IMS_SUB, 0);
+    std::string public_ids_str = boost::algorithm::join(public_ids, ", ");
+    event.add_var_param(public_ids_str);
+    event.add_var_param(_xml);
+    event.add_static_param(_new_state);
+    std::string associated_private_ids_str = boost::algorithm::join(associated_private_ids, ", ");
+    event.add_var_param(associated_private_ids_str);
+    SAS::report_event(event);
     Cache::Request* put_ims_sub =
       _cache->create_PutIMSSubscription(public_ids,
                                         _xml,
@@ -1185,6 +1269,8 @@ void ImpuRegDataHandler::on_sar_response(Diameter::Message& rsp)
   // has no bindings for it.
   if (is_deregistration_request(_type))
   {
+    SAS::Event event(this->trail(), SASEvent::REG_DATA_HSS_SUCCESS, 0);
+    SAS::report_event(event);
     std::vector<std::string> public_ids = XmlUtils::get_public_ids(_xml);
     if (!public_ids.empty())
     {
@@ -1196,9 +1282,16 @@ void ImpuRegDataHandler::on_sar_response(Diameter::Message& rsp)
         LOG_DEBUG("Public ID %s", i->c_str());
       }
 
+      SAS::Event event(this->trail(), SASEvent::CACHE_DELETE_IMPUS, 0);
+      std::string public_ids_str = boost::algorithm::join(public_ids, ", ");
+      event.add_var_param(public_ids_str);
+      std::vector<std::string> associated_private_ids = get_associated_private_ids();
+      std::string associated_private_ids_str = boost::algorithm::join(associated_private_ids, ", ");
+      event.add_var_param(associated_private_ids_str);
+      SAS::report_event(event);
       Cache::Request* delete_public_id =
         _cache->create_DeletePublicIDs(public_ids,
-                                       get_associated_private_ids(),
+                                       associated_private_ids,
                                        Cache::generate_timestamp());
       CacheTransaction* tsx = new CacheTransaction(NULL);
       _cache->send(tsx, delete_public_id);
@@ -1220,11 +1313,19 @@ void ImpuRegDataHandler::on_sar_response(Diameter::Message& rsp)
       send_reply();
       break;
     case 5001:
+    {
       LOG_INFO("Server-Assignment answer with result code %d - reject", result_code);
+      SAS::Event event(this->trail(), SASEvent::REG_DATA_HSS_FAIL, 0);
+      event.add_static_param(result_code);
+      SAS::report_event(event);
       send_http_reply(404);
-      break;
+    }
+    break;
     default:
       LOG_INFO("Server-Assignment answer with result code %d - reject", result_code);
+      SAS::Event event(this->trail(), SASEvent::REG_DATA_HSS_FAIL, 0);
+      event.add_static_param(result_code);
+      SAS::report_event(event);
       send_http_reply(500);
       break;
   }
@@ -1310,8 +1411,11 @@ void RegistrationTerminationHandler::run()
   {
     // Find all the default public identities associated with the
     // private identities specified on the request.
-    std::string impis_string = boost::algorithm::join(_impis, ", ");
-    LOG_DEBUG("Finding associated default public identities for impis %s", impis_string.c_str());
+    std::string impis_str = boost::algorithm::join(_impis, ", ");
+    LOG_DEBUG("Finding associated default public identities for impis %s", impis_str.c_str());
+    SAS::Event event(this->trail(), SASEvent::CACHE_GET_ASSOC_PRIMARY_IMPUS, 0);
+    event.add_var_param(impis_str);
+    SAS::report_event(event);
     Cache::Request* get_associated_impus = _cfg->cache->create_GetAssociatedPrimaryPublicIDs(_impis);
     CacheTransaction* tsx = new CacheTransaction(this);
     tsx->set_success_clbk(&RegistrationTerminationHandler::get_assoc_primary_public_ids_success);
@@ -1330,6 +1434,8 @@ void RegistrationTerminationHandler::run()
     // This is either an invalid deregistration reason.
     LOG_ERROR("Registration-Termination request received with invalid deregistration reason %d",
               _deregistration_reason);
+    SAS::Event event(this->trail(), SASEvent::INVALID_DEREG_REASON, 0);
+    SAS::report_event(event);
     send_rta(DIAMETER_REQ_FAILURE);
     delete this;
   }
@@ -1345,15 +1451,21 @@ void RegistrationTerminationHandler::get_assoc_primary_public_ids_success(Cache:
   if (_impus.empty())
   {
     LOG_DEBUG("No registered IMPUs to deregister found");
+    SAS::Event event(this->trail(), SASEvent::NO_IMPU_DEREG, 0);
+    SAS::report_event(event);
     send_rta(DIAMETER_REQ_SUCCESS);
     delete this;
   }
   else
   {
-    // We now have all the default public identities. Find their registration sets.
+    // We have all the default public identities. Find their registration sets.
     // Remove any duplicates first. We do this by sorting the vector, using unique
     // to move the unique values to the front and erasing everything after the last
     // unique value.
+    SAS::Event event(this->trail(), SASEvent::CACHE_GET_ASSOC_PRIMARY_IMPUS_SUCCESS, 0);
+    std::string impus_str = boost::algorithm::join(_impus, ", ");
+    event.add_var_param(impus_str);
+    SAS::report_event(event);
     sort(_impus.begin(), _impus.end());
     _impus.erase(unique(_impus.begin(), _impus.end()), _impus.end());
     get_registration_sets();
@@ -1365,6 +1477,8 @@ void RegistrationTerminationHandler::get_assoc_primary_public_ids_failure(Cache:
                                                                           std::string& text)
 {
   LOG_DEBUG("Failed to get associated default public identities");
+  SAS::Event event(this->trail(), SASEvent::DEREG_SUCCESS, 0);
+  SAS::report_event(event);
   send_rta(DIAMETER_REQ_FAILURE);
   delete this;
 }
@@ -1380,6 +1494,9 @@ void RegistrationTerminationHandler::get_registration_sets()
     std::string impu = _impus.back();
     _impus.pop_back();
     LOG_DEBUG("Finding registration set for public identity %s", impu.c_str());
+    SAS::Event event(this->trail(), SASEvent::CACHE_GET_IMS_SUB, 0);
+    event.add_var_param(impu);
+    SAS::report_event(event);
     Cache::Request* get_ims_sub = _cfg->cache->create_GetIMSSubscription(impu);
     CacheTransaction* tsx = new CacheTransaction(this);
     tsx->set_success_clbk(&RegistrationTerminationHandler::get_registration_set_success);
@@ -1389,6 +1506,8 @@ void RegistrationTerminationHandler::get_registration_sets()
   else if (_registration_sets.empty())
   {
     LOG_DEBUG("No registered IMPUs to deregister found");
+    SAS::Event event(this->trail(), SASEvent::NO_IMPU_DEREG, 0);
+    SAS::report_event(event);
     send_rta(DIAMETER_REQ_SUCCESS);
     delete this;
   }
@@ -1411,6 +1530,9 @@ void RegistrationTerminationHandler::get_registration_set_success(Cache::Request
   std::string ims_sub;
   int32_t temp;
   get_ims_sub_result->get_xml(ims_sub, temp);
+  SAS::Event event(this->trail(), SASEvent::CACHE_GET_IMS_SUB_SUCCESS, 0);
+  event.add_var_param(ims_sub);
+  SAS::report_event(event);
 
   // Add the list of public identities in the IMS subscription to
   // the list of registration sets..
@@ -1427,9 +1549,9 @@ void RegistrationTerminationHandler::get_registration_set_success(Cache::Request
     // identities. Save these off.
     std::vector<std::string> associated_impis;
     get_ims_sub_result->get_associated_impis(associated_impis);
-    std::string associated_impis_string = boost::algorithm::join(associated_impis, ", ");
+    std::string associated_impis_str = boost::algorithm::join(associated_impis, ", ");
     LOG_DEBUG("GetIMSSubscription returned associated identites: %s",
-              associated_impis_string.c_str());
+              associated_impis_str.c_str());
     _impis.insert(_impis.end(),
                   associated_impis.begin(),
                   associated_impis.end());
@@ -1444,14 +1566,14 @@ void RegistrationTerminationHandler::get_registration_set_failure(Cache::Request
                                                                   std::string& text)
 {
   LOG_DEBUG("Failed to get a registration set - report failure to HSS");
+  SAS::Event event(this->trail(), SASEvent::DEREG_FAIL, 0);
+  SAS::report_event(event);
   send_rta(DIAMETER_REQ_FAILURE);
   delete this;
 }
 
 void RegistrationTerminationHandler::delete_registrations()
 {
-  // No real SAS implementation yet. TODO.
-  SAS::TrailId fake_trail = 0;
   HTTPCode ret_code = 0;
   std::vector<std::string> empty_vector;
   std::vector<std::string> default_public_identities;
@@ -1473,7 +1595,7 @@ void RegistrationTerminationHandler::delete_registrations()
     ret_code = _cfg->sprout_conn->deregister_bindings(false,
                                                       default_public_identities,
                                                       _impis,
-                                                      fake_trail);
+                                                      this->trail());
     break;
 
   case REMOVE_SCSCF:
@@ -1481,14 +1603,14 @@ void RegistrationTerminationHandler::delete_registrations()
     ret_code = _cfg->sprout_conn->deregister_bindings(true,
                                                       default_public_identities,
                                                       empty_vector,
-                                                      fake_trail);
+                                                      this->trail());
     break;
 
   case NEW_SERVER_ASSIGNED:
     ret_code = _cfg->sprout_conn->deregister_bindings(false,
                                                       default_public_identities,
                                                       empty_vector,
-                                                      fake_trail);
+                                                      this->trail());
     break;
 
   default:
@@ -1501,21 +1623,33 @@ void RegistrationTerminationHandler::delete_registrations()
   switch (ret_code)
   {
   case HTTP_OK:
+  {
     LOG_DEBUG("Send Registration-Termination answer indicating success");
+    SAS::Event event(this->trail(), SASEvent::DEREG_SUCCESS, 0);
+    SAS::report_event(event);
     send_rta(DIAMETER_REQ_SUCCESS);
-    break;
+  }
+  break;
 
   case HTTP_BADMETHOD:
   case HTTP_BAD_RESULT:
   case HTTP_SERVER_ERROR:
+  {
     LOG_DEBUG("Send Registration-Termination answer indicating failure");
+    SAS::Event event(this->trail(), SASEvent::DEREG_FAIL, 0);
+    SAS::report_event(event);
     send_rta(DIAMETER_REQ_FAILURE);
-    break;
+  }
+  break;
 
   default:
+  {
     LOG_ERROR("Unexpected HTTP return code, send Registration-Termination answer indicating failure");
+    SAS::Event event(this->trail(), SASEvent::DEREG_FAIL, 0);
+    SAS::report_event(event);
     send_rta(DIAMETER_REQ_FAILURE);
-    break;
+  }
+  break;
   }
 
   // Remove the relevant registration information from Cassandra.
@@ -1538,6 +1672,12 @@ void RegistrationTerminationHandler::dissociate_implicit_registration_sets()
        i != _registration_sets.end();
        i++)
   {
+    SAS::Event event(this->trail(), SASEvent::CACHE_DISASSOC_REG_SET, 0);
+    std::string reg_set_str = boost::algorithm::join(*i, ", ");
+    event.add_var_param(reg_set_str);
+    std::string impis_str = boost::algorithm::join(_impis, ", ");
+    event.add_var_param(impis_str);
+    SAS::report_event(event);
     Cache::Request* dissociate_reg_set =
       _cfg->cache->create_DissociateImplicitRegistrationSetFromImpi(*i, _impis, Cache::generate_timestamp());
     CacheTransaction* tsx = new CacheTransaction(this);
@@ -1548,9 +1688,12 @@ void RegistrationTerminationHandler::dissociate_implicit_registration_sets()
 void RegistrationTerminationHandler::delete_impi_mappings()
 {
   // Delete rows from the IMPI table for all associated IMPIs.
-  std::string _impis_string = boost::algorithm::join(_impis, ", ");
+  std::string _impis_str = boost::algorithm::join(_impis, ", ");
   LOG_DEBUG("Deleting IMPI mappings for the following IMPIs: %s",
-            _impis_string.c_str());
+            _impis_str.c_str());
+  SAS::Event event(this->trail(), SASEvent::CACHE_DELETE_IMPI_MAP, 0);
+  event.add_var_param(_impis_str);
+  SAS::report_event(event);
   Cache::Request* delete_impis =
     _cfg->cache->create_DeleteIMPIMapping(_impis, Cache::generate_timestamp());
   CacheTransaction* tsx = new CacheTransaction(this);
@@ -1638,6 +1781,12 @@ void PushProfileHandler::update_ims_subscription()
   LOG_INFO("Updating IMS subscription from PPR");
   std::vector<std::string> impus = XmlUtils::get_public_ids(_ims_subscription);
   RegistrationState state = RegistrationState::UNCHANGED;
+  SAS::Event event(this->trail(), SASEvent::CACHE_PUT_IMS_SUB, 0);
+  std::string impus_str = boost::algorithm::join(impus, ", ");
+  event.add_var_param(impus_str);
+  event.add_var_param(_ims_subscription);
+  event.add_static_param(state);
+  SAS::report_event(event);
   Cache::Request* put_ims_subscription =
     _cfg->cache->create_PutIMSSubscription(impus,
                                            _ims_subscription,
@@ -1653,6 +1802,8 @@ void PushProfileHandler::update_ims_subscription()
 void PushProfileHandler::update_ims_subscription_success(Cache::Request* request)
 {
   // Send a successful response to the HSS.
+  SAS::Event event(this->trail(), SASEvent::UPDATED_IMS_SUBS, 0);
+  SAS::report_event(event);
   send_ppa(DIAMETER_REQ_SUCCESS);
 }
 

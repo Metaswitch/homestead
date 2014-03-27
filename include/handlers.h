@@ -374,6 +374,7 @@ public:
 
   void run();
   void on_uar_response(Diameter::Message& rsp);
+  void sas_log_hss_failure(int32_t result_code);
 
   typedef HssCacheHandler::DiameterTransaction<ImpiRegistrationStatusHandler> DiameterTransaction;
 
@@ -400,6 +401,7 @@ public:
 
   void run();
   void on_lir_response(Diameter::Message& rsp);
+  void sas_log_hss_failure(int32_t result_code);
 
   typedef HssCacheHandler::DiameterTransaction<ImpuLocationInfoHandler> DiameterTransaction;
 

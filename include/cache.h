@@ -72,6 +72,7 @@
 #include "utils.h"
 #include "reg_state.h"
 #include "sas.h"
+#include "sasevent.h"
 
 namespace cass = org::apache::cassandra;
 
