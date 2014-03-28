@@ -310,7 +310,6 @@ void ImpiHandler::on_mar_response(Diameter::Message& rsp)
     {
       LOG_INFO("Multimedia-Auth answer with result code %d - reject", result_code);
       SAS::Event event(this->trail(), SASEvent::NO_AV_HSS, 0);
-      event.add_static_param(result_code);
       SAS::report_event(event);
       send_http_reply(404);
     }
@@ -318,7 +317,6 @@ void ImpiHandler::on_mar_response(Diameter::Message& rsp)
     default:
       LOG_INFO("Multimedia-Auth answer with result code %d - reject", result_code);
       SAS::Event event(this->trail(), SASEvent::NO_AV_HSS, 0);
-      event.add_static_param(result_code);
       SAS::report_event(event);
       send_http_reply(500);
       break;
@@ -577,7 +575,6 @@ void ImpiRegistrationStatusHandler::on_uar_response(Diameter::Message& rsp)
 void ImpiRegistrationStatusHandler::sas_log_hss_failure(int32_t result_code)
 {
   SAS::Event event(this->trail(), SASEvent::REG_STATUS_HSS_FAIL, 0);
-  event.add_static_param(result_code);
   SAS::report_event(event);
 }
 
@@ -691,7 +688,6 @@ void ImpuLocationInfoHandler::on_lir_response(Diameter::Message& rsp)
 void ImpuLocationInfoHandler::sas_log_hss_failure(int32_t result_code)
 {
   SAS::Event event(this->trail(), SASEvent::LOC_INFO_HSS_FAIL, 0);
-  event.add_static_param(result_code);
   SAS::report_event(event);
 }
 
@@ -1316,7 +1312,6 @@ void ImpuRegDataHandler::on_sar_response(Diameter::Message& rsp)
     {
       LOG_INFO("Server-Assignment answer with result code %d - reject", result_code);
       SAS::Event event(this->trail(), SASEvent::REG_DATA_HSS_FAIL, 0);
-      event.add_static_param(result_code);
       SAS::report_event(event);
       send_http_reply(404);
     }
@@ -1324,7 +1319,6 @@ void ImpuRegDataHandler::on_sar_response(Diameter::Message& rsp)
     default:
       LOG_INFO("Server-Assignment answer with result code %d - reject", result_code);
       SAS::Event event(this->trail(), SASEvent::REG_DATA_HSS_FAIL, 0);
-      event.add_static_param(result_code);
       SAS::report_event(event);
       send_http_reply(500);
       break;
