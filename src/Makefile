@@ -11,16 +11,40 @@ GMOCK_DIR := $(ROOT)/modules/gmock
 TARGET := homestead
 TARGET_TEST := homestead_test
 
-TARGET_SOURCES := cache.cpp
+TARGET_SOURCES := accesslogger.cpp \
+                  accumulator.cpp \
+                  cache.cpp \
+                  counter.cpp \
+                  cx.cpp \
+                  diameterstack.cpp \
+                  handlers.cpp \
+                  httpconnection.cpp \
+                  httpstack.cpp \
+                  load_monitor.cpp \
+                  logger.cpp \
+                  log.cpp \
+                  sproutconnection.cpp \
+                  statistic.cpp \
+                  statisticsmanager.cpp \
+                  utils.cpp \
+                  xmlutils.cpp \
+                  zmq_lvc.cpp
 
 TARGET_SOURCES_BUILD := main.cpp
 
-TARGET_SOURCES_TEST := test_main.cpp
+TARGET_SOURCES_TEST := test_main.cpp \
+                       test_interposer.cpp \
+                       cx_test.cpp \
+                       xmlutils_test.cpp \
+                       diameterstack_test.cpp \
+                       cache_test.cpp \
+                       handlers_test.cpp \
+                       httpstack_test.cpp \
+                       fakelogger.cpp \
+                       mockfreediameter.cpp
 
-# Put the interposer in here, so it will be loaded early.
 TARGET_EXTRA_OBJS_TEST := gmock-all.o \
-	                  gtest-all.o \
-	                  test_interposer.so
+                          gtest-all.o
 
 TEST_XML = $(TEST_OUT_DIR)/test_detail_$(TARGET_TEST).xml
 COVERAGE_XML = $(TEST_OUT_DIR)/coverage_$(TARGET_TEST).xml
@@ -29,8 +53,9 @@ COVERAGE_LIST = $(TEST_OUT_DIR)/coverage_list
 COVERAGE_MASTER_LIST = ut/coverage-not-yet
 VG_XML = $(TEST_OUT_DIR)/vg_$(TARGET_TEST).memcheck
 VG_OUT = $(TEST_OUT_DIR)/vg_$(TARGET_TEST).txt
+VG_LIST = $(TEST_OUT_DIR)/vg_$(TARGET_TEST)_list
 
-VG_SUPPRESS = $(TARGET_TEST).supp
+VG_SUPPRESS = ut/$(TARGET_TEST).supp
 
 EXTRA_CLEANS += $(TEST_XML) \
                 $(COVERAGE_XML) \
@@ -42,7 +67,14 @@ EXTRA_CLEANS += $(TEST_XML) \
 CPPFLAGS += -Wno-write-strings \
             -ggdb3 -std=c++0x
 CPPFLAGS += -I${ROOT}/include \
-            -I${ROOT}/usr/include
+            -I${ROOT}/usr/include \
+            -I${ROOT}/modules/cpp-common/include \
+            -I${ROOT}/modules/cpp-common/test_utils \
+            -I${ROOT}/modules/rapidjson/include \
+            -I${ROOT}/modules/sas-client/include
+
+# Add modules/cpp-common/src as a VPATH to pull in required common modules
+VPATH := ${ROOT}/modules/cpp-common/src:${ROOT}/modules/cpp-common/test_utils
 
 # Production build:
 #
@@ -65,13 +97,21 @@ CPPFLAGS_TEST  += -DUNIT_TEST \
 LDFLAGS += -L${ROOT}/usr/lib
 LDFLAGS += -lthrift \
            -lcassandra \
-           -lzmq
-
-# Test build fakes out cURL
-LDFLAGS_BUILD += -lcurl
+           -lzmq \
+           -lfdcore \
+           -lfdproto \
+           -levhtp \
+           -levent_pthreads \
+           -levent \
+           -lpthread \
+           -lsas \
+           -lcurl
 
 # Test build uses just-built libraries, which may not be installed
 LDFLAGS_TEST += -Wl,-rpath=$(ROOT)/usr/lib
+
+# Test build also uses libcurl (to verify HttpStack operation)
+LDFLAGS_TEST += -lcurl
 
 # Now the GMock / GTest boilerplate.
 GTEST_HEADERS := $(GTEST_DIR)/include/gtest/*.h \
@@ -84,11 +124,12 @@ GTEST_SRCS_ := $(GTEST_DIR)/src/*.cc $(GTEST_DIR)/src/*.h $(GTEST_HEADERS)
 GMOCK_SRCS_ := $(GMOCK_DIR)/src/*.cc $(GMOCK_HEADERS)
 # End of boilerplate
 
-COVERAGEFLAGS = $(OBJ_DIR_TEST) --object-directory=$(shell pwd) \
-                --root=$(shell pwd) --exclude=^ut/ \
+COVERAGEFLAGS = $(OBJ_DIR_TEST) --object-directory=$(shell pwd) --root=${ROOT} \
+                --exclude='(^include/|^modules/gmock/|^modules/rapidjson/|^modules/cpp-common/include/|^src/ut/|^usr/)' \
                 --sort-percentage --exclude-lines
 
 VGFLAGS = --suppressions=$(VG_SUPPRESS) \
+          --gen-suppressions=all \
           --leak-check=full \
           --track-origins=yes \
           --malloc-fill=cc \
@@ -106,7 +147,7 @@ include ${MK_DIR}/platform.mk
 stage-build: build
 
 .PHONY: test
-test: run_test coverage vg coverage-check
+test: run_test coverage vg coverage-check vg-check
 
 # Run the test.  You can set EXTRA_TEST_ARGS to pass extra arguments
 # to the test, e.g.,
@@ -167,6 +208,22 @@ debug: build_test
 vg: build_test | $(TEST_OUT_DIR)
 	-valgrind --xml=yes --xml-file=$(VG_XML) $(VGFLAGS) \
 	  $(TARGET_BIN_TEST) --gtest_filter='-*DeathTest*' $(EXTRA_TEST_ARGS) > $(VG_OUT) 2>&1
+
+# Check whether there were any errors from valgrind. Output to screen any errors found,
+# and details of where to find the full logs.
+# The output file will contain <error><kind>ERROR</kind></error>, or 'XPath set is empty'
+# if there are no errors.
+.PHONY: vg-check
+vg-check: vg
+	@xmllint --xpath '//error/kind' $(VG_XML) 2>&1 | \
+		sed -e 's#<kind>##g' | \
+		sed -e 's#</kind>#\n#g' | \
+		sort > $(VG_LIST)
+	@if grep -q -v "XPath set is empty" $(VG_LIST) ; then \
+		echo "Error: some memory errors have been detected" ; \
+		cat $(VG_LIST) ; \
+		echo "See $(VG_XML) for further details." ; \
+	fi
 
 .PHONY: vg_raw
 vg_raw: build_test | $(TEST_OUT_DIR)

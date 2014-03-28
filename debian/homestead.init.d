@@ -81,11 +81,17 @@ log_directory=/var/log/$NAME
 get_settings()
 {
         # Set up defaults and then pull in the settings for this node.
-        sas_server=0.0.0.0
+        hss_hostname=0.0.0.0
+        scscf=5054
         . /etc/clearwater/config
 
         # Set up defaults for user settings then pull in any overrides.
+        num_http_threads=$(($(grep processor /proc/cpuinfo | wc -l) * 50))
         log_level=2
+        impu_cache_ttl=0
+        hss_reregistration_time=1800
+        server_name=sip:$(python /usr/share/clearwater/bin/bracket_ipv6_address.py $sprout_hostname):$scscf
+        sprout_http_name=$(python /usr/share/clearwater/bin/bracket_ipv6_address.py $sprout_hostname):9888
         [ -r /etc/clearwater/user_settings ] && . /etc/clearwater/user_settings
 
         # Work out which features are enabled.
@@ -96,6 +102,8 @@ get_settings()
             [ -r $file ] && . $file
           done
         fi
+
+        [ "$hss_mar_lowercase_unknown" != "Y" ] || scheme_unknown_arg="--scheme-unknown unknown"
 }
 
 #
@@ -118,7 +126,17 @@ do_start()
         # enable gdb to dump a parent homestead process's stack
         echo 0 > /proc/sys/kernel/yama/ptrace_scope
         get_settings
-        DAEMON_ARGS="-a $log_directory
+        DAEMON_ARGS="--diameter-conf /var/lib/homestead/homestead.conf
+                     --http $local_ip
+                     --http-threads $num_http_threads
+                     --dest-realm $home_domain
+                     --dest-host $hss_hostname
+                     --server-name $server_name
+                     --impu-cache-ttl $impu_cache_ttl
+                     --hss-reregistration-time $hss_reregistration_time
+                     --sprout-http-name $sprout_http_name
+                     $scheme_unknown_arg
+                     -a $log_directory
                      -F $log_directory
                      -L $log_level"
 
@@ -252,6 +270,10 @@ case "$1" in
                 ;;
         esac
         ;;
+  abort)
+	log_daemon_msg "Aborting $DESC" "$NAME"
+	do_abort
+	;;
   abort-restart)
         log_daemon_msg "Abort-Restarting $DESC" "$NAME"
         do_abort
