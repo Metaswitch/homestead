@@ -388,6 +388,7 @@ bool ImpiAvHandler::parse_request()
   {
     LOG_INFO("Couldn't parse scheme %s", scheme.c_str());
     SAS::Event event(this->trail(), SASEvent::INVALID_SCHEME, 0);
+    event.add_var_param(scheme);
     SAS::report_event(event);
     return false;
   }
