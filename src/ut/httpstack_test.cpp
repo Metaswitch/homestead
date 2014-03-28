@@ -116,6 +116,7 @@ public:
 
     curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status);
 
+    curl_slist_free_all(extra_headers);
     curl_easy_cleanup(curl);
     curl_global_cleanup();
 
