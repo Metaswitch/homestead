@@ -71,6 +71,8 @@
 #include "threadpool.h"
 #include "utils.h"
 #include "reg_state.h"
+#include "sas.h"
+#include "homesteadsasevent.h"
 
 namespace cass = org::apache::cassandra;
 
@@ -380,7 +382,7 @@ public:
   class Transaction
   {
   public:
-    Transaction() {};
+    Transaction(SAS::TrailId trail) : _trail(trail) {};
     virtual ~Transaction() {};
 
     virtual void on_success(Request* req) = 0;
@@ -403,8 +405,11 @@ public:
       return _stopwatch.read(duration_us);
     }
 
+    SAS::TrailId trail() { return _trail; }
+
   private:
     Utils::StopWatch _stopwatch;
+    SAS::TrailId _trail;
   };
 
   /// @class Request base class for all cache requests.

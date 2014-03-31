@@ -102,7 +102,7 @@ class CacheTestTransaction : public Cache::Transaction
 {
 public:
   CacheTestTransaction(sem_t* sem) :
-    Cache::Transaction(), _sem(sem)
+    Cache::Transaction(0), _sem(sem)
   {}
 
   virtual ~CacheTestTransaction()

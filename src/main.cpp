@@ -47,7 +47,10 @@
 #include "handlers.h"
 #include "logger.h"
 #include "cache.h"
+#include "saslogger.h"
+#include "sas.h"
 #include "sasevent.h"
+#include "saslogger.h"
 #include "sproutconnection.h"
 
 struct options
@@ -72,6 +75,8 @@ struct options
   std::string log_directory;
   int log_level;
   int cache_threads;
+  std::string sas_server;
+  std::string sas_system_name;
 };
 
 void usage(void)
@@ -100,6 +105,10 @@ void usage(void)
        "                            String to use to specify AKA SIP-Auth-Scheme (default: Digest-AKAv1-MD5)\n"
        " -a, --access-log <directory>\n"
        "                            Generate access logs in specified directory\n"
+       "     --sas <hostname>,<system name>\n"
+       "                            Use specified host as Service Assurance Server and specified\n"
+       "                            system name to identify this system to SAS.  If this option isn't\n"
+       "                            specified SAS is disabled\n"
        " -F, --log-file <directory>\n"
        "                            Log to file in specified directory\n"
        " -L, --log-level N          Set log level to N (default: 4)\n"
@@ -112,7 +121,8 @@ enum OptionTypes
 {
   SCHEME_UNKNOWN = 128, // start after the ASCII set ends to avoid conflicts
   SCHEME_DIGEST,
-  SCHEME_AKA
+  SCHEME_AKA,
+  SAS_CONFIG
 };
 
 int init_options(int argc, char**argv, struct options& options)
@@ -134,6 +144,7 @@ int init_options(int argc, char**argv, struct options& options)
     {"scheme-digest",           required_argument, NULL, SCHEME_DIGEST},
     {"scheme-aka",              required_argument, NULL, SCHEME_AKA},
     {"access-log",              required_argument, NULL, 'a'},
+    {"sas",                     required_argument, NULL, SAS_CONFIG},
     {"log-file",                required_argument, NULL, 'F'},
     {"log-level",               required_argument, NULL, 'L'},
     {"help",                    no_argument,       NULL, 'h'},
@@ -205,6 +216,24 @@ int init_options(int argc, char**argv, struct options& options)
     case 'a':
       options.access_log_enabled = true;
       options.access_log_directory = std::string(optarg);
+      break;
+
+    case SAS_CONFIG:
+      {
+        std::vector<std::string> sas_options;
+        Utils::split_string(std::string(optarg), ',', sas_options, 0, false);
+        if (sas_options.size() == 2)
+        {
+          options.sas_server = sas_options[0];
+          options.sas_system_name = sas_options[1];
+          fprintf(stdout, "SAS set to %s\n", options.sas_server.c_str());
+          fprintf(stdout, "System name is set to %s\n", options.sas_system_name.c_str());
+        }
+        else
+        {
+          fprintf(stdout, "Invalid --sas option, SAS disabled\n");
+        }
+      }
       break;
 
     case 'F':
@@ -279,6 +308,8 @@ int main(int argc, char**argv)
   options.sprout_http_name = "sprout-http-name.unknown";
   options.log_to_file = false;
   options.log_level = 0;
+  options.sas_server = "0.0.0.0";
+  options.sas_system_name = "";
 
   if (init_options(argc, argv, options) != 0)
   {
@@ -307,6 +338,12 @@ int main(int argc, char**argv)
 
   LOG_STATUS("Log level set to %d", options.log_level);
 
+  SAS::init(options.sas_system_name,
+            "homestead",
+            SASEvent::CURRENT_RESOURCE_BUNDLE,
+            options.sas_server,
+            sas_write);
+
   StatisticsManager* stats_manager = new StatisticsManager();
   LoadMonitor* load_monitor = new LoadMonitor(100000, // Initial target latency (us)
                                               20,     // Maximum token bucket size.
@@ -326,7 +363,7 @@ int main(int argc, char**argv)
 
   HttpConnection* http = new HttpConnection(options.sprout_http_name,
                                             false,
-                                            SASEvent::TX_HSS_BASE);
+                                            SASEvent::HttpLogLevel::PROTOCOL);
   SproutConnection* sprout_conn = new SproutConnection(http);
 
   Diameter::Stack* diameter_stack = Diameter::Stack::get_instance();
@@ -451,6 +488,8 @@ int main(int argc, char**argv)
 
   delete stats_manager; stats_manager = NULL;
   delete load_monitor; load_monitor = NULL;
+
+  SAS::term();
 
   signal(SIGTERM, SIG_DFL);
   sem_destroy(&term_sem);

@@ -11,3 +11,5 @@ modules/cpp-common/src/load_monitor.cpp
 modules/cpp-common/src/statistic.cpp
 modules/cpp-common/src/zmq_lvc.cpp
 modules/cpp-common/test_utils/test_interposer.cpp
+modules/cpp-common/test_utils/sas_logger.cpp
+modules/cpp-common/test_utils/mock_sas.cpp

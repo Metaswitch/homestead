@@ -77,6 +77,8 @@ using ::testing::NiceMock;
 using ::testing::StrictMock;
 using ::testing::Mock;
 
+const SAS::TrailId FAKE_TRAIL_ID = 0x12345678;
+
 // Fixture for HandlersTest.
 class HandlersTest : public testing::Test
 {
@@ -349,7 +351,7 @@ public:
     // Configure the handler to use a HSS, and send a RE_REGISTRATION
     // SAR to the HSS every hour.
     ImpuRegDataHandler::Config cfg(true, 3600);
-    ImpuRegDataHandler* handler = new ImpuRegDataHandler(req, &cfg);
+    ImpuRegDataHandler* handler = new ImpuRegDataHandler(req, &cfg, FAKE_TRAIL_ID);
 
     // Once the request is processed by the handler, we expect it to
     // look up the subscriber's data in Cassandra.
@@ -439,7 +441,7 @@ public:
       EXPECT_CALL(*_cache, send(_, &mock_req3))
         .WillOnce(WithArgs<0>(Invoke(&mock_req3, &Cache::Request::set_trx)));
 
-      EXPECT_CALL(*_httpstack, send_reply(_, 200));
+      EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
       _caught_diam_tsx->on_response(saa);
 
       t = mock_req3.get_trx();
@@ -457,7 +459,7 @@ public:
       EXPECT_CALL(*_cache, send(_, &mock_req3))
         .WillOnce(WithArgs<0>(Invoke(&mock_req3, &Cache::Request::set_trx)));
 
-      EXPECT_CALL(*_httpstack, send_reply(_, 200));
+      EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
       _caught_diam_tsx->on_response(saa);
 
       t = mock_req3.get_trx();
@@ -490,7 +492,7 @@ public:
     // Configure the handler to use a HSS, and send a RE_REGISTRATION
     // SAR to the HSS every hour.
     ImpuRegDataHandler::Config cfg(true, 3600);
-    ImpuRegDataHandler* handler = new ImpuRegDataHandler(req, &cfg);
+    ImpuRegDataHandler* handler = new ImpuRegDataHandler(req, &cfg, FAKE_TRAIL_ID);
 
     // Once the request is processed by the handler, we expect it to
     // look up the subscriber's data in Cassandra.
@@ -513,7 +515,7 @@ public:
 
     // No SAR was generated, so there shouldn't be any effect on the
     // database - just check that we send back a response.
-    EXPECT_CALL(*_httpstack, send_reply(_, 200));
+    EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
     t->on_success(&mock_req);
 
     // Build the expected response and check it's correct
@@ -538,7 +540,7 @@ public:
                                "{\"reqtype\": \"" + body +"\"}",
                                htp_method_PUT);
     ImpuRegDataHandler::Config cfg(hss_configured, 3600);
-    ImpuRegDataHandler* handler = new ImpuRegDataHandler(req, &cfg);
+    ImpuRegDataHandler* handler = new ImpuRegDataHandler(req, &cfg, FAKE_TRAIL_ID);
 
     MockCache::MockGetIMSSubscription mock_req;
     EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU))
@@ -564,7 +566,7 @@ public:
     }
     else
     {
-      EXPECT_CALL(*_httpstack, send_reply(_, 200));
+      EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
     }
 
     t->on_success(&mock_req);
@@ -590,7 +592,7 @@ public:
                                      DIAMETER_SUCCESS,
                                      IMPU_IMS_SUBSCRIPTION);
 
-      EXPECT_CALL(*_httpstack, send_reply(_, 200));
+      EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
       _caught_diam_tsx->on_response(saa);
     }
 
@@ -619,7 +621,7 @@ public:
     // SAR to the HSS every hour.
 
     ImpuRegDataHandler::Config cfg(false, 3600);
-    ImpuRegDataHandler* handler = new ImpuRegDataHandler(req, &cfg);
+    ImpuRegDataHandler* handler = new ImpuRegDataHandler(req, &cfg, FAKE_TRAIL_ID);
 
     // Once the request is processed by the handler, we expect it to
     // look up the subscriber's data in Cassandra.
@@ -657,7 +659,7 @@ public:
       EXPECT_CALL(*_cache, send(_, &mock_req2))
         .WillOnce(WithArgs<0>(Invoke(&mock_req2, &Cache::Request::set_trx)));
 
-      EXPECT_CALL(*_httpstack, send_reply(_, 200));
+      EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
       t->on_success(&mock_req);
 
       t = mock_req2.get_trx();
@@ -667,7 +669,7 @@ public:
     {
       // If we're not expecting a database update, just check that we
       // return 200 OK.
-      EXPECT_CALL(*_httpstack, send_reply(_, 200));
+      EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
       t->on_success(&mock_req);
     }
     // Build the expected response and check it's correct
@@ -683,7 +685,7 @@ public:
                                "{\"reqtype\": \"dereg-user\"}",
                                htp_method_PUT);
     ImpuRegDataHandler::Config cfg(hss_configured, 3600);
-    ImpuRegDataHandler* handler = new ImpuRegDataHandler(req, &cfg);
+    ImpuRegDataHandler* handler = new ImpuRegDataHandler(req, &cfg, FAKE_TRAIL_ID);
 
     MockCache::MockGetIMSSubscription mock_req;
     EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU))
@@ -704,7 +706,7 @@ public:
       .WillRepeatedly(SetArgReferee<0>(RegistrationState::NOT_REGISTERED));
 
     // A 400 error should be sent as a result.
-    EXPECT_CALL(*_httpstack, send_reply(_, 400));
+    EXPECT_CALL(*_httpstack, send_reply(_, 400, _));
     t->on_success(&mock_req);
 
     EXPECT_EQ("", req.content());
@@ -724,7 +726,7 @@ public:
                                "?impu=" + IMPU);
 
     ImpiRegistrationStatusHandler::Config cfg(true);
-    ImpiRegistrationStatusHandler* handler = new ImpiRegistrationStatusHandler(req, &cfg);
+    ImpiRegistrationStatusHandler* handler = new ImpiRegistrationStatusHandler(req, &cfg, FAKE_TRAIL_ID);
 
     // Once the handler's run function is called, expect a diameter message to be
     // sent. We don't bother checking the diameter message is as expected here. This
@@ -743,7 +745,7 @@ public:
                                     hss_experimental_rc,
                                     "",
                                     NO_CAPABILITIES);
-    EXPECT_CALL(*_httpstack, send_reply(_, http_rc));
+    EXPECT_CALL(*_httpstack, send_reply(_, http_rc, _));
     _caught_diam_tsx->on_response(uaa);
     fd_msg_free(_caught_fd_msg); _caught_fd_msg = NULL;
     delete _caught_diam_tsx; _caught_diam_tsx = NULL;
@@ -761,7 +763,7 @@ public:
                                "");
 
     ImpuLocationInfoHandler::Config cfg(true);
-    ImpuLocationInfoHandler* handler = new ImpuLocationInfoHandler(req, &cfg);
+    ImpuLocationInfoHandler* handler = new ImpuLocationInfoHandler(req, &cfg, FAKE_TRAIL_ID);
 
     // Once the handler's run function is called, expect a diameter message to be
     // sent. We don't bother checking the diameter message is as expected here. This
@@ -780,7 +782,7 @@ public:
                                hss_experimental_rc,
                                "",
                                NO_CAPABILITIES);
-    EXPECT_CALL(*_httpstack, send_reply(_, http_rc));
+    EXPECT_CALL(*_httpstack, send_reply(_, http_rc, _));
     _caught_diam_tsx->on_response(lia);
     fd_msg_free(_caught_fd_msg); _caught_fd_msg = NULL;
     delete _caught_diam_tsx; _caught_diam_tsx = NULL;
@@ -810,7 +812,7 @@ public:
     rtr._free_on_delete = false;
 
     RegistrationTerminationHandler::Config cfg(_cache, _cx_dict, _sprout_conn, 0);
-    RegistrationTerminationHandler* handler = new RegistrationTerminationHandler(_cx_dict, &rtr._fd_msg, &cfg);
+    RegistrationTerminationHandler* handler = new RegistrationTerminationHandler(_cx_dict, &rtr._fd_msg, &cfg, FAKE_TRAIL_ID);
 
     // We have to make sure the message is pointing at the mock stack.
     handler->_msg._stack = _mock_stack;
@@ -848,7 +850,7 @@ public:
       .WillRepeatedly(DoAll(SetArgReferee<0>(IMPU_IMS_SUBSCRIPTION), SetArgReferee<1>(0)));
 
     // Expect a delete to be sent to Sprout.
-    EXPECT_CALL(*_mock_http_conn, send_delete(http_path, body, 0))
+    EXPECT_CALL(*_mock_http_conn, send_delete(http_path, body, _))
       .Times(1)
       .WillOnce(Return(http_ret_code));
 
@@ -916,7 +918,7 @@ public:
     rtr._free_on_delete = false;
 
     RegistrationTerminationHandler::Config cfg(_cache, _cx_dict, _sprout_conn, 0);
-    RegistrationTerminationHandler* handler = new RegistrationTerminationHandler(_cx_dict, &rtr._fd_msg, &cfg);
+    RegistrationTerminationHandler* handler = new RegistrationTerminationHandler(_cx_dict, &rtr._fd_msg, &cfg, FAKE_TRAIL_ID);
 
     // We have to make sure the message is pointing at the mock stack.
     handler->_msg._stack = _mock_stack;
@@ -989,7 +991,7 @@ public:
     }
 
     // Expect a delete to be sent to Sprout.
-    EXPECT_CALL(*_mock_http_conn, send_delete(http_path, body, 0))
+    EXPECT_CALL(*_mock_http_conn, send_delete(http_path, body, _))
       .Times(1)
       .WillOnce(Return(HTTP_OK));
 
@@ -1136,8 +1138,8 @@ Diameter::Transaction* HandlersTest::_caught_diam_tsx = NULL;
 TEST_F(HandlersTest, SimpleMainline)
 {
   MockHttpStack::Request req(_httpstack, "/", "ping");
-  EXPECT_CALL(*_httpstack, send_reply(_, 200));
-  PingHandler* handler = new PingHandler(req);
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
+  PingHandler* handler = new PingHandler(req, 0);
   handler->run();
   EXPECT_EQ("OK", req.content());
 }
@@ -1156,7 +1158,7 @@ TEST_F(HandlersTest, DigestCache)
                              "?public_id=" + IMPU);
 
   ImpiHandler::Config cfg(false);
-  ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg);
+  ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the handler's run function is called, expect to lookup an auth
   // vector for the specified public and private IDs.
@@ -1183,7 +1185,7 @@ TEST_F(HandlersTest, DigestCache)
   // an HTTP reply.
   EXPECT_CALL(mock_req, get_result(_))
     .WillRepeatedly(SetArgReferee<0>(digest));
-  EXPECT_CALL(*_httpstack, send_reply(_, 200));
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
   t->on_success(&mock_req);
 
   // Build the expected response and check it's correct.
@@ -1201,7 +1203,7 @@ TEST_F(HandlersTest, DigestCacheFailure)
                              "?public_id=" + IMPU);
 
   ImpiHandler::Config cfg(false);
-  ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg);
+  ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the handler's run function is called, expect to lookup an auth
   // vector for the specified public and private IDs.
@@ -1218,7 +1220,7 @@ TEST_F(HandlersTest, DigestCacheFailure)
   ASSERT_FALSE(t == NULL);
 
   // Expect a 502 HTTP response once the cache returns an error to the handler.
-  EXPECT_CALL(*_httpstack, send_reply(_, 502));
+  EXPECT_CALL(*_httpstack, send_reply(_, 502, _));
 
   std::string error_text = "error";
   t->on_failure(&mock_req, Cache::NOT_FOUND, error_text);
@@ -1234,7 +1236,7 @@ TEST_F(HandlersTest, DigestHSS)
                              "?public_id=" + IMPU);
 
   ImpiHandler::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
-  ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg);
+  ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the handler's run function is called, expect a diameter message to be sent.
   EXPECT_CALL(*_mock_stack, send(_, _, 200))
@@ -1279,7 +1281,7 @@ TEST_F(HandlersTest, DigestHSS)
   EXPECT_CALL(*_cache, send(_, &mock_req))
     .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
 
-  EXPECT_CALL(*_httpstack, send_reply(_, 200));
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
   _caught_diam_tsx->on_response(maa);
   _caught_fd_msg = NULL;
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
@@ -1302,7 +1304,7 @@ TEST_F(HandlersTest, DigestHSSTimeout)
                              "?public_id=" + IMPU);
 
   ImpiHandler::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
-  ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg);
+  ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the handler's run function is called, expect a diameter message to be sent.
   EXPECT_CALL(*_mock_stack, send(_, _, 200))
@@ -1331,7 +1333,7 @@ TEST_F(HandlersTest, DigestHSSTimeout)
   digest.qop = "qop";
   AKAAuthVector aka;
 
-  EXPECT_CALL(*_httpstack, send_reply(_, 503));
+  EXPECT_CALL(*_httpstack, send_reply(_, 503, _));
   _caught_diam_tsx->on_timeout();
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
 }
@@ -1347,7 +1349,7 @@ TEST_F(HandlersTest, DigestHSSNoIMPU)
                              "");
 
   ImpiHandler::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
-  ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg);
+  ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the handler's run function is called, expect to look for associated
   // public IDs in the cache.
@@ -1411,7 +1413,7 @@ TEST_F(HandlersTest, DigestHSSNoIMPU)
   EXPECT_CALL(*_cache, send(_, &mock_req2))
     .WillOnce(WithArgs<0>(Invoke(&mock_req2, &Cache::Request::set_trx)));
 
-  EXPECT_CALL(*_httpstack, send_reply(_, 200));
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
   _caught_diam_tsx->on_response(maa);
   _caught_fd_msg = NULL;
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
@@ -1435,7 +1437,7 @@ TEST_F(HandlersTest, DigestHSSUserUnknown)
                              "?public_id=" + IMPU);
 
   ImpiHandler::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
-  ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg);
+  ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the handler's run function is called, expect a diameter message to be sent.
   // We don't bother checking the contents of this message since this is done in
@@ -1461,7 +1463,7 @@ TEST_F(HandlersTest, DigestHSSUserUnknown)
                                aka);
 
   // Once the handler recieves the MAA, expect a 404 HTTP response.
-  EXPECT_CALL(*_httpstack, send_reply(_, 404));
+  EXPECT_CALL(*_httpstack, send_reply(_, 404, _));
   _caught_diam_tsx->on_response(maa);
   fd_msg_free(_caught_fd_msg); _caught_fd_msg = NULL;
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
@@ -1478,7 +1480,7 @@ TEST_F(HandlersTest, DigestHSSOtherError)
                              "?public_id=" + IMPU);
 
   ImpiHandler::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
-  ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg);
+  ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the handler's run function is called, expect a diameter message to be sent.
   // We don't bother checking the contents of this message since this is done in
@@ -1504,7 +1506,7 @@ TEST_F(HandlersTest, DigestHSSOtherError)
                                aka);
 
   // Once the handler recieves the MAA, expect a 500 HTTP response.
-  EXPECT_CALL(*_httpstack, send_reply(_, 500));
+  EXPECT_CALL(*_httpstack, send_reply(_, 500, _));
   _caught_diam_tsx->on_response(maa);
   fd_msg_free(_caught_fd_msg); _caught_fd_msg = NULL;
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
@@ -1521,7 +1523,7 @@ TEST_F(HandlersTest, DigestHSSUnkownScheme)
                              "?public_id=" + IMPU);
 
   ImpiHandler::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
-  ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg);
+  ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the handler's run function is called, expect a diameter message to be sent.
   // We don't bother checking the contents of this message since this is done in
@@ -1547,7 +1549,7 @@ TEST_F(HandlersTest, DigestHSSUnkownScheme)
                                aka);
 
   // Once the handler recieves the MAA, expect a 404 HTTP response.
-  EXPECT_CALL(*_httpstack, send_reply(_, 404));
+  EXPECT_CALL(*_httpstack, send_reply(_, 404, _));
   _caught_diam_tsx->on_response(maa);
   fd_msg_free(_caught_fd_msg); _caught_fd_msg = NULL;
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
@@ -1564,7 +1566,7 @@ TEST_F(HandlersTest, DigestHSSAKAReturned)
                              "?public_id=" + IMPU);
 
   ImpiHandler::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
-  ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg);
+  ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the handler's run function is called, expect a diameter message to be sent.
   // We don't bother checking the contents of this message since this is done in
@@ -1590,7 +1592,7 @@ TEST_F(HandlersTest, DigestHSSAKAReturned)
                                aka);
 
   // Once the handler recieves the MAA, expect a 404 HTTP response.
-  EXPECT_CALL(*_httpstack, send_reply(_, 404));
+  EXPECT_CALL(*_httpstack, send_reply(_, 404, _));
   _caught_diam_tsx->on_response(maa);
   fd_msg_free(_caught_fd_msg); _caught_fd_msg = NULL;
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
@@ -1606,7 +1608,7 @@ TEST_F(HandlersTest, DigestNoCachedIMPUs)
                              "digest",
                              "");
   ImpiHandler::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
-  ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg);
+  ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the handler's run function is called, expect to look for associated
   // public IDs in the cache.
@@ -1626,7 +1628,7 @@ TEST_F(HandlersTest, DigestNoCachedIMPUs)
     .WillRepeatedly(SetArgReferee<0>(EMPTY_VECTOR));
 
   // Expect a 404 HTTP response.
-  EXPECT_CALL(*_httpstack, send_reply(_, 404));
+  EXPECT_CALL(*_httpstack, send_reply(_, 404, _));
   t->on_success(&mock_req);
 }
 
@@ -1641,7 +1643,7 @@ TEST_F(HandlersTest, DigestIMPUNotFound)
                              "");
 
   ImpiHandler::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
-  ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg);
+  ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the handler's run function is called, expect to look for associated
   // public IDs in the cache.
@@ -1659,7 +1661,7 @@ TEST_F(HandlersTest, DigestIMPUNotFound)
 
   // Once the cache transaction's failure callback is called, expect a 404 HTTP
   // response.
-  EXPECT_CALL(*_httpstack, send_reply(_, 404));
+  EXPECT_CALL(*_httpstack, send_reply(_, 404, _));
   std::string error_text = "error";
   t->on_failure(&mock_req, Cache::NOT_FOUND, error_text);
 }
@@ -1675,7 +1677,7 @@ TEST_F(HandlersTest, DigestNoIMPUCacheFailure)
                              "");
 
   ImpiHandler::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
-  ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg);
+  ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the handler's run function is called, expect to look for associated
   // public IDs in the cache.
@@ -1693,7 +1695,7 @@ TEST_F(HandlersTest, DigestNoIMPUCacheFailure)
 
   // Once the cache transaction's failure callback is called, expect a 502 HTTP
   // response.
-  EXPECT_CALL(*_httpstack, send_reply(_, 502));
+  EXPECT_CALL(*_httpstack, send_reply(_, 502, _));
   std::string error_text = "error";
   t->on_failure(&mock_req, Cache::UNKNOWN_ERROR, error_text);
 }
@@ -1708,7 +1710,7 @@ TEST_F(HandlersTest, AvCache)
                              "?impu=" + IMPU);
 
   ImpiHandler::Config cfg(false);
-  ImpiAvHandler* handler = new ImpiAvHandler(req, &cfg);
+  ImpiAvHandler* handler = new ImpiAvHandler(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the handler's run function is called, expect to lookup an auth
   // vector for the specified public and private IDs.
@@ -1732,7 +1734,7 @@ TEST_F(HandlersTest, AvCache)
   ASSERT_FALSE(t == NULL);
   EXPECT_CALL(mock_req, get_result(_))
     .WillRepeatedly(SetArgReferee<0>(digest));
-  EXPECT_CALL(*_httpstack, send_reply(_, 200));
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
 
   t->on_success(&mock_req);
 
@@ -1750,7 +1752,7 @@ TEST_F(HandlersTest, AvEmptyQoP)
                              "?impu=" + IMPU);
 
   ImpiHandler::Config cfg(false);
-  ImpiAvHandler* handler = new ImpiAvHandler(req, &cfg);
+  ImpiAvHandler* handler = new ImpiAvHandler(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the handler's run function is called, expect to lookup an auth
   // vector for the specified public and private IDs.
@@ -1776,7 +1778,7 @@ TEST_F(HandlersTest, AvEmptyQoP)
   ASSERT_FALSE(t == NULL);
   EXPECT_CALL(mock_req, get_result(_))
     .WillRepeatedly(SetArgReferee<0>(digest));
-  EXPECT_CALL(*_httpstack, send_reply(_, 200));
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
 
   t->on_success(&mock_req);
 
@@ -1794,7 +1796,7 @@ TEST_F(HandlersTest, AvNoPublicIDHSSAKA)
                              "av",
                              "?autn=" + SIP_AUTHORIZATION);
   ImpiHandler::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
-  ImpiAvHandler* handler = new ImpiAvHandler(req, &cfg);
+  ImpiAvHandler* handler = new ImpiAvHandler(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the handler's run function is called, expect to look for associated
   // public IDs in the cache.
@@ -1852,7 +1854,7 @@ TEST_F(HandlersTest, AvNoPublicIDHSSAKA)
                                aka);
 
   // Once it receives the MAA, check that a successful HTTP response is sent.
-  EXPECT_CALL(*_httpstack, send_reply(_, 200));
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
   _caught_diam_tsx->on_response(maa);
   _caught_fd_msg = NULL;
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
@@ -1877,10 +1879,10 @@ TEST_F(HandlersTest, AuthInvalidScheme)
                              "");
 
   ImpiHandler::Config cfg(true);
-  ImpiAvHandler* handler = new ImpiAvHandler(req, &cfg);
+  ImpiAvHandler* handler = new ImpiAvHandler(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the handler's run function is called, expect a 404 HTTP response.
-  EXPECT_CALL(*_httpstack, send_reply(_, 404));
+  EXPECT_CALL(*_httpstack, send_reply(_, 404, _));
   handler->run();
 }
 
@@ -1894,10 +1896,10 @@ TEST_F(HandlersTest, AkaNoIMPU)
                              "");
 
   ImpiHandler::Config cfg(true);
-  ImpiAvHandler* handler = new ImpiAvHandler(req, &cfg);
+  ImpiAvHandler* handler = new ImpiAvHandler(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the handler's run function is called, expect a 404 HTTP response.
-  EXPECT_CALL(*_httpstack, send_reply(_, 404));
+  EXPECT_CALL(*_httpstack, send_reply(_, 404, _));
   std::string error_text = "error";
   handler->run();
 }
@@ -2083,7 +2085,7 @@ TEST_F(HandlersTest, IMSSubscriptionNoHSSUnknown)
                              "{\"reqtype\": \"reg\"}",
                              htp_method_PUT);
   ImpuRegDataHandler::Config cfg(false, 3600);
-  ImpuRegDataHandler* handler = new ImpuRegDataHandler(req, &cfg);
+  ImpuRegDataHandler* handler = new ImpuRegDataHandler(req, &cfg, FAKE_TRAIL_ID);
 
   MockCache::MockGetIMSSubscription mock_req;
   EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU))
@@ -2099,7 +2101,7 @@ TEST_F(HandlersTest, IMSSubscriptionNoHSSUnknown)
   EXPECT_CALL(mock_req, get_registration_state(_, _))
     .WillRepeatedly(SetArgReferee<0>(RegistrationState::NOT_REGISTERED));
   EXPECT_CALL(mock_req, get_associated_impis(_));
-  EXPECT_CALL(*_httpstack, send_reply(_, 404));
+  EXPECT_CALL(*_httpstack, send_reply(_, 404, _));
   t->on_success(&mock_req);
 
   // Build the expected response and check it's correct
@@ -2118,7 +2120,7 @@ TEST_F(HandlersTest, IMSSubscriptionNoHSSUnknownCall)
                              "{\"reqtype\": \"call\"}",
                              htp_method_PUT);
   ImpuRegDataHandler::Config cfg(false, 3600);
-  ImpuRegDataHandler* handler = new ImpuRegDataHandler(req, &cfg);
+  ImpuRegDataHandler* handler = new ImpuRegDataHandler(req, &cfg, FAKE_TRAIL_ID);
 
   MockCache::MockGetIMSSubscription mock_req;
   EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU))
@@ -2134,7 +2136,7 @@ TEST_F(HandlersTest, IMSSubscriptionNoHSSUnknownCall)
   EXPECT_CALL(mock_req, get_registration_state(_, _))
     .WillRepeatedly(SetArgReferee<0>(RegistrationState::NOT_REGISTERED));
   EXPECT_CALL(mock_req, get_associated_impis(_));
-  EXPECT_CALL(*_httpstack, send_reply(_, 404));
+  EXPECT_CALL(*_httpstack, send_reply(_, 404, _));
   t->on_success(&mock_req);
 
   // Build the expected response and check it's correct
@@ -2153,7 +2155,7 @@ TEST_F(HandlersTest, LegacyIMSSubscriptionNoHSS)
                              "",
                              "?private_id=" + IMPI);
   ImpuIMSSubscriptionHandler::Config cfg(false, 3600);
-  ImpuIMSSubscriptionHandler* handler = new ImpuIMSSubscriptionHandler(req, &cfg);
+  ImpuIMSSubscriptionHandler* handler = new ImpuIMSSubscriptionHandler(req, &cfg, FAKE_TRAIL_ID);
 
   MockCache::MockGetIMSSubscription mock_req;
   EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU))
@@ -2169,7 +2171,7 @@ TEST_F(HandlersTest, LegacyIMSSubscriptionNoHSS)
   EXPECT_CALL(mock_req, get_registration_state(_, _))
     .WillRepeatedly(SetArgReferee<0>(RegistrationState::REGISTERED));
   EXPECT_CALL(mock_req, get_associated_impis(_));
-  EXPECT_CALL(*_httpstack, send_reply(_, 200));
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
   t->on_success(&mock_req);
 
   // Build the expected response and check it's correct
@@ -2186,7 +2188,7 @@ TEST_F(HandlersTest, LegacyIMSSubscriptionNoHSS_NotFound)
                              "",
                              "?private_id=" + IMPI);
   ImpuIMSSubscriptionHandler::Config cfg(false, 3600);
-  ImpuIMSSubscriptionHandler* handler = new ImpuIMSSubscriptionHandler(req, &cfg);
+  ImpuIMSSubscriptionHandler* handler = new ImpuIMSSubscriptionHandler(req, &cfg, FAKE_TRAIL_ID);
 
   MockCache::MockGetIMSSubscription mock_req;
   EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU))
@@ -2201,7 +2203,7 @@ TEST_F(HandlersTest, LegacyIMSSubscriptionNoHSS_NotFound)
     .WillRepeatedly(SetArgReferee<0>(""));
   EXPECT_CALL(mock_req, get_registration_state(_, _))
     .WillRepeatedly(SetArgReferee<0>(RegistrationState::NOT_REGISTERED));
-  EXPECT_CALL(*_httpstack, send_reply(_, 404));
+  EXPECT_CALL(*_httpstack, send_reply(_, 404, _));
   EXPECT_CALL(mock_req, get_associated_impis(_));
   t->on_success(&mock_req);
 
@@ -2220,7 +2222,7 @@ TEST_F(HandlersTest, LegacyIMSSubscriptionNoHSS_Unregistered)
                              "",
                              "");
   ImpuIMSSubscriptionHandler::Config cfg(false, 3600);
-  ImpuIMSSubscriptionHandler* handler = new ImpuIMSSubscriptionHandler(req, &cfg);
+  ImpuIMSSubscriptionHandler* handler = new ImpuIMSSubscriptionHandler(req, &cfg, FAKE_TRAIL_ID);
 
   MockCache::MockGetIMSSubscription mock_req;
   EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU))
@@ -2235,7 +2237,7 @@ TEST_F(HandlersTest, LegacyIMSSubscriptionNoHSS_Unregistered)
     .WillRepeatedly(SetArgReferee<0>(IMS_SUBSCRIPTION));
   EXPECT_CALL(mock_req, get_registration_state(_, _))
     .WillRepeatedly(SetArgReferee<0>(RegistrationState::UNREGISTERED));
-  EXPECT_CALL(*_httpstack, send_reply(_, 200));
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
   t->on_success(&mock_req);
 
   // Build the expected response and check it's correct
@@ -2257,7 +2259,7 @@ TEST_F(HandlersTest, IMSSubscriptionGet)
                              "",
                              htp_method_GET);
   ImpuRegDataHandler::Config cfg(true, 3600);
-  ImpuRegDataHandler* handler = new ImpuRegDataHandler(req, &cfg);
+  ImpuRegDataHandler* handler = new ImpuRegDataHandler(req, &cfg, FAKE_TRAIL_ID);
 
   MockCache::MockGetIMSSubscription mock_req;
   EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU))
@@ -2275,7 +2277,7 @@ TEST_F(HandlersTest, IMSSubscriptionGet)
   EXPECT_CALL(mock_req, get_associated_impis(_));
 
   // HTTP response is sent straight back - no state is changed.
-  EXPECT_CALL(*_httpstack, send_reply(_, 200));
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
   t->on_success(&mock_req);
 
   // Build the expected response and check it's correct
@@ -2295,9 +2297,9 @@ TEST_F(HandlersTest, IMSSubscriptionInvalidType)
                              "invalid",
                              htp_method_PUT);
   ImpuRegDataHandler::Config cfg(false, 3600);
-  ImpuRegDataHandler* handler = new ImpuRegDataHandler(req, &cfg);
+  ImpuRegDataHandler* handler = new ImpuRegDataHandler(req, &cfg, FAKE_TRAIL_ID);
 
-  EXPECT_CALL(*_httpstack, send_reply(_, 400));
+  EXPECT_CALL(*_httpstack, send_reply(_, 400, _));
   handler->run();
 }
 
@@ -2312,9 +2314,9 @@ TEST_F(HandlersTest, IMSSubscriptionWrongMethod)
                              "{\"reqtype\": \"reg\"}",
                              htp_method_DELETE);
   ImpuRegDataHandler::Config cfg(false, 3600);
-  ImpuRegDataHandler* handler = new ImpuRegDataHandler(req, &cfg);
+  ImpuRegDataHandler* handler = new ImpuRegDataHandler(req, &cfg, FAKE_TRAIL_ID);
 
-  EXPECT_CALL(*_httpstack, send_reply(_, 405));
+  EXPECT_CALL(*_httpstack, send_reply(_, 405, _));
   handler->run();
 }
 
@@ -2329,7 +2331,7 @@ TEST_F(HandlersTest, IMSSubscriptionUserUnknownDereg)
                              "{\"reqtype\": \"dereg-timeout\"}",
                              htp_method_PUT);
   ImpuRegDataHandler::Config cfg(true, 3600);
-  ImpuRegDataHandler* handler = new ImpuRegDataHandler(req, &cfg);
+  ImpuRegDataHandler* handler = new ImpuRegDataHandler(req, &cfg, FAKE_TRAIL_ID);
   MockCache::MockGetIMSSubscription mock_req;
 
   EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU))
@@ -2368,7 +2370,7 @@ TEST_F(HandlersTest, IMSSubscriptionUserUnknownDereg)
                                  DIAMETER_ERROR_USER_UNKNOWN,
                                  "");
 
-  EXPECT_CALL(*_httpstack, send_reply(_, 404));
+  EXPECT_CALL(*_httpstack, send_reply(_, 404, _));
   _caught_diam_tsx->on_response(saa);
 
   Cache::Transaction* t2 = mock_req2.get_trx();
@@ -2390,7 +2392,7 @@ TEST_F(HandlersTest, IMSSubscriptionOtherErrorCallReg)
                              htp_method_PUT);
   req.method();
   ImpuRegDataHandler::Config cfg(true, 3600);
-  ImpuRegDataHandler* handler = new ImpuRegDataHandler(req, &cfg);
+  ImpuRegDataHandler* handler = new ImpuRegDataHandler(req, &cfg, FAKE_TRAIL_ID);
 
   MockCache::MockGetIMSSubscription mock_req;
   EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU))
@@ -2423,7 +2425,7 @@ TEST_F(HandlersTest, IMSSubscriptionOtherErrorCallReg)
                                  0,
                                  "");
 
-  EXPECT_CALL(*_httpstack, send_reply(_, 500));
+  EXPECT_CALL(*_httpstack, send_reply(_, 500, _));
   _caught_diam_tsx->on_response(saa);
 
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
@@ -2445,7 +2447,7 @@ TEST_F(HandlersTest, IMSSubscriptionCacheFailureNoHSSInvalidType)
                              "?type=invalid");
 
   ImpuIMSSubscriptionHandler::Config cfg(false, 3600);
-  ImpuIMSSubscriptionHandler* handler = new ImpuIMSSubscriptionHandler(req, &cfg);
+  ImpuIMSSubscriptionHandler* handler = new ImpuIMSSubscriptionHandler(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the handler's run function is called, expect to lookup IMS
   // subscription information for the specified public ID.
@@ -2462,7 +2464,7 @@ TEST_F(HandlersTest, IMSSubscriptionCacheFailureNoHSSInvalidType)
   ASSERT_FALSE(t == NULL);
 
   // Expect a 502 HTTP response once the cache returns an error to the handler.
-  EXPECT_CALL(*_httpstack, send_reply(_, 502));
+  EXPECT_CALL(*_httpstack, send_reply(_, 502, _));
 
   std::string error_text = "error";
   t->on_failure(&mock_req, Cache::NOT_FOUND, error_text);
@@ -2478,7 +2480,7 @@ TEST_F(HandlersTest, RegistrationStatusHSSTimeout)
                              "?impu=" + IMPU);
 
   ImpiRegistrationStatusHandler::Config cfg(true);
-  ImpiRegistrationStatusHandler* handler = new ImpiRegistrationStatusHandler(req, &cfg);
+  ImpiRegistrationStatusHandler* handler = new ImpiRegistrationStatusHandler(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the handler's run function is called, expect a diameter message to be
   // sent. We don't bother checking the diameter message is as expected here. This
@@ -2490,7 +2492,7 @@ TEST_F(HandlersTest, RegistrationStatusHSSTimeout)
   ASSERT_FALSE(_caught_diam_tsx == NULL);
 
   // Expect a 503 response once we notify the handler about the timeout error.
-  EXPECT_CALL(*_httpstack, send_reply(_, 503));
+  EXPECT_CALL(*_httpstack, send_reply(_, 503, _));
   _caught_diam_tsx->on_timeout();
   fd_msg_free(_caught_fd_msg); _caught_fd_msg = NULL;
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
@@ -2506,7 +2508,7 @@ TEST_F(HandlersTest, RegistrationStatus)
                              "?impu=" + IMPU);
 
   ImpiRegistrationStatusHandler::Config cfg(true);
-  ImpiRegistrationStatusHandler* handler = new ImpiRegistrationStatusHandler(req, &cfg);
+  ImpiRegistrationStatusHandler* handler = new ImpiRegistrationStatusHandler(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the handler's run function is called, expect a diameter message to be
   // sent.
@@ -2537,7 +2539,7 @@ TEST_F(HandlersTest, RegistrationStatus)
                                   0,
                                   SERVER_NAME,
                                   CAPABILITIES);
-  EXPECT_CALL(*_httpstack, send_reply(_, 200));
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
   _caught_diam_tsx->on_response(uaa);
   _caught_fd_msg = NULL;
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
@@ -2559,7 +2561,7 @@ TEST_F(HandlersTest, RegistrationStatusOptParamsSubseqRegCapabs)
                              "?impu=" + IMPU + "&visited-network=" + VISITED_NETWORK + "&auth-type=" + AUTH_TYPE_DEREG);
 
   ImpiRegistrationStatusHandler::Config cfg(true);
-  ImpiRegistrationStatusHandler* handler = new ImpiRegistrationStatusHandler(req, &cfg);
+  ImpiRegistrationStatusHandler* handler = new ImpiRegistrationStatusHandler(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the handler's run function is called, expect a diameter message to be
   // sent.
@@ -2590,7 +2592,7 @@ TEST_F(HandlersTest, RegistrationStatusOptParamsSubseqRegCapabs)
                                   DIAMETER_SUBSEQUENT_REGISTRATION,
                                   "",
                                   CAPABILITIES);
-  EXPECT_CALL(*_httpstack, send_reply(_, 200));
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
   _caught_diam_tsx->on_response(uaa);
   _caught_fd_msg = NULL;
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
@@ -2612,7 +2614,7 @@ TEST_F(HandlersTest, RegistrationStatusFirstRegNoCapabs)
                              "?impu=" + IMPU);
 
   ImpiRegistrationStatusHandler::Config cfg(true);
-  ImpiRegistrationStatusHandler* handler = new ImpiRegistrationStatusHandler(req, &cfg);
+  ImpiRegistrationStatusHandler* handler = new ImpiRegistrationStatusHandler(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the handler's run function is called, expect a diameter message to be
   // sent.
@@ -2643,7 +2645,7 @@ TEST_F(HandlersTest, RegistrationStatusFirstRegNoCapabs)
                                   DIAMETER_FIRST_REGISTRATION,
                                   "",
                                   NO_CAPABILITIES);
-  EXPECT_CALL(*_httpstack, send_reply(_, 200));
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
   _caught_diam_tsx->on_response(uaa);
   _caught_fd_msg = NULL;
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
@@ -2693,10 +2695,10 @@ TEST_F(HandlersTest, RegistrationStatusNoHSS)
                              "?impu=sip:impu@example.com");
 
   ImpiRegistrationStatusHandler::Config cfg(false);
-  ImpiRegistrationStatusHandler* handler = new ImpiRegistrationStatusHandler(req, &cfg);
+  ImpiRegistrationStatusHandler* handler = new ImpiRegistrationStatusHandler(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the handler's run function is called, expect a successful HTTP response.
-  EXPECT_CALL(*_httpstack, send_reply(_, 200));
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
   handler->run();
 
   // Build the expected JSON response and check it's correct.
@@ -2717,7 +2719,7 @@ TEST_F(HandlersTest, LocationInfo)
                              "");
 
   ImpuLocationInfoHandler::Config cfg(true);
-  ImpuLocationInfoHandler* handler = new ImpuLocationInfoHandler(req, &cfg);
+  ImpuLocationInfoHandler* handler = new ImpuLocationInfoHandler(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the handler's run function is called, expect a diameter message to be
   // sent.
@@ -2745,7 +2747,7 @@ TEST_F(HandlersTest, LocationInfo)
                              0,
                              SERVER_NAME,
                              CAPABILITIES);
-  EXPECT_CALL(*_httpstack, send_reply(_, 200));
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
 
   _caught_diam_tsx->on_response(lia);
   _caught_fd_msg = NULL;
@@ -2769,7 +2771,7 @@ TEST_F(HandlersTest, LocationInfoOptParamsUnregisteredService)
                              "?originating=true&auth-type=" + AUTH_TYPE_CAPAB);
 
   ImpuLocationInfoHandler::Config cfg(true);
-  ImpuLocationInfoHandler* handler = new ImpuLocationInfoHandler(req, &cfg);
+  ImpuLocationInfoHandler* handler = new ImpuLocationInfoHandler(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the handler's run function is called, expect a diameter message to be
   // sent.
@@ -2799,7 +2801,7 @@ TEST_F(HandlersTest, LocationInfoOptParamsUnregisteredService)
                              DIAMETER_UNREGISTERED_SERVICE,
                              "",
                              CAPABILITIES);
-  EXPECT_CALL(*_httpstack, send_reply(_, 200));
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
   _caught_diam_tsx->on_response(lia);
   _caught_fd_msg = NULL;
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
@@ -2839,10 +2841,10 @@ TEST_F(HandlersTest, LocationInfoNoHSS)
                              "");
 
   ImpuLocationInfoHandler::Config cfg(false);
-  ImpuLocationInfoHandler* handler = new ImpuLocationInfoHandler(req, &cfg);
+  ImpuLocationInfoHandler* handler = new ImpuLocationInfoHandler(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the handler's run function is called, expect a successful HTTP response.
-  EXPECT_CALL(*_httpstack, send_reply(_, 200));
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
   handler->run();
 
   // Build the expected JSON response and check it's correct.
@@ -2920,7 +2922,7 @@ TEST_F(HandlersTest, RegistrationTerminationNoRegSets)
   rtr._free_on_delete = false;
 
   RegistrationTerminationHandler::Config cfg(_cache, _cx_dict, _sprout_conn, 0);
-  RegistrationTerminationHandler* handler = new RegistrationTerminationHandler(_cx_dict, &rtr._fd_msg, &cfg);
+  RegistrationTerminationHandler* handler = new RegistrationTerminationHandler(_cx_dict, &rtr._fd_msg, &cfg, FAKE_TRAIL_ID);
 
   // We have to make sure the message is pointing at the mock stack.
   handler->_msg._stack = _mock_stack;
@@ -2991,7 +2993,7 @@ TEST_F(HandlersTest, RegistrationTerminationRegSetsCacheFailure)
   rtr._free_on_delete = false;
 
   RegistrationTerminationHandler::Config cfg(_cache, _cx_dict, _sprout_conn, 0);
-  RegistrationTerminationHandler* handler = new RegistrationTerminationHandler(_cx_dict, &rtr._fd_msg, &cfg);
+  RegistrationTerminationHandler* handler = new RegistrationTerminationHandler(_cx_dict, &rtr._fd_msg, &cfg, FAKE_TRAIL_ID);
 
   // We have to make sure the message is pointing at the mock stack.
   handler->_msg._stack = _mock_stack;
@@ -3043,7 +3045,7 @@ TEST_F(HandlersTest, RegistrationTerminationNoAssocIMPUs)
   rtr._free_on_delete = false;
 
   RegistrationTerminationHandler::Config cfg(_cache, _cx_dict, _sprout_conn, 0);
-  RegistrationTerminationHandler* handler = new RegistrationTerminationHandler(_cx_dict, &rtr._fd_msg, &cfg);
+  RegistrationTerminationHandler* handler = new RegistrationTerminationHandler(_cx_dict, &rtr._fd_msg, &cfg, FAKE_TRAIL_ID);
 
   // We have to make sure the message is pointing at the mock stack.
   handler->_msg._stack = _mock_stack;
@@ -3097,7 +3099,7 @@ TEST_F(HandlersTest, RegistrationTerminationAssocIMPUsCacheFailure)
   rtr._free_on_delete = false;
 
   RegistrationTerminationHandler::Config cfg(_cache, _cx_dict, _sprout_conn, 0);
-  RegistrationTerminationHandler* handler = new RegistrationTerminationHandler(_cx_dict, &rtr._fd_msg, &cfg);
+  RegistrationTerminationHandler* handler = new RegistrationTerminationHandler(_cx_dict, &rtr._fd_msg, &cfg, FAKE_TRAIL_ID);
 
   // We have to make sure the message is pointing at the mock stack.
   handler->_msg._stack = _mock_stack;
@@ -3150,7 +3152,7 @@ TEST_F(HandlersTest, RegistrationTerminationInvalidDeregReason)
   rtr._free_on_delete = false;
 
   RegistrationTerminationHandler::Config cfg(_cache, _cx_dict, _sprout_conn, 0);
-  RegistrationTerminationHandler* handler = new RegistrationTerminationHandler(_cx_dict, &rtr._fd_msg, &cfg);
+  RegistrationTerminationHandler* handler = new RegistrationTerminationHandler(_cx_dict, &rtr._fd_msg, &cfg, FAKE_TRAIL_ID);
 
   // We have to make sure the message is pointing at the mock stack.
   handler->_msg._stack = _mock_stack;
@@ -3199,7 +3201,7 @@ TEST_F(HandlersTest, PushProfileAVIMSSub)
   ppr._free_on_delete = false;
 
   PushProfileHandler::Config cfg(_cache, _cx_dict, 0, 3600);
-  PushProfileHandler* handler = new PushProfileHandler(_cx_dict, &ppr._fd_msg, &cfg);
+  PushProfileHandler* handler = new PushProfileHandler(_cx_dict, &ppr._fd_msg, &cfg, FAKE_TRAIL_ID);
 
   // We have to make sure the message is pointing at the mock stack.
   handler->_msg._stack = _mock_stack;
@@ -3268,7 +3270,7 @@ TEST_F(HandlersTest, PushProfileAV)
   ppr._free_on_delete = false;
 
   PushProfileHandler::Config cfg(_cache, _cx_dict, 0, 3600);
-  PushProfileHandler* handler = new PushProfileHandler(_cx_dict, &ppr._fd_msg, &cfg);
+  PushProfileHandler* handler = new PushProfileHandler(_cx_dict, &ppr._fd_msg, &cfg, FAKE_TRAIL_ID);
 
   // We have to make sure the message is pointing at the mock stack.
   handler->_msg._stack = _mock_stack;
@@ -3321,7 +3323,7 @@ TEST_F(HandlersTest, PushProfileIMSSub)
   ppr._free_on_delete = false;
 
   PushProfileHandler::Config cfg(_cache, _cx_dict, 0, 3600);
-  PushProfileHandler* handler = new PushProfileHandler(_cx_dict, &ppr._fd_msg, &cfg);
+  PushProfileHandler* handler = new PushProfileHandler(_cx_dict, &ppr._fd_msg, &cfg, FAKE_TRAIL_ID);
 
   // We have to make sure the message is pointing at the mock stack.
   handler->_msg._stack = _mock_stack;
@@ -3378,7 +3380,7 @@ TEST_F(HandlersTest, PushProfileAVCacheFailure)
   ppr._free_on_delete = false;
 
   PushProfileHandler::Config cfg(_cache, _cx_dict, 0, 3600);
-  PushProfileHandler* handler = new PushProfileHandler(_cx_dict, &ppr._fd_msg, &cfg);
+  PushProfileHandler* handler = new PushProfileHandler(_cx_dict, &ppr._fd_msg, &cfg, FAKE_TRAIL_ID);
 
   // We have to make sure the message is pointing at the mock stack.
   handler->_msg._stack = _mock_stack;
@@ -3430,7 +3432,7 @@ TEST_F(HandlersTest, PushProfileIMSSubCacheFailure)
   ppr._free_on_delete = false;
 
   PushProfileHandler::Config cfg(_cache, _cx_dict, 0, 3600);
-  PushProfileHandler* handler = new PushProfileHandler(_cx_dict, &ppr._fd_msg, &cfg);
+  PushProfileHandler* handler = new PushProfileHandler(_cx_dict, &ppr._fd_msg, &cfg, FAKE_TRAIL_ID);
 
   // We have to make sure the message is pointing at the mock stack.
   handler->_msg._stack = _mock_stack;
@@ -3483,7 +3485,7 @@ TEST_F(HandlersTest, PushProfileNoInformation)
   ppr._free_on_delete = false;
 
   PushProfileHandler::Config cfg(_cache, _cx_dict, 0, 3600);
-  PushProfileHandler* handler = new PushProfileHandler(_cx_dict, &ppr._fd_msg, &cfg);
+  PushProfileHandler* handler = new PushProfileHandler(_cx_dict, &ppr._fd_msg, &cfg, FAKE_TRAIL_ID);
 
   // We have to make sure the message is pointing at the mock stack.
   handler->_msg._stack = _mock_stack;
@@ -3540,7 +3542,7 @@ TEST_F(HandlerStatsTest, DigestCache)
                              "?public_id=" + IMPU);
 
   ImpiHandler::Config cfg(false);
-  ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg);
+  ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg, FAKE_TRAIL_ID);
 
   // Handler does a cache digest lookup.
   MockCache::MockGetAuthVector mock_req;
@@ -3567,7 +3569,7 @@ TEST_F(HandlerStatsTest, DigestCache)
   EXPECT_CALL(*_stats, update_H_cache_latency_us(12000));
   EXPECT_CALL(mock_req, get_result(_))
     .WillRepeatedly(SetArgReferee<0>(digest));
-  EXPECT_CALL(*_httpstack, send_reply(_, _));
+  EXPECT_CALL(*_httpstack, send_reply(_, _, _));
   t->on_success(&mock_req);
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
 }
@@ -3583,7 +3585,7 @@ TEST_F(HandlerStatsTest, DigestCacheFailure)
                              "?public_id=" + IMPU);
 
   ImpiHandler::Config cfg(false);
-  ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg);
+  ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg, FAKE_TRAIL_ID);
 
   // Handler does a cache digest lookup.
   MockCache::MockGetAuthVector mock_req;
@@ -3602,7 +3604,7 @@ TEST_F(HandlerStatsTest, DigestCacheFailure)
   t->stop_timer();
 
   // Cache latency stats are updated when the transaction fails.
-  EXPECT_CALL(*_httpstack, send_reply(_, _));
+  EXPECT_CALL(*_httpstack, send_reply(_, _, _));
   EXPECT_CALL(*_stats, update_H_cache_latency_us(12000));
 
   std::string error_text = "error";
@@ -3620,7 +3622,7 @@ TEST_F(HandlerStatsTest, DigestHSS)
                              "?public_id=" + IMPU);
 
   ImpiHandler::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
-  ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg);
+  ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the handler's run function is called, expect a diameter message to be sent.
   EXPECT_CALL(*_mock_stack, send(_, _, 200))
@@ -3661,7 +3663,7 @@ TEST_F(HandlerStatsTest, DigestHSS)
   EXPECT_CALL(*_cache, send(_, &mock_req))
     .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
 
-  EXPECT_CALL(*_httpstack, send_reply(_, _));
+  EXPECT_CALL(*_httpstack, send_reply(_, _, _));
   _caught_diam_tsx->on_response(maa);
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
 }
@@ -3677,7 +3679,7 @@ TEST_F(HandlerStatsTest, DigestHSSTimeout)
                              "?public_id=" + IMPU);
 
   ImpiHandler::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
-  ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg);
+  ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the handler's run function is called, expect a diameter message to be sent.
   EXPECT_CALL(*_mock_stack, send(_, _, 200))
@@ -3697,7 +3699,7 @@ TEST_F(HandlerStatsTest, DigestHSSTimeout)
   EXPECT_CALL(*_stats, update_H_hss_latency_us(13000));
   EXPECT_CALL(*_stats, update_H_hss_digest_latency_us(13000));
 
-  EXPECT_CALL(*_httpstack, send_reply(_, _));
+  EXPECT_CALL(*_httpstack, send_reply(_, _, _));
   _caught_diam_tsx->on_timeout();
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
 }
@@ -3714,7 +3716,7 @@ TEST_F(HandlerStatsTest, IMSSubscriptionReregHSS)
                              htp_method_PUT);
 
   ImpuRegDataHandler::Config cfg(true, 1800);
-  ImpuRegDataHandler* handler = new ImpuRegDataHandler(req, &cfg);
+  ImpuRegDataHandler* handler = new ImpuRegDataHandler(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the handler's run function is called, expect to lookup IMS
   // subscription information for the specified public ID.
@@ -3774,7 +3776,7 @@ TEST_F(HandlerStatsTest, IMSSubscriptionReregHSS)
   EXPECT_CALL(*_stats, update_H_hss_latency_us(20000));
   EXPECT_CALL(*_stats, update_H_hss_subscription_latency_us(20000));
 
-  EXPECT_CALL(*_httpstack, send_reply(_, _));
+  EXPECT_CALL(*_httpstack, send_reply(_, _, _));
   _caught_diam_tsx->on_response(saa);
 
   // Check the cache put latency is recorded.
@@ -3800,7 +3802,7 @@ TEST_F(HandlerStatsTest, RegistrationStatus)
                              "?impu=" + IMPU);
 
   ImpiRegistrationStatusHandler::Config cfg(true);
-  ImpiRegistrationStatusHandler* handler = new ImpiRegistrationStatusHandler(req, &cfg);
+  ImpiRegistrationStatusHandler* handler = new ImpiRegistrationStatusHandler(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the handler's run function is called, expect a diameter message to be
   // sent.
@@ -3825,7 +3827,7 @@ TEST_F(HandlerStatsTest, RegistrationStatus)
                                   0,
                                   SERVER_NAME,
                                   CAPABILITIES);
-  EXPECT_CALL(*_httpstack, send_reply(_, _));
+  EXPECT_CALL(*_httpstack, send_reply(_, _, _));
   EXPECT_CALL(*_stats, update_H_hss_latency_us(13000));
   EXPECT_CALL(*_stats, update_H_hss_subscription_latency_us(13000));
   _caught_diam_tsx->on_response(uaa);
@@ -3842,7 +3844,7 @@ TEST_F(HandlerStatsTest, LocationInfo)
                              "");
 
   ImpuLocationInfoHandler::Config cfg(true);
-  ImpuLocationInfoHandler* handler = new ImpuLocationInfoHandler(req, &cfg);
+  ImpuLocationInfoHandler* handler = new ImpuLocationInfoHandler(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the handler's run function is called, expect a diameter message to be
   // sent.
@@ -3866,7 +3868,7 @@ TEST_F(HandlerStatsTest, LocationInfo)
                              0,
                              SERVER_NAME,
                              CAPABILITIES);
-  EXPECT_CALL(*_httpstack, send_reply(_, _));
+  EXPECT_CALL(*_httpstack, send_reply(_, _, _));
   EXPECT_CALL(*_stats, update_H_hss_latency_us(16000));
   EXPECT_CALL(*_stats, update_H_hss_subscription_latency_us(16000));
 
@@ -3885,7 +3887,7 @@ TEST_F(HandlerStatsTest, LocationInfoOverload)
                              "");
 
   ImpuLocationInfoHandler::Config cfg(true);
-  ImpuLocationInfoHandler* handler = new ImpuLocationInfoHandler(req, &cfg);
+  ImpuLocationInfoHandler* handler = new ImpuLocationInfoHandler(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the handler's run function is called, expect a diameter message to be
   // sent.
@@ -3911,7 +3913,7 @@ TEST_F(HandlerStatsTest, LocationInfoOverload)
                              SERVER_NAME,
                              CAPABILITIES);
   EXPECT_CALL(*_httpstack, record_penalty());
-  EXPECT_CALL(*_httpstack, send_reply(_, _));
+  EXPECT_CALL(*_httpstack, send_reply(_, _, _));
   EXPECT_CALL(*_stats, update_H_hss_latency_us(17000));
   EXPECT_CALL(*_stats, update_H_hss_subscription_latency_us(17000));
 

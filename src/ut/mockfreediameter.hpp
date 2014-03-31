@@ -52,6 +52,12 @@ public:
   MOCK_METHOD3(fd_msg_new, int( struct dict_object * model, int flags, struct msg ** msg ));
 
   struct msg_hdr hdr;
+
+  MockFreeDiameter()
+  {
+    // Initialize the message header to avoid valgrind errors.
+    memset(&hdr, 0, sizeof(hdr));
+  }
 };
 
 void mock_free_diameter(MockFreeDiameter* mock);

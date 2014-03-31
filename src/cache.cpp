@@ -336,6 +336,9 @@ void Cache::Request::run(Cache::CacheClientInterface* client)
     rc = CONNECTION_ERROR;
     error_text = (boost::format("Exception: %s [%d]\n")
                   % te.what() % te.getType()).str();
+    SAS::Event event(_trx->trail(), SASEvent::CASS_CONNECT_FAIL, 0);
+    event.add_var_param(error_text);
+    SAS::report_event(event);
   }
   catch(InvalidRequestException& ire)
   {
