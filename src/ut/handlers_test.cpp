@@ -3176,141 +3176,12 @@ TEST_F(HandlersTest, RegistrationTerminationInvalidDeregReason)
 // Push Profile tests
 //
 
-TEST_F(HandlersTest, PushProfileAVIMSSub)
+TEST_F(HandlersTest, PushProfile)
 {
-  DigestAuthVector digest_av;
-  digest_av.ha1 = "ha1";
-  digest_av.realm = "realm";
-  digest_av.qop = "qop";
-
   // Build a PPR and create a Push Profile Handler with this message. This PPR
-  // contains both IMS subscription information, and a digest AV.
+  // contains an IMS subscription.
   Cx::PushProfileRequest ppr(_cx_dict,
                              _mock_stack,
-                             IMPI,
-                             digest_av,
-                             IMS_SUBSCRIPTION,
-                             AUTH_SESSION_STATE);
-
-  // The free_on_delete flag controls whether we want to free the underlying
-  // fd_msg structure when we delete this PPR. We don't, since this will be
-  // freed when the answer is freed later in the test. If we leave this flag set
-  // then the request will be freed twice.
-  ppr._free_on_delete = false;
-
-  PushProfileHandler::Config cfg(_cache, _cx_dict, 0, 3600);
-  PushProfileHandler* handler = new PushProfileHandler(_cx_dict, &ppr._fd_msg, &cfg);
-
-  // We have to make sure the message is pointing at the mock stack.
-  handler->_msg._stack = _mock_stack;
-
-  // Once the handler's run function is called, we expect to try and update
-  // the AV in the cache.
-  MockCache::MockPutAuthVector mock_req;
-  EXPECT_CALL(*_cache, create_PutAuthVector(IMPI, _, _, 0))
-    .WillOnce(Return(&mock_req));
-  EXPECT_CALL(*_cache, send(_, &mock_req))
-    .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
-
-  handler->run();
-
-  Cache::Transaction* t = mock_req.get_trx();
-  ASSERT_FALSE(t == NULL);
-
-  // Next we expect to try and cache the IMS subscription.
-  MockCache::MockPutIMSSubscription mock_req2;
-  std::vector<std::string> impus{IMPU};
-  EXPECT_CALL(*_cache, create_PutIMSSubscription(impus, IMS_SUBSCRIPTION, _, _, 7200))
-    .WillOnce(Return(&mock_req2));
-  EXPECT_CALL(*_cache, send(_, &mock_req2))
-    .WillOnce(WithArgs<0>(Invoke(&mock_req2, &Cache::Request::set_trx)));
-
-  t->on_success(&mock_req);
-
-  t = mock_req2.get_trx();
-  ASSERT_FALSE(t == NULL);
-
-  // Finally we expect a PPA.
-  EXPECT_CALL(*_mock_stack, send(_))
-    .Times(1)
-    .WillOnce(WithArgs<0>(Invoke(store_msg)));
-
-  t->on_success(&mock_req2);
-
-  // Turn the caught Diameter msg structure into a PPA and confirm it's contents.
-  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
-  Cx::PushProfileAnswer ppa(msg);
-  EXPECT_TRUE(ppa.result_code(test_i32));
-  EXPECT_EQ(DIAMETER_SUCCESS, test_i32);
-  EXPECT_EQ(AUTH_SESSION_STATE, ppa.auth_session_state());
-}
-
-TEST_F(HandlersTest, PushProfileAV)
-{
-  DigestAuthVector digest_av;
-  digest_av.ha1 = "ha1";
-  digest_av.realm = "realm";
-  digest_av.qop = "qop";
-
-  // Build a PPR and create a Push Profile Handler with this message. This PPR
-  // contains both IMS subscription information, and a digest AV.
-  Cx::PushProfileRequest ppr(_cx_dict,
-                             _mock_stack,
-                             IMPI,
-                             digest_av,
-                             "",
-                             AUTH_SESSION_STATE);
-
-  // The free_on_delete flag controls whether we want to free the underlying
-  // fd_msg structure when we delete this PPR. We don't, since this will be
-  // freed when the answer is freed later in the test. If we leave this flag set
-  // then the request will be freed twice.
-  ppr._free_on_delete = false;
-
-  PushProfileHandler::Config cfg(_cache, _cx_dict, 0, 3600);
-  PushProfileHandler* handler = new PushProfileHandler(_cx_dict, &ppr._fd_msg, &cfg);
-
-  // We have to make sure the message is pointing at the mock stack.
-  handler->_msg._stack = _mock_stack;
-
-  // Once the handler's run function is called, we expect to try and update
-  // the AV in the cache.
-  MockCache::MockPutAuthVector mock_req;
-  EXPECT_CALL(*_cache, create_PutAuthVector(IMPI, _, _, 0))
-    .WillOnce(Return(&mock_req));
-  EXPECT_CALL(*_cache, send(_, &mock_req))
-    .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
-
-  handler->run();
-
-  Cache::Transaction* t = mock_req.get_trx();
-  ASSERT_FALSE(t == NULL);
-
-  // Finally we expect a PPA.
-  EXPECT_CALL(*_mock_stack, send(_))
-    .Times(1)
-    .WillOnce(WithArgs<0>(Invoke(store_msg)));
-
-  t->on_success(&mock_req);
-
-  // Turn the caught Diameter msg structure into a PPA and confirm it's contents.
-  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
-  Cx::PushProfileAnswer ppa(msg);
-  EXPECT_TRUE(ppa.result_code(test_i32));
-  EXPECT_EQ(DIAMETER_SUCCESS, test_i32);
-  EXPECT_EQ(AUTH_SESSION_STATE, ppa.auth_session_state());
-}
-
-TEST_F(HandlersTest, PushProfileIMSSub)
-{
-  DigestAuthVector digest_av;
-
-  // Build a PPR and create a Push Profile Handler with this message. This PPR
-  // contains both IMS subscription information, and a digest AV.
-  Cx::PushProfileRequest ppr(_cx_dict,
-                             _mock_stack,
-                             IMPI,
-                             digest_av,
                              IMS_SUBSCRIPTION,
                              AUTH_SESSION_STATE);
 
@@ -3355,71 +3226,12 @@ TEST_F(HandlersTest, PushProfileIMSSub)
   EXPECT_EQ(AUTH_SESSION_STATE, ppa.auth_session_state());
 }
 
-TEST_F(HandlersTest, PushProfileAVCacheFailure)
+TEST_F(HandlersTest, PushProfileCacheFailure)
 {
-  DigestAuthVector digest_av;
-  digest_av.ha1 = "ha1";
-  digest_av.realm = "realm";
-  digest_av.qop = "qop";
-
   // Build a PPR and create a Push Profile Handler with this message. This PPR
-  // contains both IMS subscription information, and a digest AV.
+  // contains an IMS subscription.
   Cx::PushProfileRequest ppr(_cx_dict,
                              _mock_stack,
-                             IMPI,
-                             digest_av,
-                             "",
-                             AUTH_SESSION_STATE);
-
-  // The free_on_delete flag controls whether we want to free the underlying
-  // fd_msg structure when we delete this PPR. We don't, since this will be
-  // freed when the answer is freed later in the test. If we leave this flag set
-  // then the request will be freed twice.
-  ppr._free_on_delete = false;
-
-  PushProfileHandler::Config cfg(_cache, _cx_dict, 0, 3600);
-  PushProfileHandler* handler = new PushProfileHandler(_cx_dict, &ppr._fd_msg, &cfg);
-
-  // We have to make sure the message is pointing at the mock stack.
-  handler->_msg._stack = _mock_stack;
-
-  // Once the handler's run function is called, we expect to try and update
-  // the AV in the cache.
-  MockCache::MockPutAuthVector mock_req;
-  EXPECT_CALL(*_cache, create_PutAuthVector(IMPI, _, _, 0))
-    .WillOnce(Return(&mock_req));
-  EXPECT_CALL(*_cache, send(_, &mock_req))
-    .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
-
-  handler->run();
-
-  Cache::Transaction* t = mock_req.get_trx();
-  ASSERT_FALSE(t == NULL);
-  EXPECT_CALL(*_mock_stack, send(_))
-    .Times(1)
-    .WillOnce(WithArgs<0>(Invoke(store_msg)));
-
-  // The cache request fails.
-  std::string error_text = "error";
-  t->on_failure(&mock_req, Cache::INVALID_REQUEST, error_text);
-
-  // Turn the caught Diameter msg structure into a PPA and confirm the result code.
-  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
-  Cx::PushProfileAnswer ppa(msg);
-  EXPECT_TRUE(ppa.result_code(test_i32));
-  EXPECT_EQ(DIAMETER_UNABLE_TO_COMPLY, test_i32);
-}
-
-TEST_F(HandlersTest, PushProfileIMSSubCacheFailure)
-{
-  DigestAuthVector digest_av;
-
-  // Build a PPR and create a Push Profile Handler with this message. This PPR
-  // contains both IMS subscription information, and a digest AV.
-  Cx::PushProfileRequest ppr(_cx_dict,
-                             _mock_stack,
-                             IMPI,
-                             digest_av,
                              IMS_SUBSCRIPTION,
                              AUTH_SESSION_STATE);
 
@@ -3463,16 +3275,12 @@ TEST_F(HandlersTest, PushProfileIMSSubCacheFailure)
   EXPECT_EQ(DIAMETER_UNABLE_TO_COMPLY, test_i32);
 }
 
-TEST_F(HandlersTest, PushProfileNoInformation)
+TEST_F(HandlersTest, PushProfileNoIMSSub)
 {
-  DigestAuthVector digest_av;
-
   // Build a PPR and create a Push Profile Handler with this message. This PPR
-  // contains both IMS subscription information, and a digest AV.
+  // does not contian an IMS subscription.
   Cx::PushProfileRequest ppr(_cx_dict,
                              _mock_stack,
-                             IMPI,
-                             digest_av,
                              "",
                              AUTH_SESSION_STATE);
 
