@@ -59,10 +59,47 @@ TEST_F(XmlUtilsTest, SimpleMainline)
   ASSERT_EQ("<ClearwaterRegData>\n\t<RegistrationState>REGISTERED</RegistrationState>\n\t<IMSSubscription>test</IMSSubscription>\n</ClearwaterRegData>\n\n", result);
 }
 
-TEST_F(XmlUtilsTest, GetPublicIds)
+TEST_F(XmlUtilsTest, Unregistered)
+{
+  std::string result = XmlUtils::build_ClearwaterRegData_xml(RegistrationState::UNREGISTERED, "<?xml?><IMSSubscription>test</IMSSubscription>");
+  ASSERT_EQ("<ClearwaterRegData>\n\t<RegistrationState>UNREGISTERED</RegistrationState>\n\t<IMSSubscription>test</IMSSubscription>\n</ClearwaterRegData>\n\n", result);
+}
+
+TEST_F(XmlUtilsTest, InvalidRegState)
+{
+  std::string result = XmlUtils::build_ClearwaterRegData_xml(RegistrationState::UNCHANGED, "<?xml?><IMSSubscription>test</IMSSubscription>");
+  ASSERT_EQ("<ClearwaterRegData>\n\t<RegistrationState>NOT_REGISTERED</RegistrationState>\n\t<IMSSubscription>test</IMSSubscription>\n</ClearwaterRegData>\n\n", result);
+}
+
+TEST_F(XmlUtilsTest, InvalidXml)
+{
+  std::string result = XmlUtils::build_ClearwaterRegData_xml(RegistrationState::REGISTERED, "<?xml?><IMSSubscriptiontest</IMSSubscription>");
+  ASSERT_EQ("<ClearwaterRegData>\n\t<RegistrationState>REGISTERED</RegistrationState>\n</ClearwaterRegData>\n\n", result);
+}
+
+TEST_F(XmlUtilsTest, GetIds)
 {
   std::string xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><IMSSubscription><PrivateID>rkdtestplan1@rkd.cw-ngv.com</PrivateID><ServiceProfile><PublicIdentity><Identity>sip:rkdtestplan1@rkd.cw-ngv.com</Identity><Extension><IdentityType>0</IdentityType></Extension></PublicIdentity><PublicIdentity><Identity>sip:rkdtestplan1_a@rkd.cw-ngv.com</Identity><Extension><IdentityType>0</IdentityType></Extension></PublicIdentity><PublicIdentity><Identity>sip:rkdtestplan1_b@rkd.cw-ngv.com</Identity><Extension><IdentityType>0</IdentityType></Extension></PublicIdentity><InitialFilterCriteria><Priority>0</Priority><TriggerPoint><ConditionTypeCNF>0</ConditionTypeCNF><SPT><ConditionNegated>0</ConditionNegated><Group>0</Group><Method>PUBLISH</Method><Extension></Extension></SPT><SPT><ConditionNegated>0</ConditionNegated><Group>0</Group><SIPHeader><Header>Event</Header><Content>.*presence.*</Content></SIPHeader><Extension></Extension></SPT><SPT><ConditionNegated>0</ConditionNegated><Group>0</Group><SessionCase>0</SessionCase><Extension></Extension></SPT><SPT><ConditionNegated>0</ConditionNegated><Group>1</Group><Method>PUBLISH</Method><Extension></Extension></SPT><SPT><ConditionNegated>0</ConditionNegated><Group>1</Group><SIPHeader><Header>Event</Header><Content>.*presence.*</Content></SIPHeader><Extension></Extension></SPT><SPT><ConditionNegated>0</ConditionNegated><Group>1</Group><SessionCase>3</SessionCase><Extension></Extension></SPT><SPT><ConditionNegated>0</ConditionNegated><Group>2</Group><Method>SUBSCRIBE</Method><Extension></Extension></SPT><SPT><ConditionNegated>0</ConditionNegated><Group>2</Group><SIPHeader><Header>Event</Header><Content>.*presence.*</Content></SIPHeader><Extension></Extension></SPT><SPT><ConditionNegated>0</ConditionNegated><Group>2</Group><SessionCase>1</SessionCase><Extension></Extension></SPT><SPT><ConditionNegated>0</ConditionNegated><Group>3</Group><Method>SUBSCRIBE</Method><Extension></Extension></SPT><SPT><ConditionNegated>0</ConditionNegated><Group>3</Group><SIPHeader><Header>Event</Header><Content>.*presence.*</Content></SIPHeader><Extension></Extension></SPT><SPT><ConditionNegated>0</ConditionNegated><Group>3</Group><SessionCase>2</SessionCase><Extension></Extension></SPT></TriggerPoint><ApplicationServer><ServerName>sip:127.0.0.1:5065</ServerName><DefaultHandling>0</DefaultHandling></ApplicationServer></InitialFilterCriteria></ServiceProfile></IMSSubscription>";
 
+  std::vector<std::string> public_ids = XmlUtils::get_public_ids(xml);
+  EXPECT_EQ(3u, public_ids.size());
+  std::string private_id = XmlUtils::get_private_id(xml);
+  EXPECT_EQ("rkdtestplan1@rkd.cw-ngv.com", private_id);
+}
+
+TEST_F(XmlUtilsTest, GetIdsInvalidXml)
+{
+  std::string xml = "?xml veron=\"1.0\" encoding=\"UTF-8\"?>";
+  std::vector<std::string> public_ids = XmlUtils::get_public_ids(xml);
+  EXPECT_EQ(0u, public_ids.size());
+  std::string private_id = XmlUtils::get_private_id(xml);
+  EXPECT_EQ("", private_id);
+}
+
+TEST_F(XmlUtilsTest, GetPublicIdsNoIdentity)
+{
+  std::string xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><IMSSubscription><PrivateID>rkdtestplan1@rkd.cw-ngv.com</PrivateID><ServiceProfile><PublicIdentity><Extension><IdentityType>0</IdentityType></Extension></PublicIdentity><PublicIdentity><Identity>sip:rkdtestplan1_a@rkd.cw-ngv.com</Identity><Extension><IdentityType>0</IdentityType></Extension></PublicIdentity><PublicIdentity><Identity>sip:rkdtestplan1_b@rkd.cw-ngv.com</Identity><Extension><IdentityType>0</IdentityType></Extension></PublicIdentity><InitialFilterCriteria><Priority>0</Priority><TriggerPoint><ConditionTypeCNF>0</ConditionTypeCNF><SPT><ConditionNegated>0</ConditionNegated><Group>0</Group><Method>PUBLISH</Method><Extension></Extension></SPT><SPT><ConditionNegated>0</ConditionNegated><Group>0</Group><SIPHeader><Header>Event</Header><Content>.*presence.*</Content></SIPHeader><Extension></Extension></SPT><SPT><ConditionNegated>0</ConditionNegated><Group>0</Group><SessionCase>0</SessionCase><Extension></Extension></SPT><SPT><ConditionNegated>0</ConditionNegated><Group>1</Group><Method>PUBLISH</Method><Extension></Extension></SPT><SPT><ConditionNegated>0</ConditionNegated><Group>1</Group><SIPHeader><Header>Event</Header><Content>.*presence.*</Content></SIPHeader><Extension></Extension></SPT><SPT><ConditionNegated>0</ConditionNegated><Group>1</Group><SessionCase>3</SessionCase><Extension></Extension></SPT><SPT><ConditionNegated>0</ConditionNegated><Group>2</Group><Method>SUBSCRIBE</Method><Extension></Extension></SPT><SPT><ConditionNegated>0</ConditionNegated><Group>2</Group><SIPHeader><Header>Event</Header><Content>.*presence.*</Content></SIPHeader><Extension></Extension></SPT><SPT><ConditionNegated>0</ConditionNegated><Group>2</Group><SessionCase>1</SessionCase><Extension></Extension></SPT><SPT><ConditionNegated>0</ConditionNegated><Group>3</Group><Method>SUBSCRIBE</Method><Extension></Extension></SPT><SPT><ConditionNegated>0</ConditionNegated><Group>3</Group><SIPHeader><Header>Event</Header><Content>.*presence.*</Content></SIPHeader><Extension></Extension></SPT><SPT><ConditionNegated>0</ConditionNegated><Group>3</Group><SessionCase>2</SessionCase><Extension></Extension></SPT></TriggerPoint><ApplicationServer><ServerName>sip:127.0.0.1:5065</ServerName><DefaultHandling>0</DefaultHandling></ApplicationServer></InitialFilterCriteria></ServiceProfile></IMSSubscription>";
+
   std::vector<std::string> ids = XmlUtils::get_public_ids(xml);
-  EXPECT_EQ(3u, ids.size());
+  EXPECT_EQ(2u, ids.size());
 }
