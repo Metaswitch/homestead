@@ -249,7 +249,7 @@ TEST_F(CxTest, MARAuthorizationTest)
 }
 
 //
-// Multimedia Authoirzation Answers
+// Multimedia Authorization Answers
 //
 
 TEST_F(CxTest, MAATest)
@@ -260,7 +260,9 @@ TEST_F(CxTest, MAATest)
   digest.qop = "qop";
 
   AKAAuthVector aka;
-  aka.challenge = "challenge";
+  aka.challenge = "sure."; // Chosen to ensure that it will encode to
+                           // Base64 that needs to be padded with an
+                           // equals sign.
   aka.response = "response";
   aka.crypt_key = "crypt_key";
   aka.integrity_key = "integrity_key";
@@ -283,7 +285,7 @@ TEST_F(CxTest, MAATest)
 
   // The AKA values should be decoded from base64/hex.
   AKAAuthVector maa_aka = maa.aka_auth_vector();
-  EXPECT_EQ("Y2hhbGxlbmdl", maa_aka.challenge);
+  EXPECT_EQ("c3VyZS4=", maa_aka.challenge);
   EXPECT_EQ("726573706f6e7365", maa_aka.response);
   EXPECT_EQ("63727970745f6b6579", maa_aka.crypt_key);
   EXPECT_EQ("696e746567726974795f6b6579", maa_aka.integrity_key);
