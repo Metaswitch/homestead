@@ -558,7 +558,14 @@ std::string MultimediaAuthAnswer::base64(const uint8_t* data, size_t len)
   std::copy(boost::archive::iterators::base64_from_binary<boost::archive::iterators::transform_width<const uint8_t*,6,8> >(data),
             boost::archive::iterators::base64_from_binary<boost::archive::iterators::transform_width<const uint8_t*,6,8> >(data + len),
             boost::archive::iterators::ostream_iterator<char>(os));
-  return os.str();
+
+  // Properly encoded Base64 should be a multiple of 4 characters long
+  // (with 4 ASCII characters for each 3 bytes). If it is less than
+  // that, add extra equals signs until it's a multiple of 4.
+  std::string base64 = os.str();
+  int extra_equals = ((-1 * base64.length()) % 4);
+  std::string suffix(extra_equals, '=');
+  return base64 + suffix;
 }
 
 ServerAssignmentRequest::ServerAssignmentRequest(const Dictionary* dict,
