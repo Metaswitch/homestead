@@ -50,6 +50,8 @@ using ::testing::StrictMock;
 using ::testing::_;
 using ::testing::Gt;
 
+const SAS::TrailId FAKE_TRAIL_ID = 0x12345678;
+
 /// Fixture for HttpStackTest.
 class HttpStackTest : public testing::Test
 {
@@ -169,7 +171,7 @@ private:
 class BasicHandler : public HttpStack::Handler
 {
 public:
-  BasicHandler(HttpStack::Request& req) : HttpStack::Handler(req) {};
+  BasicHandler(HttpStack::Request& req, SAS::TrailId trail) : HttpStack::Handler(req, trail) {};
   void run()
   {
     _req.add_content("OK");
@@ -185,7 +187,7 @@ const unsigned long DELAY_US = DELAY_MS * 1000;
 class SlowHandler : public HttpStack::Handler
 {
 public:
-  SlowHandler(HttpStack::Request& req) : HttpStack::Handler(req) {};
+  SlowHandler(HttpStack::Request& req, SAS::TrailId trail) : HttpStack::Handler(req, trail) {};
   void run()
   {
     cwtest_advance_time_ms(DELAY_MS);
@@ -197,7 +199,7 @@ public:
 class PenaltyHandler : public HttpStack::Handler
 {
 public:
-  PenaltyHandler(HttpStack::Request& req) : HttpStack::Handler(req) {};
+  PenaltyHandler(HttpStack::Request& req, SAS::TrailId trail) : HttpStack::Handler(req, trail) {};
   void run()
   {
     _req.record_penalty();
