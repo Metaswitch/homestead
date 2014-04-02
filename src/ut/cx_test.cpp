@@ -744,23 +744,11 @@ TEST_F(CxTest, RTTestNoIMPUsNoAssocatedIdentities)
 
 TEST_F(CxTest, PPTest)
 {
-  DigestAuthVector digest;
-  digest.ha1 = "ha1";
-  digest.realm = "realm";
-  digest.qop = "qop";
-
   Cx::PushProfileRequest ppr(_cx_dict,
                              _mock_stack,
-                             IMPI,
-                             digest,
                              IMS_SUBSCRIPTION,
                              AUTH_SESSION_STATE);
   launder_message(ppr);
-  EXPECT_EQ(IMPI, ppr.impi());
-  DigestAuthVector ppr_digest = ppr.digest_auth_vector();
-  EXPECT_EQ(digest.ha1, ppr_digest.ha1);
-  EXPECT_EQ(digest.realm, ppr_digest.realm);
-  EXPECT_EQ(digest.qop, ppr_digest.qop);
   EXPECT_TRUE(ppr.user_data(test_str));
   EXPECT_EQ(IMS_SUBSCRIPTION, test_str);
   EXPECT_TRUE(ppr.get_i32_from_avp(_cx_dict->AUTH_SESSION_STATE, test_i32));

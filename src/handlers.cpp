@@ -1712,91 +1712,44 @@ void RegistrationTerminationHandler::send_rta(const std::string result_code)
 
 void PushProfileHandler::run()
 {
-  // Received a Push Profile Request. We may need to update a digest in the cache. We may
-  // need to update an IMS subscription in the cache.
+  // Received a Push Profile Request. We may need to update an IMS
+  // subscription in the cache.
   Cx::PushProfileRequest ppr(_msg);
-  _impi = ppr.impi();
-  _digest_av = ppr.digest_auth_vector();
-  ppr.user_data(_ims_subscription);
+  std::string ims_subscription;
+  ppr.user_data(ims_subscription);
 
-  // If we have a private ID and a digest specified on the PPR, update the digest for this impi
-  // in the cache. If we have an IMS subscription, update the IMPU table for each public ID.
-  // Otherwise just reply to the HSS.
-  if ((!_impi.empty()) && (!_digest_av.ha1.empty()))
+  // If we have an IMS subscription, update the IMPU table for each
+  // public ID. Otherwise just reply to the HSS.
+  if (!ims_subscription.empty())
   {
-    update_av();
-  }
-  else if (!_ims_subscription.empty())
-  {
-    update_ims_subscription();
-  }
-  else
-  {
-    send_ppa(DIAMETER_REQ_SUCCESS);
-  }
-}
-
-void PushProfileHandler::update_av()
-{
-  LOG_INFO("Updating digest for private ID %s from PPR", _impi.c_str());
-  Cache::Request* put_auth_vector = _cfg->cache->create_PutAuthVector(_impi,
-                                                                      _digest_av,
-                                                                      Cache::generate_timestamp(),
-                                                                      _cfg->impu_cache_ttl);
-  CacheTransaction* tsx = new CacheTransaction(this);
-  tsx->set_success_clbk(&PushProfileHandler::update_av_success);
-  tsx->set_failure_clbk(&PushProfileHandler::update_av_failure);
-  _cfg->cache->send(tsx, put_auth_vector);
-}
-
-void PushProfileHandler::update_av_success(Cache::Request* request)
-{
-  // If we also need to update an IMS subscription, do that. Otherwise send a
-  // successful response to the HSS.
-  if (!_ims_subscription.empty())
-  {
-    update_ims_subscription();
+    LOG_INFO("Updating IMS subscription from PPR");
+    std::vector<std::string> impus = XmlUtils::get_public_ids(ims_subscription);
+    RegistrationState state = RegistrationState::UNCHANGED;
+    SAS::Event event(this->trail(), SASEvent::CACHE_PUT_IMS_SUB, 0);
+    std::string impus_str = boost::algorithm::join(impus, ", ");
+    event.add_var_param(impus_str);
+    event.add_var_param(ims_subscription);
+    event.add_static_param(state);
+    SAS::report_event(event);
+    Cache::Request* put_ims_subscription =
+      _cfg->cache->create_PutIMSSubscription(impus,
+                                             ims_subscription,
+                                             state,
+                                             Cache::generate_timestamp(),
+                                             (2 * _cfg->hss_reregistration_time));
+    CacheTransaction* tsx = new CacheTransaction(this);
+    tsx->set_success_clbk(&PushProfileHandler::update_ims_subscription_success);
+    tsx->set_failure_clbk(&PushProfileHandler::update_ims_subscription_failure);
+    _cfg->cache->send(tsx, put_ims_subscription);
   }
   else
   {
     send_ppa(DIAMETER_REQ_SUCCESS);
   }
-}
-
-void PushProfileHandler::update_av_failure(Cache::Request* request,
-                                           Cache::ResultCode error,
-                                           std::string& text)
-{
-  LOG_DEBUG("Failed to update AV for %s - report failure to HSS", _impi.c_str());
-  send_ppa(DIAMETER_REQ_FAILURE);
-}
-
-void PushProfileHandler::update_ims_subscription()
-{
-  LOG_INFO("Updating IMS subscription from PPR");
-  std::vector<std::string> impus = XmlUtils::get_public_ids(_ims_subscription);
-  RegistrationState state = RegistrationState::UNCHANGED;
-  SAS::Event event(this->trail(), SASEvent::CACHE_PUT_IMS_SUB, 0);
-  std::string impus_str = boost::algorithm::join(impus, ", ");
-  event.add_var_param(impus_str);
-  event.add_var_param(_ims_subscription);
-  event.add_static_param(state);
-  SAS::report_event(event);
-  Cache::Request* put_ims_subscription =
-    _cfg->cache->create_PutIMSSubscription(impus,
-                                           _ims_subscription,
-                                           state,
-                                           Cache::generate_timestamp(),
-                                           (2 * _cfg->hss_reregistration_time));
-  CacheTransaction* tsx = new CacheTransaction(this);
-  tsx->set_success_clbk(&PushProfileHandler::update_ims_subscription_success);
-  tsx->set_failure_clbk(&PushProfileHandler::update_ims_subscription_failure);
-  _cfg->cache->send(tsx, put_ims_subscription);
 }
 
 void PushProfileHandler::update_ims_subscription_success(Cache::Request* request)
 {
-  // Send a successful response to the HSS.
   SAS::Event event(this->trail(), SASEvent::UPDATED_IMS_SUBS, 0);
   SAS::report_event(event);
   send_ppa(DIAMETER_REQ_SUCCESS);

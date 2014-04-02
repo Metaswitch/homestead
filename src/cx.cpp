@@ -751,89 +751,13 @@ std::vector<std::string> RegistrationTerminationAnswer::associated_identities() 
 
 PushProfileRequest::PushProfileRequest(const Dictionary* dict,
                                        Diameter::Stack* stack,
-                                       const std::string& impi,
-                                       const DigestAuthVector& digest_av,
                                        const std::string& ims_subscription,
                                        const int32_t& auth_session_state) :
                                        Diameter::Message(dict, dict->PUSH_PROFILE_REQUEST, stack)
 {
   LOG_DEBUG("Building Push-Profile request");
-  add(Diameter::AVP(dict->USER_NAME).val_str(impi));
   add(Diameter::AVP(dict->USER_DATA).val_str(ims_subscription));
-  Diameter::AVP sip_auth_data_item(dict->SIP_AUTH_DATA_ITEM);
-  Diameter::AVP sip_digest_authenticate(dict->SIP_DIGEST_AUTHENTICATE);
-  sip_digest_authenticate.add(Diameter::AVP(dict->DIGEST_HA1).val_str(digest_av.ha1));
-  sip_digest_authenticate.add(Diameter::AVP(dict->DIGEST_REALM).val_str(digest_av.realm));
-  sip_digest_authenticate.add(Diameter::AVP(dict->DIGEST_QOP).val_str(digest_av.qop));
-  sip_auth_data_item.add(sip_digest_authenticate);
-  add(sip_auth_data_item);
   add(Diameter::AVP(dict->AUTH_SESSION_STATE).val_i32(auth_session_state));
-}
-
-DigestAuthVector PushProfileRequest::digest_auth_vector() const
-{
-  LOG_DEBUG("Getting digest authentication vector from Push-Profile request");
-  DigestAuthVector digest_auth_vector;
-  Diameter::AVP::iterator avps = begin(((Cx::Dictionary*)dict())->SIP_AUTH_DATA_ITEM);
-  if (avps != end())
-  {
-    Diameter::AVP::iterator avps2 = avps->begin(((Cx::Dictionary*)dict())->SIP_DIGEST_AUTHENTICATE);
-    if (avps2 != avps->end())
-    {
-      // Look for the digest.
-      Diameter::AVP::iterator avps3 = avps2->begin(((Cx::Dictionary*)dict())->CX_DIGEST_HA1);
-      if (avps3 != avps2->end())
-      {
-        digest_auth_vector.ha1 = avps3->val_str();
-        LOG_DEBUG("Found Digest-HA1 %s", digest_auth_vector.ha1.c_str());
-      }
-      else
-      {
-        // Some HSSs (in particular OpenIMSCore), use non-3GPP Digest-HA1.  Check for this too.
-        avps3 = avps2->begin(((Cx::Dictionary*)dict())->DIGEST_HA1);
-        if (avps3 != avps2->end())
-        {
-          digest_auth_vector.ha1 = avps3->val_str();
-          LOG_DEBUG("Found (non-3GPP) Digest-HA1 %s", digest_auth_vector.ha1.c_str());
-        }
-      }
-      // Look for the realm.
-      avps3 = avps2->begin(((Cx::Dictionary*)dict())->CX_DIGEST_REALM);
-      if (avps3 != avps2->end())
-      {
-        digest_auth_vector.realm = avps3->val_str();
-        LOG_DEBUG("Found Digest-Realm %s", digest_auth_vector.realm.c_str());
-      }
-      else
-      {
-        // Some HSSs (in particular OpenIMSCore), use non-3GPP Digest-Realm.  Check for this too.
-        avps3 = avps2->begin(((Cx::Dictionary*)dict())->DIGEST_REALM);
-        if (avps3 != avps2->end())
-        {
-          digest_auth_vector.realm = avps3->val_str();
-          LOG_DEBUG("Found (non-3GPP) Digest-Realm %s", digest_auth_vector.realm.c_str());
-        }
-      }
-      // Look for the QoP.
-      avps3 = avps2->begin(((Cx::Dictionary*)dict())->CX_DIGEST_QOP);
-      if (avps3 != avps2->end())
-      {
-        digest_auth_vector.qop = avps3->val_str();
-        LOG_DEBUG("Found Digest-QoP %s", digest_auth_vector.qop.c_str());
-      }
-      else
-      {
-        // Some HSSs (in particular OpenIMSCore), use non-3GPP Digest-QoP.  Check for this too.
-        avps3 = avps2->begin(((Cx::Dictionary*)dict())->DIGEST_QOP);
-        if (avps3 != avps2->end())
-        {
-          digest_auth_vector.qop = avps3->val_str();
-          LOG_DEBUG("Found (non-3GPP) Digest-QoP %s", digest_auth_vector.qop.c_str());
-        }
-      }
-    }
-  }
-  return digest_auth_vector;
 }
 
 PushProfileAnswer::PushProfileAnswer(Diameter::Message& msg,

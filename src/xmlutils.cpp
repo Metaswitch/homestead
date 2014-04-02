@@ -190,12 +190,19 @@ std::string get_private_id(const std::string& user_data)
   if (is)
   {
     rapidxml::xml_node<>* id = is->first_node("PrivateID");
-    impi = id->value();
+    if (id)
+    {
+      impi = id->value();
+    }
+    else
+    {
+      LOG_ERROR("Missing Private ID in IMS Subscription document: \n\n%s", user_data.c_str());
+    }
   }
 
   if (impi.compare("null") == 0)
   {
-    impi = "";
+    impi = ""; // LCOV_EXCL_LINE
   }
 
   return impi;

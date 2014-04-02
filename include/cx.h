@@ -335,13 +335,10 @@ class PushProfileRequest : public Diameter::Message
 public:
   PushProfileRequest(const Dictionary* dict,
                      Diameter::Stack* stack,
-                     const std::string& impi,
-                     const DigestAuthVector& digest_av,
                      const std::string& ims_subscription,
                      const int32_t& auth_session_state);
   inline PushProfileRequest(Diameter::Message& msg) : Diameter::Message(msg) {};
 
-  DigestAuthVector digest_auth_vector() const;
   inline bool user_data(std::string& str) const
   {
     return get_str_from_avp(((Cx::Dictionary*)dict())->USER_DATA, str);
