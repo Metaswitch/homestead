@@ -150,6 +150,14 @@ public:
     EXPECT_TRUE(msg.get_i32_from_avp(_cx_dict->SESSION_ID, test_i32));
     EXPECT_NE(0, test_i32);
     EXPECT_EQ(10415, msg.vendor_id());
+    Diameter::AVP::iterator vendor_spec_app_ids = msg.begin(_cx_dict->VENDOR_SPECIFIC_APPLICATION_ID);
+    EXPECT_TRUE(vendor_spec_app_ids != msg.end());
+    int32_t vendor_id;
+    vendor_spec_app_ids->get_i32_from_avp(_cx_dict->VENDOR_ID, vendor_id);
+    EXPECT_EQ(10415, vendor_id);
+    int32_t application_id;
+    vendor_spec_app_ids->get_i32_from_avp(_cx_dict->AUTH_APPLICATION_ID, application_id);
+    EXPECT_EQ(16777216, application_id);
     EXPECT_TRUE(msg.get_i32_from_avp(_cx_dict->AUTH_SESSION_STATE, test_i32));
     EXPECT_EQ(AUTH_SESSION_STATE, test_i32);
     EXPECT_TRUE(msg.get_str_from_avp(_cx_dict->ORIGIN_HOST, test_str));
