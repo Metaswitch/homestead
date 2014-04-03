@@ -52,6 +52,8 @@
 #include "sasevent.h"
 #include "saslogger.h"
 #include "sproutconnection.h"
+#include "diameterresolver.h"
+#include "realmmanager.h"
 
 struct options
 {
@@ -456,6 +458,22 @@ int main(int argc, char**argv)
     exit(2);
   }
 
+  // Create a DNS resolver and a SIP specific resolver.
+  int af = AF_INET;
+  struct in6_addr dummy_addr;
+  if (inet_pton(AF_INET6, options.local_host, &dummy_addr) == 1)
+  {
+    LOG_DEBUG("Local host is an IPv6 address");
+    af = AF_INET6;
+  }
+
+  DnsCachedResolver* dns_resolver = new DnsCachedResolver("127.0.0.1");
+  DiameterResolver* diameter_resolver = new DiameterResolver(dns_resolver, af);
+  RealmManager* realm_manager = new RealmManager(diameter_stack,
+                                                 options.dest_realm,
+                                                 options.max_peers,
+                                                 diameter_resolver);
+
   LOG_STATUS("Start-up complete - wait for termination signal");
   sem_wait(&term_sem);
   LOG_STATUS("Termination signal received - terminating");
@@ -485,6 +503,8 @@ int main(int argc, char**argv)
   delete dict;
 
   delete sprout_conn; sprout_conn = NULL;
+
+  delete realm_manager; realm_manager = NULL;
 
   delete stats_manager; stats_manager = NULL;
   delete load_monitor; load_monitor = NULL;
