@@ -54,13 +54,22 @@ then
   realm=$(/usr/share/clearwater/bin/ipv6_to_hostname.py $realm)
 fi
 
-cert_current_name=$(certtool --certificate-info --infile /var/lib/homestead/cert.pem | egrep -e 'Subject: CN=' | sed 's/.*Subject: CN=//g')
-ca_current_name=$(certtool --certificate-info --infile /var/lib/homestead/ca.pem | egrep -e 'Subject: CN=' | sed 's/.*Subject: CN=//g')
-if [ "X$cert_current_name" != "X$identity" ] ||
-    [ "X$ca_current_name" != "X$identity" ]
+if [ -f /var/lib/homestead/privkey.pem ]
 then
-    # The current certificate do not have the required common name.  Remove them so that
-    # they are regenerated below.
+    priv_modulus=$(openssl rsa -in /var/lib/homestead/privkey.pem -modulus -noout)
+fi
+
+if [ -f /var/lib/homestead/cert.pem ]
+then
+    pub_modulus=$(openssl x509 -in /var/lib/homestead/cert.pem -modulus -noout)
+    cert_current_name=$(certtool --certificate-info --infile /var/lib/homestead/cert.pem | egrep -e 'Subject: CN=' | sed 's/.*Subject: CN=//g')
+fi
+
+if [ "$cert_current_name" != "$identity" ] ||
+   [ "$priv_modulus" != "$pub_modulus" ]
+then
+    # The current certificate does not have the required common name,
+    # or does not match the private key.  Remove them so that they are regenerated below.
     rm -f /var/lib/homestead/cert.pem /var/lib/homestead/privkey.pem /var/lib/homestead/ca.pem
 fi
 
