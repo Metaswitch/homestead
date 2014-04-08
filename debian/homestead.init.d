@@ -93,6 +93,7 @@ get_settings()
         hss_reregistration_time=1800
         server_name=sip:$(python /usr/share/clearwater/bin/bracket_ipv6_address.py $sprout_hostname):$scscf
         sprout_http_name=$(python /usr/share/clearwater/bin/bracket_ipv6_address.py $sprout_hostname):9888
+        max_peers=2
         [ -r /etc/clearwater/user_settings ] && . /etc/clearwater/user_settings
 
         # Work out which features are enabled.
@@ -127,11 +128,13 @@ do_start()
         # enable gdb to dump a parent homestead process's stack
         echo 0 > /proc/sys/kernel/yama/ptrace_scope
         get_settings
-        DAEMON_ARGS="--diameter-conf /var/lib/homestead/homestead.conf
+        DAEMON_ARGS="--localhost $local_ip
+                     --diameter-conf /var/lib/homestead/homestead.conf
                      --http $local_ip
                      --http-threads $num_http_threads
                      --dest-realm $home_domain
                      --dest-host $hss_hostname
+                     --max-peers $max_peers
                      --server-name $server_name
                      --impu-cache-ttl $impu_cache_ttl
                      --hss-reregistration-time $hss_reregistration_time

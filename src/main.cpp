@@ -57,6 +57,7 @@
 
 struct options
 {
+  std::string local_host;
   std::string diameter_conf;
   std::string http_address;
   unsigned short http_port;
@@ -64,6 +65,7 @@ struct options
   std::string cassandra;
   std::string dest_realm;
   std::string dest_host;
+  int max_peers;
   std::string server_name;
   int impu_cache_ttl;
   int hss_reregistration_time;
@@ -85,6 +87,7 @@ void usage(void)
 {
   puts("Options:\n"
        "\n"
+       " -l, --localhost <hostname> Specify the local hostname or IP address."
        " -c, --diameter-conf <file> File name for Diameter configuration\n"
        " -H, --http <address>       Set HTTP bind address (default: 0.0.0.0)\n"
        " -t, --http-threads N       Number of HTTP threads (default: 1)\n"
@@ -92,6 +95,7 @@ void usage(void)
        " -S, --cassandra <address>  Set the IP address or FQDN of the Cassandra database (default: localhost)"
        " -D, --dest-realm <name>    Set Destination-Realm on Cx messages\n"
        " -d, --dest-host <name>     Set Destination-Host on Cx messages\n"
+       " -p, --max-peers N          Number of peers to connect to (default: 2)\n"
        " -s, --server-name <name>   Set Server-Name on Cx messages\n"
        " -i, --impu-cache-ttl <secs>\n"
        "                            IMPU cache time-to-live in seconds (default: 0)\n"
@@ -131,6 +135,7 @@ int init_options(int argc, char**argv, struct options& options)
 {
   struct option long_opt[] =
   {
+    {"localhost",               required_argument, NULL, 'l'},
     {"diameter-conf",           required_argument, NULL, 'c'},
     {"http",                    required_argument, NULL, 'H'},
     {"http-threads",            required_argument, NULL, 't'},
@@ -138,6 +143,7 @@ int init_options(int argc, char**argv, struct options& options)
     {"cassandra",               required_argument, NULL, 'S'},
     {"dest-realm",              required_argument, NULL, 'D'},
     {"dest-host",               required_argument, NULL, 'd'},
+    {"max-peers",               required_argument, NULL, 'p'},
     {"server-name",             required_argument, NULL, 's'},
     {"impu-cache-ttl",          required_argument, NULL, 'i'},
     {"hss-reregistration-time", required_argument, NULL, 'I'},
@@ -155,10 +161,14 @@ int init_options(int argc, char**argv, struct options& options)
 
   int opt;
   int long_opt_ind;
-  while ((opt = getopt_long(argc, argv, "c:H:t:u:S:D:d:s:i:I:a:F:L:h", long_opt, &long_opt_ind)) != -1)
+  while ((opt = getopt_long(argc, argv, "l:c:H:t:u:S:D:d:p:s:i:I:a:F:L:h", long_opt, &long_opt_ind)) != -1)
   {
     switch (opt)
     {
+    case 'l':
+      options.local_host = std::string(optarg);
+      break;
+
     case 'c':
       options.diameter_conf = std::string(optarg);
       break;
@@ -185,6 +195,10 @@ int init_options(int argc, char**argv, struct options& options)
 
     case 'd':
       options.dest_host = std::string(optarg);
+      break;
+
+    case 'p':
+      options.max_peers = atoi(optarg);
       break;
 
     case 's':
@@ -292,6 +306,7 @@ int main(int argc, char**argv)
   signal(SIGTERM, terminate_handler);
 
   struct options options;
+  options.local_host = "127.0.0.1";
   options.diameter_conf = "homestead.conf";
   options.http_address = "0.0.0.0";
   options.http_port = 8888;
@@ -300,6 +315,7 @@ int main(int argc, char**argv)
   options.cassandra = "localhost";
   options.dest_realm = "dest-realm.unknown";
   options.dest_host = "dest-host.unknown";
+  options.max_peers = 2;
   options.server_name = "sip:server-name.unknown";
   options.scheme_unknown = "Unknown";
   options.scheme_digest = "SIP Digest";
@@ -461,7 +477,7 @@ int main(int argc, char**argv)
   // Create a DNS resolver and a SIP specific resolver.
   int af = AF_INET;
   struct in6_addr dummy_addr;
-  if (inet_pton(AF_INET6, options.local_host, &dummy_addr) == 1)
+  if (inet_pton(AF_INET6, options.local_host.c_str(), &dummy_addr) == 1)
   {
     LOG_DEBUG("Local host is an IPv6 address");
     af = AF_INET6;
