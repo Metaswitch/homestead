@@ -54,16 +54,14 @@ then
   realm=$(/usr/share/clearwater/bin/ipv6_to_hostname.py $realm)
 fi
 
-# If the certficates are present, check that they have the correct common name.
-if [ -f /var/lib/homestead/cert.pem ]
+cert_current_name=$(certtool --certificate-info --infile /var/lib/homestead/cert.pem | egrep -e 'Subject: CN=' | sed 's/.*Subject: CN=//g')
+ca_current_name=$(certtool --certificate-info --infile /var/lib/homestead/ca.pem | egrep -e 'Subject: CN=' | sed 's/.*Subject: CN=//g')
+if [ "X$cert_current_name" != "X$identity" ] ||
+    [ "X$ca_current_name" != "X$identity" ]
 then
-  current_name=$(certtool --certificate-info --infile /var/lib/homestead/ca.pem | egrep -e 'Subject: CN=' | sed 's/.*Subject: CN=//g')
-  if [ $current_name != $identity ]
-  then 
-    # The current certificate do not have the required common name.  Remove them so that 
+    # The current certificate do not have the required common name.  Remove them so that
     # they are regenerated below.
     rm -f /var/lib/homestead/cert.pem /var/lib/homestead/privkey.pem /var/lib/homestead/ca.pem
-  fi
 fi
 
 # If any of the certificate files are missing, create new self-signed ones.
