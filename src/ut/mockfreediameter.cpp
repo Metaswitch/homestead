@@ -42,11 +42,13 @@ typedef int (*fd_msg_send_t)( struct msg ** pmsg, void (*anscb)(void *, struct m
 typedef int (*fd_msg_send_timeout_t)( struct msg ** pmsg, void (*anscb)(void *, struct msg **), void * data, void (*expirecb)(void *, DiamId_t, size_t, struct msg **), const struct timespec *timeout );
 typedef int (*fd_msg_hdr_t)( struct msg *msg, struct msg_hdr ** pdata );
 typedef int (*fd_msg_new_t)( struct dict_object * model, int flags, struct msg ** msg );
+typedef int (*fd_msg_bufferize_t)( struct msg * msg, uint8_t ** buffer, size_t * len );
 
 static fd_msg_send_t real_fd_msg_send;
 static fd_msg_send_timeout_t real_fd_msg_send_timeout;
 static fd_msg_hdr_t real_fd_msg_hdr;
 static fd_msg_new_t real_fd_msg_new;
+static fd_msg_bufferize_t real_fd_msg_bufferize;
 
 void mock_free_diameter(MockFreeDiameter* mock)
 {
@@ -127,5 +129,23 @@ int fd_msg_new( struct dict_object * model, int flags, struct msg ** msg )
   else
   {
     return real_fd_msg_new(model, flags, msg);
+  }
+}
+
+int fd_msg_bufferize( struct msg * msg, uint8_t ** buffer, size_t * len )
+{
+  if (real_fd_msg_bufferize == NULL)
+  {
+    real_fd_msg_bufferize = (fd_msg_bufferize_t)dlsym(RTLD_NEXT, "fd_msg_bufferize");
+  }
+
+  MockFreeDiameter* mock = _mock;
+  if (mock != NULL)
+  {
+    return mock->fd_msg_bufferize(msg, buffer, len);
+  }
+  else
+  {
+    return real_fd_msg_bufferize(msg, buffer, len);
   }
 }

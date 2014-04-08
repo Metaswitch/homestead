@@ -50,6 +50,8 @@ using ::testing::_;
 using ::testing::Return;
 using ::testing::SetArgPointee;
 using ::testing::DoAll;
+using ::testing::Invoke;
+using ::testing::WithArgs;
 
 class DiameterTestTransaction : public Diameter::Transaction
 {
@@ -95,7 +97,7 @@ public:
     cwtest_completely_control_time();
 
     // Mock out free diameter.  By default swallow all attempts to create new
-    // messages or read data out of them.
+    // messages or read data out of them, or bufferize them.
     mock_free_diameter(&_mock_fd);
 
     EXPECT_CALL(_mock_fd, fd_msg_new(_, _, _))
@@ -104,6 +106,9 @@ public:
     _mock_fd.hdr.msg_code = 123;
     EXPECT_CALL(_mock_fd, fd_msg_hdr(_, _))
       .WillRepeatedly(DoAll(SetArgPointee<1>(&_mock_fd.hdr), Return(0)));
+
+    EXPECT_CALL(_mock_fd, fd_msg_bufferize(_, _, _))
+      .WillRepeatedly(DoAll(WithArgs<1, 2>(Invoke(create_dummy_diameter_buffer)), Return(0)));
   }
 
   virtual ~DiameterRequestTest()
@@ -120,6 +125,13 @@ public:
   DiameterTestTransaction* make_trx()
   {
     return new DiameterTestTransaction(_dict);
+  }
+
+  static void create_dummy_diameter_buffer(uint8_t **buffer, size_t *len)
+  {
+    char* str = strdup("A fake diameter message");
+    *len = strlen(str);
+    *buffer = (uint8_t*)str;
   }
 
 private:
