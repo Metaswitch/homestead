@@ -17,6 +17,7 @@ TARGET_SOURCES := accesslogger.cpp \
                   counter.cpp \
                   cx.cpp \
                   diameterstack.cpp \
+                  diameterresolver.cpp \
                   handlers.cpp \
                   httpconnection.cpp \
                   httpstack.cpp \
