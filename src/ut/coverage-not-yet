@@ -1,6 +1,7 @@
 modules/cpp-common/src/accesslogger.cpp
 modules/cpp-common/src/diameterstack.cpp
 modules/cpp-common/src/httpstack.cpp
+modules/cpp-common/src/httpconnection.cpp
 modules/cpp-common/src/log.cpp
 modules/cpp-common/src/logger.cpp
 modules/cpp-common/src/utils.cpp
@@ -10,6 +11,6 @@ modules/cpp-common/src/fakelogger.cpp
 modules/cpp-common/src/load_monitor.cpp
 modules/cpp-common/src/statistic.cpp
 modules/cpp-common/src/zmq_lvc.cpp
+modules/cpp-common/src/saslogger.cpp
 modules/cpp-common/test_utils/test_interposer.cpp
-modules/cpp-common/test_utils/sas_logger.cpp
 modules/cpp-common/test_utils/mock_sas.cpp
