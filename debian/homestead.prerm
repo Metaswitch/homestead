@@ -80,8 +80,10 @@ case "$1" in
         rm -f /etc/monit/conf.d/$NAME.monit
         service monit restart
         service $NAME stop || /bin/true
-        remove_user
-        remove_logging
+        if [ $1 != "upgrade" ]; then
+            remove_user
+            remove_logging
+        fi
         remove_section /etc/security/limits.conf $NAME
         rm /var/lib/$NAME/$NAME.conf
     ;;
