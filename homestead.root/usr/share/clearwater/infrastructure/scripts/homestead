@@ -54,16 +54,31 @@ then
   realm=$(/usr/share/clearwater/bin/ipv6_to_hostname.py $realm)
 fi
 
-# If the certficates are present, check that they have the correct common name.
+if [ -f /var/lib/homestead/privkey.pem ]
+then
+    priv_modulus=$(openssl rsa -in /var/lib/homestead/privkey.pem -modulus -noout)
+fi
+
 if [ -f /var/lib/homestead/cert.pem ]
 then
-  current_name=$(certtool --certificate-info --infile /var/lib/homestead/ca.pem | egrep -e 'Subject: CN=' | sed 's/.*Subject: CN=//g')
-  if [ $current_name != $identity ]
-  then 
-    # The current certificate do not have the required common name.  Remove them so that 
-    # they are regenerated below.
+    pub_modulus=$(openssl x509 -in /var/lib/homestead/cert.pem -modulus -noout)
+    cert_current_name=$(certtool --certificate-info --infile /var/lib/homestead/cert.pem | egrep -e 'Subject: CN=' | sed 's/.*Subject: CN=//g')
+    cert_issuer=$(certtool --certificate-info --infile /var/lib/homestead/cert.pem | egrep -e 'Issuer: CN=' | sed 's/.*Issuer: CN=//g')
+
+fi
+
+if [ -f /var/lib/homestead/ca.pem ]
+then
+    ca_name=$(certtool --certificate-info --infile /var/lib/homestead/ca.pem | egrep -e 'Subject: CN=' | sed 's/.*Subject: CN=//g')
+fi
+
+if [ "$cert_current_name" != "$identity" ] ||
+   [ "$priv_modulus" != "$pub_modulus" ] ||
+   [ "$cert_issuer" != "$ca_name" ]
+then
+    # The current certificate does not have the required common name,
+    # or does not match the private key, or does not match the CA.  Remove them so that they are regenerated below.
     rm -f /var/lib/homestead/cert.pem /var/lib/homestead/privkey.pem /var/lib/homestead/ca.pem
-  fi
 fi
 
 # If any of the certificate files are missing, create new self-signed ones.
