@@ -65,10 +65,11 @@ then
     cert_current_name=$(certtool --certificate-info --infile /var/lib/homestead/cert.pem | egrep -e 'Subject: CN=' | sed 's/.*Subject: CN=//g')
     cert_issuer=$(certtool --certificate-info --infile /var/lib/homestead/cert.pem | egrep -e 'Issuer: CN=' | sed 's/.*Issuer: CN=//g')
 
-    if [ -f /var/lib/homestead/ca.pem ]
-    then
-        ca_name=$(certtool --certificate-info --infile /var/lib/homestead/ca.pem | egrep -e 'Subject: CN=' | sed 's/.*Subject: CN=//g')
-    fi
+fi
+
+if [ -f /var/lib/homestead/ca.pem ]
+then
+    ca_name=$(certtool --certificate-info --infile /var/lib/homestead/ca.pem | egrep -e 'Subject: CN=' | sed 's/.*Subject: CN=//g')
 fi
 
 if [ "$cert_current_name" != "$identity" ] ||
