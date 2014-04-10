@@ -158,6 +158,10 @@ UserAuthorizationAnswer::UserAuthorizationAnswer(const Dictionary* dict,
   }
 
   Diameter::AVP server_capabilities(dict->SERVER_CAPABILITIES);
+  if (!capabs.server_name.empty())
+  {
+    server_capabilities.add(Diameter::AVP(dict->SERVER_NAME).val_str(capabs.server_name));
+  }
   if (!capabs.mandatory_capabilities.empty())
   {
     for (std::vector<int32_t>::const_iterator it = capabs.mandatory_capabilities.begin();
@@ -181,7 +185,7 @@ UserAuthorizationAnswer::UserAuthorizationAnswer(const Dictionary* dict,
 
 ServerCapabilities UserAuthorizationAnswer::server_capabilities() const
 {
-  ServerCapabilities server_capabilities({}, {});
+  ServerCapabilities server_capabilities({}, {}, "");
 
   // Server capabilities are grouped into mandatory capabilities and optional capabilities
   // underneath the SERVER_CAPABILITIES AVP.
@@ -203,7 +207,14 @@ ServerCapabilities UserAuthorizationAnswer::server_capabilities() const
       server_capabilities.optional_capabilities.push_back(avps2->val_i32());
       avps2++;
     }
+    avps2 = avps->begin(((Cx::Dictionary*)dict())->SERVER_NAME);
+    if (avps2 != avps->end())
+    {
+      LOG_DEBUG("Found server name %s", avps2->val_str().c_str());
+      server_capabilities.server_name = avps2->val_str();
+    }
   }
+
   return server_capabilities;
 }
 
@@ -269,6 +280,12 @@ LocationInfoAnswer::LocationInfoAnswer(const Dictionary* dict,
   }
 
   Diameter::AVP server_capabilities(dict->SERVER_CAPABILITIES);
+
+  if (!capabs.server_name.empty())
+  {
+    server_capabilities.add(Diameter::AVP(dict->SERVER_NAME).val_str(capabs.server_name));
+  }
+
   if (!capabs.mandatory_capabilities.empty())
   {
     for (std::vector<int32_t>::const_iterator it = capabs.mandatory_capabilities.begin();
@@ -292,7 +309,7 @@ LocationInfoAnswer::LocationInfoAnswer(const Dictionary* dict,
 
 ServerCapabilities LocationInfoAnswer::server_capabilities() const
 {
-  ServerCapabilities server_capabilities({}, {});
+  ServerCapabilities server_capabilities({}, {}, "");
 
   // Server capabilities are grouped into mandatory capabilities and optional capabilities
   // underneath the SERVER_CAPABILITIES AVP.
@@ -314,7 +331,14 @@ ServerCapabilities LocationInfoAnswer::server_capabilities() const
       server_capabilities.optional_capabilities.push_back(avps2->val_i32());
       avps2++;
     }
+    avps2 = avps->begin(((Cx::Dictionary*)dict())->SERVER_NAME);
+    if (avps2 != avps->end())
+    {
+      LOG_DEBUG("Found server name %s", avps2->val_str().c_str());
+      server_capabilities.server_name = avps2->val_str();
+    }
   }
+
   return server_capabilities;
 }
 

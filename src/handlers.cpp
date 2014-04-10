@@ -537,6 +537,14 @@ void ImpiRegistrationStatusHandler::on_uar_response(Diameter::Message& rsp)
     {
       LOG_DEBUG("Got Server-Capabilities");
       ServerCapabilities server_capabilities = uaa.server_capabilities();
+
+      if (!server_capabilities.server_name.empty())
+      {
+        LOG_DEBUG("Got Server-Name %s from Capabilities AVP", server_capabilities.server_name.c_str());
+        writer.String(JSON_SCSCF.c_str());
+        writer.String(server_capabilities.server_name.c_str());
+      }
+
       server_capabilities.write_capabilities(&writer);
     }
     writer.EndObject();
@@ -657,6 +665,14 @@ void ImpuLocationInfoHandler::on_lir_response(Diameter::Message& rsp)
     {
       LOG_DEBUG("Got Server-Capabilities");
       ServerCapabilities server_capabilities = lia.server_capabilities();
+
+      if (!server_capabilities.server_name.empty())
+      {
+        LOG_DEBUG("Got Server-Name %s from Capabilities AVP", server_capabilities.server_name.c_str());
+        writer.String(JSON_SCSCF.c_str());
+        writer.String(server_capabilities.server_name.c_str());
+      }
+
       server_capabilities.write_capabilities(&writer);
     }
     writer.EndObject();
