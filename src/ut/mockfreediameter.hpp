@@ -50,6 +50,7 @@ public:
   MOCK_METHOD5(fd_msg_send_timeout, int( struct msg ** pmsg, void *anscb, void * data, void *expirecb, const struct timespec *timeout ));
   MOCK_METHOD2(fd_msg_hdr, int( struct msg *msg, struct msg_hdr ** pdata ));
   MOCK_METHOD3(fd_msg_new, int( struct dict_object * model, int flags, struct msg ** msg ));
+  MOCK_METHOD3(fd_msg_bufferize, int( struct msg * msg, uint8_t ** buffer, size_t * len ));
 
   struct msg_hdr hdr;
 
