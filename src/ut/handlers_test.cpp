@@ -856,7 +856,7 @@ public:
       .WillRepeatedly(DoAll(SetArgReferee<0>(IMPU_IMS_SUBSCRIPTION), SetArgReferee<1>(0)));
 
     // Expect a delete to be sent to Sprout.
-    EXPECT_CALL(*_mock_http_conn, send_delete(http_path, body, _))
+    EXPECT_CALL(*_mock_http_conn, send_delete(http_path, _, body))
       .Times(1)
       .WillOnce(Return(http_ret_code));
 
@@ -997,7 +997,7 @@ public:
     }
 
     // Expect a delete to be sent to Sprout.
-    EXPECT_CALL(*_mock_http_conn, send_delete(http_path, body, _))
+    EXPECT_CALL(*_mock_http_conn, send_delete(http_path, _, body))
       .Times(1)
       .WillOnce(Return(HTTP_OK));
 
