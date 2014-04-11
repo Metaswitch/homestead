@@ -67,10 +67,9 @@ int fd_msg_send( struct msg ** pmsg, void (*anscb)(void *, struct msg **), void 
     real_fd_msg_send = (fd_msg_send_t)dlsym(RTLD_NEXT, "fd_msg_send");
   }
 
-  MockFreeDiameter* mock = _mock;
-  if (mock != NULL)
+  if (_mock != NULL)
   {
-    return mock->fd_msg_send(pmsg, (void*)anscb, data);
+    return _mock->fd_msg_send(pmsg, (void*)anscb, data);
   }
   else
   {
@@ -85,10 +84,9 @@ int fd_msg_send_timeout( struct msg ** pmsg, void (*anscb)(void *, struct msg **
     real_fd_msg_send_timeout = (fd_msg_send_timeout_t)dlsym(RTLD_NEXT, "fd_msg_send_timeout");
   }
 
-  MockFreeDiameter* mock = _mock;
-  if (mock != NULL)
+  if (_mock != NULL)
   {
-    return mock->fd_msg_send_timeout(pmsg, (void*)anscb, data, (void*)expirecb, timeout);
+    return _mock->fd_msg_send_timeout(pmsg, (void*)anscb, data, (void*)expirecb, timeout);
   }
   else
   {
@@ -103,10 +101,9 @@ int fd_msg_hdr( struct msg *msg, struct msg_hdr ** pdata )
     real_fd_msg_hdr = (fd_msg_hdr_t)dlsym(RTLD_NEXT, "fd_msg_hdr");
   }
 
-  MockFreeDiameter* mock = _mock;
-  if (mock != NULL)
+  if (_mock != NULL)
   {
-    return mock->fd_msg_hdr(msg, pdata);
+    return _mock->fd_msg_hdr(msg, pdata);
   }
   else
   {
@@ -121,10 +118,9 @@ int fd_msg_new( struct dict_object * model, int flags, struct msg ** msg )
     real_fd_msg_new = (fd_msg_new_t)dlsym(RTLD_NEXT, "fd_msg_new");
   }
 
-  MockFreeDiameter* mock = _mock;
-  if (mock != NULL)
+  if (_mock != NULL)
   {
-    return mock->fd_msg_new(model, flags, msg);
+    return _mock->fd_msg_new(model, flags, msg);
   }
   else
   {
@@ -139,10 +135,9 @@ int fd_msg_bufferize( struct msg * msg, uint8_t ** buffer, size_t * len )
     real_fd_msg_bufferize = (fd_msg_bufferize_t)dlsym(RTLD_NEXT, "fd_msg_bufferize");
   }
 
-  MockFreeDiameter* mock = _mock;
-  if (mock != NULL)
+  if (_mock != NULL)
   {
-    return mock->fd_msg_bufferize(msg, buffer, len);
+    return _mock->fd_msg_bufferize(msg, buffer, len);
   }
   else
   {
