@@ -24,11 +24,30 @@ Subscriber data storage
 Homestead provides a [RESTful HTTP interface](homestead_api.md) for storing and retrieving
 the following subscriber data:
 
-* Initial Filter Criteria (Server-Assignment Requests)
+* IMS subscriptions (Server-Assignment Requests)
 * SIP-Digest or AKA authentication vectors (Multimedia-Auth Requests)
-* Serving S-CSCF (User-Authorization/Lcation-Information requests)
-* Server capability information (User-Authorization/Lcation-Information requests)
+* Serving S-CSCF (User-Authorization/Location-Information requests)
+* Server capability information (User-Authorization/Location-Information requests)
 
-Homestead also supports receiving Push-Profile requests and
-Registration-Termination requests from the S-CSCF.
+Homestead also supports receiving requests from the HSS:
 
+* Push-Profile Requests (Updates cached IMS subscriptions)
+* Registration-Termination Requests (Updates subscriber registration information and notifies the S-CSCF)
+
+Real HSS-caching
+----------------
+
+In the future, two-way synchronization with the HSS, will be supported.
+
+Currently, the integration with an external HSS is limited to importing of subscriber data from a real HSS. Once imported, Homestead stores this data itself, in order to relieve the HSS from load.
+
+Bulk provisioning
+-----------------
+
+Homestead supports bulk provisioning a large set of subscribers from a CSV file, via a set of command line tools.
+
+Scalability
+-----------
+
+Homestead is horizontally scalable. A cluster of Homestead nodes provides access to the same
+underlying Cassandra cluster, allowing the load to be spread between nodes.
