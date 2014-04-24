@@ -432,8 +432,8 @@ int main(int argc, char**argv)
                           options.http_port,
                           options.http_threads,
                           access_logger,
-                          stats_manager,
-                          load_monitor);
+                          load_monitor,
+                          stats_manager);
     http_stack->register_handler("^/ping$",
                                  &ping_handler_factory);
     http_stack->register_handler("^/impi/[^/]*/digest$",
