@@ -105,6 +105,15 @@ get_settings()
           done
         fi
 
+        # Set the destination realm correctly
+        if [ ! -z $hss_realm ]
+        then
+          dest_realm="--dest-realm $hss_realm"
+        elif [ ! -z $home_domain ]
+        then
+          dest_realm="--dest-realm $home_domain"
+        fi
+
         [ "$hss_mar_lowercase_unknown" != "Y" ] || scheme_unknown_arg="--scheme-unknown unknown"
 }
 
@@ -132,7 +141,7 @@ do_start()
                      --diameter-conf /var/lib/homestead/homestead.conf
                      --http $local_ip
                      --http-threads $num_http_threads
-                     --dest-realm $home_domain
+                     $dest_realm
                      --dest-host $hss_hostname
                      --max-peers $max_peers
                      --server-name $server_name

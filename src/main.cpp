@@ -313,7 +313,7 @@ int main(int argc, char**argv)
   options.http_threads = 1;
   options.cache_threads = 10;
   options.cassandra = "localhost";
-  options.dest_realm = "dest-realm.unknown";
+  options.dest_realm = "";
   options.dest_host = "dest-host.unknown";
   options.max_peers = 2;
   options.server_name = "sip:server-name.unknown";
@@ -414,7 +414,7 @@ int main(int argc, char**argv)
   HttpStack* http_stack = HttpStack::get_instance();
   HssCacheHandler::configure_diameter(diameter_stack,
                                       options.dest_realm,
-                                      options.dest_host,
+                                      (options.dest_host != "0.0.0.0") ? (options.dest_host) : (""),
                                       options.server_name,
                                       dict);
   HssCacheHandler::configure_cache(cache);
@@ -423,7 +423,7 @@ int main(int argc, char**argv)
   // We should only query the cache for AV information if there is no HSS.  If there is an HSS, we
   // should always hit it.  If there is not, the AV information must have been provisioned in the
   // "cache" (which becomes persistent).
-  bool hss_configured = !(options.dest_host.empty() || (options.dest_host == "0.0.0.0"));
+  bool hss_configured = !options.dest_realm.empty();
 
   ImpiHandler::Config impi_handler_config(hss_configured,
                                           options.impu_cache_ttl,
@@ -486,6 +486,7 @@ int main(int argc, char**argv)
   DnsCachedResolver* dns_resolver = new DnsCachedResolver("127.0.0.1");
   DiameterResolver* diameter_resolver = new DiameterResolver(dns_resolver, af);
   RealmManager* realm_manager = new RealmManager(diameter_stack,
+                                                 (options.dest_host != "0.0.0.0") ? (options.dest_host) : (""),
                                                  options.dest_realm,
                                                  options.max_peers,
                                                  diameter_resolver);
