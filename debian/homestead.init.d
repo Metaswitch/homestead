@@ -91,7 +91,14 @@ get_settings()
         log_level=2
         impu_cache_ttl=0
         hss_reregistration_time=1800
-        server_name=sip:$(python /usr/share/clearwater/bin/bracket_ipv6_address.py $sprout_hostname):$scscf
+
+        if [ -n "$scscf_uri" ]
+        then
+          server_name=$scscf_uri
+        else
+          server_name=sip:$(python /usr/share/clearwater/bin/bracket_ipv6_address.py $sprout_hostname):$scscf
+        fi
+
         sprout_http_name=$(python /usr/share/clearwater/bin/bracket_ipv6_address.py $sprout_hostname):9888
         [ -r /etc/clearwater/user_settings ] && . /etc/clearwater/user_settings
 
