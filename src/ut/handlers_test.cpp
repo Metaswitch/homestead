@@ -102,6 +102,7 @@ public:
   static const std::string AUTH_TYPE_CAPAB;
   static const ServerCapabilities CAPABILITIES;
   static const ServerCapabilities NO_CAPABILITIES;
+  static const ServerCapabilities CAPABILITIES_WITH_SERVER_NAME;
   static const int32_t AUTH_SESSION_STATE;
   static const std::string ASSOCIATED_IDENTITY1;
   static const std::string ASSOCIATED_IDENTITY2;
@@ -288,6 +289,11 @@ public:
     }
     else
     {
+      if (!capabs.server_name.empty())
+      {
+        writer.String(JSON_SCSCF.c_str());
+        writer.String(capabs.server_name.c_str());
+      }
       writer.String(JSON_MAN_CAP.c_str());
       writer.StartArray();
       if (!capabs.mandatory_capabilities.empty())
@@ -850,7 +856,7 @@ public:
       .WillRepeatedly(DoAll(SetArgReferee<0>(IMPU_IMS_SUBSCRIPTION), SetArgReferee<1>(0)));
 
     // Expect a delete to be sent to Sprout.
-    EXPECT_CALL(*_mock_http_conn, send_delete(http_path, body, _))
+    EXPECT_CALL(*_mock_http_conn, send_delete(http_path, _, body))
       .Times(1)
       .WillOnce(Return(http_ret_code));
 
@@ -991,7 +997,7 @@ public:
     }
 
     // Expect a delete to be sent to Sprout.
-    EXPECT_CALL(*_mock_http_conn, send_delete(http_path, body, _))
+    EXPECT_CALL(*_mock_http_conn, send_delete(http_path, _, body))
       .Times(1)
       .WillOnce(Return(HTTP_OK));
 
@@ -1081,8 +1087,9 @@ const std::string HandlersTest::AUTH_TYPE_CAPAB = "CAPAB";
 const std::vector<int32_t> mandatory_capabilities = {1, 3};
 const std::vector<int32_t> optional_capabilities = {2, 4};
 const std::vector<int32_t> no_capabilities = {};
-const ServerCapabilities HandlersTest::CAPABILITIES(mandatory_capabilities, optional_capabilities);
-const ServerCapabilities HandlersTest::NO_CAPABILITIES(no_capabilities, no_capabilities);
+const ServerCapabilities HandlersTest::CAPABILITIES(mandatory_capabilities, optional_capabilities, "");
+const ServerCapabilities HandlersTest::NO_CAPABILITIES(no_capabilities, no_capabilities, "");
+const ServerCapabilities HandlersTest::CAPABILITIES_WITH_SERVER_NAME(no_capabilities, no_capabilities, SERVER_NAME);
 const int32_t HandlersTest::AUTH_SESSION_STATE = 1;
 const std::string HandlersTest::ASSOCIATED_IDENTITY1 = "associated_identity1@example.com";
 const std::string HandlersTest::ASSOCIATED_IDENTITY2 = "associated_identity2@example.com";
@@ -2591,14 +2598,14 @@ TEST_F(HandlersTest, RegistrationStatusOptParamsSubseqRegCapabs)
                                   0,
                                   DIAMETER_SUBSEQUENT_REGISTRATION,
                                   "",
-                                  CAPABILITIES);
+                                  CAPABILITIES_WITH_SERVER_NAME);
   EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
   _caught_diam_tsx->on_response(uaa);
   _caught_fd_msg = NULL;
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
 
   // Build the expected JSON response and check it's correct.
-  EXPECT_EQ(build_icscf_json(DIAMETER_SUBSEQUENT_REGISTRATION, "", CAPABILITIES), req.content());
+  EXPECT_EQ(build_icscf_json(DIAMETER_SUBSEQUENT_REGISTRATION, "", CAPABILITIES_WITH_SERVER_NAME), req.content());
 }
 
 TEST_F(HandlersTest, RegistrationStatusFirstRegNoCapabs)
@@ -2800,14 +2807,14 @@ TEST_F(HandlersTest, LocationInfoOptParamsUnregisteredService)
                              0,
                              DIAMETER_UNREGISTERED_SERVICE,
                              "",
-                             CAPABILITIES);
+                             CAPABILITIES_WITH_SERVER_NAME);
   EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
   _caught_diam_tsx->on_response(lia);
   _caught_fd_msg = NULL;
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
 
   // Build the expected JSON response and check it's correct.
-  EXPECT_EQ(build_icscf_json(DIAMETER_UNREGISTERED_SERVICE, "", CAPABILITIES), req.content());
+  EXPECT_EQ(build_icscf_json(DIAMETER_UNREGISTERED_SERVICE, "", CAPABILITIES_WITH_SERVER_NAME), req.content());
 }
 
 // The following tests all test HSS error response cases, and use a template

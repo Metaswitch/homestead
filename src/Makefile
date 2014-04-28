@@ -137,8 +137,8 @@ GMOCK_SRCS_ := $(GMOCK_DIR)/src/*.cc $(GMOCK_HEADERS)
 # End of boilerplate
 
 COVERAGEFLAGS = $(OBJ_DIR_TEST) --object-directory=$(shell pwd) --root=${ROOT} \
-                --exclude='(^include/|^modules/gmock/|^modules/rapidjson/|^modules/cpp-common/include/|^src/ut/|^usr/)' \
-                --sort-percentage --exclude-lines
+                --exclude='(^include/|^modules/gmock/|^modules/rapidjson/|^modules/cpp-common/include/|^ut/|^usr/)' \
+                --sort-percentage
 
 VGFLAGS = --suppressions=$(VG_SUPPRESS) \
           --gen-suppressions=all \

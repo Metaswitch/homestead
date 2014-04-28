@@ -13,9 +13,6 @@
 [submodule "build-infra"]
 	path = build-infra
 	url = git@github.com:Metaswitch/clearwater-build-infra.git
-[submodule "modules/gcovr"]
-	path = modules/gcovr
-	url = git@github.com:Metaswitch/gcovr-upstream.git
 [submodule "modules/gmock"]
 	path = modules/gmock
 	url = git@github.com:Metaswitch/gmock-upstream.git
@@ -31,3 +28,6 @@
 [submodule "modules/c-ares"]
 	path = modules/c-ares
 	url = git@github.com:bagder/c-ares.git
+[submodule "modules/gcovr"]
+	path = modules/gcovr
+	url = git@github.com:gcovr/gcovr.git

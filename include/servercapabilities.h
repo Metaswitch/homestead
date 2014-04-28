@@ -51,10 +51,13 @@ const std::string JSON_OPT_CAP = "optional-capabilities";
 struct ServerCapabilities
 {
   inline ServerCapabilities(std::vector<int32_t> man_caps,
-                            std::vector<int32_t> opt_caps) : mandatory_capabilities(man_caps), optional_capabilities(opt_caps) {}
+                            std::vector<int32_t> opt_caps,
+                            std::string server_name)
+    : mandatory_capabilities(man_caps), optional_capabilities(opt_caps), server_name(server_name) {}
 
   std::vector<int32_t> mandatory_capabilities;
   std::vector<int32_t> optional_capabilities;
+  std::string server_name;
 
   // Write the server capabilities contained in this structure into a JSON object.
   // The 2 sets of capabilities are added in 2 arrays. If either set of capabilities

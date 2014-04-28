@@ -146,7 +146,7 @@ public:
   {
     _stack = HttpStack::get_instance();
     _stack->initialize();
-    _stack->configure(_host.c_str(), _port, 1, NULL, &_stats_manager, &_load_monitor);
+    _stack->configure(_host.c_str(), _port, 1, NULL, &_load_monitor, &_stats_manager);
     _stack->start();
 
     cwtest_completely_control_time();

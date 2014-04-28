@@ -54,6 +54,7 @@ public:
   static const std::string IMPI;
   static const std::string IMPU;
   static const std::string SERVER_NAME;
+  static const std::string SERVER_NAME_IN_CAPAB;
   static const std::string SIP_AUTH_SCHEME_DIGEST;
   static const std::string SIP_AUTH_SCHEME_AKA;
   static const std::string SIP_AUTHORIZATION;
@@ -76,6 +77,7 @@ public:
   static std::vector<std::string> ASSOCIATED_IDENTITIES;
   static const ServerCapabilities CAPABILITIES;
   static const ServerCapabilities NO_CAPABILITIES;
+  static const ServerCapabilities CAPABILITIES_WITH_SERVER_NAME;
 
   static Diameter::Stack* _real_stack;
   static MockDiameterStack* _mock_stack;
@@ -150,6 +152,12 @@ public:
     EXPECT_TRUE(msg.get_i32_from_avp(_cx_dict->SESSION_ID, test_i32));
     EXPECT_NE(0, test_i32);
     EXPECT_EQ(10415, msg.vendor_id());
+    Diameter::AVP::iterator vendor_spec_app_ids = msg.begin(_cx_dict->VENDOR_SPECIFIC_APPLICATION_ID);
+    EXPECT_TRUE(vendor_spec_app_ids != msg.end());
+    vendor_spec_app_ids->get_i32_from_avp(_cx_dict->VENDOR_ID, test_i32);
+    EXPECT_EQ(10415, test_i32);
+    vendor_spec_app_ids->get_i32_from_avp(_cx_dict->AUTH_APPLICATION_ID, test_i32);
+    EXPECT_EQ(16777216, test_i32);
     EXPECT_TRUE(msg.get_i32_from_avp(_cx_dict->AUTH_SESSION_STATE, test_i32));
     EXPECT_EQ(AUTH_SESSION_STATE, test_i32);
     EXPECT_TRUE(msg.get_str_from_avp(_cx_dict->ORIGIN_HOST, test_str));
@@ -169,6 +177,7 @@ const std::string CxTest::DEST_HOST = "dest-host";
 const std::string CxTest::IMPI = "impi@example.com";
 const std::string CxTest::IMPU = "sip:impu@example.com";
 const std::string CxTest::SERVER_NAME = "sip:example.com";
+const std::string CxTest::SERVER_NAME_IN_CAPAB = "sip:example2.com";
 const std::string CxTest::SIP_AUTH_SCHEME_DIGEST = "SIP Digest";
 const std::string CxTest::SIP_AUTH_SCHEME_AKA = "Digest-AKAv1-MD5";
 const std::string CxTest::SIP_AUTHORIZATION = "authorization";
@@ -192,8 +201,9 @@ std::vector<std::string> CxTest::ASSOCIATED_IDENTITIES {"associated_id1", "assoc
 const std::vector<int32_t> mandatory_capabilities = {1, 3};
 const std::vector<int32_t> optional_capabilities = {2, 4};
 const std::vector<int32_t> no_capabilities = {};
-const ServerCapabilities CxTest::CAPABILITIES(mandatory_capabilities, optional_capabilities);
-const ServerCapabilities CxTest::NO_CAPABILITIES(no_capabilities, no_capabilities);
+const ServerCapabilities CxTest::CAPABILITIES(mandatory_capabilities, optional_capabilities, EMPTY_STRING);
+const ServerCapabilities CxTest::NO_CAPABILITIES(no_capabilities, no_capabilities, EMPTY_STRING);
+const ServerCapabilities CxTest::CAPABILITIES_WITH_SERVER_NAME(no_capabilities, no_capabilities, SERVER_NAME_IN_CAPAB);
 
 Diameter::Stack* CxTest::_real_stack = NULL;
 MockDiameterStack* CxTest::_mock_stack = NULL;
@@ -526,6 +536,27 @@ TEST_F(CxTest, UAATestNoCapabilities)
             capabilities.optional_capabilities);
 }
 
+TEST_F(CxTest, UAATestCapabilitiesWithServerName)
+{
+  Cx::LocationInfoAnswer uaa(_cx_dict,
+                             _mock_stack,
+                             RESULT_CODE_SUCCESS,
+                             0,
+                             EMPTY_STRING,
+                             CAPABILITIES_WITH_SERVER_NAME);
+  launder_message(uaa);
+  EXPECT_TRUE(uaa.result_code(test_i32));
+  EXPECT_EQ(RESULT_CODE_SUCCESS, test_i32);
+  EXPECT_FALSE(uaa.experimental_result_code());
+  EXPECT_FALSE(uaa.server_name(test_str));
+  ServerCapabilities capabilities = uaa.server_capabilities();
+  EXPECT_EQ(SERVER_NAME_IN_CAPAB, capabilities.server_name);
+  EXPECT_EQ(CAPABILITIES_WITH_SERVER_NAME.mandatory_capabilities,
+            capabilities.mandatory_capabilities);
+  EXPECT_EQ(CAPABILITIES_WITH_SERVER_NAME.optional_capabilities,
+            capabilities.optional_capabilities);
+}
+
 //
 // Location Info Requests
 //
@@ -663,6 +694,27 @@ TEST_F(CxTest, LIATestNoCapabilities)
   EXPECT_EQ(NO_CAPABILITIES.mandatory_capabilities,
             capabilities.mandatory_capabilities);
   EXPECT_EQ(NO_CAPABILITIES.optional_capabilities,
+            capabilities.optional_capabilities);
+}
+
+TEST_F(CxTest, LIATestCapabilitiesWithServerName)
+{
+  Cx::LocationInfoAnswer lia(_cx_dict,
+                             _mock_stack,
+                             RESULT_CODE_SUCCESS,
+                             0,
+                             EMPTY_STRING,
+                             CAPABILITIES_WITH_SERVER_NAME);
+  launder_message(lia);
+  EXPECT_TRUE(lia.result_code(test_i32));
+  EXPECT_EQ(RESULT_CODE_SUCCESS, test_i32);
+  EXPECT_FALSE(lia.experimental_result_code());
+  EXPECT_FALSE(lia.server_name(test_str));
+  ServerCapabilities capabilities = lia.server_capabilities();
+  EXPECT_EQ(SERVER_NAME_IN_CAPAB, capabilities.server_name);
+  EXPECT_EQ(CAPABILITIES_WITH_SERVER_NAME.mandatory_capabilities,
+            capabilities.mandatory_capabilities);
+  EXPECT_EQ(CAPABILITIES_WITH_SERVER_NAME.optional_capabilities,
             capabilities.optional_capabilities);
 }
 

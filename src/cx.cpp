@@ -104,7 +104,7 @@ UserAuthorizationRequest::UserAuthorizationRequest(const Dictionary* dict,
 {
   LOG_DEBUG("Building User-Authorization request for %s/%s", impi.c_str(), impu.c_str());
   add_new_session_id();
-  add_vendor_spec_app_id();
+  add_auth_app_id(dict->TGPP, dict->CX);
   add(Diameter::AVP(dict->AUTH_SESSION_STATE).val_i32(1));
   add_origin();
   if (!dest_host.empty())
@@ -161,6 +161,10 @@ UserAuthorizationAnswer::UserAuthorizationAnswer(const Dictionary* dict,
   }
 
   Diameter::AVP server_capabilities(dict->SERVER_CAPABILITIES);
+  if (!capabs.server_name.empty())
+  {
+    server_capabilities.add(Diameter::AVP(dict->SERVER_NAME).val_str(capabs.server_name));
+  }
   if (!capabs.mandatory_capabilities.empty())
   {
     for (std::vector<int32_t>::const_iterator it = capabs.mandatory_capabilities.begin();
@@ -184,7 +188,7 @@ UserAuthorizationAnswer::UserAuthorizationAnswer(const Dictionary* dict,
 
 ServerCapabilities UserAuthorizationAnswer::server_capabilities() const
 {
-  ServerCapabilities server_capabilities({}, {});
+  ServerCapabilities server_capabilities({}, {}, "");
 
   // Server capabilities are grouped into mandatory capabilities and optional capabilities
   // underneath the SERVER_CAPABILITIES AVP.
@@ -206,7 +210,14 @@ ServerCapabilities UserAuthorizationAnswer::server_capabilities() const
       server_capabilities.optional_capabilities.push_back(avps2->val_i32());
       avps2++;
     }
+    avps2 = avps->begin(((Cx::Dictionary*)dict())->SERVER_NAME);
+    if (avps2 != avps->end())
+    {
+      LOG_DEBUG("Found server name %s", avps2->val_str().c_str());
+      server_capabilities.server_name = avps2->val_str();
+    }
   }
+
   return server_capabilities;
 }
 
@@ -221,7 +232,7 @@ LocationInfoRequest::LocationInfoRequest(const Dictionary* dict,
 {
   LOG_DEBUG("Building Location-Info request for %s", impu.c_str());
   add_new_session_id();
-  add_vendor_spec_app_id();
+  add_auth_app_id(dict->TGPP, dict->CX);
   add(Diameter::AVP(dict->AUTH_SESSION_STATE).val_i32(1));
   add_origin();
   if (!dest_host.empty())
@@ -275,6 +286,12 @@ LocationInfoAnswer::LocationInfoAnswer(const Dictionary* dict,
   }
 
   Diameter::AVP server_capabilities(dict->SERVER_CAPABILITIES);
+
+  if (!capabs.server_name.empty())
+  {
+    server_capabilities.add(Diameter::AVP(dict->SERVER_NAME).val_str(capabs.server_name));
+  }
+
   if (!capabs.mandatory_capabilities.empty())
   {
     for (std::vector<int32_t>::const_iterator it = capabs.mandatory_capabilities.begin();
@@ -298,7 +315,7 @@ LocationInfoAnswer::LocationInfoAnswer(const Dictionary* dict,
 
 ServerCapabilities LocationInfoAnswer::server_capabilities() const
 {
-  ServerCapabilities server_capabilities({}, {});
+  ServerCapabilities server_capabilities({}, {}, "");
 
   // Server capabilities are grouped into mandatory capabilities and optional capabilities
   // underneath the SERVER_CAPABILITIES AVP.
@@ -320,7 +337,14 @@ ServerCapabilities LocationInfoAnswer::server_capabilities() const
       server_capabilities.optional_capabilities.push_back(avps2->val_i32());
       avps2++;
     }
+    avps2 = avps->begin(((Cx::Dictionary*)dict())->SERVER_NAME);
+    if (avps2 != avps->end())
+    {
+      LOG_DEBUG("Found server name %s", avps2->val_str().c_str());
+      server_capabilities.server_name = avps2->val_str();
+    }
   }
+
   return server_capabilities;
 }
 
@@ -337,7 +361,7 @@ MultimediaAuthRequest::MultimediaAuthRequest(const Dictionary* dict,
 {
   LOG_DEBUG("Building Multimedia-Auth request for %s/%s", impi.c_str(), impu.c_str());
   add_new_session_id();
-  add_vendor_spec_app_id();
+  add_auth_app_id(dict->TGPP, dict->CX);
   add(Diameter::AVP(dict->AUTH_SESSION_STATE).val_i32(1));
   add(Diameter::AVP(dict->DESTINATION_REALM).val_str(dest_realm));
   if (!dest_host.empty())
@@ -589,7 +613,7 @@ ServerAssignmentRequest::ServerAssignmentRequest(const Dictionary* dict,
 {
   LOG_DEBUG("Building Server-Assignment request for %s/%s", impi.c_str(), impu.c_str());
   add_new_session_id();
-  add_vendor_spec_app_id();
+  add_auth_app_id(dict->TGPP, dict->CX);
   add(Diameter::AVP(dict->AUTH_SESSION_STATE).val_i32(1));
   add_origin();
   if (!dest_host.empty())
@@ -722,7 +746,7 @@ RegistrationTerminationAnswer::RegistrationTerminationAnswer(Diameter::Message& 
 {
   LOG_DEBUG("Building Registration-Termination answer");
   build_response(msg);
-  add_vendor_spec_app_id();
+  add_auth_app_id(dict->TGPP, dict->CX);
   set_result_code(result_code);
   add(Diameter::AVP(dict->AUTH_SESSION_STATE).val_i32(auth_session_state));
 
@@ -781,7 +805,7 @@ PushProfileAnswer::PushProfileAnswer(Diameter::Message& msg,
 {
   LOG_DEBUG("Building Push-Profile answer");
   build_response(msg);
-  add_vendor_spec_app_id();
+  add_auth_app_id(dict->TGPP, dict->CX);
   set_result_code(result_code);
   add(Diameter::AVP(dict->AUTH_SESSION_STATE).val_i32(auth_session_state));
 }
