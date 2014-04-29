@@ -58,6 +58,7 @@
 struct options
 {
   std::string local_host;
+  std::string home_domain;
   std::string diameter_conf;
   std::string http_address;
   unsigned short http_port;
@@ -88,6 +89,7 @@ void usage(void)
   puts("Options:\n"
        "\n"
        " -l, --localhost <hostname> Specify the local hostname or IP address."
+       " -r, --home-domain <name>   Specify the SIP home domain."
        " -c, --diameter-conf <file> File name for Diameter configuration\n"
        " -H, --http <address>       Set HTTP bind address (default: 0.0.0.0)\n"
        " -t, --http-threads N       Number of HTTP threads (default: 1)\n"
@@ -136,6 +138,7 @@ int init_options(int argc, char**argv, struct options& options)
   struct option long_opt[] =
   {
     {"localhost",               required_argument, NULL, 'l'},
+    {"home-domain",             required_argument, NULL, 'r'},
     {"diameter-conf",           required_argument, NULL, 'c'},
     {"http",                    required_argument, NULL, 'H'},
     {"http-threads",            required_argument, NULL, 't'},
@@ -161,12 +164,16 @@ int init_options(int argc, char**argv, struct options& options)
 
   int opt;
   int long_opt_ind;
-  while ((opt = getopt_long(argc, argv, "l:c:H:t:u:S:D:d:p:s:i:I:a:F:L:h", long_opt, &long_opt_ind)) != -1)
+  while ((opt = getopt_long(argc, argv, "l:r:c:H:t:u:S:D:d:p:s:i:I:a:F:L:h", long_opt, &long_opt_ind)) != -1)
   {
     switch (opt)
     {
     case 'l':
       options.local_host = std::string(optarg);
+      break;
+
+    case 'r':
+      options.home_domain = std::string(optarg);
       break;
 
     case 'c':
@@ -307,6 +314,7 @@ int main(int argc, char**argv)
 
   struct options options;
   options.local_host = "127.0.0.1";
+  options.home_domain = "dest-realm.unknown";
   options.diameter_conf = "homestead.conf";
   options.http_address = "0.0.0.0";
   options.http_port = 8888;
@@ -413,8 +421,8 @@ int main(int argc, char**argv)
 
   HttpStack* http_stack = HttpStack::get_instance();
   HssCacheHandler::configure_diameter(diameter_stack,
-                                      options.dest_realm,
-                                      (options.dest_host != "0.0.0.0") ? (options.dest_host) : (""),
+                                      options.dest_realm.empty() ? options.home_domain : options.dest_realm,
+                                      options.dest_host == "0.0.0.0" ? "" : options.dest_host,
                                       options.server_name,
                                       dict);
   HssCacheHandler::configure_cache(cache);
@@ -423,7 +431,7 @@ int main(int argc, char**argv)
   // We should only query the cache for AV information if there is no HSS.  If there is an HSS, we
   // should always hit it.  If there is not, the AV information must have been provisioned in the
   // "cache" (which becomes persistent).
-  bool hss_configured = !options.dest_realm.empty();
+  bool hss_configured = !(options.dest_realm.empty() && (options.dest_host.empty() || options.dest_host == "0.0.0.0"));
 
   ImpiHandler::Config impi_handler_config(hss_configured,
                                           options.impu_cache_ttl,
@@ -483,13 +491,25 @@ int main(int argc, char**argv)
     af = AF_INET6;
   }
 
-  DnsCachedResolver* dns_resolver = new DnsCachedResolver("127.0.0.1");
-  DiameterResolver* diameter_resolver = new DiameterResolver(dns_resolver, af);
-  RealmManager* realm_manager = new RealmManager(diameter_stack,
-                                                 (options.dest_host != "0.0.0.0") ? (options.dest_host) : (""),
-                                                 options.dest_realm,
-                                                 options.max_peers,
-                                                 diameter_resolver);
+  DnsCachedResolver* dns_resolver;
+  DiameterResolver* diameter_resolver;
+  RealmManager* realm_manager;
+  Diameter::Peer* peer;
+
+  if (!options.dest_realm.empty())
+  {
+    dns_resolver = new DnsCachedResolver("127.0.0.1");
+    diameter_resolver = new DiameterResolver(dns_resolver, af);
+    realm_manager = new RealmManager(diameter_stack,
+                                     options.dest_realm,
+                                     options.max_peers,
+                                     diameter_resolver);
+  }
+  else if (!options.dest_host.empty())
+  {
+    peer = new Diameter::Peer(options.dest_host);
+    diameter_stack->add(peer);
+  }
 
   LOG_STATUS("Start-up complete - wait for termination signal");
   sem_wait(&term_sem);
@@ -521,7 +541,17 @@ int main(int argc, char**argv)
 
   delete sprout_conn; sprout_conn = NULL;
 
-  delete realm_manager; realm_manager = NULL;
+  if (!options.dest_realm.empty())
+  {
+    delete realm_manager; realm_manager = NULL;
+    delete diameter_resolver; diameter_resolver = NULL;
+    delete dns_resolver; dns_resolver = NULL;
+  }
+  else if (!options.dest_host.empty())
+  {
+    diameter_stack->remove(peer);
+    delete peer; peer = NULL;
+  }
 
   delete stats_manager; stats_manager = NULL;
   delete load_monitor; load_monitor = NULL;

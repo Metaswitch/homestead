@@ -116,9 +116,6 @@ get_settings()
         if [ ! -z $hss_realm ]
         then
           dest_realm="--dest-realm $hss_realm"
-        elif [ ! -z $home_domain ]
-        then
-          dest_realm="--dest-realm $home_domain"
         fi
 
         [ "$hss_mar_lowercase_unknown" != "Y" ] || scheme_unknown_arg="--scheme-unknown unknown"
@@ -145,6 +142,7 @@ do_start()
         echo 0 > /proc/sys/kernel/yama/ptrace_scope
         get_settings
         DAEMON_ARGS="--localhost $local_ip
+                     --home-domain $home_domain
                      --diameter-conf /var/lib/homestead/homestead.conf
                      --http $local_ip
                      --http-threads $num_http_threads
