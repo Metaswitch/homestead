@@ -505,7 +505,7 @@ int main(int argc, char**argv)
                                      options.max_peers,
                                      diameter_resolver);
   }
-  else if (!options.dest_host.empty())
+  else if (!(options.dest_host.empty() || options.dest_host == "0.0.0.0"))
   {
     peer = new Diameter::Peer(options.dest_host);
     diameter_stack->add(peer);
