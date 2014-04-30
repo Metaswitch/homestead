@@ -547,7 +547,7 @@ int main(int argc, char**argv)
     delete diameter_resolver; diameter_resolver = NULL;
     delete dns_resolver; dns_resolver = NULL;
   }
-  else if (!options.dest_host.empty())
+  else if (!(options.dest_host.empty() || options.dest_host == "0.0.0.0"))
   {
     diameter_stack->remove(peer);
     delete peer; peer = NULL;
