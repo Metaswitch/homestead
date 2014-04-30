@@ -100,6 +100,7 @@ get_settings()
         fi
 
         sprout_http_name=$(python /usr/share/clearwater/bin/bracket_ipv6_address.py $sprout_hostname):9888
+        max_peers=2
         [ -r /etc/clearwater/user_settings ] && . /etc/clearwater/user_settings
 
         # Work out which features are enabled.
@@ -109,6 +110,12 @@ get_settings()
           do
             [ -r $file ] && . $file
           done
+        fi
+
+        # Set the destination realm correctly
+        if [ ! -z $hss_realm ]
+        then
+          dest_realm="--dest-realm $hss_realm"
         fi
 
         [ "$hss_mar_lowercase_unknown" != "Y" ] || scheme_unknown_arg="--scheme-unknown unknown"
@@ -134,11 +141,14 @@ do_start()
         # enable gdb to dump a parent homestead process's stack
         echo 0 > /proc/sys/kernel/yama/ptrace_scope
         get_settings
-        DAEMON_ARGS="--diameter-conf /var/lib/homestead/homestead.conf
+        DAEMON_ARGS="--localhost $local_ip
+                     --home-domain $home_domain
+                     --diameter-conf /var/lib/homestead/homestead.conf
                      --http $local_ip
                      --http-threads $num_http_threads
-                     --dest-realm $home_domain
+                     $dest_realm
                      --dest-host $hss_hostname
+                     --max-peers $max_peers
                      --server-name $server_name
                      --impu-cache-ttl $impu_cache_ttl
                      --hss-reregistration-time $hss_reregistration_time

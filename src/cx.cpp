@@ -107,7 +107,10 @@ UserAuthorizationRequest::UserAuthorizationRequest(const Dictionary* dict,
   add_auth_app_id(dict->TGPP, dict->CX);
   add(Diameter::AVP(dict->AUTH_SESSION_STATE).val_i32(1));
   add_origin();
-  add(Diameter::AVP(dict->DESTINATION_HOST).val_str(dest_host));
+  if (!dest_host.empty())
+  {
+    add(Diameter::AVP(dict->DESTINATION_HOST).val_str(dest_host));
+  }
   add(Diameter::AVP(dict->DESTINATION_REALM).val_str(dest_realm));
   add(Diameter::AVP(dict->USER_NAME).val_str(impi));
   add(Diameter::AVP(dict->PUBLIC_IDENTITY).val_str(impu));
@@ -232,7 +235,10 @@ LocationInfoRequest::LocationInfoRequest(const Dictionary* dict,
   add_auth_app_id(dict->TGPP, dict->CX);
   add(Diameter::AVP(dict->AUTH_SESSION_STATE).val_i32(1));
   add_origin();
-  add(Diameter::AVP(dict->DESTINATION_HOST).val_str(dest_host));
+  if (!dest_host.empty())
+  {
+    add(Diameter::AVP(dict->DESTINATION_HOST).val_str(dest_host));
+  }
   add(Diameter::AVP(dict->DESTINATION_REALM).val_str(dest_realm));
 
   // Only add the ORIGINATING_REQUEST AVP if we are originating. This AVP is an
@@ -358,7 +364,10 @@ MultimediaAuthRequest::MultimediaAuthRequest(const Dictionary* dict,
   add_auth_app_id(dict->TGPP, dict->CX);
   add(Diameter::AVP(dict->AUTH_SESSION_STATE).val_i32(1));
   add(Diameter::AVP(dict->DESTINATION_REALM).val_str(dest_realm));
-  add(Diameter::AVP(dict->DESTINATION_HOST).val_str(dest_host));
+  if (!dest_host.empty())
+  {
+    add(Diameter::AVP(dict->DESTINATION_HOST).val_str(dest_host));
+  }
   add_origin();
   add(Diameter::AVP(dict->USER_NAME).val_str(impi));
   add(Diameter::AVP(dict->PUBLIC_IDENTITY).val_str(impu));
@@ -607,7 +616,10 @@ ServerAssignmentRequest::ServerAssignmentRequest(const Dictionary* dict,
   add_auth_app_id(dict->TGPP, dict->CX);
   add(Diameter::AVP(dict->AUTH_SESSION_STATE).val_i32(1));
   add_origin();
-  add(Diameter::AVP(dict->DESTINATION_HOST).val_str(dest_host));
+  if (!dest_host.empty())
+  {
+    add(Diameter::AVP(dict->DESTINATION_HOST).val_str(dest_host));
+  }
   add(Diameter::AVP(dict->DESTINATION_REALM).val_str(dest_realm));
   if (!impi.empty())
   {

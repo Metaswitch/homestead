@@ -13,16 +13,21 @@ TARGET_TEST := homestead_test
 
 TARGET_SOURCES := accesslogger.cpp \
                   accumulator.cpp \
+                  baseresolver.cpp \
                   cache.cpp \
                   counter.cpp \
                   cx.cpp \
                   diameterstack.cpp \
+                  diameterresolver.cpp \
+                  dnscachedresolver.cpp \
+                  dnsparser.cpp \
                   handlers.cpp \
                   httpconnection.cpp \
                   httpstack.cpp \
                   load_monitor.cpp \
                   logger.cpp \
                   log.cpp \
+                  realmmanager.cpp \
                   saslogger.cpp \
                   sproutconnection.cpp \
                   statistic.cpp \
@@ -105,6 +110,9 @@ LDFLAGS += -lthrift \
            -levhtp \
            -levent_pthreads \
            -levent \
+           -lcares \
+           -lboost_regex \
+           -lboost_date_time \
            -lpthread \
            -lcurl
 

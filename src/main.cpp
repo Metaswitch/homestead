@@ -52,9 +52,13 @@
 #include "sasevent.h"
 #include "saslogger.h"
 #include "sproutconnection.h"
+#include "diameterresolver.h"
+#include "realmmanager.h"
 
 struct options
 {
+  std::string local_host;
+  std::string home_domain;
   std::string diameter_conf;
   std::string http_address;
   unsigned short http_port;
@@ -62,6 +66,7 @@ struct options
   std::string cassandra;
   std::string dest_realm;
   std::string dest_host;
+  int max_peers;
   std::string server_name;
   int impu_cache_ttl;
   int hss_reregistration_time;
@@ -83,6 +88,8 @@ void usage(void)
 {
   puts("Options:\n"
        "\n"
+       " -l, --localhost <hostname> Specify the local hostname or IP address."
+       " -r, --home-domain <name>   Specify the SIP home domain."
        " -c, --diameter-conf <file> File name for Diameter configuration\n"
        " -H, --http <address>       Set HTTP bind address (default: 0.0.0.0)\n"
        " -t, --http-threads N       Number of HTTP threads (default: 1)\n"
@@ -90,6 +97,7 @@ void usage(void)
        " -S, --cassandra <address>  Set the IP address or FQDN of the Cassandra database (default: localhost)"
        " -D, --dest-realm <name>    Set Destination-Realm on Cx messages\n"
        " -d, --dest-host <name>     Set Destination-Host on Cx messages\n"
+       " -p, --max-peers N          Number of peers to connect to (default: 2)\n"
        " -s, --server-name <name>   Set Server-Name on Cx messages\n"
        " -i, --impu-cache-ttl <secs>\n"
        "                            IMPU cache time-to-live in seconds (default: 0)\n"
@@ -129,6 +137,8 @@ int init_options(int argc, char**argv, struct options& options)
 {
   struct option long_opt[] =
   {
+    {"localhost",               required_argument, NULL, 'l'},
+    {"home-domain",             required_argument, NULL, 'r'},
     {"diameter-conf",           required_argument, NULL, 'c'},
     {"http",                    required_argument, NULL, 'H'},
     {"http-threads",            required_argument, NULL, 't'},
@@ -136,6 +146,7 @@ int init_options(int argc, char**argv, struct options& options)
     {"cassandra",               required_argument, NULL, 'S'},
     {"dest-realm",              required_argument, NULL, 'D'},
     {"dest-host",               required_argument, NULL, 'd'},
+    {"max-peers",               required_argument, NULL, 'p'},
     {"server-name",             required_argument, NULL, 's'},
     {"impu-cache-ttl",          required_argument, NULL, 'i'},
     {"hss-reregistration-time", required_argument, NULL, 'I'},
@@ -153,10 +164,18 @@ int init_options(int argc, char**argv, struct options& options)
 
   int opt;
   int long_opt_ind;
-  while ((opt = getopt_long(argc, argv, "c:H:t:u:S:D:d:s:i:I:a:F:L:h", long_opt, &long_opt_ind)) != -1)
+  while ((opt = getopt_long(argc, argv, "l:r:c:H:t:u:S:D:d:p:s:i:I:a:F:L:h", long_opt, &long_opt_ind)) != -1)
   {
     switch (opt)
     {
+    case 'l':
+      options.local_host = std::string(optarg);
+      break;
+
+    case 'r':
+      options.home_domain = std::string(optarg);
+      break;
+
     case 'c':
       options.diameter_conf = std::string(optarg);
       break;
@@ -183,6 +202,10 @@ int init_options(int argc, char**argv, struct options& options)
 
     case 'd':
       options.dest_host = std::string(optarg);
+      break;
+
+    case 'p':
+      options.max_peers = atoi(optarg);
       break;
 
     case 's':
@@ -290,14 +313,17 @@ int main(int argc, char**argv)
   signal(SIGTERM, terminate_handler);
 
   struct options options;
+  options.local_host = "127.0.0.1";
+  options.home_domain = "dest-realm.unknown";
   options.diameter_conf = "homestead.conf";
   options.http_address = "0.0.0.0";
   options.http_port = 8888;
   options.http_threads = 1;
   options.cache_threads = 10;
   options.cassandra = "localhost";
-  options.dest_realm = "dest-realm.unknown";
+  options.dest_realm = "";
   options.dest_host = "dest-host.unknown";
+  options.max_peers = 2;
   options.server_name = "sip:server-name.unknown";
   options.scheme_unknown = "Unknown";
   options.scheme_digest = "SIP Digest";
@@ -395,8 +421,8 @@ int main(int argc, char**argv)
 
   HttpStack* http_stack = HttpStack::get_instance();
   HssCacheHandler::configure_diameter(diameter_stack,
-                                      options.dest_realm,
-                                      options.dest_host,
+                                      options.dest_realm.empty() ? options.home_domain : options.dest_realm,
+                                      options.dest_host == "0.0.0.0" ? "" : options.dest_host,
                                       options.server_name,
                                       dict);
   HssCacheHandler::configure_cache(cache);
@@ -405,7 +431,7 @@ int main(int argc, char**argv)
   // We should only query the cache for AV information if there is no HSS.  If there is an HSS, we
   // should always hit it.  If there is not, the AV information must have been provisioned in the
   // "cache" (which becomes persistent).
-  bool hss_configured = !(options.dest_host.empty() || (options.dest_host == "0.0.0.0"));
+  bool hss_configured = !(options.dest_realm.empty() && (options.dest_host.empty() || options.dest_host == "0.0.0.0"));
 
   ImpiHandler::Config impi_handler_config(hss_configured,
                                           options.impu_cache_ttl,
@@ -456,6 +482,35 @@ int main(int argc, char**argv)
     exit(2);
   }
 
+  // Create a DNS resolver and a SIP specific resolver.
+  int af = AF_INET;
+  struct in6_addr dummy_addr;
+  if (inet_pton(AF_INET6, options.local_host.c_str(), &dummy_addr) == 1)
+  {
+    LOG_DEBUG("Local host is an IPv6 address");
+    af = AF_INET6;
+  }
+
+  DnsCachedResolver* dns_resolver;
+  DiameterResolver* diameter_resolver;
+  RealmManager* realm_manager;
+  Diameter::Peer* peer;
+
+  if (!options.dest_realm.empty())
+  {
+    dns_resolver = new DnsCachedResolver("127.0.0.1");
+    diameter_resolver = new DiameterResolver(dns_resolver, af);
+    realm_manager = new RealmManager(diameter_stack,
+                                     options.dest_realm,
+                                     options.max_peers,
+                                     diameter_resolver);
+  }
+  else if (!(options.dest_host.empty() || options.dest_host == "0.0.0.0"))
+  {
+    peer = new Diameter::Peer(options.dest_host);
+    diameter_stack->add(peer);
+  }
+
   LOG_STATUS("Start-up complete - wait for termination signal");
   sem_wait(&term_sem);
   LOG_STATUS("Termination signal received - terminating");
@@ -485,6 +540,18 @@ int main(int argc, char**argv)
   delete dict;
 
   delete sprout_conn; sprout_conn = NULL;
+
+  if (!options.dest_realm.empty())
+  {
+    delete realm_manager; realm_manager = NULL;
+    delete diameter_resolver; diameter_resolver = NULL;
+    delete dns_resolver; dns_resolver = NULL;
+  }
+  else if (!(options.dest_host.empty() || options.dest_host == "0.0.0.0"))
+  {
+    diameter_stack->remove(peer);
+    delete peer; peer = NULL;
+  }
 
   delete stats_manager; stats_manager = NULL;
   delete load_monitor; load_monitor = NULL;
