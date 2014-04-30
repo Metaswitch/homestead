@@ -1,3 +1,3 @@
-usr/lib/*.so usr/share/clearwater/lib
-usr/lib/*.so.* usr/share/clearwater/lib
-usr/lib/freeDiameter/*.fdx usr/share/clearwater/lib/freeDiameter
+usr/lib/*.so usr/share/clearwater/homestead/lib
+usr/lib/*.so.* usr/share/clearwater/homestead/lib
+usr/lib/freeDiameter/*.fdx usr/share/clearwater/homestead/lib/freeDiameter
