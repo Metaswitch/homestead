@@ -134,7 +134,7 @@ do_start()
                 || return 1
 
         # daemon is not running, so attempt to start it.
-        export LD_LIBRARY_PATH=/usr/share/clearwater/lib
+        export LD_LIBRARY_PATH=/usr/share/clearwater/homestead/lib
         ulimit -Hn 1000000
         ulimit -Sn 1000000
         ulimit -c unlimited
