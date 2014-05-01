@@ -125,18 +125,18 @@ SCTP_streams = 3;
 # -------- Extensions ---------
 
 # Uncomment (and create rtd.conf) to specify routing table for this peer.
-#LoadExtension = "/usr/share/clearwater/lib/freeDiameter/rt_default.fdx" : "/var/lib/homestead/rtd.conf";
+#LoadExtension = "/usr/share/clearwater/homestead/lib/freeDiameter/rt_default.fdx" : "/var/lib/homestead/rtd.conf";
 
 # Uncomment (and create acl.conf) to allow incoming connections from other peers.
-#LoadExtension = "/usr/share/clearwater/lib/freeDiameter/acl_wl.fdx" : "/var/lib/homestead/acl.conf";
+#LoadExtension = "/usr/share/clearwater/homestead/lib/freeDiameter/acl_wl.fdx" : "/var/lib/homestead/acl.conf";
 
 # Uncomment to display periodic state information
-LoadExtension = "/usr/share/clearwater/lib/freeDiameter/dbg_monitor.fdx";
+LoadExtension = "/usr/share/clearwater/homestead/lib/freeDiameter/dbg_monitor.fdx";
 
 # Load the SIP and 3GPP dictionary objects
-LoadExtension = "/usr/share/clearwater/lib/freeDiameter/dict_nasreq.fdx";
-LoadExtension = "/usr/share/clearwater/lib/freeDiameter/dict_sip.fdx";
-LoadExtension = "/usr/share/clearwater/lib/freeDiameter/dict_dcca.fdx";
-LoadExtension = "/usr/share/clearwater/lib/freeDiameter/dict_dcca_3gpp.fdx";
+LoadExtension = "/usr/share/clearwater/homestead/lib/freeDiameter/dict_nasreq.fdx";
+LoadExtension = "/usr/share/clearwater/homestead/lib/freeDiameter/dict_sip.fdx";
+LoadExtension = "/usr/share/clearwater/homestead/lib/freeDiameter/dict_dcca.fdx";
+LoadExtension = "/usr/share/clearwater/homestead/lib/freeDiameter/dict_dcca_3gpp.fdx";
 
 EOF
