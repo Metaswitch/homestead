@@ -284,7 +284,7 @@ void Cache::CacheThreadPool::process_work(Request* &req)
   // worker thread.
   try
   {
-    req->run(_cache->get_client());
+    req->run(_cache);
   }
   // LCOV_EXCL_START Transaction catches all exceptions so the thread pool
   // fallback code is never triggered.
@@ -316,53 +316,85 @@ Cache::Request::~Request()
 }
 
 
-void Cache::Request::run(Cache::CacheClientInterface* client)
+void Cache::Request::run(Cache* cache)
 {
   ResultCode rc = OK;
   std::string error_text = "";
 
   // Store the client and transaction pointer so it is available to subclasses
   // that override perform().
-  _client = client;
+  _client = cache->get_client();
+
+  // Set up whether the perform should be retried on failure.
+  // Only try once, unless there's connection error, in which case try twice.
+  bool attempt_perform = false;
+  int attempt_count = 0;
 
   // Call perform() to actually do the business logic of the request.  Catch
   // exceptions and turn them into return codes and error text.
-  try
+  do
   {
-    perform();
+    attempt_perform = false;
+
+    try
+    {
+      attempt_count++;
+      perform();
+    }
+    catch(TTransportException& te)
+    {
+      rc = CONNECTION_ERROR;
+      error_text = (boost::format("Exception: %s [%d]")
+                    % te.what() % te.getType()).str();
+      SAS::Event event(_trx->trail(), SASEvent::CASS_CONNECT_FAIL, 0);
+      event.add_var_param(error_text);
+      SAS::report_event(event);
+      cache->release_client();
+
+      if (attempt_count <= 1)
+      {
+        // Connection error, destroy and recreate the connection, and retry the
+        //  request once
+        LOG_DEBUG("Connection error, retrying");
+        try
+        {
+          _client = cache->get_client();
+          attempt_perform = true;
+          rc = OK;
+        }
+        catch(...)
+        {
+          // If there's any error recreating the connection just catch the
+          // exception, and the connection will be recreated in the next cycle
+          LOG_ERROR("Cache caught unknown exception");
+        }
+      }
+    }
+    catch(InvalidRequestException& ire)
+    {
+      rc = INVALID_REQUEST;
+      error_text = (boost::format("Exception: %s [%s]")
+                    % ire.what() % ire.why.c_str()).str();
+    }
+    catch(NotFoundException& nfe)
+    {
+      rc = NOT_FOUND;
+      error_text = (boost::format("Exception: %s")
+                    % nfe.what()).str();
+    }
+    catch(Cache::NoResultsException& nre)
+    {
+      rc = NOT_FOUND;
+      error_text = (boost::format("Row %s not present in column_family %s")
+                    % nre.get_key() % nre.get_column_family()).str();
+    }
+    catch(...)
+    {
+      rc = UNKNOWN_ERROR;
+      error_text = "Unknown error";
+    }
   }
-  catch(TTransportException& te)
-  {
-    rc = CONNECTION_ERROR;
-    error_text = (boost::format("Exception: %s [%d]\n")
-                  % te.what() % te.getType()).str();
-    SAS::Event event(_trx->trail(), SASEvent::CASS_CONNECT_FAIL, 0);
-    event.add_var_param(error_text);
-    SAS::report_event(event);
-  }
-  catch(InvalidRequestException& ire)
-  {
-    rc = INVALID_REQUEST;
-    error_text = (boost::format("Exception: %s [%s]\n")
-                  % ire.what() % ire.why.c_str()).str();
-  }
-  catch(NotFoundException& nfe)
-  {
-    rc = NOT_FOUND;
-    error_text = (boost::format("Exception: %s\n")
-                  % nfe.what()).str();
-  }
-  catch(Cache::NoResultsException& nre)
-  {
-    rc = NOT_FOUND;
-    error_text = (boost::format("Row %s not present in column_family %s\n")
-                  % nre.get_key() % nre.get_column_family()).str();
-  }
-  catch(...)
-  {
-    rc = UNKNOWN_ERROR;
-    error_text = "Unknown error";
-  }
+  while (attempt_perform);
 
   if (rc != OK)
   {
