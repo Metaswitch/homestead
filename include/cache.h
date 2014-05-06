@@ -433,7 +433,7 @@ public:
     /// @param client the client to use to interact with the database.
     /// @param trx the parent transaction (which is notified when the request is
     ///   complete).
-    virtual void run(CacheClientInterface* client);
+    virtual void run(Cache* cache);
 
     virtual void set_trx(Transaction* trx) {_trx = trx; }
     virtual Transaction* get_trx() {return _trx; }

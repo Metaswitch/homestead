@@ -1108,7 +1108,7 @@ TEST_F(CacheRequestTest, PutTransportEx)
     _cache.create_PutIMSSubscription("kermit", "<xml>", RegistrationState::REGISTERED, IMPIS, 1000);
 
   apache::thrift::transport::TTransportException te;
-  EXPECT_CALL(_client, batch_mutate(_, _)).WillOnce(Throw(te));
+  EXPECT_CALL(_client, batch_mutate(_, _)).Times(2).WillRepeatedly(Throw(te));
 
   EXPECT_CALL(*trx, on_failure(_, Cache::CONNECTION_ERROR, _));
   _cache.send(trx, req);
