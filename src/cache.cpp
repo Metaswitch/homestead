@@ -327,17 +327,18 @@ void Cache::Request::run(Cache* cache)
 
   // Set up whether the perform should be retried on failure.
   // Only try once, unless there's connection error, in which case try twice.
-  bool attempt_perform = true;
-  int retry_connection_failure = 0;
+  bool attempt_perform = false;
+  int attempt_count = 0;
 
   // Call perform() to actually do the business logic of the request.  Catch
   // exceptions and turn them into return codes and error text.
-  while (attempt_perform)
+  do
   {
     attempt_perform = false;
 
     try
     {
+      attempt_count++;
       perform();
     }
     catch(TTransportException& te)
@@ -350,7 +351,7 @@ void Cache::Request::run(Cache* cache)
       SAS::report_event(event);
       cache->release_client();
 
-      if (retry_connection_failure == 0)
+      if (attempt_count <= 1)
       {
         // Connection error, destroy and recreate the connection, and retry the
         //  request once
@@ -368,8 +369,6 @@ void Cache::Request::run(Cache* cache)
           LOG_ERROR("Cache caught unknown exception");
         }
       }
-
-      retry_connection_failure++;
     }
     catch(InvalidRequestException& ire)
     {
@@ -395,6 +394,7 @@ void Cache::Request::run(Cache* cache)
       error_text = "Unknown error";
     }
   }
+  while (attempt_perform);
 
   if (rc != OK)
   {

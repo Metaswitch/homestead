@@ -1108,6 +1108,8 @@ TEST_F(CacheRequestTest, PutTransportEx)
     _cache.create_PutIMSSubscription("kermit", "<xml>", RegistrationState::REGISTERED, IMPIS, 1000);
 
   apache::thrift::transport::TTransportException te;
+  EXPECT_CALL(_cache, get_client()).Times(2).WillRepeatedly(Return(&_client));
+  EXPECT_CALL(_cache, release_client()).Times(2);
   EXPECT_CALL(_client, batch_mutate(_, _)).Times(2).WillRepeatedly(Throw(te));
 
   EXPECT_CALL(*trx, on_failure(_, Cache::CONNECTION_ERROR, _));
@@ -1115,6 +1117,21 @@ TEST_F(CacheRequestTest, PutTransportEx)
   wait();
 }
 
+TEST_F(CacheRequestTest, PutTransportGetClientEx)
+{
+  CacheTestTransaction *trx = make_trx();
+  Cache::Request* req =
+    _cache.create_PutIMSSubscription("kermit", "<xml>", RegistrationState::REGISTERED, IMPIS, 1000);
+
+  apache::thrift::transport::TTransportException te;
+  EXPECT_CALL(_cache, get_client()).Times(2).WillOnce(Return(&_client)).WillOnce(Throw(te));
+  EXPECT_CALL(_cache, release_client()).Times(1);
+  EXPECT_CALL(_client, batch_mutate(_, _)).Times(1).WillOnce(Throw(te));
+
+  EXPECT_CALL(*trx, on_failure(_, Cache::CONNECTION_ERROR, _));
+  _cache.send(trx, req);
+  wait();
+}
 
 TEST_F(CacheRequestTest, PutInvalidRequestException)
 {
