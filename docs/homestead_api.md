@@ -17,6 +17,7 @@ Response:
 * 404 if the digest is not found.
 
 
+##
     `/impi/<private ID>/registration-status?impu=<impu>[&visited-network=<domain>][&auth-type=<type>]`
 
 Make a GET request to this URL to request authorization of a registration request from the specified user. It maps to a User-Authorization-Request to the HSS.
