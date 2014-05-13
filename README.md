@@ -18,4 +18,4 @@ Further info
 * [Install guide](https://github.com/Metaswitch/clearwater-docs/wiki/Installation-Instructions)
 * [Development guide](docs/development.md)
 * [Homestead API guide](docs/homestead_api.md)
-* [Homestead Feature List](docs/homestead_features.md)
+* [Homestead overview](docs/homestead_overview.md)
