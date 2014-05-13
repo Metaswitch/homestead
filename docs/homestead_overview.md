@@ -1,4 +1,4 @@
-Homestead Feature List
+Homestead Overview
 ======================
 
 Homestead is a HSS-cache. It does not aim to provide the full functionality of an [HSS](http://www.etsi.org/deliver/etsi_ts/129300_129399/129336/11.01.00_60/ts_129336v110100p.pdf),
