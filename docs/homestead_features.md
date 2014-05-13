@@ -32,19 +32,12 @@ the following subscriber data:
 Homestead also supports receiving requests from the HSS:
 
 * Push-Profile Requests (Updates cached IMS subscriptions)
-* Registration-Termination Requests (Updates subscriber registration information and notifies the S-CSCF)
-
-Real HSS-caching
-----------------
-
-In the future, two-way synchronization with the HSS, will be supported.
-
-Currently, the integration with an external HSS is limited to importing of subscriber data from a real HSS. Once imported, Homestead stores this data itself, in order to relieve the HSS from load.
+* Registration-Termination Requests (Updates subscriber registration information and notifies the S-CSCF).
 
 Bulk provisioning
 -----------------
 
-Homestead supports bulk provisioning a large set of subscribers from a CSV file, via a set of command line tools.
+Homestead supports [bulk provisioning](https://github.com/Metaswitch/crest/blob/dev/docs/Bulk-Provisioning%20Numbers.md) a large set of subscribers from a CSV file when deployed without an external HSS, via a set of command line tools.
 
 Scalability
 -----------
