@@ -300,18 +300,21 @@ public:
            int _impu_cache_ttl = 0,
            std::string _scheme_unknown = "Unknown",
            std::string _scheme_digest = "SIP Digest",
-           std::string _scheme_aka = "Digest-AKAv1-MD5") :
+           std::string _scheme_aka = "Digest-AKAv1-MD5",
+           int _diameter_timeout_ms = 200) :
       query_cache_av(!_hss_configured),
       impu_cache_ttl(_impu_cache_ttl),
       scheme_unknown(_scheme_unknown),
       scheme_digest(_scheme_digest),
-      scheme_aka(_scheme_aka) {}
+      scheme_aka(_scheme_aka),
+      diameter_timeout_ms(_diameter_timeout_ms) {}
 
     bool query_cache_av;
     int impu_cache_ttl;
     std::string scheme_unknown;
     std::string scheme_digest;
     std::string scheme_aka;
+    int diameter_timeout_ms;
   };
 
   ImpiHandler(HttpStack::Request& req, const Config* cfg, SAS::TrailId trail) :
@@ -376,8 +379,12 @@ class ImpiRegistrationStatusHandler : public HssCacheHandler
 public:
   struct Config
   {
-    Config(bool _hss_configured = true) : hss_configured(_hss_configured) {}
+    Config(bool _hss_configured = true,
+           int _diameter_timeout_ms = 200) :
+      hss_configured(_hss_configured),
+      diameter_timeout_ms(_diameter_timeout_ms) {}
     bool hss_configured;
+    int diameter_timeout_ms;
   };
 
   ImpiRegistrationStatusHandler(HttpStack::Request& req, const Config* cfg, SAS::TrailId trail) :
@@ -403,8 +410,12 @@ class ImpuLocationInfoHandler : public HssCacheHandler
 public:
   struct Config
   {
-    Config(bool _hss_configured = true) : hss_configured(_hss_configured) {}
+    Config(bool _hss_configured = true,
+           int _diameter_timeout_ms = 200) :
+      hss_configured(_hss_configured),
+      diameter_timeout_ms(_diameter_timeout_ms) {}
     bool hss_configured;
+    int diameter_timeout_ms;
   };
 
   ImpuLocationInfoHandler(HttpStack::Request& req, const Config* cfg, SAS::TrailId trail) :
@@ -429,11 +440,15 @@ class ImpuRegDataHandler : public HssCacheHandler
 public:
   struct Config
   {
-    Config(bool _hss_configured = true, int _hss_reregistration_time = 3600) :
+    Config(bool _hss_configured = true,
+           int _hss_reregistration_time = 3600,
+           int _diameter_timeout_ms = 200) :
       hss_configured(_hss_configured),
-      hss_reregistration_time(_hss_reregistration_time) {}
+      hss_reregistration_time(_hss_reregistration_time),
+      diameter_timeout_ms(_diameter_timeout_ms) {}
     bool hss_configured;
     int hss_reregistration_time;
+    int diameter_timeout_ms;
   };
 
   ImpuRegDataHandler(HttpStack::Request& req, const Config* cfg, SAS::TrailId trail) :

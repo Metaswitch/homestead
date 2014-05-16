@@ -1345,6 +1345,50 @@ TEST_F(HandlersTest, DigestHSSTimeout)
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
 }
 
+TEST_F(HandlersTest, DigestHSSConfigurableTimeout)
+{
+  // This test tests an Impi Digest handler case with an HSS configured.
+  // Start by building the HTTP request which will invoke an HSS lookup.
+  MockHttpStack::Request req(_httpstack,
+                             "/impi/" + IMPI,
+                             "digest",
+                             "?public_id=" + IMPU);
+
+  ImpiHandler::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA, 300);
+  ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg, FAKE_TRAIL_ID);
+
+  // Once the handler's run function is called, expect a diameter message to be sent.
+  EXPECT_CALL(*_mock_stack, send(_, _, 300))
+    .Times(1)
+    .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
+  handler->run();
+  ASSERT_FALSE(_caught_diam_tsx == NULL);
+
+  // Turn the caught Diameter msg structure into a MAR and check its contents.
+  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
+  Cx::MultimediaAuthRequest mar(msg);
+  EXPECT_TRUE(mar.get_str_from_avp(_cx_dict->DESTINATION_REALM, test_str));
+  EXPECT_EQ(DEST_REALM, test_str);
+  EXPECT_TRUE(mar.get_str_from_avp(_cx_dict->DESTINATION_HOST, test_str));
+  EXPECT_EQ(DEST_HOST, test_str);
+  EXPECT_EQ(IMPI, mar.impi());
+  EXPECT_EQ(IMPU, mar.impu());
+  EXPECT_EQ(SCHEME_DIGEST, mar.sip_auth_scheme());
+  EXPECT_EQ("", mar.sip_authorization());
+  EXPECT_TRUE(mar.server_name(test_str));
+  EXPECT_EQ(DEFAULT_SERVER_NAME, test_str);
+
+  DigestAuthVector digest;
+  digest.ha1 = "ha1";
+  digest.realm = "realm";
+  digest.qop = "qop";
+  AKAAuthVector aka;
+
+  EXPECT_CALL(*_httpstack, send_reply(_, 503, _));
+  _caught_diam_tsx->on_timeout();
+  delete _caught_diam_tsx; _caught_diam_tsx = NULL;
+}
+
 TEST_F(HandlersTest, DigestHSSNoIMPU)
 {
   // This test tests an Impi Digest handler case with an HSS configured, but

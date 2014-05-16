@@ -262,7 +262,7 @@ void ImpiHandler::send_mar()
     new DiameterTransaction(_dict, this, DIGEST_STATS);
 
   tsx->set_response_clbk(&ImpiHandler::on_mar_response);
-  mar.send(tsx, 200);
+  mar.send(tsx, _cfg->diameter_timeout_ms);
 }
 
 void ImpiHandler::on_mar_response(Diameter::Message& rsp)
@@ -486,7 +486,7 @@ void ImpiRegistrationStatusHandler::run()
     DiameterTransaction* tsx =
       new DiameterTransaction(_dict, this, SUBSCRIPTION_STATS);
     tsx->set_response_clbk(&ImpiRegistrationStatusHandler::on_uar_response);
-    uar.send(tsx, 200);
+    uar.send(tsx, _cfg->diameter_timeout_ms);
   }
   else
   {
@@ -614,7 +614,7 @@ void ImpuLocationInfoHandler::run()
     DiameterTransaction* tsx =
       new DiameterTransaction(_dict, this, SUBSCRIPTION_STATS);
     tsx->set_response_clbk(&ImpuLocationInfoHandler::on_lir_response);
-    lir.send(tsx, 200);
+    lir.send(tsx, _cfg->diameter_timeout_ms);
   }
   else
   {
@@ -1192,7 +1192,7 @@ void ImpuRegDataHandler::send_server_assignment_request(Cx::ServerAssignmentType
   DiameterTransaction* tsx =
     new DiameterTransaction(_dict, this, SUBSCRIPTION_STATS);
   tsx->set_response_clbk(&ImpuRegDataHandler::on_sar_response);
-  sar.send(tsx, 200);
+  sar.send(tsx, _cfg->diameter_timeout_ms);
 }
 
 std::vector<std::string> ImpuRegDataHandler::get_associated_private_ids()

@@ -82,6 +82,7 @@ struct options
   int cache_threads;
   std::string sas_server;
   std::string sas_system_name;
+  int diameter_timeout_ms;
 };
 
 void usage(void)
@@ -117,6 +118,7 @@ void usage(void)
        "                            Use specified host as Service Assurance Server and specified\n"
        "                            system name to identify this system to SAS.  If this option isn't\n"
        "                            specified SAS is disabled\n"
+       "     --diameter-timeout-ms  Length of time (in ms) before timing out a Diameter request to the HSS\n"
        " -F, --log-file <directory>\n"
        "                            Log to file in specified directory\n"
        " -L, --log-level N          Set log level to N (default: 4)\n"
@@ -130,7 +132,8 @@ enum OptionTypes
   SCHEME_UNKNOWN = 128, // start after the ASCII set ends to avoid conflicts
   SCHEME_DIGEST,
   SCHEME_AKA,
-  SAS_CONFIG
+  SAS_CONFIG,
+  DIAMETER_TIMEOUT_MS
 };
 
 int init_options(int argc, char**argv, struct options& options)
@@ -156,6 +159,7 @@ int init_options(int argc, char**argv, struct options& options)
     {"scheme-aka",              required_argument, NULL, SCHEME_AKA},
     {"access-log",              required_argument, NULL, 'a'},
     {"sas",                     required_argument, NULL, SAS_CONFIG},
+    {"diameter-timeout-ms",     required_argument, NULL, DIAMETER_TIMEOUT_MS},
     {"log-file",                required_argument, NULL, 'F'},
     {"log-level",               required_argument, NULL, 'L'},
     {"help",                    no_argument,       NULL, 'h'},
@@ -259,6 +263,10 @@ int init_options(int argc, char**argv, struct options& options)
       }
       break;
 
+    case DIAMETER_TIMEOUT_MS:
+      options.diameter_timeout_ms = atoi(optarg);
+      break;
+
     case 'F':
       options.log_to_file = true;
       options.log_directory = std::string(optarg);
@@ -336,6 +344,7 @@ int main(int argc, char**argv)
   options.log_level = 0;
   options.sas_server = "0.0.0.0";
   options.sas_system_name = "";
+  options.diameter_timeout_ms = 200;
 
   if (init_options(argc, argv, options) != 0)
   {
@@ -438,10 +447,10 @@ int main(int argc, char**argv)
                                           options.scheme_unknown,
                                           options.scheme_digest,
                                           options.scheme_aka);
-  ImpiRegistrationStatusHandler::Config registration_status_handler_config(hss_configured);
-  ImpuLocationInfoHandler::Config location_info_handler_config(hss_configured);
-  ImpuRegDataHandler::Config impu_handler_config(hss_configured, options.hss_reregistration_time);
-  ImpuIMSSubscriptionHandler::Config impu_handler_config_old(hss_configured, options.hss_reregistration_time);
+  ImpiRegistrationStatusHandler::Config registration_status_handler_config(hss_configured, options.diameter_timeout_ms);
+  ImpuLocationInfoHandler::Config location_info_handler_config(hss_configured, options.diameter_timeout_ms);
+  ImpuRegDataHandler::Config impu_handler_config(hss_configured, options.hss_reregistration_time, options.diameter_timeout_ms);
+  ImpuIMSSubscriptionHandler::Config impu_handler_config_old(hss_configured, options.hss_reregistration_time, options.diameter_timeout_ms);
 
   HttpStack::HandlerFactory<PingHandler> ping_handler_factory;
   HttpStack::ConfiguredHandlerFactory<ImpiDigestHandler, ImpiHandler::Config> impi_digest_handler_factory(&impi_handler_config);
