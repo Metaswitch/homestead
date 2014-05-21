@@ -119,6 +119,8 @@ get_settings()
         fi
 
         [ "$hss_mar_lowercase_unknown" != "Y" ] || scheme_unknown_arg="--scheme-unknown unknown"
+
+        [ -z "$diameter_timeout_ms" ] || diameter_timeout_ms_arg="--diameter-timeout-ms $diameter_timeout_ms"
 }
 
 #
@@ -154,6 +156,7 @@ do_start()
                      --hss-reregistration-time $hss_reregistration_time
                      --sprout-http-name $sprout_http_name
                      $scheme_unknown_arg
+                     $diameter_timeout_ms_arg
                      -a $log_directory
                      -F $log_directory
                      -L $log_level
