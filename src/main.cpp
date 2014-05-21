@@ -446,7 +446,8 @@ int main(int argc, char**argv)
                                           options.impu_cache_ttl,
                                           options.scheme_unknown,
                                           options.scheme_digest,
-                                          options.scheme_aka);
+                                          options.scheme_aka,
+                                          options.diameter_timeout_ms);
   ImpiRegistrationStatusHandler::Config registration_status_handler_config(hss_configured, options.diameter_timeout_ms);
   ImpuLocationInfoHandler::Config location_info_handler_config(hss_configured, options.diameter_timeout_ms);
   ImpuRegDataHandler::Config impu_handler_config(hss_configured, options.hss_reregistration_time, options.diameter_timeout_ms);
