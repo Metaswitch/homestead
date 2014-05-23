@@ -35,6 +35,4 @@
 # This script is executed in the context of the clearwater_diags_monitor script
 # (in the clearwater-infrastructure project).
 
-. /etc/clearwater/config
-
 copy_to_dump "/var/lib/homestead/homestead.conf"
