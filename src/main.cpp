@@ -514,6 +514,7 @@ int main(int argc, char**argv)
                                      options.dest_realm,
                                      options.max_peers,
                                      diameter_resolver);
+    realm_manager->start();
   }
   else if (!(options.dest_host.empty() || options.dest_host == "0.0.0.0"))
   {
@@ -553,6 +554,7 @@ int main(int argc, char**argv)
 
   if (!options.dest_realm.empty())
   {
+    realm_manager->stop();
     delete realm_manager; realm_manager = NULL;
     delete diameter_resolver; diameter_resolver = NULL;
     delete dns_resolver; dns_resolver = NULL;
