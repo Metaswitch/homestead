@@ -2047,7 +2047,7 @@ TEST_F(HandlersTest, IMSSubscriptionAuthFailRegistered)
 
 TEST_F(HandlersTest, IMSSubscriptionAuthFailRegisteredNoHSS)
 {
-  reg_data_template_no_write("dereg-auth-failed", false, false, RegistrationState::REGISTERED, 9, 3600, "");
+  reg_data_template_no_write("dereg-auth-failed", false, false, RegistrationState::REGISTERED, 9, 3600, REGDATA_RESULT);
 }
 
 TEST_F(HandlersTest, IMSSubscriptionAuthFail)
