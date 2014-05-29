@@ -1151,7 +1151,7 @@ void ImpuRegDataHandler::on_get_ims_subscription_success(Cache::Request* request
       // shouldn't deregister them - if they're not registered and fail
       // to log in, they're already in the right state).
       LOG_DEBUG("Handling authentication failure/timeout");
-      send_http_reply(200);
+      send_reply();
     }
     else
     {
