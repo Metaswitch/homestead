@@ -48,7 +48,9 @@ TARGET_SOURCES_TEST := test_main.cpp \
                        httpstack_test.cpp \
                        fakelogger.cpp \
                        mockfreediameter.cpp \
-                       mock_sas.cpp
+                       mock_sas.cpp \
+                       realmmanager_test.cpp \
+                       diameterresolver_test.cpp
 
 TARGET_EXTRA_OBJS_TEST := gmock-all.o \
                           gtest-all.o

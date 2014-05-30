@@ -1,5 +1,5 @@
 /**
- * @file mockdiameterstack.h Mock HTTP stack.
+ * @file mockdiameterresolver.hpp Mock Diameter resolver.
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2013  Metaswitch Networks Ltd
@@ -34,28 +34,25 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#ifndef MOCKDIAMETERSTACK_H__
-#define MOCKDIAMETERSTACK_H__
+#ifndef MOCKDIAMETERRESOLVER_H__
+#define MOCKDIAMETERRESOLVER_H__
 
 #include "gmock/gmock.h"
-#include "diameterstack.h"
+#include "diameterresolver.h"
 
-class MockDiameterStack : public Diameter::Stack
+class MockDiameterResolver : public DiameterResolver
 {
 public:
-  MOCK_METHOD0(initialize, void());
-  MOCK_METHOD1(configure, void(const std::string&));
-  MOCK_METHOD1(advertize_application, void(const Diameter::Dictionary::Application&));
-  MOCK_METHOD3(register_handler, void(const Diameter::Dictionary::Application&, const Diameter::Dictionary::Message&, BaseHandlerFactory*));
-  MOCK_METHOD1(register_fallback_handler, void(const Diameter::Dictionary::Application&));
-  MOCK_METHOD0(start, void());
-  MOCK_METHOD0(stop, void());
-  MOCK_METHOD0(wait_stopped, void());
-  MOCK_METHOD1(send, void(struct msg*));
-  MOCK_METHOD2(send, void(struct msg*, Diameter::Transaction*));
-  MOCK_METHOD3(send, void(struct msg*, Diameter::Transaction*, unsigned int timeout_ms));
-  MOCK_METHOD1(add, bool(Diameter::Peer*));
-  MOCK_METHOD1(remove, void(Diameter::Peer*));
+  MockDiameterResolver() :
+    DiameterResolver(NULL, AF_INET)
+  {};
+  virtual ~MockDiameterResolver() {};
+
+  MOCK_METHOD5(resolve, void(const std::string&,
+                             const std::string&,
+                             int,
+                             std::vector<AddrInfo>&,
+                             int&));
 };
 
 #endif
