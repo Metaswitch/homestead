@@ -501,9 +501,9 @@ int main(int argc, char**argv)
     af = AF_INET6;
   }
 
-  DnsCachedResolver* dns_resolver;
-  DiameterResolver* diameter_resolver;
-  RealmManager* realm_manager;
+  DnsCachedResolver* dns_resolver = NULL;
+  DiameterResolver* diameter_resolver = NULL;
+  RealmManager* realm_manager = NULL;
   Diameter::Peer* peer;
 
   if (!options.dest_realm.empty())
