@@ -37,106 +37,26 @@
 hss_port=3868
 . /etc/clearwater/config
 
-# Check whether the local IP address is IPv6.  If it is override some of the
-# configuration so that FreeDiameter will start.
-
-identity=$public_hostname
-# Note that is_address_ipv6.py is backwards in that it returns 0 for false - hence the '!'.
-if ! /usr/share/clearwater/bin/is_address_ipv6.py $identity
+# If we don't have a hs_listen_port set, fall back to hss_port (for
+# backwards compatibility)
+if [[ -z "$hs_listen_port" ]]
 then
-  identity=$(/usr/share/clearwater/bin/ipv6_to_hostname.py $identity)
+    hs_listen_port=$hss_port
 fi
 
+# Allow a specific FQDN for Homestead to be set (in case this is an
+# all-in-one node running both ralf and homestead Diameter stacks).
+# Otherwise, fall back to the public hostname.
+
+identity=$hs_diameteridentity
+
+if [[ -z "$identity" ]];
+then
+    identity=$public_hostname
+fi
+
+# Strip any characters not valid in an FQDN out of hs_hostname (for
+# example, it might be an IPv6 address)
 realm=$(echo $hs_hostname | sed -e 's/:[^:]*$//g' | sed -e 's/^\[//g' | sed -e 's/\]$//g')
-# Note that is_address_ipv6.py is backwards in that it returns 0 for false - hence the '!'.
-if ! /usr/share/clearwater/bin/is_address_ipv6.py $realm
-then
-  realm=$(/usr/share/clearwater/bin/ipv6_to_hostname.py $realm)
-fi
 
-if [ -f /var/lib/homestead/privkey.pem ]
-then
-    priv_modulus=$(openssl rsa -in /var/lib/homestead/privkey.pem -modulus -noout)
-fi
-
-if [ -f /var/lib/homestead/cert.pem ]
-then
-    pub_modulus=$(openssl x509 -in /var/lib/homestead/cert.pem -modulus -noout)
-    cert_current_name=$(certtool --certificate-info --infile /var/lib/homestead/cert.pem | egrep -e 'Subject: CN=' | sed 's/.*Subject: CN=//g')
-    cert_issuer=$(certtool --certificate-info --infile /var/lib/homestead/cert.pem | egrep -e 'Issuer: CN=' | sed 's/.*Issuer: CN=//g')
-
-fi
-
-if [ -f /var/lib/homestead/ca.pem ]
-then
-    ca_name=$(certtool --certificate-info --infile /var/lib/homestead/ca.pem | egrep -e 'Subject: CN=' | sed 's/.*Subject: CN=//g')
-fi
-
-if [ "$cert_current_name" != "$identity" ] ||
-   [ "$priv_modulus" != "$pub_modulus" ] ||
-   [ "$cert_issuer" != "$ca_name" ]
-then
-    # The current certificate does not have the required common name,
-    # or does not match the private key, or does not match the CA.  Remove them so that they are regenerated below.
-    rm -f /var/lib/homestead/cert.pem /var/lib/homestead/privkey.pem /var/lib/homestead/ca.pem
-fi
-
-# If any of the certificate files are missing, create new self-signed ones.
-if [ ! -f /var/lib/homestead/cert.pem ] ||
-   [ ! -f /var/lib/homestead/privkey.pem ] ||
-   [ ! -f /var/lib/homestead/ca.pem ]
-then
-  rm -f /var/lib/homestead/cert.pem /var/lib/homestead/privkey.pem /var/lib/homestead/ca.pem
-
-  # Build up the configuration file for GnuTLS
-  cat > /tmp/cert.cfg.$$ <<EOF
-cn = "$identity"
-expiration_days = 3650
-EOF
-
-  # Create the certificates.
-  sudo certtool --generate-privkey --bits 1024 --template /tmp/cert.cfg.$$ --outfile /var/lib/homestead/privkey.pem
-  sudo certtool --generate-self-signed --bits 1024 --template /tmp/cert.cfg.$$ --load-privkey /var/lib/homestead/privkey.pem --outfile /var/lib/homestead/cert.pem
-
-  # Fix up the certificates in the directory.  The private key is created as readable
-  # by root only.  Fix it so that the homestead user can read it as well.
-  chmod 644 /var/lib/homestead/privkey.pem
-  cp /var/lib/homestead/cert.pem /var/lib/homestead/ca.pem
-  rm /tmp/cert.cfg.$$
-fi
-
-# Set up the configuration for homestead with the right IP addresses and ports
-cat > /var/lib/homestead/homestead.conf <<EOF
-# -------- Local ---------
-
-Identity = "$identity";
-Realm = "$realm";
-
-Port = $hss_port;
-
-# TLS configuration
-TLS_Cred = "/var/lib/homestead/cert.pem", "/var/lib/homestead/privkey.pem";
-TLS_CA = "/var/lib/homestead/ca.pem";
-
-# Limit the number of SCTP streams
-SCTP_streams = 3;
-
-
-# -------- Extensions ---------
-
-# Uncomment (and create rtd.conf) to specify routing table for this peer.
-#LoadExtension = "/usr/share/clearwater/homestead/lib/freeDiameter/rt_default.fdx" : "/var/lib/homestead/rtd.conf";
-
-# Uncomment (and create acl.conf) to allow incoming connections from other peers.
-#LoadExtension = "/usr/share/clearwater/homestead/lib/freeDiameter/acl_wl.fdx" : "/var/lib/homestead/acl.conf";
-
-# Uncomment to display periodic state information
-LoadExtension = "/usr/share/clearwater/homestead/lib/freeDiameter/dbg_monitor.fdx";
-
-# Load the SIP and 3GPP dictionary objects
-LoadExtension = "/usr/share/clearwater/homestead/lib/freeDiameter/dict_nasreq.fdx";
-LoadExtension = "/usr/share/clearwater/homestead/lib/freeDiameter/dict_sip.fdx";
-LoadExtension = "/usr/share/clearwater/homestead/lib/freeDiameter/dict_dcca.fdx";
-LoadExtension = "/usr/share/clearwater/homestead/lib/freeDiameter/dict_dcca_3gpp.fdx";
-
-EOF
+/usr/share/clearwater/bin/generic_create_diameterconf homestead $identity $realm $hs_listen_port
