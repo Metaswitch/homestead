@@ -102,7 +102,7 @@ void HssCacheHandler::configure_stats(StatisticsManager* stats_manager)
 
 void HssCacheHandler::on_diameter_timeout()
 {
-  send_http_reply(503);
+  send_http_reply(HTTP_GATEWAY_TIMEOUT);
   delete this;
 }
 
@@ -162,7 +162,7 @@ void ImpiHandler::on_get_av_failure(Cache::Request* request, Cache::ResultCode e
   LOG_DEBUG("Cache query failed - reject request");
   SAS::Event event(this->trail(), SASEvent::NO_AV_CACHE, 0);
   SAS::report_event(event);
-  send_http_reply(502);
+  send_http_reply(HTTP_GATEWAY_TIMEOUT);
   delete this;
 }
 
@@ -242,7 +242,7 @@ void ImpiHandler::on_get_impu_failure(Cache::Request* request, Cache::ResultCode
   else
   {
     LOG_DEBUG("Cache query failed with rc %d", error);
-    send_http_reply(502);
+    send_http_reply(HTTP_GATEWAY_TIMEOUT);
   }
   delete this;
 }
@@ -569,7 +569,7 @@ void ImpiRegistrationStatusHandler::on_uar_response(Diameter::Message& rsp)
   {
     LOG_INFO("HSS busy - reject");
     sas_log_hss_failure(result_code);
-    send_http_reply(503);
+    send_http_reply(HTTP_GATEWAY_TIMEOUT);
   }
   else
   {
@@ -690,7 +690,7 @@ void ImpuLocationInfoHandler::on_lir_response(Diameter::Message& rsp)
   {
     LOG_INFO("HSS busy - reject");
     sas_log_hss_failure(result_code);
-    send_http_reply(503);
+    send_http_reply(HTTP_GATEWAY_TIMEOUT);
   }
   else
   {
@@ -1175,7 +1175,7 @@ void ImpuRegDataHandler::on_get_ims_subscription_failure(Cache::Request* request
   LOG_DEBUG("IMS subscription cache query failed: %u, %s", error, text.c_str());
   SAS::Event event(this->trail(), SASEvent::NO_REG_DATA_CACHE, 0);
   SAS::report_event(event);
-  send_http_reply(502);
+  send_http_reply(HTTP_GATEWAY_TIMEOUT);
   delete this;
 }
 

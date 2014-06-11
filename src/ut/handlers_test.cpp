@@ -1226,8 +1226,8 @@ TEST_F(HandlersTest, DigestCacheFailure)
   Cache::Transaction* t = mock_req.get_trx();
   ASSERT_FALSE(t == NULL);
 
-  // Expect a 502 HTTP response once the cache returns an error to the handler.
-  EXPECT_CALL(*_httpstack, send_reply(_, 502, _));
+  // Expect a 504 HTTP response once the cache returns an error to the handler.
+  EXPECT_CALL(*_httpstack, send_reply(_, 504, _));
 
   std::string error_text = "error";
   t->on_failure(&mock_req, Cache::NOT_FOUND, error_text);
@@ -1340,7 +1340,7 @@ TEST_F(HandlersTest, DigestHSSTimeout)
   digest.qop = "qop";
   AKAAuthVector aka;
 
-  EXPECT_CALL(*_httpstack, send_reply(_, 503, _));
+  EXPECT_CALL(*_httpstack, send_reply(_, 504, _));
   _caught_diam_tsx->on_timeout();
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
 }
@@ -1369,7 +1369,7 @@ TEST_F(HandlersTest, DigestHSSConfigurableTimeout)
 
   // Turn the caught Diameter msg structure into a MAR.
   Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
-  EXPECT_CALL(*_httpstack, send_reply(_, 503, _));
+  EXPECT_CALL(*_httpstack, send_reply(_, 504, _));
   _caught_diam_tsx->on_timeout();
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
 }
@@ -1729,9 +1729,9 @@ TEST_F(HandlersTest, DigestNoIMPUCacheFailure)
   Cache::Transaction* t = mock_req.get_trx();
   ASSERT_FALSE(t == NULL);
 
-  // Once the cache transaction's failure callback is called, expect a 502 HTTP
+  // Once the cache transaction's failure callback is called, expect a 504 HTTP
   // response.
-  EXPECT_CALL(*_httpstack, send_reply(_, 502, _));
+  EXPECT_CALL(*_httpstack, send_reply(_, 504, _));
   std::string error_text = "error";
   t->on_failure(&mock_req, Cache::UNKNOWN_ERROR, error_text);
 }
@@ -2469,7 +2469,7 @@ TEST_F(HandlersTest, IMSSubscriptionOtherErrorCallReg)
 }
 
 
-// Cache failures should translate into a 502 Bad Gateway error
+// Cache failures should translate into a 504 Bad Gateway error
 
 TEST_F(HandlersTest, IMSSubscriptionCacheFailureNoHSSInvalidType)
 {
@@ -2499,8 +2499,8 @@ TEST_F(HandlersTest, IMSSubscriptionCacheFailureNoHSSInvalidType)
   Cache::Transaction* t = mock_req.get_trx();
   ASSERT_FALSE(t == NULL);
 
-  // Expect a 502 HTTP response once the cache returns an error to the handler.
-  EXPECT_CALL(*_httpstack, send_reply(_, 502, _));
+  // Expect a 504 HTTP response once the cache returns an error to the handler.
+  EXPECT_CALL(*_httpstack, send_reply(_, 504, _));
 
   std::string error_text = "error";
   t->on_failure(&mock_req, Cache::NOT_FOUND, error_text);
@@ -2527,8 +2527,8 @@ TEST_F(HandlersTest, RegistrationStatusHSSTimeout)
   handler->run();
   ASSERT_FALSE(_caught_diam_tsx == NULL);
 
-  // Expect a 503 response once we notify the handler about the timeout error.
-  EXPECT_CALL(*_httpstack, send_reply(_, 503, _));
+  // Expect a 504 response once we notify the handler about the timeout error.
+  EXPECT_CALL(*_httpstack, send_reply(_, 504, _));
   _caught_diam_tsx->on_timeout();
   fd_msg_free(_caught_fd_msg); _caught_fd_msg = NULL;
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
@@ -2714,7 +2714,7 @@ TEST_F(HandlersTest, RegistrationStatusAuthRejected)
 
 TEST_F(HandlersTest, RegistrationStatusDiameterBusy)
 {
-  registration_status_error_template(DIAMETER_TOO_BUSY, 0, 503);
+  registration_status_error_template(DIAMETER_TOO_BUSY, 0, 504);
 }
 
 TEST_F(HandlersTest, RegistrationStatusOtherError)
@@ -2860,7 +2860,7 @@ TEST_F(HandlersTest, LocationInfoIdentityNotRegistered)
 
 TEST_F(HandlersTest, LocationInfoDiameterBusy)
 {
-  location_info_error_template(DIAMETER_TOO_BUSY, 0, 503);
+  location_info_error_template(DIAMETER_TOO_BUSY, 0, 504);
 }
 
 TEST_F(HandlersTest, LocationInfoOtherError)
