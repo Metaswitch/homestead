@@ -504,7 +504,7 @@ int main(int argc, char**argv)
   DnsCachedResolver* dns_resolver = NULL;
   DiameterResolver* diameter_resolver = NULL;
   RealmManager* realm_manager = NULL;
-  Diameter::Peer* peer;
+  Diameter::Peer* peer = NULL;
 
   if (!options.dest_realm.empty())
   {
