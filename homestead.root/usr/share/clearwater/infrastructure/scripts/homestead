@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # @file homestead
 #
@@ -35,6 +35,7 @@
 # as those licenses appear in the file LICENSE-OPENSSL.
 
 hss_port=3868
+hs_secure_listen_port=5658
 . /etc/clearwater/config
 
 # If we don't have a hs_listen_port set, fall back to hss_port (for
@@ -59,4 +60,4 @@ fi
 # example, it might be an IPv6 address)
 realm=$(echo $hs_hostname | sed -e 's/:[^:]*$//g' | sed -e 's/^\[//g' | sed -e 's/\]$//g')
 
-/usr/share/clearwater/bin/generic_create_diameterconf homestead $identity $realm $hs_listen_port
+/usr/share/clearwater/bin/generic_create_diameterconf homestead $identity $realm $hs_listen_port $hs_secure_listen_port
