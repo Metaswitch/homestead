@@ -35,4 +35,11 @@
 # This script is executed in the context of the clearwater_diags_monitor script
 # (in the clearwater-infrastructure project).
 
+# Copy the homestead config file
 copy_to_dump "/var/lib/homestead/homestead.conf"
+
+# Copy the most recent *hprof dump
+cd /var/lib/cassandra
+hprof_file=$(ls -t /var/lib/cassandra/*hprof | head -1 )
+wait_until_closed $hprof_file
+copy_to_dump $hprof_file
