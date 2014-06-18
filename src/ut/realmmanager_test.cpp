@@ -51,7 +51,6 @@ public:
 
   static MockDiameterStack* _mock_stack;
   static MockDiameterResolver* _mock_resolver;
-  FakeLogger _log;
 
   static void SetUpTestCase()
   {
@@ -151,7 +150,7 @@ TEST_F(RealmmanagerTest, CreateDestroy)
   realm_manager->start();
 
   // We have to sleep here to ensure that the main thread has been
-  // created properly before we try and join to it during shutdown. 
+  // created properly before we try and join to it during shutdown.
   sleep(1);
 
   EXPECT_CALL(*_mock_stack, remove(_))

@@ -263,8 +263,6 @@ public:
 
   // Semaphore that the main thread waits on while a transaction is outstanding.
   sem_t _sem;
-
-  FakeLogger _log;
 };
 
 class CacheLatencyTest : public CacheRequestTest
@@ -2351,8 +2349,9 @@ TEST_F(CacheRequestTest, DissociateImplicitRegistrationSetFromWrongImpi)
 
   EXPECT_CALL(_client, batch_mutate(DeletionMap(expected), _));
 
+  CapturingTestLogger log;
   do_successful_trx(trx, req);
-  EXPECT_TRUE(_log.contains("not all the provided IMPIs are associated with the IMPU"));
+  EXPECT_TRUE(log.contains("not all the provided IMPIs are associated with the IMPU"));
 }
 
 

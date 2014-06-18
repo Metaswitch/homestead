@@ -49,7 +49,6 @@ using namespace std;
 /// Fixture for DiamterResolverTest.
 class DiameterResolverTest : public ::testing::Test
 {
-  FakeLogger _log;
   DnsCachedResolver _dnsresolver;
   DiameterResolver _diameterresolver;
 
