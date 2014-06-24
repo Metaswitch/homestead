@@ -158,7 +158,7 @@ TEST(DiameterStackTest, AdvertizeApplication)
   stack->initialize();
   stack->configure(UT_DIR + "/diameterstack.conf");
   Diameter::Dictionary::Application app("Cx");
-  stack->advertize_application(app);
+  stack->advertize_application(Diameter::Dictionary::Application::AUTH, app);
   stack->start();
   stack->stop();
   stack->wait_stopped();
