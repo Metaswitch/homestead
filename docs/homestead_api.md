@@ -5,7 +5,7 @@ All access must go via this API, rather than directly to the database or HSS.
 
 ## IMPI
 
-    `/impi/<private ID>/digest`
+    /impi/<private ID>/digest
 
 Make a GET request to this URL to retrieve the digest of the specified private ID. It maps to a Multimedia-Auth-Request to the HSS.
 
@@ -18,7 +18,7 @@ Response:
 
 
 ##
-    `/impi/<private ID>/registration-status?impu=<impu>[&visited-network=<domain>][&auth-type=<type>]`
+    /impi/<private ID>/registration-status?impu=<impu>[&visited-network=<domain>][&auth-type=<type>]
 
 Make a GET request to this URL to request authorization of a registration request from the specified user. It maps to a User-Authorization-Request to the HSS.
 
