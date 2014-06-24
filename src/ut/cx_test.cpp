@@ -216,7 +216,7 @@ Cx::Dictionary* CxTest::_cx_dict = NULL;
 TEST_F(CxTest, MARTest)
 {
   Cx::MultimediaAuthRequest mar(_cx_dict,
-                                _real_stack,
+                                _mock_stack,
                                 DEST_REALM,
                                 DEST_HOST,
                                 IMPI,
