@@ -104,7 +104,7 @@ UserAuthorizationRequest::UserAuthorizationRequest(const Dictionary* dict,
 {
   LOG_DEBUG("Building User-Authorization request for %s/%s", impi.c_str(), impu.c_str());
   add_new_session_id();
-  add_auth_app_id(dict->TGPP, dict->CX);
+  add_app_id(Diameter::Dictionary::Application::AUTH, dict->TGPP, dict->CX);
   add(Diameter::AVP(dict->AUTH_SESSION_STATE).val_i32(1));
   add_origin();
   if (!dest_host.empty())
@@ -232,7 +232,7 @@ LocationInfoRequest::LocationInfoRequest(const Dictionary* dict,
 {
   LOG_DEBUG("Building Location-Info request for %s", impu.c_str());
   add_new_session_id();
-  add_auth_app_id(dict->TGPP, dict->CX);
+  add_app_id(Diameter::Dictionary::Application::AUTH, dict->TGPP, dict->CX);
   add(Diameter::AVP(dict->AUTH_SESSION_STATE).val_i32(1));
   add_origin();
   if (!dest_host.empty())
@@ -361,7 +361,7 @@ MultimediaAuthRequest::MultimediaAuthRequest(const Dictionary* dict,
 {
   LOG_DEBUG("Building Multimedia-Auth request for %s/%s", impi.c_str(), impu.c_str());
   add_new_session_id();
-  add_auth_app_id(dict->TGPP, dict->CX);
+  add_app_id(Diameter::Dictionary::Application::AUTH, dict->TGPP, dict->CX);
   add(Diameter::AVP(dict->AUTH_SESSION_STATE).val_i32(1));
   add(Diameter::AVP(dict->DESTINATION_REALM).val_str(dest_realm));
   if (!dest_host.empty())
@@ -613,7 +613,7 @@ ServerAssignmentRequest::ServerAssignmentRequest(const Dictionary* dict,
 {
   LOG_DEBUG("Building Server-Assignment request for %s/%s", impi.c_str(), impu.c_str());
   add_new_session_id();
-  add_auth_app_id(dict->TGPP, dict->CX);
+  add_app_id(Diameter::Dictionary::Application::AUTH, dict->TGPP, dict->CX);
   add(Diameter::AVP(dict->AUTH_SESSION_STATE).val_i32(1));
   add_origin();
   if (!dest_host.empty())
@@ -746,7 +746,7 @@ RegistrationTerminationAnswer::RegistrationTerminationAnswer(Diameter::Message& 
 {
   LOG_DEBUG("Building Registration-Termination answer");
   build_response(msg);
-  add_auth_app_id(dict->TGPP, dict->CX);
+  add_app_id(Diameter::Dictionary::Application::AUTH, dict->TGPP, dict->CX);
   set_result_code(result_code);
   add(Diameter::AVP(dict->AUTH_SESSION_STATE).val_i32(auth_session_state));
 
@@ -805,7 +805,7 @@ PushProfileAnswer::PushProfileAnswer(Diameter::Message& msg,
 {
   LOG_DEBUG("Building Push-Profile answer");
   build_response(msg);
-  add_auth_app_id(dict->TGPP, dict->CX);
+  add_app_id(Diameter::Dictionary::Application::AUTH, dict->TGPP, dict->CX);
   set_result_code(result_code);
   add(Diameter::AVP(dict->AUTH_SESSION_STATE).val_i32(auth_session_state));
 }

@@ -307,6 +307,10 @@ void exception_handler(int sig)
   // Log the signal, along with a backtrace.
   LOG_BACKTRACE("Signal %d caught", sig);
 
+  // Ensure the log files are complete - the core file created by abort() below
+  // will trigger the log files to be copied to the diags bundle
+  LOG_COMMIT();
+
   // Dump a core.
   abort();
 }
@@ -412,7 +416,8 @@ int main(int argc, char**argv)
     diameter_stack->initialize();
     diameter_stack->configure(options.diameter_conf);
     dict = new Cx::Dictionary();
-    diameter_stack->advertize_application(dict->TGPP, dict->CX);
+    diameter_stack->advertize_application(Diameter::Dictionary::Application::AUTH,
+                                          dict->TGPP, dict->CX);
     rt_handler_config = RegistrationTerminationHandler::Config(cache, dict, sprout_conn, options.hss_reregistration_time);
     pp_handler_config = PushProfileHandler::Config(cache, dict, options.impu_cache_ttl, options.hss_reregistration_time);
     rtr_handler_factory = Diameter::Stack::ConfiguredHandlerFactory<RegistrationTerminationHandler, RegistrationTerminationHandler::Config>(dict, &rt_handler_config);
