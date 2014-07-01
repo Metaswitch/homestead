@@ -37,7 +37,6 @@
 #include "realmmanager.h"
 #include "mockdiameterstack.hpp"
 #include "mockdiameterresolver.hpp"
-#include "fakelogger.hpp"
 
 using ::testing::SetArgReferee;
 using ::testing::_;

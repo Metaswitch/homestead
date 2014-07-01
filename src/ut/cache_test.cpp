@@ -40,7 +40,7 @@
 #include "gmock/gmock.h"
 #include "test_utils.hpp"
 #include "test_interposer.hpp"
-#include "fakelogger.hpp"
+#include "fakelogger.h"
 
 #include <cache.h>
 

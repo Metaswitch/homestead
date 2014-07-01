@@ -41,7 +41,6 @@
 #include "utils.h"
 #include "dnscachedresolver.h"
 #include "diameterresolver.h"
-#include "fakelogger.hpp"
 #include "test_utils.hpp"
 
 using namespace std;
@@ -58,7 +57,6 @@ class DiameterResolverTest : public ::testing::Test
     _dnsresolver("0.0.0.0"),
     _diameterresolver(&_dnsresolver, AF_INET)
   {
-    Log::setLoggingLevel(99);
   }
 
   virtual ~DiameterResolverTest()

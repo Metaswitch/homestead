@@ -65,7 +65,6 @@
 #include "mockhttpconnection.hpp"
 #include "handlers.h"
 #include "mockstatisticsmanager.hpp"
-#include "fakelogger.hpp"
 #include "sproutconnection.h"
 
 using ::testing::Return;
