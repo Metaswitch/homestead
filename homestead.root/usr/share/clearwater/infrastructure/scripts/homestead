@@ -51,6 +51,8 @@ fi
 
 identity=$hs_diameteridentity
 
+acl_required=false
+
 if [[ -z "$identity" ]];
 then
     identity=$public_hostname
@@ -60,4 +62,4 @@ fi
 # example, it might be an IPv6 address)
 realm=$(echo $hs_hostname | sed -e 's/:[^:]*$//g' | sed -e 's/^\[//g' | sed -e 's/\]$//g')
 
-/usr/share/clearwater/bin/generic_create_diameterconf homestead $identity $realm $hs_listen_port $hs_secure_listen_port
+/usr/share/clearwater/bin/generic_create_diameterconf homestead $identity $realm $hs_listen_port $hs_secure_listen_port $acl_required
