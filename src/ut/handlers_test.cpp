@@ -65,7 +65,6 @@
 #include "mockhttpconnection.hpp"
 #include "handlers.h"
 #include "mockstatisticsmanager.hpp"
-#include "fakelogger.hpp"
 #include "sproutconnection.h"
 
 using ::testing::Return;
@@ -83,7 +82,6 @@ const SAS::TrailId FAKE_TRAIL_ID = 0x12345678;
 class HandlersTest : public testing::Test
 {
 public:
-  FakeLogger _log;
   static const std::string DEST_REALM;
   static const std::string DEST_HOST;
   static const std::string DEFAULT_SERVER_NAME;

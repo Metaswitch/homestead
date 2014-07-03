@@ -37,7 +37,6 @@
 #include "realmmanager.h"
 #include "mockdiameterstack.hpp"
 #include "mockdiameterresolver.hpp"
-#include "fakelogger.hpp"
 
 using ::testing::SetArgReferee;
 using ::testing::_;
@@ -51,7 +50,6 @@ public:
 
   static MockDiameterStack* _mock_stack;
   static MockDiameterResolver* _mock_resolver;
-  FakeLogger _log;
 
   static void SetUpTestCase()
   {
@@ -151,7 +149,7 @@ TEST_F(RealmmanagerTest, CreateDestroy)
   realm_manager->start();
 
   // We have to sleep here to ensure that the main thread has been
-  // created properly before we try and join to it during shutdown. 
+  // created properly before we try and join to it during shutdown.
   sleep(1);
 
   EXPECT_CALL(*_mock_stack, remove(_))
@@ -169,12 +167,18 @@ TEST_F(RealmmanagerTest, ManageConnections)
   // Set up some AddrInfo structures for the diameter resolver
   // to return.
   AddrInfo peer1;
+  peer1.transport = IPPROTO_TCP;
+  peer1.port = 3868;
   peer1.address.af = AF_INET;
   inet_pton(AF_INET, "1.1.1.1", &peer1.address.addr.ipv4);
   AddrInfo peer2;
+  peer2.transport = IPPROTO_TCP;
+  peer2.port = 3868;
   peer2.address.af = AF_INET;
   inet_pton(AF_INET, "2.2.2.2", &peer2.address.addr.ipv4);
   AddrInfo peer3;
+  peer3.transport = IPPROTO_TCP;
+  peer3.port = 3868;
   peer3.address.af = AF_INET;
   inet_pton(AF_INET, "3.3.3.3", &peer3.address.addr.ipv4);
   std::vector<AddrInfo> targets;
