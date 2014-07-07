@@ -384,10 +384,10 @@ int main(int argc, char**argv)
             sas_write);
 
   StatisticsManager* stats_manager = new StatisticsManager();
-  LoadMonitor* load_monitor = new LoadMonitor(100000, // Initial target latency (us)
+  LoadMonitor* load_monitor = new LoadMonitor(100000, // Initial target latency (us).
                                               20,     // Maximum token bucket size.
                                               10.0,   // Initial token fill rate (per sec).
-                                              10.0);  // Minimum token fill rate (pre sec).
+                                              10.0);  // Minimum token fill rate (per sec).
 
   Cache* cache = Cache::get_instance();
   cache->initialize();

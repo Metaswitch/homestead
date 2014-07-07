@@ -541,7 +541,7 @@ public:
 private:
   const Config* _cfg;
   Cx::RegistrationTerminationRequest _rtr;
-  
+
   int32_t _deregistration_reason;
   std::vector<std::string> _impis;
   std::vector<std::string> _impus;
