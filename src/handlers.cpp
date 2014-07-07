@@ -1715,7 +1715,7 @@ void RegistrationTerminationHandler::send_rta(const std::string result_code)
 {
   // Use our Cx layer to create a RTA object and add the correct AVPs. The RTA is
   // created from the RTR.
-  Cx::RegistrationTerminationAnswer rta(_msg,
+  Cx::RegistrationTerminationAnswer rta(_rtr,
                                         _cfg->dict,
                                         result_code,
                                         _msg.auth_session_state(),
@@ -1783,7 +1783,7 @@ void PushProfileHandler::send_ppa(const std::string result_code)
 {
   // Use our Cx layer to create a PPA object and add the correct AVPs. The PPA is
   // created from the PPR.
-  Cx::PushProfileAnswer ppa(_msg,
+  Cx::PushProfileAnswer ppa(_ppr,
                             _cfg->dict,
                             result_code,
                             _msg.auth_session_state());

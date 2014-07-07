@@ -737,7 +737,7 @@ int32_t RegistrationTerminationRequest::deregistration_reason() const
   return deregistration_reason;
 }
 
-RegistrationTerminationAnswer::RegistrationTerminationAnswer(Diameter::Message& msg,
+RegistrationTerminationAnswer::RegistrationTerminationAnswer(Cx::RegistrationTerminationRequest& msg,
                                                              Dictionary* dict,
                                                              const std::string result_code,
                                                              int32_t auth_session_state,
@@ -796,7 +796,7 @@ PushProfileRequest::PushProfileRequest(const Dictionary* dict,
   add(Diameter::AVP(dict->AUTH_SESSION_STATE).val_i32(auth_session_state));
 }
 
-PushProfileAnswer::PushProfileAnswer(Diameter::Message& msg,
+PushProfileAnswer::PushProfileAnswer(Cx::PushProfileRequest& msg,
                                      Dictionary* dict,
                                      const std::string result_code,
                                      int32_t auth_session_state) :
