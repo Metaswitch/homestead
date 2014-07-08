@@ -320,7 +320,7 @@ public:
 class RegistrationTerminationAnswer : public Diameter::Message
 {
 public:
-  RegistrationTerminationAnswer(Diameter::Message& msg,
+  RegistrationTerminationAnswer(Cx::RegistrationTerminationRequest& rtr,
                                 Dictionary* dict,
                                 const std::string result_code,
                                 int32_t auth_session_state,
@@ -348,7 +348,7 @@ public:
 class PushProfileAnswer : public Diameter::Message
 {
 public:
-  PushProfileAnswer(Diameter::Message& msg,
+  PushProfileAnswer(Cx::PushProfileRequest& ppr,
                     Dictionary* dict,
                     const std::string result_code,
                     int32_t auth_session_state);

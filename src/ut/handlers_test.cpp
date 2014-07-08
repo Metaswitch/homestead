@@ -820,6 +820,7 @@ public:
 
     // We have to make sure the message is pointing at the mock stack.
     handler->_msg._stack = _mock_stack;
+    handler->_rtr._stack = _mock_stack;
 
     // Once the handler's run function is called, we expect a cache request for
     // the IMS subscription of the final public identity in IMPUS.
@@ -926,6 +927,7 @@ public:
 
     // We have to make sure the message is pointing at the mock stack.
     handler->_msg._stack = _mock_stack;
+    handler->_rtr._stack = _mock_stack;
 
     // No public identities, so once the handler's run function is called, we
     // expect a cache request for associated default public identities.
@@ -2960,6 +2962,7 @@ TEST_F(HandlersTest, RegistrationTerminationNoRegSets)
 
   // We have to make sure the message is pointing at the mock stack.
   handler->_msg._stack = _mock_stack;
+  handler->_rtr._stack = _mock_stack;
 
   // Once the handler's run function is called, we expect a cache request for
   // the IMS subscription of the final public identity in IMPUS.
@@ -3031,6 +3034,7 @@ TEST_F(HandlersTest, RegistrationTerminationRegSetsCacheFailure)
 
   // We have to make sure the message is pointing at the mock stack.
   handler->_msg._stack = _mock_stack;
+  handler->_rtr._stack = _mock_stack;
 
   // Once the handler's run function is called, we expect a cache request for
   // the IMS subscription of the final public identity in IMPUS.
@@ -3083,6 +3087,7 @@ TEST_F(HandlersTest, RegistrationTerminationNoAssocIMPUs)
 
   // We have to make sure the message is pointing at the mock stack.
   handler->_msg._stack = _mock_stack;
+  handler->_rtr._stack = _mock_stack;
 
   // No public identities, so once the handler's run function is called, we
   // expect a cache request for associated default public identities.
@@ -3137,6 +3142,7 @@ TEST_F(HandlersTest, RegistrationTerminationAssocIMPUsCacheFailure)
 
   // We have to make sure the message is pointing at the mock stack.
   handler->_msg._stack = _mock_stack;
+  handler->_rtr._stack = _mock_stack;
 
   // No public identities, so once the handler's run function is called, we
   // expect a cache request for associated default public identities.
@@ -3190,6 +3196,7 @@ TEST_F(HandlersTest, RegistrationTerminationInvalidDeregReason)
 
   // We have to make sure the message is pointing at the mock stack.
   handler->_msg._stack = _mock_stack;
+  handler->_rtr._stack = _mock_stack;
 
   // We expect to receive a diameter message.
   EXPECT_CALL(*_mock_stack, send(_))
@@ -3232,6 +3239,7 @@ TEST_F(HandlersTest, PushProfile)
 
   // We have to make sure the message is pointing at the mock stack.
   handler->_msg._stack = _mock_stack;
+  handler->_ppr._stack = _mock_stack;
 
   // Once the handler's run function is called, we expect to try and update
   // the IMS Subscription in the cache.
@@ -3282,6 +3290,7 @@ TEST_F(HandlersTest, PushProfileCacheFailure)
 
   // We have to make sure the message is pointing at the mock stack.
   handler->_msg._stack = _mock_stack;
+  handler->_ppr._stack = _mock_stack;
 
   // Once the handler's run function is called, we expect to try and update
   // the IMS Subscription in the cache.
@@ -3329,8 +3338,9 @@ TEST_F(HandlersTest, PushProfileNoIMSSub)
   PushProfileHandler::Config cfg(_cache, _cx_dict, 0, 3600);
   PushProfileHandler* handler = new PushProfileHandler(_cx_dict, &ppr._fd_msg, &cfg, FAKE_TRAIL_ID);
 
-  // We have to make sure the message is pointing at the mock stack.
+  // We have to make sure the message representations are pointing at the mock stack.
   handler->_msg._stack = _mock_stack;
+  handler->_ppr._stack = _mock_stack;
 
   // Once the handler's run function is called, we just expect a PPA to be sent
   // since there was nothing to do on this PPR.

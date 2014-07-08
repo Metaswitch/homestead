@@ -1393,14 +1393,12 @@ void ImpuIMSSubscriptionHandler::send_reply()
 
 void RegistrationTerminationHandler::run()
 {
-  Cx::RegistrationTerminationRequest rtr(_msg);
-
   // Save off the deregistration reason and all private and public
   // identities on the request.
-  _deregistration_reason = rtr.deregistration_reason();
-  std::string impi = rtr.impi();
+  _deregistration_reason = _rtr.deregistration_reason();
+  std::string impi = _rtr.impi();
   _impis.push_back(impi);
-  std::vector<std::string> associated_identities = rtr.associated_identities();
+  std::vector<std::string> associated_identities = _rtr.associated_identities();
   _impis.insert(_impis.end(), associated_identities.begin(), associated_identities.end());
   if ((_deregistration_reason != SERVER_CHANGE) &&
       (_deregistration_reason != NEW_SERVER_ASSIGNED))
@@ -1409,7 +1407,7 @@ void RegistrationTerminationHandler::run()
     // if deregistration reason is SERVER_CHANGE or NEW_SERVER_ASSIGNED.
     // We'll find some public identities later, and we want _impus to be empty
     // for now.
-    _impus = rtr.impus();
+    _impus = _rtr.impus();
   }
 
   LOG_INFO("Received Regestration-Termination request with dereg reason %d",
@@ -1715,7 +1713,7 @@ void RegistrationTerminationHandler::send_rta(const std::string result_code)
 {
   // Use our Cx layer to create a RTA object and add the correct AVPs. The RTA is
   // created from the RTR.
-  Cx::RegistrationTerminationAnswer rta(_msg,
+  Cx::RegistrationTerminationAnswer rta(_rtr,
                                         _cfg->dict,
                                         result_code,
                                         _msg.auth_session_state(),
@@ -1730,9 +1728,8 @@ void PushProfileHandler::run()
 {
   // Received a Push Profile Request. We may need to update an IMS
   // subscription in the cache.
-  Cx::PushProfileRequest ppr(_msg);
   std::string ims_subscription;
-  ppr.user_data(ims_subscription);
+  _ppr.user_data(ims_subscription);
 
   // If we have an IMS subscription, update the IMPU table for each
   // public ID. Otherwise just reply to the HSS.
@@ -1783,7 +1780,7 @@ void PushProfileHandler::send_ppa(const std::string result_code)
 {
   // Use our Cx layer to create a PPA object and add the correct AVPs. The PPA is
   // created from the PPR.
-  Cx::PushProfileAnswer ppa(_msg,
+  Cx::PushProfileAnswer ppa(_ppr,
                             _cfg->dict,
                             result_code,
                             _msg.auth_session_state());
