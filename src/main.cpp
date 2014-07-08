@@ -458,13 +458,13 @@ int main(int argc, char**argv)
   ImpuRegDataHandler::Config impu_handler_config(hss_configured, options.hss_reregistration_time, options.diameter_timeout_ms);
   ImpuIMSSubscriptionHandler::Config impu_handler_config_old(hss_configured, options.hss_reregistration_time, options.diameter_timeout_ms);
 
-  HttpStack::HandlerFactory<PingHandler> ping_handler_factory;
-  HttpStack::ConfiguredHandlerFactory<ImpiDigestHandler, ImpiHandler::Config> impi_digest_handler_factory(&impi_handler_config);
-  HttpStack::ConfiguredHandlerFactory<ImpiAvHandler, ImpiHandler::Config> impi_av_handler_factory(&impi_handler_config);
-  HttpStack::ConfiguredHandlerFactory<ImpiRegistrationStatusHandler, ImpiRegistrationStatusHandler::Config> impi_reg_status_handler_factory(&registration_status_handler_config);
-  HttpStack::ConfiguredHandlerFactory<ImpuLocationInfoHandler, ImpuLocationInfoHandler::Config> impu_loc_info_handler_factory(&location_info_handler_config);
-  HttpStack::ConfiguredHandlerFactory<ImpuRegDataHandler, ImpuRegDataHandler::Config> impu_reg_data_handler_factory(&impu_handler_config);
-  HttpStack::ConfiguredHandlerFactory<ImpuIMSSubscriptionHandler, ImpuIMSSubscriptionHandler::Config> impu_ims_sub_handler_factory(&impu_handler_config_old);
+  HttpStackUtils::PingController ping_controller;
+  HttpStackUtils::SpawningController<ImpiDigestHandler, ImpiHandler::Config> impi_digest_controller(&impi_handler_config);
+  HttpStackUtils::SpawningController<ImpiAvHandler, ImpiHandler::Config> impi_av_controller(&impi_handler_config);
+  HttpStackUtils::SpawningController<ImpiRegistrationStatusHandler, ImpiRegistrationStatusHandler::Config> impi_reg_status_controller(&registration_status_handler_config);
+  HttpStackUtils::SpawningController<ImpuLocationInfoHandler, ImpuLocationInfoHandler::Config> impu_loc_info_controller(&location_info_handler_config);
+  HttpStackUtils::SpawningController<ImpuRegDataHandler, ImpuRegDataHandler::Config> impu_reg_data_controller(&impu_handler_config);
+  HttpStackUtils::SpawningController<ImpuIMSSubscriptionHandler, ImpuIMSSubscriptionHandler::Config> impu_ims_sub_controller(&impu_handler_config_old);
 
   try
   {
@@ -475,20 +475,20 @@ int main(int argc, char**argv)
                           access_logger,
                           load_monitor,
                           stats_manager);
-    http_stack->register_handler("^/ping$",
-                                 &ping_handler_factory);
-    http_stack->register_handler("^/impi/[^/]*/digest$",
-                                 &impi_digest_handler_factory);
-    http_stack->register_handler("^/impi/[^/]*/av",
-                                 &impi_av_handler_factory);
-    http_stack->register_handler("^/impi/[^/]*/registration-status$",
-                                 &impi_reg_status_handler_factory);
-    http_stack->register_handler("^/impu/[^/]*/location$",
-                                 &impu_loc_info_handler_factory);
-    http_stack->register_handler("^/impu/[^/]*/reg-data$",
-                                 &impu_reg_data_handler_factory);
-    http_stack->register_handler("^/impu/",
-                                 &impu_ims_sub_handler_factory);
+    http_stack->register_controller("^/ping$",
+                                    &ping_controller);
+    http_stack->register_controller("^/impi/[^/]*/digest$",
+                                    &impi_digest_controller);
+    http_stack->register_controller("^/impi/[^/]*/av",
+                                    &impi_av_controller);
+    http_stack->register_controller("^/impi/[^/]*/registration-status$",
+                                    &impi_reg_status_controller);
+    http_stack->register_controller("^/impu/[^/]*/location$",
+                                    &impu_loc_info_controller);
+    http_stack->register_controller("^/impu/[^/]*/reg-data$",
+                                    &impu_reg_data_controller);
+    http_stack->register_controller("^/impu/",
+                                    &impu_ims_sub_controller);
     http_stack->start();
   }
   catch (HttpStack::Exception& e)

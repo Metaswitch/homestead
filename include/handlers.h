@@ -42,7 +42,7 @@
 #include "cx.h"
 #include "diameterstack.h"
 #include "cache.h"
-#include "httpstack.h"
+#include "httpstack_utils.h"
 #include "statisticsmanager.h"
 #include "sas.h"
 #include "sproutconnection.h"
@@ -87,20 +87,11 @@ const std::string JSON_INTEGRITYKEY = "integritykey";
 const std::string JSON_RC = "result-code";
 const std::string JSON_SCSCF = "scscf";
 
-class PingHandler : public HttpStack::Handler
-{
-public:
-  PingHandler(HttpStack::Request& req, SAS::TrailId trail) :
-    HttpStack::Handler(req, trail)
-  {};
-  void run();
-};
-
-class HssCacheHandler : public HttpStack::Handler
+class HssCacheHandler : public HttpStackUtils::Handler
 {
 public:
   HssCacheHandler(HttpStack::Request& req, SAS::TrailId trail) :
-    HttpStack::Handler(req, trail)
+    HttpStackUtils::Handler(req, trail)
   {};
 
   static void configure_diameter(Diameter::Stack* diameter_stack,

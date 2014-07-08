@@ -45,14 +45,6 @@
 #include "rapidxml/rapidxml.hpp"
 #include "boost/algorithm/string/join.hpp"
 
-// The poll_homestead script pings homestead to check it's still alive.
-// Handle the ping.
-void PingHandler::run()
-{
-  _req.add_content("OK");
-  send_http_reply(200);
-  delete this;
-}
 
 Diameter::Stack* HssCacheHandler::_diameter_stack = NULL;
 std::string HssCacheHandler::_dest_realm;
