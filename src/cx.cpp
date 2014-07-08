@@ -737,15 +737,15 @@ int32_t RegistrationTerminationRequest::deregistration_reason() const
   return deregistration_reason;
 }
 
-RegistrationTerminationAnswer::RegistrationTerminationAnswer(Cx::RegistrationTerminationRequest& msg,
+RegistrationTerminationAnswer::RegistrationTerminationAnswer(Cx::RegistrationTerminationRequest& rtr,
                                                              Dictionary* dict,
                                                              const std::string result_code,
                                                              int32_t auth_session_state,
                                                              std::vector<std::string> associated_identities) :
-                                                             Diameter::Message(msg)
+                                                             Diameter::Message(rtr)
 {
   LOG_DEBUG("Building Registration-Termination answer");
-  build_response(msg);
+  build_response(rtr);
   add_app_id(Diameter::Dictionary::Application::AUTH, dict->TGPP, dict->CX);
   set_result_code(result_code);
   add(Diameter::AVP(dict->AUTH_SESSION_STATE).val_i32(auth_session_state));
@@ -796,15 +796,15 @@ PushProfileRequest::PushProfileRequest(const Dictionary* dict,
   add(Diameter::AVP(dict->AUTH_SESSION_STATE).val_i32(auth_session_state));
 }
 
-PushProfileAnswer::PushProfileAnswer(Cx::PushProfileRequest& msg,
+PushProfileAnswer::PushProfileAnswer(Cx::PushProfileRequest& ppr,
                                      Dictionary* dict,
                                      const std::string result_code,
                                      int32_t auth_session_state) :
-                                     Diameter::Message(msg)
+                                     Diameter::Message(ppr)
 
 {
   LOG_DEBUG("Building Push-Profile answer");
-  build_response(msg);
+  build_response(ppr);
   add_app_id(Diameter::Dictionary::Application::AUTH, dict->TGPP, dict->CX);
   set_result_code(result_code);
   add(Diameter::AVP(dict->AUTH_SESSION_STATE).val_i32(auth_session_state));

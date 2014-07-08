@@ -320,7 +320,7 @@ public:
 class RegistrationTerminationAnswer : public Diameter::Message
 {
 public:
-  RegistrationTerminationAnswer(Cx::RegistrationTerminationRequest& msg,
+  RegistrationTerminationAnswer(Cx::RegistrationTerminationRequest& rtr,
                                 Dictionary* dict,
                                 const std::string result_code,
                                 int32_t auth_session_state,
