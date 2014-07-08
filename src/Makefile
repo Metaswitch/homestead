@@ -24,6 +24,7 @@ TARGET_SOURCES := accesslogger.cpp \
                   handlers.cpp \
                   httpconnection.cpp \
                   httpstack.cpp \
+                  httpstack_utils.cpp \
                   load_monitor.cpp \
                   logger.cpp \
                   log.cpp \
