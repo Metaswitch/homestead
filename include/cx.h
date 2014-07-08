@@ -348,7 +348,7 @@ public:
 class PushProfileAnswer : public Diameter::Message
 {
 public:
-  PushProfileAnswer(Cx::PushProfileRequest& msg,
+  PushProfileAnswer(Cx::PushProfileRequest& ppr,
                     Dictionary* dict,
                     const std::string result_code,
                     int32_t auth_session_state);
