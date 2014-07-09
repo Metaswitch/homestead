@@ -44,6 +44,7 @@
 #include "httpstack_utils.h"
 
 #include "mockhttpstack.hpp"
+#include "mock_sas.h"
 
 SAS::TrailId FAKE_TRAIL_ID = 0x1234567890abcdef;
 
@@ -293,6 +294,21 @@ public:
 int TestCountingHandler::construction_count;
 int TestCountingHandler::run_count;
 
+
+class TestChronosController : public HttpStack::ControllerInterface
+{
+public:
+  void process_request(HttpStack::Request& req, SAS::TrailId trail)
+  {
+  }
+
+  HttpStack::SasLogger* sas_logger(HttpStack::Request& req)
+  {
+    return &HttpStackUtils::CHRONOS_SAS_LOGGER;
+  }
+};
+
+
 //
 // Testcases.
 //
@@ -405,4 +421,31 @@ TEST_F(ControllerUtilsTest, SpawningController)
 
   EXPECT_EQ(TestCountingHandler::construction_count, NUM_REQUESTS);
   EXPECT_EQ(TestCountingHandler::run_count, NUM_REQUESTS);
+}
+
+
+TEST_F(ControllerUtilsTest, ChronosLogging)
+{
+  // Check that the chronos SAS logger logs events with the correct event ID.
+  mock_sas_collect_messages(true);
+  MockSASMessage* event;
+
+  TestChronosController chronos_controller;
+
+  MockHttpStack::Request req(_httpstack, "/", "kermit");
+  req.set_sas_logger(chronos_controller.sas_logger(req));
+
+  req.sas_log_rx_http_req(FAKE_TRAIL_ID, 0);
+  event = mock_sas_find_event(SASEvent::RX_HTTP_REQ_DETAIL);
+  EXPECT_TRUE(event != NULL);
+
+  req.sas_log_tx_http_rsp(FAKE_TRAIL_ID, 200, 0);
+  event = mock_sas_find_event(SASEvent::TX_HTTP_RSP_DETAIL);
+  EXPECT_TRUE(event != NULL);
+
+  req.sas_log_overload(FAKE_TRAIL_ID, 503, 0);
+  event = mock_sas_find_event(SASEvent::HTTP_REJECTED_OVERLOAD_DETAIL);
+  EXPECT_TRUE(event != NULL);
+
+  mock_sas_collect_messages(false);
 }
