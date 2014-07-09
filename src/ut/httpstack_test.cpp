@@ -58,6 +58,7 @@ class HttpStackTest : public testing::Test
 public:
   HttpStackTest()
   {
+    _stack = NULL;
     _host = "127.0.0.1";
     _port = 16384 + (getpid() % 16384);
     std::stringstream ss;
@@ -75,10 +76,13 @@ public:
 
   void start_stack()
   {
-    _stack = HttpStack::get_instance();
-    _stack->initialize();
-    _stack->configure(_host.c_str(), _port, 1);
-    _stack->start();
+    // Store the HttpStack in a local variable first, so _stack is
+    // either NULL or fully initialised.
+    HttpStack* lstack = HttpStack::get_instance();
+    lstack->initialize();
+    lstack->configure(_host.c_str(), _port, 1);
+    lstack->start();
+    _stack = lstack;
   }
 
   void stop_stack()
@@ -144,10 +148,13 @@ class HttpStackStatsTest : public HttpStackTest
 public:
   HttpStackStatsTest()
   {
-    _stack = HttpStack::get_instance();
-    _stack->initialize();
-    _stack->configure(_host.c_str(), _port, 1, NULL, &_load_monitor, &_stats_manager);
-    _stack->start();
+    // Store the HttpStack in a local variable first, so _stack is
+    // either NULL or fully initialised.
+    HttpStack* lstack = HttpStack::get_instance();
+    lstack->initialize();
+    lstack->configure(_host.c_str(), _port, 1, NULL, &_load_monitor, &_stats_manager);
+    lstack->start();
+    _stack = lstack;
 
     cwtest_completely_control_time();
   }
