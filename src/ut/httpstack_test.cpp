@@ -76,6 +76,8 @@ public:
 
   void start_stack()
   {
+    // Store the HttpStack in a local variable first, so _stack is
+    // either NULL or fully initialised.
     HttpStack* lstack = HttpStack::get_instance();
     lstack->initialize();
     lstack->configure(_host.c_str(), _port, 1);
@@ -146,6 +148,8 @@ class HttpStackStatsTest : public HttpStackTest
 public:
   HttpStackStatsTest()
   {
+    // Store the HttpStack in a local variable first, so _stack is
+    // either NULL or fully initialised.
     HttpStack* lstack = HttpStack::get_instance();
     lstack->initialize();
     lstack->configure(_host.c_str(), _port, 1, NULL, &_load_monitor, &_stats_manager);
