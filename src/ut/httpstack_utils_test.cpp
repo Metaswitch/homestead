@@ -245,19 +245,19 @@ public:
 class TestSasLoggingController : public HttpStack::ControllerInterface
 {
 public:
-  TestSasLoggingController(SASEvent::HttpLogLevel level) : _level(level) {}
+  TestSasLoggingController(HttpStack::SasLogger* logger) : _logger(logger) {}
 
   void process_request(HttpStack::Request& req, SAS::TrailId trail)
   {
   }
 
-  SASEvent::HttpLogLevel sas_log_level(HttpStack::Request& req)
+  HttpStack::SasLogger* sas_logger(HttpStack::Request& req)
   {
-    return _level;
+    return _logger;
   }
 
 private:
-  SASEvent::HttpLogLevel _level;
+  HttpStack::SasLogger* _logger;
 };
 
 
@@ -373,16 +373,15 @@ TEST_F(ControllerUtilsTest, SasLogLevelPassThrough)
 {
   // Check that the thread pool passes calls to sas_log_level through to the
   // underlying controller.
+  HttpStack::SasLogger local_sas_logger;
 
-  TestSasLoggingController protocol_logger(SASEvent::HttpLogLevel::PROTOCOL);
-  TestSasLoggingController detail_logger(SASEvent::HttpLogLevel::DETAIL);
+  // This controller returns the logger we pass in on the constructor.
+  TestSasLoggingController controller(&local_sas_logger);
   HttpStackUtils::ControllerThreadPool pool(1);
-  HttpStack::ControllerInterface* protocol_interface = pool.wrap(&protocol_logger);
-  HttpStack::ControllerInterface* detail_interface = pool.wrap(&detail_logger);
+  HttpStack::ControllerInterface* interface = pool.wrap(&controller);
 
   MockHttpStack::Request req(_httpstack, "/", "kermit");
-  EXPECT_EQ(protocol_interface->sas_log_level(req), SASEvent::HttpLogLevel::PROTOCOL);
-  EXPECT_EQ(detail_interface->sas_log_level(req), SASEvent::HttpLogLevel::DETAIL);
+  EXPECT_EQ(interface->sas_logger(req), &local_sas_logger);
 }
 
 
