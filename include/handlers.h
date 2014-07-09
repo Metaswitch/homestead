@@ -498,7 +498,7 @@ private:
   void send_reply();
 };
 
-class RegistrationTerminationHandler : public Diameter::Stack::Handler
+class RegistrationTerminationHandler : public Diameter::Handler
 {
 public:
   struct Config
@@ -518,11 +518,11 @@ public:
     int hss_reregistration_time;
   };
 
-  RegistrationTerminationHandler(Diameter::Dictionary* dict,
+  RegistrationTerminationHandler(const Diameter::Dictionary* dict,
                                  struct msg** fd_msg,
                                  const Config* cfg,
                                  SAS::TrailId trail):
-    Diameter::Stack::Handler(dict, fd_msg, trail), _cfg(cfg)
+    Diameter::Handler(dict, fd_msg, trail), _cfg(cfg)
   {}
 
   void run();
@@ -551,7 +551,7 @@ private:
   void send_rta(const std::string result_code);
 };
 
-class PushProfileHandler : public Diameter::Stack::Handler
+class PushProfileHandler : public Diameter::Handler
 {
 public:
   struct Config
@@ -571,11 +571,11 @@ public:
     int hss_reregistration_time;
   };
 
-  PushProfileHandler(Diameter::Dictionary* dict,
+  PushProfileHandler(const Diameter::Dictionary* dict,
                      struct msg** fd_msg,
                      const Config* cfg,
                      SAS::TrailId trail) :
-    Diameter::Stack::Handler(dict, fd_msg, trail), _cfg(cfg)
+    Diameter::Handler(dict, fd_msg, trail), _cfg(cfg)
   {}
 
   void run();

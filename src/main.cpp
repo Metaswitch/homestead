@@ -406,25 +406,22 @@ int main(int argc, char**argv)
   SproutConnection* sprout_conn = new SproutConnection(http);
 
   Diameter::Stack* diameter_stack = Diameter::Stack::get_instance();
-  RegistrationTerminationHandler::Config rt_handler_config(NULL, NULL, NULL, 0);
-  PushProfileHandler::Config pp_handler_config(NULL, NULL, 0, 0);
-  Diameter::Stack::ConfiguredHandlerFactory<RegistrationTerminationHandler, RegistrationTerminationHandler::Config> rtr_handler_factory(NULL, NULL);
-  Diameter::Stack::ConfiguredHandlerFactory<PushProfileHandler, PushProfileHandler::Config> ppr_handler_factory(NULL, NULL);
-  Cx::Dictionary* dict = NULL;
+  Cx::Dictionary* dict = new Cx::Dictionary();
+
+  RegistrationTerminationHandler::Config rtr_config(cache, dict, sprout_conn, options.hss_reregistration_time);
+  PushProfileHandler::Config ppr_config(cache, dict, options.impu_cache_ttl, options.hss_reregistration_time);
+  Diameter::SpawningController<RegistrationTerminationHandler, RegistrationTerminationHandler::Config> rtr_controller(dict, &rtr_config);
+  Diameter::SpawningController<PushProfileHandler, PushProfileHandler::Config> ppr_controller(dict, &ppr_config);
+
   try
   {
     diameter_stack->initialize();
     diameter_stack->configure(options.diameter_conf);
-    dict = new Cx::Dictionary();
     diameter_stack->advertize_application(Diameter::Dictionary::Application::AUTH,
                                           dict->TGPP, dict->CX);
-    rt_handler_config = RegistrationTerminationHandler::Config(cache, dict, sprout_conn, options.hss_reregistration_time);
-    pp_handler_config = PushProfileHandler::Config(cache, dict, options.impu_cache_ttl, options.hss_reregistration_time);
-    rtr_handler_factory = Diameter::Stack::ConfiguredHandlerFactory<RegistrationTerminationHandler, RegistrationTerminationHandler::Config>(dict, &rt_handler_config);
-    ppr_handler_factory = Diameter::Stack::ConfiguredHandlerFactory<PushProfileHandler, PushProfileHandler::Config>(dict, &pp_handler_config);
-    diameter_stack->register_handler(dict->CX, dict->REGISTRATION_TERMINATION_REQUEST, &rtr_handler_factory);
-    diameter_stack->register_handler(dict->CX, dict->PUSH_PROFILE_REQUEST, &ppr_handler_factory);
-    diameter_stack->register_fallback_handler(dict->CX);
+    diameter_stack->register_controller(dict->CX, dict->REGISTRATION_TERMINATION_REQUEST, &rtr_controller);
+    diameter_stack->register_controller(dict->CX, dict->PUSH_PROFILE_REQUEST, &ppr_controller);
+    diameter_stack->register_fallback_controller(dict->CX);
     diameter_stack->start();
   }
   catch (Diameter::Stack::Exception& e)
