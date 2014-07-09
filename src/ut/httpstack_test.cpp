@@ -40,7 +40,6 @@
 #include <curl/curl.h>
 
 #include "httpstack.h"
-#include "httpstack_utils.h"
 
 #include "mockloadmonitor.hpp"
 #include "mockstatisticsmanager.hpp"

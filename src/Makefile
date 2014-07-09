@@ -47,6 +47,7 @@ TARGET_SOURCES_TEST := test_main.cpp \
                        cache_test.cpp \
                        handlers_test.cpp \
                        httpstack_test.cpp \
+                       httpstack_utils_test.cpp \
                        fakelogger.cpp \
                        mockfreediameter.cpp \
                        mock_sas.cpp \
