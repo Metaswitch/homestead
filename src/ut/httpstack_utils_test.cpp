@@ -172,52 +172,62 @@ private:
 };
 
 //
-// Some test controllers.
+// Some test handlers.
 //
 
-// Controller that hits a barrier when it is invoked.
-class TestBarrierController : public HttpStack::ControllerInterface
+// Handler that hits a barrier when it is invoked.
+class TestBarrierHandler : public HttpStackUtils::Handler
 {
 public:
-  TestBarrierController(Barrier* barrier) : _barrier(barrier) {}
-
-  void process_request(HttpStack::Request& req, SAS::TrailId trail)
+  struct Config
   {
-    bool ok = _barrier->arrive(60 * 1000000); // 60s timeout
+    Barrier* barrier;
+  };
+
+  TestBarrierHandler(HttpStack::Request& req,
+                     const Config* cfg,
+                     SAS::TrailId trail) :
+    HttpStackUtils::Handler(req, trail), _cfg(cfg)
+  {}
+
+  void run()
+  {
+    bool ok = _cfg->barrier->arrive(60 * 1000000); // 60s timeout
     ASSERT_TRUE(ok);
   }
 
 private:
-  Barrier* _barrier;
+  const Config* _cfg;
 };
 
 // Controller that posts to a semaphore when it is invoked.  This also provides
 // a method to wait on the semaphore (with a timeout).
-class TestSemaphoreController : public HttpStack::ControllerInterface
+class TestSemaphoreHandler : public HttpStackUtils::Handler
 {
 public:
-  TestSemaphoreController()
+  struct Config
   {
-    sem_init(&sema, 0, 0);
+    sem_t* sema;
+  };
+
+  TestSemaphoreHandler(HttpStack::Request& req,
+                       const Config* cfg,
+                       SAS::TrailId trail) :
+    HttpStackUtils::Handler(req, trail), _cfg(cfg)
+  {}
+
+  void run()
+  {
+    sem_post(_cfg->sema);
   }
 
-  ~TestSemaphoreController()
-  {
-    sem_destroy(&sema);
-  }
-
-  void process_request(HttpStack::Request& req, SAS::TrailId trail)
-  {
-    sem_post(&sema);
-  }
-
-  bool wait_for_request(uint64_t timeout_us = 0)
+  static bool wait_for_request(sem_t* sema, uint64_t timeout_us = 0)
   {
     bool success = true;
 
     if (timeout_us == 0)
     {
-      sem_wait(&sema);
+      sem_wait(sema);
     }
     else
     {
@@ -233,38 +243,20 @@ public:
         timeout_ts.tv_sec += 1;
       }
 
-      success = (sem_timedwait(&sema, &timeout_ts) == 0);
+      success = (sem_timedwait(sema, &timeout_ts) == 0);
     }
 
     return success;
   }
 
-  sem_t sema;
-};
-
-// Test controller that emulates logging transactions at detail level.
-class TestSasLoggingController : public HttpStack::ControllerInterface
-{
-public:
-  TestSasLoggingController(HttpStack::SasLogger* logger) : _logger(logger) {}
-
-  void process_request(HttpStack::Request& req, SAS::TrailId trail)
-  {
-  }
-
-  HttpStack::SasLogger* sas_logger(HttpStack::Request& req)
-  {
-    return _logger;
-  }
-
 private:
-  HttpStack::SasLogger* _logger;
+  const Config* _cfg;
 };
 
 
 // Test handler that counts the number of times it has been instantiated and
 // run.
-class TestCountingHandler : HttpStackUtils::Handler
+class TestCountingHandler : public HttpStackUtils::Handler
 {
 public:
   class Config {};
@@ -308,7 +300,6 @@ public:
   }
 };
 
-
 //
 // Testcases.
 //
@@ -322,15 +313,24 @@ TEST_F(ControllerUtilsTest, SingleThread)
   // worker thread).
   bool ok;
   Barrier barrier(2);
-  TestBarrierController barrier_controller(&barrier);
 
   HttpStackUtils::ControllerThreadPool pool(1);
-  HttpStack::ControllerInterface* controller = pool.wrap(&barrier_controller);
+  pool.start();
+
+  TestBarrierHandler::Config cfg;
+  cfg.barrier = &barrier;
+
+  HttpStackUtils::SpawningController
+    <TestBarrierHandler, TestBarrierHandler::Config>
+      controller(&cfg, &pool);
 
   MockHttpStack::Request req(_httpstack, "/", "kermit");
-  controller->process_request(req, FAKE_TRAIL_ID);
+  controller.process_request(req, FAKE_TRAIL_ID);
   ok = barrier.arrive(10 * 1000000); // 10s timeout
   EXPECT_TRUE(ok);
+
+  pool.stop();
+  pool.join();
 }
 
 
@@ -343,19 +343,28 @@ TEST_F(ControllerUtilsTest, MultipleThreads)
   // threads handling the requests).
   bool ok;
   Barrier barrier(5);
-  TestBarrierController barrier_controller(&barrier);
 
   HttpStackUtils::ControllerThreadPool pool(10);
-  HttpStack::ControllerInterface* controller = pool.wrap(&barrier_controller);
+  pool.start();
+
+  TestBarrierHandler::Config cfg;
+  cfg.barrier = &barrier;
+
+  HttpStackUtils::SpawningController
+    <TestBarrierHandler, TestBarrierHandler::Config>
+      controller(&cfg, &pool);
 
   for (int i = 0; i < 4; ++i)
   {
     MockHttpStack::Request req(_httpstack, "/", "kermit");
-    controller->process_request(req, FAKE_TRAIL_ID);
+    controller.process_request(req, FAKE_TRAIL_ID);
   }
 
   ok = barrier.arrive(10 * 1000000); // 10s timeout
   EXPECT_TRUE(ok);
+
+  pool.stop();
+  pool.join();
 }
 
 
@@ -365,39 +374,37 @@ TEST_F(ControllerUtilsTest, SingleThreadReuse)
   //
   // Test this by posting to a semaphore on every request and then waiting on
   // this semaphore once for each request.
-  TestSemaphoreController semaphore_controller;
+  sem_t sema;
+  sem_init(&sema, 0, 0);
+
+  TestSemaphoreHandler::Config cfg;
+  cfg.sema = &sema;
+
   HttpStackUtils::ControllerThreadPool pool(1);
-  HttpStack::ControllerInterface* controller = pool.wrap(&semaphore_controller);
+  pool.start();
+
+  HttpStackUtils::SpawningController
+    <TestSemaphoreHandler, TestSemaphoreHandler::Config>
+      controller(&cfg, &pool);
 
   const int NUM_REQUESTS = 5;
 
   for (int i = 0; i < NUM_REQUESTS; ++i)
   {
     MockHttpStack::Request req(_httpstack, "/", "kermit");
-    controller->process_request(req, FAKE_TRAIL_ID);
+    controller.process_request(req, FAKE_TRAIL_ID);
   }
 
   for (int i = 0; i < NUM_REQUESTS; ++i)
   {
-    bool ok = semaphore_controller.wait_for_request(10 * 1000000); // 10s timeout.
+    bool ok = TestSemaphoreHandler::wait_for_request(&sema, 10 * 1000000); // 10s timeout.
     EXPECT_TRUE(ok);
   }
-}
 
+  sem_destroy(&sema);
 
-TEST_F(ControllerUtilsTest, SasLogLevelPassThrough)
-{
-  // Check that the thread pool passes calls to sas_log_level through to the
-  // underlying controller.
-  HttpStack::SasLogger local_sas_logger;
-
-  // This controller returns the logger we pass in on the constructor.
-  TestSasLoggingController controller(&local_sas_logger);
-  HttpStackUtils::ControllerThreadPool pool(1);
-  HttpStack::ControllerInterface* interface = pool.wrap(&controller);
-
-  MockHttpStack::Request req(_httpstack, "/", "kermit");
-  EXPECT_EQ(interface->sas_logger(req), &local_sas_logger);
+  pool.stop();
+  pool.join();
 }
 
 
