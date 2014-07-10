@@ -194,6 +194,7 @@ public:
   {
     bool ok = _cfg->barrier->arrive(60 * 1000000); // 60s timeout
     ASSERT_TRUE(ok);
+    delete this; return;
   }
 
 private:
@@ -219,6 +220,7 @@ public:
   void run()
   {
     sem_post(_cfg->sema);
+    delete this; return;
   }
 
   static bool wait_for_request(sem_t* sema, uint64_t timeout_us = 0)
