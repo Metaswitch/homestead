@@ -174,44 +174,40 @@ private:
   StrictMock<MockStatisticsManager> _stats_manager;
 };
 
-// Basic Handler to test handler function.
-class BasicHandler : public HttpStack::Handler
+// Basic controller.
+class BasicController : public HttpStack::ControllerInterface
 {
 public:
-  BasicHandler(HttpStack::Request& req, SAS::TrailId trail) : HttpStack::Handler(req, trail) {};
-  void run()
+  void process_request(HttpStack::Request &req, SAS::TrailId trail)
   {
-    _req.add_content("OK");
-    send_http_reply(200);
-    delete this;
+    req.add_content("OK");
+    req.send_reply(200, trail);
   }
 };
 
-// A handler that takes a long time to process requests (to test latency stats).
+// A controller that takes a long time to process requests (to test latency
+// stats).
 const int DELAY_MS = 2000;
 const unsigned long DELAY_US = DELAY_MS * 1000;
 
-class SlowHandler : public HttpStack::Handler
+class SlowController : public HttpStack::ControllerInterface
 {
 public:
-  SlowHandler(HttpStack::Request& req, SAS::TrailId trail) : HttpStack::Handler(req, trail) {};
-  void run()
+  void process_request(HttpStack::Request &req, SAS::TrailId trail)
   {
     cwtest_advance_time_ms(DELAY_MS);
-    send_http_reply(200);
-    delete this;
+    req.send_reply(200, trail);
   }
 };
 
-class PenaltyHandler : public HttpStack::Handler
+// A controller that applies a load penalty.
+class PenaltyController : public HttpStack::ControllerInterface
 {
 public:
-  PenaltyHandler(HttpStack::Request& req, SAS::TrailId trail) : HttpStack::Handler(req, trail) {};
-  void run()
+  void process_request(HttpStack::Request &req, SAS::TrailId trail)
   {
-    _req.record_penalty();
-    send_http_reply(200);
-    delete this;
+    req.record_penalty();
+    req.send_reply(200, trail);
   }
 };
 
@@ -221,35 +217,35 @@ TEST_F(HttpStackTest, SimpleMainline)
   stop_stack();
 }
 
-TEST_F(HttpStackTest, NoHandler)
+TEST_F(HttpStackTest, NoController)
 {
   start_stack();
 
   int status;
   std::string response;
-  int rc = get("/NoHandler", status, response);
+  int rc = get("/NoController", status, response);
   ASSERT_EQ(CURLE_OK, rc);
   ASSERT_EQ(404, status);
 
   stop_stack();
 }
 
-TEST_F(HttpStackTest, SimpleHandler)
+TEST_F(HttpStackTest, SimpleController)
 {
   start_stack();
 
-  HttpStack::HandlerFactory<BasicHandler> basic_handler_factory;
-  _stack->register_handler("^/BasicHandler$", &basic_handler_factory);
+  BasicController controller;
+  _stack->register_controller("^/BasicController$", &controller);
 
   int status;
   std::string response;
-  int rc = get("/BasicHandler", status, response);
+  int rc = get("/BasicController", status, response);
   ASSERT_EQ(CURLE_OK, rc);
   ASSERT_EQ(200, status);
   ASSERT_EQ("OK", response);
 
-  // Check that NoHandler _doesn't_ match.
-  rc = get("/NoHandler", status, response);
+  // Check that NoController _doesn't_ match.
+  rc = get("/NoController", status, response);
   ASSERT_EQ(CURLE_OK, rc);
   ASSERT_EQ(404, status);
 
@@ -262,15 +258,15 @@ TEST_F(HttpStackTest, SASCorrelationHeader)
   mock_sas_collect_messages(true);
   start_stack();
 
-  HttpStack::HandlerFactory<BasicHandler> basic_handler_factory;
-  _stack->register_handler("^/BasicHandler$", &basic_handler_factory);
+  BasicController controller;
+  _stack->register_controller("^/BasicController$", &controller);
 
   int status;
   std::string response;
   std::list<std::string> hdrs;
   hdrs.push_back("X-SAS-HTTP-Branch-ID: 12345678-1234-1234-1234-123456789ABC");
 
-  int rc = get("/BasicHandler", status, response, &hdrs);
+  int rc = get("/BasicController", status, response, &hdrs);
   ASSERT_EQ(CURLE_OK, rc);
   ASSERT_EQ(200, status);
   ASSERT_EQ("OK", response);
@@ -287,8 +283,8 @@ TEST_F(HttpStackTest, SASCorrelationHeader)
 
 TEST_F(HttpStackStatsTest, SuccessfulRequest)
 {
-  HttpStack::HandlerFactory<SlowHandler> factory;
-  _stack->register_handler("^/BasicHandler$", &factory);
+  SlowController controller;
+  _stack->register_controller("^/BasicController$", &controller);
 
   EXPECT_CALL(_load_monitor, admit_request()).WillOnce(Return(true));
   EXPECT_CALL(_stats_manager, incr_http_incoming_requests()).Times(1);
@@ -297,15 +293,15 @@ TEST_F(HttpStackStatsTest, SuccessfulRequest)
 
   int status;
   std::string response;
-  int rc = get("/BasicHandler", status, response);
+  int rc = get("/BasicController", status, response);
   ASSERT_EQ(CURLE_OK, rc);
   ASSERT_EQ(200, status);
 }
 
 TEST_F(HttpStackStatsTest, RejectOverload)
 {
-  HttpStack::HandlerFactory<BasicHandler> factory;
-  _stack->register_handler("^/BasicHandler$", &factory);
+  BasicController controller;
+  _stack->register_controller("^/BasicController$", &controller);
 
   EXPECT_CALL(_load_monitor, admit_request()).WillOnce(Return(false));
   EXPECT_CALL(_stats_manager, incr_http_incoming_requests()).Times(1);
@@ -313,15 +309,15 @@ TEST_F(HttpStackStatsTest, RejectOverload)
 
   int status;
   std::string response;
-  int rc = get("/BasicHandler", status, response);
+  int rc = get("/BasicController", status, response);
   ASSERT_EQ(CURLE_OK, rc);
   ASSERT_EQ(503, status);  // Request is rejected with a 503.
 }
 
 TEST_F(HttpStackStatsTest, LatencyPenalties)
 {
-  HttpStack::HandlerFactory<PenaltyHandler> factory;
-  _stack->register_handler("^/BasicHandler$", &factory);
+  PenaltyController controller;
+  _stack->register_controller("^/BasicController$", &controller);
 
   EXPECT_CALL(_load_monitor, admit_request()).WillOnce(Return(true));
   EXPECT_CALL(_load_monitor, incr_penalties()).Times(1);
@@ -331,7 +327,7 @@ TEST_F(HttpStackStatsTest, LatencyPenalties)
 
   int status;
   std::string response;
-  int rc = get("/BasicHandler", status, response);
+  int rc = get("/BasicController", status, response);
   ASSERT_EQ(CURLE_OK, rc);
   ASSERT_EQ(200, status);
 }

@@ -59,6 +59,8 @@
 #include "test_interposer.hpp"
 #include <curl/curl.h>
 
+#include "httpstack_utils.h"
+
 #include "mockdiameterstack.hpp"
 #include "mockhttpstack.hpp"
 #include "mockcache.hpp"
@@ -1146,8 +1148,8 @@ TEST_F(HandlersTest, SimpleMainline)
 {
   MockHttpStack::Request req(_httpstack, "/", "ping");
   EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
-  PingHandler* handler = new PingHandler(req, 0);
-  handler->run();
+  HttpStackUtils::PingController controller;
+  controller.process_request(req, 0);
   EXPECT_EQ("OK", req.content());
 }
 

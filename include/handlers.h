@@ -42,7 +42,7 @@
 #include "cx.h"
 #include "diameterstack.h"
 #include "cache.h"
-#include "httpstack.h"
+#include "httpstack_utils.h"
 #include "statisticsmanager.h"
 #include "sas.h"
 #include "sproutconnection.h"
@@ -87,20 +87,11 @@ const std::string JSON_INTEGRITYKEY = "integritykey";
 const std::string JSON_RC = "result-code";
 const std::string JSON_SCSCF = "scscf";
 
-class PingHandler : public HttpStack::Handler
-{
-public:
-  PingHandler(HttpStack::Request& req, SAS::TrailId trail) :
-    HttpStack::Handler(req, trail)
-  {};
-  void run();
-};
-
-class HssCacheHandler : public HttpStack::Handler
+class HssCacheHandler : public HttpStackUtils::Handler
 {
 public:
   HssCacheHandler(HttpStack::Request& req, SAS::TrailId trail) :
-    HttpStack::Handler(req, trail)
+    HttpStackUtils::Handler(req, trail)
   {};
 
   static void configure_diameter(Diameter::Stack* diameter_stack,
@@ -507,7 +498,7 @@ private:
   void send_reply();
 };
 
-class RegistrationTerminationHandler : public Diameter::Stack::Handler
+class RegistrationTerminationHandler : public Diameter::Handler
 {
 public:
   struct Config
@@ -527,11 +518,11 @@ public:
     int hss_reregistration_time;
   };
 
-  RegistrationTerminationHandler(Diameter::Dictionary* dict,
+  RegistrationTerminationHandler(const Diameter::Dictionary* dict,
                                  struct msg** fd_msg,
                                  const Config* cfg,
                                  SAS::TrailId trail):
-    Diameter::Stack::Handler(dict, fd_msg, trail), _cfg(cfg), _rtr(_msg)
+    Diameter::Handler(dict, fd_msg, trail), _cfg(cfg), _rtr(_msg)
   {}
 
   void run();
@@ -562,7 +553,7 @@ private:
   void send_rta(const std::string result_code);
 };
 
-class PushProfileHandler : public Diameter::Stack::Handler
+class PushProfileHandler : public Diameter::Handler
 {
 public:
   struct Config
@@ -582,11 +573,11 @@ public:
     int hss_reregistration_time;
   };
 
-  PushProfileHandler(Diameter::Dictionary* dict,
+  PushProfileHandler(const Diameter::Dictionary* dict,
                      struct msg** fd_msg,
                      const Config* cfg,
                      SAS::TrailId trail) :
-    Diameter::Stack::Handler(dict, fd_msg, trail), _cfg(cfg), _ppr(_msg)
+    Diameter::Handler(dict, fd_msg, trail), _cfg(cfg), _ppr(_msg)
   {}
 
   void run();
