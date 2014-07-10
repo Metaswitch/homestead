@@ -522,7 +522,7 @@ public:
                                  struct msg** fd_msg,
                                  const Config* cfg,
                                  SAS::TrailId trail):
-    Diameter::Handler(dict, fd_msg, trail), _cfg(cfg)
+    Diameter::Handler(dict, fd_msg, trail), _cfg(cfg), _rtr(_msg)
   {}
 
   void run();
@@ -531,6 +531,8 @@ public:
 
 private:
   const Config* _cfg;
+  Cx::RegistrationTerminationRequest _rtr;
+
   int32_t _deregistration_reason;
   std::vector<std::string> _impis;
   std::vector<std::string> _impus;
@@ -575,7 +577,7 @@ public:
                      struct msg** fd_msg,
                      const Config* cfg,
                      SAS::TrailId trail) :
-    Diameter::Handler(dict, fd_msg, trail), _cfg(cfg)
+    Diameter::Handler(dict, fd_msg, trail), _cfg(cfg), _ppr(_msg)
   {}
 
   void run();
@@ -584,6 +586,7 @@ public:
 
 private:
   const Config* _cfg;
+  Cx::PushProfileRequest _ppr;
 
   void update_ims_subscription_success(Cache::Request* request);
   void update_ims_subscription_failure(Cache::Request* request,
