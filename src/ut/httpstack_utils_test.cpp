@@ -67,8 +67,8 @@ class ControllerUtilsTest : public testing::Test
 /// capacity of N and threads that reach the barrier block until the Nth thread
 /// arrives, at which point they all unblock.
 ///
-/// This implemenetion allows the barrier to be reused, so that threads N+1 to
-/// 2n-1 (inclusive) block until thread 2N arrives.
+/// This implementation allows the barrier to be reused, so that threads N+1 to
+/// 2N-1 (inclusive) block until thread 2N arrives.
 class Barrier
 {
 public:
@@ -142,6 +142,7 @@ public:
         if (wait_rc == ETIMEDOUT)
         {
           // Timed out. Give up on waiting.
+          _waiters--;
           success = false;
           break;
         }
@@ -161,7 +162,7 @@ private:
   // and they all unblock.
   unsigned int _capacity;
 
-  // The number of threads currently waiting for thebarrier to trigger.
+  // The number of threads currently waiting for the barrier to trigger.
   unsigned int _waiters;
 
   // The number of times the barrier has been triggered.
@@ -317,7 +318,7 @@ TEST_F(ControllerUtilsTest, SingleThread)
 {
   // Check that the thread pool actually transfers control to a worker thread.
   //
-  // Test this by using a barrier with a capcity of 2. This will only be
+  // Test this by using a barrier with a capacity of 2. This will only be
   // triggered when 2 threads arrive at it (the testbed main thread, and the
   // worker thread).
   bool ok;
