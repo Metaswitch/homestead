@@ -405,22 +405,29 @@ int main(int argc, char**argv)
                                             SASEvent::HttpLogLevel::PROTOCOL);
   SproutConnection* sprout_conn = new SproutConnection(http);
 
-  Diameter::Stack* diameter_stack = Diameter::Stack::get_instance();
-  Cx::Dictionary* dict = new Cx::Dictionary();
+  RegistrationTerminationHandler::Config* rtr_config = NULL;
+  PushProfileHandler::Config* ppr_config = NULL;
+  Diameter::SpawningController<RegistrationTerminationHandler, RegistrationTerminationHandler::Config>* rtr_controller = NULL;
+  Diameter::SpawningController<PushProfileHandler, PushProfileHandler::Config>* ppr_controller = NULL;
+  Cx::Dictionary* dict = NULL;
 
-  RegistrationTerminationHandler::Config rtr_config(cache, dict, sprout_conn, options.hss_reregistration_time);
-  PushProfileHandler::Config ppr_config(cache, dict, options.impu_cache_ttl, options.hss_reregistration_time);
-  Diameter::SpawningController<RegistrationTerminationHandler, RegistrationTerminationHandler::Config> rtr_controller(dict, &rtr_config);
-  Diameter::SpawningController<PushProfileHandler, PushProfileHandler::Config> ppr_controller(dict, &ppr_config);
+  Diameter::Stack* diameter_stack = Diameter::Stack::get_instance();
 
   try
   {
     diameter_stack->initialize();
     diameter_stack->configure(options.diameter_conf);
+    dict = new Cx::Dictionary();
+
+    rtr_config = new RegistrationTerminationHandler::Config(cache, dict, sprout_conn, options.hss_reregistration_time);
+    ppr_config = new PushProfileHandler::Config(cache, dict, options.impu_cache_ttl, options.hss_reregistration_time);
+    rtr_controller = new Diameter::SpawningController<RegistrationTerminationHandler, RegistrationTerminationHandler::Config>(dict, rtr_config);
+    ppr_controller = new Diameter::SpawningController<PushProfileHandler, PushProfileHandler::Config>(dict, ppr_config);
+
     diameter_stack->advertize_application(Diameter::Dictionary::Application::AUTH,
                                           dict->TGPP, dict->CX);
-    diameter_stack->register_controller(dict->CX, dict->REGISTRATION_TERMINATION_REQUEST, &rtr_controller);
-    diameter_stack->register_controller(dict->CX, dict->PUSH_PROFILE_REQUEST, &ppr_controller);
+    diameter_stack->register_controller(dict->CX, dict->REGISTRATION_TERMINATION_REQUEST, rtr_controller);
+    diameter_stack->register_controller(dict->CX, dict->PUSH_PROFILE_REQUEST, ppr_controller);
     diameter_stack->register_fallback_controller(dict->CX);
     diameter_stack->start();
   }
@@ -550,7 +557,11 @@ int main(int argc, char**argv)
   {
     LOG_ERROR("Failed to stop Diameter stack - function %s, rc %d", e._func, e._rc);
   }
-  delete dict;
+  delete dict; dict = NULL;
+  delete ppr_config; ppr_config = NULL;
+  delete rtr_config; rtr_config = NULL;
+  delete ppr_controller; ppr_controller = NULL;
+  delete rtr_controller; rtr_controller = NULL;
 
   delete sprout_conn; sprout_conn = NULL;
 
