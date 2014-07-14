@@ -1201,6 +1201,40 @@ TEST_F(HandlersTest, DigestCache)
   EXPECT_EQ(build_digest_json(digest), req.content());
 }
 
+TEST_F(HandlersTest, DigestCacheNotFound)
+{
+  // This test tests an Impi Digest handler case where no HSS is configured, and
+  // the cache request fails. Start by building the HTTP request which will
+  // invoke a cache lookup.
+  MockHttpStack::Request req(_httpstack,
+                             "/impi/" + IMPI,
+                             "digest",
+                             "?public_id=" + IMPU);
+
+  ImpiHandler::Config cfg(false);
+  ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg, FAKE_TRAIL_ID);
+
+  // Once the handler's run function is called, expect to lookup an auth
+  // vector for the specified public and private IDs.
+  MockCache::MockGetAuthVector mock_req;
+  EXPECT_CALL(*_cache, create_GetAuthVector(IMPI, IMPU))
+    .WillOnce(Return(&mock_req));
+  EXPECT_CALL(*_cache, send(_, &mock_req))
+    .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
+
+  handler->run();
+
+  // Confirm that the cache transaction is not NULL.
+  Cache::Transaction* t = mock_req.get_trx();
+  ASSERT_FALSE(t == NULL);
+
+  // Expect a 404 HTTP response once the cache returns an error to the handler.
+  EXPECT_CALL(*_httpstack, send_reply(_, 404, _));
+
+  std::string error_text = "error";
+  t->on_failure(&mock_req, Cache::NOT_FOUND, error_text);
+}
+
 TEST_F(HandlersTest, DigestCacheFailure)
 {
   // This test tests an Impi Digest handler case where no HSS is configured, and
@@ -1232,7 +1266,7 @@ TEST_F(HandlersTest, DigestCacheFailure)
   EXPECT_CALL(*_httpstack, send_reply(_, 504, _));
 
   std::string error_text = "error";
-  t->on_failure(&mock_req, Cache::NOT_FOUND, error_text);
+  t->on_failure(&mock_req, Cache::UNKNOWN_ERROR, error_text);
 }
 
 TEST_F(HandlersTest, DigestHSS)
@@ -2470,19 +2504,51 @@ TEST_F(HandlersTest, IMSSubscriptionOtherErrorCallReg)
   _caught_fd_msg = NULL;
 }
 
-
-// Cache failures should translate into a 504 Bad Gateway error
-
-TEST_F(HandlersTest, IMSSubscriptionCacheFailureNoHSSInvalidType)
+// Cache not found failures should translate into a 404 Not Found errors
+TEST_F(HandlersTest, IMSSubscriptionCacheNotFound)
 {
-  // This test tests an IMS Subscription handler case for an invalid
-  // registration type where no HSS is configured, and where the cache doesn't
-  // return a result. Start by building the HTTP request which will
+  // This test tests an IMS Subscription handler case where the cache
+  // doesn't return a result. Start by building the HTTP request which will
   // invoke a cache lookup.
   MockHttpStack::Request req(_httpstack,
                              "/impu/" + IMPU,
                              "",
-                             "?type=invalid");
+                             "");
+
+  ImpuIMSSubscriptionHandler::Config cfg(false, 3600);
+  ImpuIMSSubscriptionHandler* handler = new ImpuIMSSubscriptionHandler(req, &cfg, FAKE_TRAIL_ID);
+
+  // Once the handler's run function is called, expect to lookup IMS
+  // subscription information for the specified public ID.
+  MockCache::MockGetIMSSubscription mock_req;
+  EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU))
+    .WillOnce(Return(&mock_req));
+  EXPECT_CALL(*_cache, send(_, &mock_req))
+    .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
+
+  handler->run();
+
+  // Confirm that the cache transaction is not NULL.
+  Cache::Transaction* t = mock_req.get_trx();
+  ASSERT_FALSE(t == NULL);
+
+  // Expect a 404 HTTP response once the cache returns an error to the handler.
+  EXPECT_CALL(*_httpstack, send_reply(_, 404, _));
+
+  std::string error_text = "error";
+  t->on_failure(&mock_req, Cache::NOT_FOUND, error_text);
+}
+
+// Cache failures should translate into a 504 Bad Gateway error
+TEST_F(HandlersTest, IMSSubscriptionCacheFailure)
+{
+  // This test tests an IMS Subscription handler case where the cache 
+  // has an unknown failure. Start by building the HTTP request which 
+  // will invoke a cache lookup.
+  MockHttpStack::Request req(_httpstack,
+                             "/impu/" + IMPU,
+                             "",
+                             "");
 
   ImpuIMSSubscriptionHandler::Config cfg(false, 3600);
   ImpuIMSSubscriptionHandler* handler = new ImpuIMSSubscriptionHandler(req, &cfg, FAKE_TRAIL_ID);
@@ -2505,7 +2571,7 @@ TEST_F(HandlersTest, IMSSubscriptionCacheFailureNoHSSInvalidType)
   EXPECT_CALL(*_httpstack, send_reply(_, 504, _));
 
   std::string error_text = "error";
-  t->on_failure(&mock_req, Cache::NOT_FOUND, error_text);
+  t->on_failure(&mock_req, Cache::UNKNOWN_ERROR, error_text);
 }
 
 TEST_F(HandlersTest, RegistrationStatusHSSTimeout)

@@ -154,7 +154,16 @@ void ImpiHandler::on_get_av_failure(Cache::Request* request, Cache::ResultCode e
   LOG_DEBUG("Cache query failed - reject request");
   SAS::Event event(this->trail(), SASEvent::NO_AV_CACHE, 0);
   SAS::report_event(event);
-  send_http_reply(HTTP_GATEWAY_TIMEOUT);
+  if (error == Cache::NOT_FOUND)
+  {
+    LOG_DEBUG("No cached av found for private ID %s, public ID %s - reject", _impi.c_str(), _impu.c_str());
+    send_http_reply(404);
+  }
+  else
+  {
+    LOG_DEBUG("Cache query failed with rc %d", error);
+    send_http_reply(HTTP_GATEWAY_TIMEOUT);
+  }
   delete this;
 }
 
@@ -1167,7 +1176,16 @@ void ImpuRegDataHandler::on_get_ims_subscription_failure(Cache::Request* request
   LOG_DEBUG("IMS subscription cache query failed: %u, %s", error, text.c_str());
   SAS::Event event(this->trail(), SASEvent::NO_REG_DATA_CACHE, 0);
   SAS::report_event(event);
-  send_http_reply(HTTP_GATEWAY_TIMEOUT);
+  if (error == Cache::NOT_FOUND)
+  {
+    LOG_DEBUG("No IMS subscription found for public ID %s - reject", _impu.c_str());
+    send_http_reply(404);
+  }
+  else
+  {
+    LOG_DEBUG("Cache query failed with rc %d", error);
+    send_http_reply(HTTP_GATEWAY_TIMEOUT);
+  }
   delete this;
 }
 
