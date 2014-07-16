@@ -96,7 +96,7 @@ get_settings()
         then
           server_name=$scscf_uri
         else
-          server_name=sip:$(python /usr/share/clearwater/bin/bracket_ipv6_address.py $sprout_hostname):$scscf
+          server_name=sip:$(python /usr/share/clearwater/bin/bracket_ipv6_address.py $sprout_hostname):$scscf;transport=TCP
         fi
 
         sprout_http_name=$(python /usr/share/clearwater/bin/bracket_ipv6_address.py $sprout_hostname):9888
