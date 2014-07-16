@@ -65,6 +65,7 @@
 #include "mockhttpstack.hpp"
 #include "mockcache.hpp"
 #include "mockhttpconnection.hpp"
+#include "fakehttpresolver.hpp"
 #include "handlers.h"
 #include "mockstatisticsmanager.hpp"
 #include "sproutconnection.h"
@@ -130,6 +131,7 @@ public:
 
   static Diameter::Stack* _real_stack;
   static MockDiameterStack* _mock_stack;
+  static HttpResolver* _mock_resolver;
   static Cx::Dictionary* _cx_dict;
   static MockCache* _cache;
   static MockHttpStack* _httpstack;
@@ -164,7 +166,8 @@ public:
     _cx_dict = new Cx::Dictionary();
     _cache = new MockCache();
     _httpstack = new MockHttpStack();
-    _mock_http_conn = new MockHttpConnection();
+    _mock_resolver = new FakeHttpResolver("1.2.3.4");
+    _mock_http_conn = new MockHttpConnection(_mock_resolver);
     _sprout_conn = new SproutConnection(_mock_http_conn);
 
     _stats = new StrictMock<MockStatisticsManager>;
@@ -192,6 +195,7 @@ public:
     delete _cache; _cache = NULL;
     delete _httpstack; _httpstack = NULL;
     delete _sprout_conn; _sprout_conn = NULL;
+    delete _mock_resolver; _mock_resolver = NULL;
     _real_stack->stop();
     _real_stack->wait_stopped();
     _real_stack = NULL;
@@ -1130,6 +1134,7 @@ const std::string HandlersTest::HTTP_PATH_REG_FALSE = "/registrations?send-notif
 
 Diameter::Stack* HandlersTest::_real_stack = NULL;
 MockDiameterStack* HandlersTest::_mock_stack = NULL;
+HttpResolver* HandlersTest::_mock_resolver = NULL;
 Cx::Dictionary* HandlersTest::_cx_dict = NULL;
 MockCache* HandlersTest::_cache = NULL;
 MockHttpStack* HandlersTest::_httpstack = NULL;
@@ -2542,8 +2547,8 @@ TEST_F(HandlersTest, IMSSubscriptionCacheNotFound)
 // Cache failures should translate into a 504 Bad Gateway error
 TEST_F(HandlersTest, IMSSubscriptionCacheFailure)
 {
-  // This test tests an IMS Subscription handler case where the cache 
-  // has an unknown failure. Start by building the HTTP request which 
+  // This test tests an IMS Subscription handler case where the cache
+  // has an unknown failure. Start by building the HTTP request which
   // will invoke a cache lookup.
   MockHttpStack::Request req(_httpstack,
                              "/impu/" + IMPU,
