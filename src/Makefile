@@ -23,6 +23,7 @@ TARGET_SOURCES := accesslogger.cpp \
                   dnsparser.cpp \
                   handlers.cpp \
                   httpconnection.cpp \
+                  httpresolver.cpp \
                   httpstack.cpp \
                   httpstack_utils.cpp \
                   load_monitor.cpp \

@@ -43,8 +43,8 @@
 class MockHttpConnection : public HttpConnection
 {
 public:
-  MockHttpConnection() :
-    HttpConnection("", false, SASEvent::HttpLogLevel::PROTOCOL)
+  MockHttpConnection(HttpResolver* resolver) :
+    HttpConnection("", false, resolver, SASEvent::HttpLogLevel::PROTOCOL)
   {};
   virtual ~MockHttpConnection() {};
 

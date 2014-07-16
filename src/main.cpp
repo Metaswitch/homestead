@@ -377,6 +377,15 @@ int main(int argc, char**argv)
 
   LOG_STATUS("Log level set to %d", options.log_level);
 
+  // Create a DNS resolver and a SIP specific resolver.
+  int af = AF_INET;
+  struct in6_addr dummy_addr;
+  if (inet_pton(AF_INET6, options.local_host.c_str(), &dummy_addr) == 1)
+  {
+    LOG_DEBUG("Local host is an IPv6 address");
+    af = AF_INET6;
+  }
+
   SAS::init(options.sas_system_name,
             "homestead",
             SASEvent::CURRENT_RESOURCE_BUNDLE,
@@ -388,6 +397,8 @@ int main(int argc, char**argv)
                                               20,     // Maximum token bucket size.
                                               10.0,   // Initial token fill rate (per sec).
                                               10.0);  // Minimum token fill rate (per sec).
+  DnsCachedResolver* dns_resolver = new DnsCachedResolver("127.0.0.1");
+  HttpResolver* http_resolver = new HttpResolver(dns_resolver, af);
 
   Cache* cache = Cache::get_instance();
   cache->initialize();
@@ -401,6 +412,7 @@ int main(int argc, char**argv)
   }
 
   HttpConnection* http = new HttpConnection(options.sprout_http_name,
+                                            http_resolver,
                                             false,
                                             SASEvent::HttpLogLevel::PROTOCOL);
   SproutConnection* sprout_conn = new SproutConnection(http);
@@ -501,23 +513,12 @@ int main(int argc, char**argv)
     exit(2);
   }
 
-  // Create a DNS resolver and a SIP specific resolver.
-  int af = AF_INET;
-  struct in6_addr dummy_addr;
-  if (inet_pton(AF_INET6, options.local_host.c_str(), &dummy_addr) == 1)
-  {
-    LOG_DEBUG("Local host is an IPv6 address");
-    af = AF_INET6;
-  }
-
-  DnsCachedResolver* dns_resolver = NULL;
   DiameterResolver* diameter_resolver = NULL;
   RealmManager* realm_manager = NULL;
   Diameter::Peer* peer = NULL;
 
   if (!options.dest_realm.empty())
   {
-    dns_resolver = new DnsCachedResolver("127.0.0.1");
     diameter_resolver = new DiameterResolver(dns_resolver, af);
     realm_manager = new RealmManager(diameter_stack,
                                      options.dest_realm,
