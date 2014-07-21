@@ -208,18 +208,20 @@ public:
   };
 
   template <class H>
-  class CacheTransaction : public Cache::Transaction
+  class CacheTransaction : public CassandraStore::Transaction
   {
   public:
     CacheTransaction(H* handler) :
-      Cache::Transaction((handler != NULL) ? handler->trail() : 0),
+      CassandraStore::Transaction((handler != NULL) ? handler->trail() : 0),
       _handler(handler),
       _success_clbk(NULL),
       _failure_clbk(NULL)
     {};
 
-    typedef void(H::*success_clbk_t)(Cache::Request*);
-    typedef void(H::*failure_clbk_t)(Cache::Request*, Cache::ResultCode, std::string&);
+    typedef void(H::*success_clbk_t)(CassandraStore::Operation*);
+    typedef void(H::*failure_clbk_t)(CassandraStore::Operation*,
+                                     CassandraStore::ResultCode,
+                                     std::string&);
 
     void set_success_clbk(success_clbk_t fun)
     {
@@ -236,25 +238,27 @@ public:
     success_clbk_t _success_clbk;
     failure_clbk_t _failure_clbk;
 
-    void on_success(Cache::Request* req)
+    void on_success(CassandraStore::Operation* op)
     {
       update_latency_stats();
 
       if ((_handler != NULL) && (_success_clbk != NULL))
       {
-        boost::bind(_success_clbk, _handler, req)();
+        boost::bind(_success_clbk, _handler, op)();
       }
     }
 
-    void on_failure(Cache::Request* req,
-                    Cache::ResultCode error,
-                    std::string& text)
+    void on_failure(CassandraStore::Operation* op)
     {
       update_latency_stats();
 
       if ((_handler != NULL) && (_failure_clbk != NULL))
       {
-        boost::bind(_failure_clbk, _handler, req, error, text)();
+        boost::bind(_failure_clbk,
+                    _handler,
+                    op,
+                    op->get_result_code(),
+                    op->get_error_text())();
       }
     }
 
@@ -315,12 +319,12 @@ public:
   void run();
   virtual bool parse_request() = 0;
   void query_cache_av();
-  void on_get_av_success(Cache::Request* request);
-  void on_get_av_failure(Cache::Request* request, Cache::ResultCode error, std::string& text);
+  void on_get_av_success(CassandraStore::Operation* op);
+  void on_get_av_failure(CassandraStore::Operation* op, CassandraStore::ResultCode error, std::string& text);
   void get_av();
   void query_cache_impu();
-  void on_get_impu_success(Cache::Request* request);
-  void on_get_impu_failure(Cache::Request* request, Cache::ResultCode error, std::string& text);
+  void on_get_impu_success(CassandraStore::Operation* op);
+  void on_get_impu_failure(CassandraStore::Operation* op, CassandraStore::ResultCode error, std::string& text);
   void send_mar();
   void on_mar_response(Diameter::Message& rsp);
   virtual void send_reply(const DigestAuthVector& av) = 0;
@@ -447,8 +451,8 @@ public:
   {}
   virtual ~ImpuRegDataHandler() {};
   virtual void run();
-  void on_get_ims_subscription_success(Cache::Request* request);
-  void on_get_ims_subscription_failure(Cache::Request* request, Cache::ResultCode error, std::string& text);
+  void on_get_ims_subscription_success(CassandraStore::Operation* op);
+  void on_get_ims_subscription_failure(CassandraStore::Operation* op, CassandraStore::ResultCode error, std::string& text);
   void send_server_assignment_request(Cx::ServerAssignmentType type);
   void on_sar_response(Diameter::Message& rsp);
 
@@ -538,14 +542,14 @@ private:
   std::vector<std::string> _impus;
   std::vector<std::vector<std::string>> _registration_sets;
 
-  void get_assoc_primary_public_ids_success(Cache::Request* request);
-  void get_assoc_primary_public_ids_failure(Cache::Request* request,
-                                            Cache::ResultCode error,
+  void get_assoc_primary_public_ids_success(CassandraStore::Operation* op);
+  void get_assoc_primary_public_ids_failure(CassandraStore::Operation* op,
+                                            CassandraStore::ResultCode error,
                                             std::string& text);
   void get_registration_sets();
-  void get_registration_set_success(Cache::Request* request);
-  void get_registration_set_failure(Cache::Request* request,
-                                    Cache::ResultCode error,
+  void get_registration_set_success(CassandraStore::Operation* op);
+  void get_registration_set_failure(CassandraStore::Operation* op,
+                                    CassandraStore::ResultCode error,
                                     std::string& text);
   void delete_registrations();
   void dissociate_implicit_registration_sets();
@@ -588,9 +592,9 @@ private:
   const Config* _cfg;
   Cx::PushProfileRequest _ppr;
 
-  void update_ims_subscription_success(Cache::Request* request);
-  void update_ims_subscription_failure(Cache::Request* request,
-                                       Cache::ResultCode error,
+  void update_ims_subscription_success(CassandraStore::Operation* op);
+  void update_ims_subscription_failure(CassandraStore::Operation* op,
+                                       CassandraStore::ResultCode error,
                                        std::string& text);
   void send_ppa(const std::string result_code);
 };
