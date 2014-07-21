@@ -265,9 +265,7 @@ void ImpiHandler::send_mar()
                                 _scheme,
                                 _authorization);
   DiameterTransaction* tsx =
-    new DiameterTransaction(_dict, this, DIGEST_STATS);
-
-  tsx->set_response_clbk(&ImpiHandler::on_mar_response);
+    new DiameterTransaction(_dict, this, DIGEST_STATS, &ImpiHandler::on_mar_response);
   mar.send(tsx, _cfg->diameter_timeout_ms);
 }
 
@@ -490,8 +488,10 @@ void ImpiRegistrationStatusHandler::run()
                                      _visited_network,
                                      _authorization_type);
     DiameterTransaction* tsx =
-      new DiameterTransaction(_dict, this, SUBSCRIPTION_STATS);
-    tsx->set_response_clbk(&ImpiRegistrationStatusHandler::on_uar_response);
+      new DiameterTransaction(_dict,
+                              this,
+                              SUBSCRIPTION_STATS,
+                              &ImpiRegistrationStatusHandler::on_uar_response);
     uar.send(tsx, _cfg->diameter_timeout_ms);
   }
   else
@@ -618,8 +618,10 @@ void ImpuLocationInfoHandler::run()
                                 _impu,
                                 _authorization_type);
     DiameterTransaction* tsx =
-      new DiameterTransaction(_dict, this, SUBSCRIPTION_STATS);
-    tsx->set_response_clbk(&ImpuLocationInfoHandler::on_lir_response);
+      new DiameterTransaction(_dict,
+                              this,
+                              SUBSCRIPTION_STATS,
+                              &ImpuLocationInfoHandler::on_lir_response);
     lir.send(tsx, _cfg->diameter_timeout_ms);
   }
   else
@@ -1208,8 +1210,10 @@ void ImpuRegDataHandler::send_server_assignment_request(Cx::ServerAssignmentType
                                   _server_name,
                                   type);
   DiameterTransaction* tsx =
-    new DiameterTransaction(_dict, this, SUBSCRIPTION_STATS);
-  tsx->set_response_clbk(&ImpuRegDataHandler::on_sar_response);
+    new DiameterTransaction(_dict,
+                            this,
+                            SUBSCRIPTION_STATS,
+                            &ImpuRegDataHandler::on_sar_response);
   sar.send(tsx, _cfg->diameter_timeout_ms);
 }
 

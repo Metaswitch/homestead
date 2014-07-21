@@ -121,36 +121,27 @@ public:
   class DiameterTransaction : public Diameter::Transaction
   {
   public:
-
-    DiameterTransaction(Cx::Dictionary* dict,
-                        H* handler,
-                        StatsFlags stat_updates) :
-      Diameter::Transaction(dict,
-                            ((handler != NULL) ? handler->trail() : 0)),
-      _handler(handler),
-      _timeout_clbk(&HssCacheHandler::on_diameter_timeout),
-      _response_clbk(NULL),
-      _stat_updates(stat_updates)
-    {};
-
     typedef void(H::*timeout_clbk_t)();
     typedef void(H::*response_clbk_t)(Diameter::Message&);
 
-    void set_timeout_clbk(timeout_clbk_t fun)
-    {
-      _timeout_clbk = fun;
-    }
-
-    void set_response_clbk(response_clbk_t fun)
-    {
-      _response_clbk = fun;
-    }
+    DiameterTransaction(Cx::Dictionary* dict,
+                        H* handler,
+                        StatsFlags stat_updates,
+                        response_clbk_t response_clbk,
+                        timeout_clbk_t timeout_clbk = &HssCacheHandler::on_diameter_timeout) :
+      Diameter::Transaction(dict,
+                            ((handler != NULL) ? handler->trail() : 0)),
+      _handler(handler),
+      _stat_updates(stat_updates),
+      _response_clbk(response_clbk),
+      _timeout_clbk(timeout_clbk)
+    {};
 
   protected:
     H* _handler;
-    timeout_clbk_t _timeout_clbk;
-    response_clbk_t _response_clbk;
     StatsFlags _stat_updates;
+    response_clbk_t _response_clbk;
+    timeout_clbk_t _timeout_clbk;
 
     void on_timeout()
     {
