@@ -211,27 +211,25 @@ public:
   class CacheTransaction : public CassandraStore::Transaction
   {
   public:
-    CacheTransaction(H* handler) :
-      CassandraStore::Transaction((handler != NULL) ? handler->trail() : 0),
-      _handler(handler),
-      _success_clbk(NULL),
-      _failure_clbk(NULL)
-    {};
-
     typedef void(H::*success_clbk_t)(CassandraStore::Operation*);
     typedef void(H::*failure_clbk_t)(CassandraStore::Operation*,
                                      CassandraStore::ResultCode,
                                      std::string&);
+    CacheTransaction() :
+      CassandraStore::Transaction(0),
+      _handler(NULL),
+      _success_clbk(NULL),
+      _failure_clbk(NULL)
+    {};
 
-    void set_success_clbk(success_clbk_t fun)
-    {
-      _success_clbk = fun;
-    }
-
-    void set_failure_clbk(failure_clbk_t fun)
-    {
-      _failure_clbk = fun;
-    }
+    CacheTransaction(H* handler,
+                     success_clbk_t success_clbk,
+                     failure_clbk_t failure_clbk) :
+      CassandraStore::Transaction((handler != NULL) ? handler->trail() : 0),
+      _handler(handler),
+      _success_clbk(success_clbk),
+      _failure_clbk(failure_clbk)
+    {};
 
   protected:
     H* _handler;
@@ -273,7 +271,6 @@ public:
         stats->update_H_cache_latency_us(latency);
       }
     }
-
   };
 
 protected:

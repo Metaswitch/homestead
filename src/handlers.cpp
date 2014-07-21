@@ -132,9 +132,10 @@ void ImpiHandler::query_cache_av()
   event.add_var_param(_impu);
   SAS::report_event(event);
   CassandraStore::Operation* get_av = _cache->create_GetAuthVector(_impi, _impu);
-  CacheTransaction* tsx = new CacheTransaction(this);
-  tsx->set_success_clbk(&ImpiHandler::on_get_av_success);
-  tsx->set_failure_clbk(&ImpiHandler::on_get_av_failure);
+  CassandraStore::Transaction* tsx =
+    new CacheTransaction(this,
+                         &ImpiHandler::on_get_av_success,
+                         &ImpiHandler::on_get_av_failure);
   _cache->do_async(get_av, tsx);
 }
 
@@ -203,9 +204,10 @@ void ImpiHandler::query_cache_impu()
   event.add_var_param(_impi);
   SAS::report_event(event);
   CassandraStore::Operation* get_public_ids = _cache->create_GetAssociatedPublicIDs(_impi);
-  CacheTransaction* tsx = new CacheTransaction(this);
-  tsx->set_success_clbk(&ImpiHandler::on_get_impu_success);
-  tsx->set_failure_clbk(&ImpiHandler::on_get_impu_failure);
+  CassandraStore::Transaction* tsx =
+    new CacheTransaction(this,
+                         &ImpiHandler::on_get_impu_success,
+                         &ImpiHandler::on_get_impu_failure);
   _cache->do_async(get_public_ids, tsx);
 }
 
@@ -296,7 +298,7 @@ void ImpiHandler::on_mar_response(Diameter::Message& rsp)
                                                  _impu,
                                                  Cache::generate_timestamp(),
                                                  _cfg->impu_cache_ttl);
-          CacheTransaction* tsx = new CacheTransaction(NULL);
+          CassandraStore::Transaction* tsx = new CacheTransaction;
           _cache->do_async(put_public_id, tsx);
         }
       }
@@ -872,9 +874,10 @@ void ImpuRegDataHandler::run()
   event.add_var_param(_impu);
   SAS::report_event(event);
   CassandraStore::Operation* get_ims_sub = _cache->create_GetIMSSubscription(_impu);
-  CacheTransaction* tsx = new CacheTransaction(this);
-  tsx->set_success_clbk(&ImpuRegDataHandler::on_get_ims_subscription_success);
-  tsx->set_failure_clbk(&ImpuRegDataHandler::on_get_ims_subscription_failure);
+  CassandraStore::Transaction* tsx =
+    new CacheTransaction(this,
+                         &ImpuRegDataHandler::on_get_ims_subscription_success,
+                         &ImpuRegDataHandler::on_get_ims_subscription_failure);
   _cache->do_async(get_ims_sub, tsx);
 }
 
@@ -959,7 +962,7 @@ void ImpuRegDataHandler::on_get_ims_subscription_success(CassandraStore::Operati
                                               _impi,
                                               Cache::generate_timestamp(),
                                               (2 * _cfg->hss_reregistration_time));
-      CacheTransaction* tsx = new CacheTransaction(NULL);
+      CassandraStore::Transaction* tsx = new CacheTransaction;
       _cache->do_async(put_associated_private_id, tsx);
     }
 
@@ -1280,7 +1283,7 @@ void ImpuRegDataHandler::put_in_cache()
                                         associated_private_ids,
                                         Cache::generate_timestamp(),
                                         ttl);
-    CacheTransaction* tsx = new CacheTransaction(NULL);
+    CassandraStore::Transaction* tsx = new CacheTransaction;
     _cache->do_async(put_ims_sub, tsx);
   }
 }
@@ -1321,7 +1324,7 @@ void ImpuRegDataHandler::on_sar_response(Diameter::Message& rsp)
         _cache->create_DeletePublicIDs(public_ids,
                                        associated_private_ids,
                                        Cache::generate_timestamp());
-      CacheTransaction* tsx = new CacheTransaction(NULL);
+      CassandraStore::Transaction* tsx = new CacheTransaction;
       _cache->do_async(delete_public_id, tsx);
     }
   }
@@ -1385,9 +1388,10 @@ void ImpuIMSSubscriptionHandler::run()
 
   LOG_DEBUG("Try to find IMS Subscription information in the cache");
   CassandraStore::Operation* get_ims_sub = _cache->create_GetIMSSubscription(_impu);
-  CacheTransaction* tsx = new CacheTransaction(this);
-  tsx->set_success_clbk(&ImpuRegDataHandler::on_get_ims_subscription_success);
-  tsx->set_failure_clbk(&ImpuRegDataHandler::on_get_ims_subscription_failure);
+  CassandraStore::Transaction* tsx =
+    new CacheTransaction(this,
+                         &ImpuRegDataHandler::on_get_ims_subscription_success,
+                         &ImpuRegDataHandler::on_get_ims_subscription_failure);
   _cache->do_async(get_ims_sub, tsx);
 }
 
@@ -1441,9 +1445,10 @@ void RegistrationTerminationHandler::run()
     event.add_var_param(impis_str);
     SAS::report_event(event);
     CassandraStore::Operation* get_associated_impus = _cfg->cache->create_GetAssociatedPrimaryPublicIDs(_impis);
-    CacheTransaction* tsx = new CacheTransaction(this);
-    tsx->set_success_clbk(&RegistrationTerminationHandler::get_assoc_primary_public_ids_success);
-    tsx->set_failure_clbk(&RegistrationTerminationHandler::get_assoc_primary_public_ids_failure);
+    CassandraStore::Transaction* tsx =
+      new CacheTransaction(this,
+                           &RegistrationTerminationHandler::get_assoc_primary_public_ids_success,
+                           &RegistrationTerminationHandler::get_assoc_primary_public_ids_failure);
     _cfg->cache->do_async(get_associated_impus, tsx);
   }
   else if ((!_impus.empty()) && ((_deregistration_reason == PERMANENT_TERMINATION) ||
@@ -1522,9 +1527,10 @@ void RegistrationTerminationHandler::get_registration_sets()
     event.add_var_param(impu);
     SAS::report_event(event);
     CassandraStore::Operation* get_ims_sub = _cfg->cache->create_GetIMSSubscription(impu);
-    CacheTransaction* tsx = new CacheTransaction(this);
-    tsx->set_success_clbk(&RegistrationTerminationHandler::get_registration_set_success);
-    tsx->set_failure_clbk(&RegistrationTerminationHandler::get_registration_set_failure);
+    CassandraStore::Transaction* tsx =
+      new CacheTransaction(this,
+                           &RegistrationTerminationHandler::get_registration_set_success,
+                           &RegistrationTerminationHandler::get_registration_set_failure);
     _cfg->cache->do_async(get_ims_sub, tsx);
   }
   else if (_registration_sets.empty())
@@ -1704,7 +1710,7 @@ void RegistrationTerminationHandler::dissociate_implicit_registration_sets()
     SAS::report_event(event);
     CassandraStore::Operation* dissociate_reg_set =
       _cfg->cache->create_DissociateImplicitRegistrationSetFromImpi(*i, _impis, Cache::generate_timestamp());
-    CacheTransaction* tsx = new CacheTransaction(this);
+    CassandraStore::Transaction* tsx = new CacheTransaction;
     _cfg->cache->do_async(dissociate_reg_set, tsx);
   }
 }
@@ -1720,7 +1726,7 @@ void RegistrationTerminationHandler::delete_impi_mappings()
   SAS::report_event(event);
   CassandraStore::Operation* delete_impis =
     _cfg->cache->create_DeleteIMPIMapping(_impis, Cache::generate_timestamp());
-  CacheTransaction* tsx = new CacheTransaction(this);
+  CassandraStore::Transaction* tsx = new CacheTransaction;
   _cfg->cache->do_async(delete_impis, tsx);
 }
 
@@ -1765,9 +1771,10 @@ void PushProfileHandler::run()
                                              state,
                                              Cache::generate_timestamp(),
                                              (2 * _cfg->hss_reregistration_time));
-    CacheTransaction* tsx = new CacheTransaction(this);
-    tsx->set_success_clbk(&PushProfileHandler::update_ims_subscription_success);
-    tsx->set_failure_clbk(&PushProfileHandler::update_ims_subscription_failure);
+    CassandraStore::Transaction* tsx =
+      new CacheTransaction(this,
+                           &PushProfileHandler::update_ims_subscription_success,
+                           &PushProfileHandler::update_ims_subscription_failure);
     _cfg->cache->do_async(put_ims_subscription, tsx);
   }
   else

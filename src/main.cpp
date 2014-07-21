@@ -412,8 +412,8 @@ int main(int argc, char**argv)
   }
 
   HttpConnection* http = new HttpConnection(options.sprout_http_name,
-                                            http_resolver,
                                             false,
+                                            http_resolver,
                                             SASEvent::HttpLogLevel::PROTOCOL);
   SproutConnection* sprout_conn = new SproutConnection(http);
 
