@@ -48,7 +48,10 @@ class MockOperationMixin
 {
 public:
   MockOperationMixin() : trx(NULL) {};
-  virtual ~MockOperationMixin() {};
+  virtual ~MockOperationMixin()
+  {
+    delete trx; trx = NULL;
+  };
 
   void set_trx(CassandraStore::Transaction* trx_param) { trx = trx_param; }
   CassandraStore::Transaction* get_trx() { return trx; }

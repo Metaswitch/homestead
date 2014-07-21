@@ -246,7 +246,6 @@ public:
   {
     struct timespec ts;
     int rc;
-
     rc = clock_gettime(CLOCK_REALTIME, &ts);
     ASSERT_EQ(0, rc);
     ts.tv_sec += 1;
@@ -1124,7 +1123,6 @@ TEST_F(CacheRequestTest, PutTransportEx)
 
   EXPECT_CALL(*trx, on_failure(OperationHasResult(CassandraStore::CONNECTION_ERROR)));
   execute_trx(op, trx);
-  wait();
 }
 
 TEST_F(CacheRequestTest, PutTransportGetClientEx)
@@ -1140,7 +1138,6 @@ TEST_F(CacheRequestTest, PutTransportGetClientEx)
 
   EXPECT_CALL(*trx, on_failure(OperationHasResult(CassandraStore::CONNECTION_ERROR)));
   execute_trx(op, trx);
-  wait();
 }
 
 TEST_F(CacheRequestTest, PutInvalidRequestException)
@@ -1154,7 +1151,6 @@ TEST_F(CacheRequestTest, PutInvalidRequestException)
 
   EXPECT_CALL(*trx, on_failure(OperationHasResult(CassandraStore::INVALID_REQUEST)));
   execute_trx(op, trx);
-  wait();
 }
 
 
@@ -1169,7 +1165,6 @@ TEST_F(CacheRequestTest, PutNotFoundException)
 
   EXPECT_CALL(*trx, on_failure(OperationHasResult(CassandraStore::NOT_FOUND)));
   execute_trx(op, trx);
-  wait();
 }
 
 
@@ -1184,7 +1179,6 @@ TEST_F(CacheRequestTest, PutNoResultsException)
 
   EXPECT_CALL(*trx, on_failure(OperationHasResult(CassandraStore::NOT_FOUND)));
   execute_trx(op, trx);
-  wait();
 }
 
 
@@ -1199,7 +1193,6 @@ TEST_F(CacheRequestTest, PutUnknownException)
 
   EXPECT_CALL(*trx, on_failure(OperationHasResult(CassandraStore::UNKNOWN_ERROR)));
   execute_trx(op, trx);
-  wait();
 }
 
 
@@ -1450,7 +1443,6 @@ TEST_F(CacheRequestTest, GetIMSSubscriptionMainline)
   EXPECT_CALL(*trx, on_success(_))
     .WillOnce(Invoke(trx, &RecordingTransaction::record_result));
   execute_trx(op, trx);
-  wait();
 
   EXPECT_EQ(RegistrationState::REGISTERED, rec.result.state);
   EXPECT_EQ("<howdy>", rec.result.xml);
@@ -1479,7 +1471,6 @@ TEST_F(CacheRequestTest, GetIMSSubscriptionTTL)
   EXPECT_CALL(*trx, on_success(_))
     .WillOnce(Invoke(trx, &RecordingTransaction::record_result));
   execute_trx(op, trx);
-  wait();
 
   EXPECT_EQ(RegistrationState::REGISTERED, rec.result.state);
   EXPECT_EQ("", rec.result.xml);
@@ -1511,7 +1502,6 @@ TEST_F(CacheRequestTest, GetIMSSubscriptionUnregistered)
   EXPECT_CALL(*trx, on_success(_))
     .WillOnce(Invoke(trx, &RecordingTransaction::record_result));
   execute_trx(op, trx);
-  wait();
 
   EXPECT_EQ(RegistrationState::UNREGISTERED, rec.result.state);
   EXPECT_EQ("<howdy>", rec.result.xml);
@@ -1549,7 +1539,6 @@ TEST_F(CacheRequestTest, GetIMSSubscriptionNoRegState)
   EXPECT_CALL(*trx, on_success(_))
     .WillOnce(Invoke(trx, &RecordingTransaction::record_result));
   execute_trx(op, trx);
-  wait();
 
   EXPECT_EQ(RegistrationState::UNREGISTERED, rec.result.state);
   EXPECT_EQ("<howdy>", rec.result.xml);
@@ -1582,7 +1571,6 @@ TEST_F(CacheRequestTest, GetIMSSubscriptionInvalidRegState)
   EXPECT_CALL(*trx, on_success(_))
     .WillOnce(Invoke(trx, &RecordingTransaction::record_result));
   execute_trx(op, trx);
-  wait();
 
   EXPECT_EQ(RegistrationState::NOT_REGISTERED, rec.result.state);
   EXPECT_EQ("", rec.result.xml);
@@ -1603,7 +1591,6 @@ TEST_F(CacheRequestTest, GetIMSSubscriptionNotFound)
   EXPECT_CALL(*trx, on_success(_))
     .WillOnce(Invoke(trx, &RecordingTransaction::record_result));
   execute_trx(op, trx);
-  wait();
 
   EXPECT_EQ("", rec.result.xml);
   EXPECT_EQ(RegistrationState::NOT_REGISTERED, rec.result.state);
@@ -1641,7 +1628,6 @@ TEST_F(CacheRequestTest, GetAuthVectorAllColsReturned)
   EXPECT_CALL(*trx, on_success(_))
     .WillOnce(Invoke(trx, &RecordingTransaction::record_result));
   execute_trx(op, trx);
-  wait();
 
   EXPECT_EQ("somehash", rec.result.ha1);
   EXPECT_EQ("themuppetshow.com", rec.result.realm);
@@ -1668,7 +1654,6 @@ TEST_F(CacheRequestTest, GetAuthVectorNonDefaultableColsReturned)
   EXPECT_CALL(*trx, on_success(_))
     .WillOnce(Invoke(trx, &RecordingTransaction::record_result));
   execute_trx(op, trx);
-  wait();
 
   EXPECT_EQ("somehash", rec.result.ha1);
   EXPECT_EQ("", rec.result.realm);
@@ -1696,7 +1681,6 @@ TEST_F(CacheRequestTest, GetAuthVectorHa1NotReturned)
 
   EXPECT_CALL(*trx, on_failure(OperationHasResult(CassandraStore::NOT_FOUND)));
   execute_trx(op, trx);
-  wait();
 }
 
 
@@ -1711,7 +1695,6 @@ TEST_F(CacheRequestTest, GetAuthVectorNoColsReturned)
 
   EXPECT_CALL(*trx, on_failure(OperationHasResult(CassandraStore::NOT_FOUND)));
   execute_trx(op, trx);
-  wait();
 }
 
 
@@ -1748,7 +1731,6 @@ TEST_F(CacheRequestTest, GetAuthVectorPublicIdRequested)
   EXPECT_CALL(*trx, on_success(_))
     .WillOnce(Invoke(trx, &RecordingTransaction::record_result));
   execute_trx(op, trx);
-  wait();
 
   EXPECT_EQ("somehash", rec.result.ha1);
   EXPECT_EQ("themuppetshow.com", rec.result.realm);
@@ -1777,7 +1759,6 @@ TEST_F(CacheRequestTest, GetAuthVectorPublicIdRequestedNotReturned)
 
   EXPECT_CALL(*trx, on_failure(OperationHasResult(CassandraStore::NOT_FOUND)));
   execute_trx(op, trx);
-  wait();
 }
 
 
@@ -1805,7 +1786,6 @@ TEST_F(CacheRequestTest, GetAssocPublicIDsMainline)
   EXPECT_CALL(*trx, on_success(_))
     .WillOnce(Invoke(trx, &RecordingTransaction::record_result));
   execute_trx(op, trx);
-  wait();
 
   std::vector<std::string> expected_ids;
   expected_ids.push_back("gonzo");
@@ -1853,7 +1833,6 @@ TEST_F(CacheRequestTest, GetAssocPublicIDsMultipleIDs)
   EXPECT_CALL(*trx, on_success(_))
     .WillOnce(Invoke(trx, &RecordingTransaction::record_result));
   execute_trx(op, trx);
-  wait();
 
   std::vector<std::string> expected_ids;
   expected_ids.push_back("gonzo");
@@ -1878,7 +1857,6 @@ TEST_F(CacheRequestTest, GetAssocPublicIDsNoResults)
   EXPECT_CALL(*trx, on_success(_))
     .WillOnce(Invoke(trx, &RecordingTransaction::record_result));
   execute_trx(op, trx);
-  wait();
 
   std::vector<std::string> expected_ids;
 
@@ -1913,7 +1891,6 @@ TEST_F(CacheRequestTest, GetAssociatedPrimaryPublicIDs)
   EXPECT_CALL(*trx, on_success(_))
     .WillOnce(Invoke(trx, &RecordingTransaction::record_result));
   execute_trx(op, trx);
-  wait();
 
   std::vector<std::string> expected_ids;
   expected_ids.push_back("kermit");
@@ -1956,7 +1933,6 @@ TEST_F(CacheRequestTest, GetAssociatedPrimaryPublicIDsMultipleIMPIs)
   EXPECT_CALL(*trx, on_success(_))
     .WillOnce(Invoke(trx, &RecordingTransaction::record_result));
   execute_trx(op, trx);
-  wait();
 
   std::vector<std::string> expected_ids;
   expected_ids.push_back("kermit");
@@ -1986,7 +1962,6 @@ TEST_F(CacheRequestTest, GetAssociatedPrimaryPublicIDsNoResults)
   EXPECT_CALL(*trx, on_success(_))
     .WillOnce(Invoke(trx, &RecordingTransaction::record_result));
   execute_trx(op, trx);
-  wait();
 
   EXPECT_TRUE(rec.result.empty());
 }
@@ -2021,7 +1996,6 @@ TEST_F(CacheRequestTest, HaGetMainline)
   EXPECT_CALL(*trx, on_success(_))
     .WillOnce(Invoke(trx, &RecordingTransaction::record_result));
   execute_trx(op, trx);
-  wait();
 
   EXPECT_EQ("<howdy>", rec.result.xml);
 }
@@ -2052,7 +2026,6 @@ TEST_F(CacheRequestTest, HaGet2ndReadNotFoundException)
 
   EXPECT_CALL(*trx, on_failure(OperationHasResult(CassandraStore::NOT_FOUND)));
   execute_trx(op, trx);
-  wait();
 }
 
 
@@ -2083,7 +2056,6 @@ TEST_F(CacheRequestTest, HaGet2ndReadUnavailableException)
 
   EXPECT_CALL(*trx, on_failure(OperationHasResult(CassandraStore::NOT_FOUND)));
   execute_trx(op, trx);
-  wait();
 }
 
 
@@ -2121,7 +2093,6 @@ TEST_F(CacheLatencyTest, PutRecordsLatency)
   EXPECT_CALL(*trx, on_success(_)).WillOnce(CheckLatency(trx, 12));
 
   execute_trx(op, trx);
-  wait();
 }
 
 
@@ -2136,7 +2107,6 @@ TEST_F(CacheLatencyTest, DeleteRecordsLatency)
   EXPECT_CALL(*trx, on_success(_)).WillOnce(CheckLatency(trx, 13));
 
   execute_trx(op, trx);
-  wait();
 }
 
 
@@ -2164,7 +2134,6 @@ TEST_F(CacheLatencyTest, GetRecordsLatency)
                     CheckLatency(trx, 14)));
 
   execute_trx(op, trx);
-  wait();
 }
 
 
@@ -2180,7 +2149,6 @@ TEST_F(CacheLatencyTest, ErrorRecordsLatency)
   EXPECT_CALL(*trx, on_failure(_)).WillOnce(CheckLatency(trx, 12));
 
   execute_trx(op, trx);
-  wait();
 }
 
 TEST_F(CacheRequestTest, DissociateImplicitRegistrationSetFromImpi)
@@ -2376,9 +2344,8 @@ TEST_F(CacheRequestTest, DissociateImplicitRegistrationSetFromWrongImpi)
   EXPECT_CALL(_client, batch_mutate(DeletionMap(expected), _));
   EXPECT_CALL(*trx, on_success(_));
 
-  execute_trx(op, trx);
-
   CapturingTestLogger log;
+  execute_trx(op, trx);
   EXPECT_TRUE(log.contains("not all the provided IMPIs are associated with the IMPU"));
 }
 

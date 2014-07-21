@@ -43,10 +43,6 @@ using namespace apache::thrift::transport;
 using namespace apache::thrift::protocol;
 using namespace org::apache::cassandra;
 
-// Variables to store the singleton cache object.
-Cache* Cache::INSTANCE = &DEFAULT_INSTANCE;
-Cache Cache::DEFAULT_INSTANCE;
-
 // Keyspace and column family names.
 const static std::string KEYSPACE = "homestead_cache";
 const static std::string IMPI = "impi";
@@ -65,6 +61,13 @@ const static std::string DIGEST_HA1_COLUMN_NAME      ="digest_ha1";
 const static std::string DIGEST_REALM_COLUMN_NAME    = "digest_realm";
 const static std::string DIGEST_QOP_COLUMN_NAME      = "digest_qop";
 const static std::string KNOWN_PREFERRED_COLUMN_NAME = "known_preferred";
+
+// Variables to store the singleton cache object.
+//
+// Must create this after the constants above so that they have been
+// initialized before we initialize the cache.
+Cache* Cache::INSTANCE = &DEFAULT_INSTANCE;
+Cache Cache::DEFAULT_INSTANCE;
 
 //
 // Cache methods
