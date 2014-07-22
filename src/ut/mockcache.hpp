@@ -44,21 +44,6 @@
 
 static DigestAuthVector mock_digest_av;
 
-class MockOperationMixin
-{
-public:
-  MockOperationMixin() : trx(NULL) {};
-  virtual ~MockOperationMixin()
-  {
-    delete trx; trx = NULL;
-  };
-
-  void set_trx(CassandraStore::Transaction* trx_param) { trx = trx_param; }
-  CassandraStore::Transaction* get_trx() { return trx; }
-
-  CassandraStore::Transaction* trx;
-};
-
 class MockCache : public MockCassandraStore<Cache>
 {
 public:
