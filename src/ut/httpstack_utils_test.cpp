@@ -265,13 +265,13 @@ private:
 
 // Test handler that counts the number of times it has been instantiated and
 // run.
-class TestCountingHandler : HttpStackUtils::Handler
+class TestCountingTask : HttpStackUtils::Task
 {
 public:
   class Config {};
 
-  TestCountingHandler(HttpStack::Request& req, const Config* cfg, SAS::TrailId trail) :
-    HttpStackUtils::Handler(req, trail)
+  TestCountingTask(HttpStack::Request& req, const Config* cfg, SAS::TrailId trail) :
+    HttpStackUtils::Task(req, trail)
   {
     construction_count++;
   }
@@ -292,8 +292,8 @@ public:
   static int run_count;
 };
 
-int TestCountingHandler::construction_count;
-int TestCountingHandler::run_count;
+int TestCountingTask::construction_count;
+int TestCountingTask::run_count;
 
 
 class TestChronosController : public HttpStack::ControllerInterface
@@ -406,11 +406,11 @@ TEST_F(ControllerUtilsTest, SpawningController)
 {
   // Check that the spawning controller actually constructs and runs a handler
   // for each request.
-  TestCountingHandler::Config cfg;
+  TestCountingTask::Config cfg;
   HttpStackUtils::SpawningController
-    <TestCountingHandler, TestCountingHandler::Config> controller(&cfg);
+    <TestCountingTask, TestCountingTask::Config> controller(&cfg);
 
-  TestCountingHandler::reset_counts();
+  TestCountingTask::reset_counts();
 
   const int NUM_REQUESTS = 5;
 
@@ -420,8 +420,8 @@ TEST_F(ControllerUtilsTest, SpawningController)
     controller.process_request(req, FAKE_TRAIL_ID);
   }
 
-  EXPECT_EQ(TestCountingHandler::construction_count, NUM_REQUESTS);
-  EXPECT_EQ(TestCountingHandler::run_count, NUM_REQUESTS);
+  EXPECT_EQ(TestCountingTask::construction_count, NUM_REQUESTS);
+  EXPECT_EQ(TestCountingTask::run_count, NUM_REQUESTS);
 }
 
 

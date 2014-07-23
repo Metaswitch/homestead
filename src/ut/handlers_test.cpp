@@ -173,13 +173,13 @@ public:
     _stats = new StrictMock<MockStatisticsManager>;
     _nice_stats = new NiceMock<MockStatisticsManager>;
 
-    HssCacheHandler::configure_diameter(_mock_stack,
+    HssCacheTask::configure_diameter(_mock_stack,
                                         DEST_REALM,
                                         DEST_HOST,
                                         DEFAULT_SERVER_NAME,
                                         _cx_dict);
-    HssCacheHandler::configure_cache(_cache);
-    HssCacheHandler::configure_stats(_nice_stats);
+    HssCacheTask::configure_cache(_cache);
+    HssCacheTask::configure_stats(_nice_stats);
 
     cwtest_completely_control_time();
   }
@@ -360,8 +360,8 @@ public:
 
     // Configure the handler to use a HSS, and send a RE_REGISTRATION
     // SAR to the HSS every hour.
-    ImpuRegDataHandler::Config cfg(true, 3600);
-    ImpuRegDataHandler* handler = new ImpuRegDataHandler(req, &cfg, FAKE_TRAIL_ID);
+    ImpuRegDataTask::Config cfg(true, 3600);
+    ImpuRegDataTask* handler = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
 
     // Once the request is processed by the handler, we expect it to
     // look up the subscriber's data in Cassandra.
@@ -501,8 +501,8 @@ public:
 
     // Configure the handler to use a HSS, and send a RE_REGISTRATION
     // SAR to the HSS every hour.
-    ImpuRegDataHandler::Config cfg(true, 3600);
-    ImpuRegDataHandler* handler = new ImpuRegDataHandler(req, &cfg, FAKE_TRAIL_ID);
+    ImpuRegDataTask::Config cfg(true, 3600);
+    ImpuRegDataTask* handler = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
 
     // Once the request is processed by the handler, we expect it to
     // look up the subscriber's data in Cassandra.
@@ -549,8 +549,8 @@ public:
                                use_impi ? "?private_id=" + IMPI : "",
                                "{\"reqtype\": \"" + body +"\"}",
                                htp_method_PUT);
-    ImpuRegDataHandler::Config cfg(hss_configured, 3600);
-    ImpuRegDataHandler* handler = new ImpuRegDataHandler(req, &cfg, FAKE_TRAIL_ID);
+    ImpuRegDataTask::Config cfg(hss_configured, 3600);
+    ImpuRegDataTask* handler = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
 
     MockCache::MockGetIMSSubscription mock_req;
     EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU))
@@ -630,8 +630,8 @@ public:
     // Configure the handler to use a HSS, and send a RE_REGISTRATION
     // SAR to the HSS every hour.
 
-    ImpuRegDataHandler::Config cfg(false, 3600);
-    ImpuRegDataHandler* handler = new ImpuRegDataHandler(req, &cfg, FAKE_TRAIL_ID);
+    ImpuRegDataTask::Config cfg(false, 3600);
+    ImpuRegDataTask* handler = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
 
     // Once the request is processed by the handler, we expect it to
     // look up the subscriber's data in Cassandra.
@@ -694,8 +694,8 @@ public:
                                "?private_id=" + IMPI,
                                "{\"reqtype\": \"dereg-user\"}",
                                htp_method_PUT);
-    ImpuRegDataHandler::Config cfg(hss_configured, 3600);
-    ImpuRegDataHandler* handler = new ImpuRegDataHandler(req, &cfg, FAKE_TRAIL_ID);
+    ImpuRegDataTask::Config cfg(hss_configured, 3600);
+    ImpuRegDataTask* handler = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
 
     MockCache::MockGetIMSSubscription mock_req;
     EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU))
@@ -735,8 +735,8 @@ public:
                                "registration-status",
                                "?impu=" + IMPU);
 
-    ImpiRegistrationStatusHandler::Config cfg(true);
-    ImpiRegistrationStatusHandler* handler = new ImpiRegistrationStatusHandler(req, &cfg, FAKE_TRAIL_ID);
+    ImpiRegistrationStatusTask::Config cfg(true);
+    ImpiRegistrationStatusTask* handler = new ImpiRegistrationStatusTask(req, &cfg, FAKE_TRAIL_ID);
 
     // Once the handler's run function is called, expect a diameter message to be
     // sent. We don't bother checking the diameter message is as expected here. This
@@ -772,8 +772,8 @@ public:
                                "location",
                                "");
 
-    ImpuLocationInfoHandler::Config cfg(true);
-    ImpuLocationInfoHandler* handler = new ImpuLocationInfoHandler(req, &cfg, FAKE_TRAIL_ID);
+    ImpuLocationInfoTask::Config cfg(true);
+    ImpuLocationInfoTask* handler = new ImpuLocationInfoTask(req, &cfg, FAKE_TRAIL_ID);
 
     // Once the handler's run function is called, expect a diameter message to be
     // sent. We don't bother checking the diameter message is as expected here. This
@@ -1064,11 +1064,11 @@ public:
     if (ignore)
     {
       Mock::VerifyAndClear(_stats);
-      HssCacheHandler::configure_stats(_nice_stats);
+      HssCacheTask::configure_stats(_nice_stats);
     }
     else
     {
-      HssCacheHandler::configure_stats(_stats);
+      HssCacheTask::configure_stats(_stats);
     }
   }
 };
@@ -1171,8 +1171,8 @@ TEST_F(HandlersTest, DigestCache)
                              "digest",
                              "?public_id=" + IMPU);
 
-  ImpiHandler::Config cfg(false);
-  ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpiTask::Config cfg(false);
+  ImpiDigestTask* handler = new ImpiDigestTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the handler's run function is called, expect to lookup an auth
   // vector for the specified public and private IDs.
@@ -1216,8 +1216,8 @@ TEST_F(HandlersTest, DigestCacheNotFound)
                              "digest",
                              "?public_id=" + IMPU);
 
-  ImpiHandler::Config cfg(false);
-  ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpiTask::Config cfg(false);
+  ImpiDigestTask* handler = new ImpiDigestTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the handler's run function is called, expect to lookup an auth
   // vector for the specified public and private IDs.
@@ -1250,8 +1250,8 @@ TEST_F(HandlersTest, DigestCacheFailure)
                              "digest",
                              "?public_id=" + IMPU);
 
-  ImpiHandler::Config cfg(false);
-  ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpiTask::Config cfg(false);
+  ImpiDigestTask* handler = new ImpiDigestTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the handler's run function is called, expect to lookup an auth
   // vector for the specified public and private IDs.
@@ -1283,8 +1283,8 @@ TEST_F(HandlersTest, DigestHSS)
                              "digest",
                              "?public_id=" + IMPU);
 
-  ImpiHandler::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
-  ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpiTask::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
+  ImpiDigestTask* handler = new ImpiDigestTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the handler's run function is called, expect a diameter message to be sent.
   EXPECT_CALL(*_mock_stack, send(_, _, 200))
@@ -1351,8 +1351,8 @@ TEST_F(HandlersTest, DigestHSSTimeout)
                              "digest",
                              "?public_id=" + IMPU);
 
-  ImpiHandler::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
-  ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpiTask::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
+  ImpiDigestTask* handler = new ImpiDigestTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the handler's run function is called, expect a diameter message to be sent.
   EXPECT_CALL(*_mock_stack, send(_, _, 200))
@@ -1397,8 +1397,8 @@ TEST_F(HandlersTest, DigestHSSConfigurableTimeout)
                              "?public_id=" + IMPU);
 
   // Set timeout to 300
-  ImpiHandler::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA, 300);
-  ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpiTask::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA, 300);
+  ImpiDigestTask* handler = new ImpiDigestTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the handler's run function is called, expect a diameter message to be sent.
   // It should have a timeout of 300.
@@ -1425,8 +1425,8 @@ TEST_F(HandlersTest, DigestHSSNoIMPU)
                              "digest",
                              "");
 
-  ImpiHandler::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
-  ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpiTask::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
+  ImpiDigestTask* handler = new ImpiDigestTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the handler's run function is called, expect to look for associated
   // public IDs in the cache.
@@ -1513,8 +1513,8 @@ TEST_F(HandlersTest, DigestHSSUserUnknown)
                              "digest",
                              "?public_id=" + IMPU);
 
-  ImpiHandler::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
-  ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpiTask::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
+  ImpiDigestTask* handler = new ImpiDigestTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the handler's run function is called, expect a diameter message to be sent.
   // We don't bother checking the contents of this message since this is done in
@@ -1556,8 +1556,8 @@ TEST_F(HandlersTest, DigestHSSOtherError)
                              "digest",
                              "?public_id=" + IMPU);
 
-  ImpiHandler::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
-  ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpiTask::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
+  ImpiDigestTask* handler = new ImpiDigestTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the handler's run function is called, expect a diameter message to be sent.
   // We don't bother checking the contents of this message since this is done in
@@ -1599,8 +1599,8 @@ TEST_F(HandlersTest, DigestHSSUnkownScheme)
                              "digest",
                              "?public_id=" + IMPU);
 
-  ImpiHandler::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
-  ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpiTask::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
+  ImpiDigestTask* handler = new ImpiDigestTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the handler's run function is called, expect a diameter message to be sent.
   // We don't bother checking the contents of this message since this is done in
@@ -1642,8 +1642,8 @@ TEST_F(HandlersTest, DigestHSSAKAReturned)
                              "digest",
                              "?public_id=" + IMPU);
 
-  ImpiHandler::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
-  ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpiTask::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
+  ImpiDigestTask* handler = new ImpiDigestTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the handler's run function is called, expect a diameter message to be sent.
   // We don't bother checking the contents of this message since this is done in
@@ -1684,8 +1684,8 @@ TEST_F(HandlersTest, DigestNoCachedIMPUs)
                              "/impi/" + IMPI,
                              "digest",
                              "");
-  ImpiHandler::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
-  ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpiTask::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
+  ImpiDigestTask* handler = new ImpiDigestTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the handler's run function is called, expect to look for associated
   // public IDs in the cache.
@@ -1719,8 +1719,8 @@ TEST_F(HandlersTest, DigestIMPUNotFound)
                              "digest",
                              "");
 
-  ImpiHandler::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
-  ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpiTask::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
+  ImpiDigestTask* handler = new ImpiDigestTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the handler's run function is called, expect to look for associated
   // public IDs in the cache.
@@ -1753,8 +1753,8 @@ TEST_F(HandlersTest, DigestNoIMPUCacheFailure)
                              "digest",
                              "");
 
-  ImpiHandler::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
-  ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpiTask::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
+  ImpiDigestTask* handler = new ImpiDigestTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the handler's run function is called, expect to look for associated
   // public IDs in the cache.
@@ -1786,8 +1786,8 @@ TEST_F(HandlersTest, AvCache)
                              "av",
                              "?impu=" + IMPU);
 
-  ImpiHandler::Config cfg(false);
-  ImpiAvHandler* handler = new ImpiAvHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpiTask::Config cfg(false);
+  ImpiAvTask* handler = new ImpiAvTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the handler's run function is called, expect to lookup an auth
   // vector for the specified public and private IDs.
@@ -1828,8 +1828,8 @@ TEST_F(HandlersTest, AvEmptyQoP)
                              "av",
                              "?impu=" + IMPU);
 
-  ImpiHandler::Config cfg(false);
-  ImpiAvHandler* handler = new ImpiAvHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpiTask::Config cfg(false);
+  ImpiAvTask* handler = new ImpiAvTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the handler's run function is called, expect to lookup an auth
   // vector for the specified public and private IDs.
@@ -1872,8 +1872,8 @@ TEST_F(HandlersTest, AvNoPublicIDHSSAKA)
                              "/impi/" + IMPI,
                              "av",
                              "?autn=" + SIP_AUTHORIZATION);
-  ImpiHandler::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
-  ImpiAvHandler* handler = new ImpiAvHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpiTask::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
+  ImpiAvTask* handler = new ImpiAvTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the handler's run function is called, expect to look for associated
   // public IDs in the cache.
@@ -1955,8 +1955,8 @@ TEST_F(HandlersTest, AuthInvalidScheme)
                              "invalid",
                              "");
 
-  ImpiHandler::Config cfg(true);
-  ImpiAvHandler* handler = new ImpiAvHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpiTask::Config cfg(true);
+  ImpiAvTask* handler = new ImpiAvTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the handler's run function is called, expect a 404 HTTP response.
   EXPECT_CALL(*_httpstack, send_reply(_, 404, _));
@@ -1972,8 +1972,8 @@ TEST_F(HandlersTest, AkaNoIMPU)
                              "aka",
                              "");
 
-  ImpiHandler::Config cfg(true);
-  ImpiAvHandler* handler = new ImpiAvHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpiTask::Config cfg(true);
+  ImpiAvTask* handler = new ImpiAvTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the handler's run function is called, expect a 404 HTTP response.
   EXPECT_CALL(*_httpstack, send_reply(_, 404, _));
@@ -2161,8 +2161,8 @@ TEST_F(HandlersTest, IMSSubscriptionNoHSSUnknown)
                              "?private_id=" + IMPI,
                              "{\"reqtype\": \"reg\"}",
                              htp_method_PUT);
-  ImpuRegDataHandler::Config cfg(false, 3600);
-  ImpuRegDataHandler* handler = new ImpuRegDataHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpuRegDataTask::Config cfg(false, 3600);
+  ImpuRegDataTask* handler = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
 
   MockCache::MockGetIMSSubscription mock_req;
   EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU))
@@ -2196,8 +2196,8 @@ TEST_F(HandlersTest, IMSSubscriptionNoHSSUnknownCall)
                              "",
                              "{\"reqtype\": \"call\"}",
                              htp_method_PUT);
-  ImpuRegDataHandler::Config cfg(false, 3600);
-  ImpuRegDataHandler* handler = new ImpuRegDataHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpuRegDataTask::Config cfg(false, 3600);
+  ImpuRegDataTask* handler = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
 
   MockCache::MockGetIMSSubscription mock_req;
   EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU))
@@ -2231,8 +2231,8 @@ TEST_F(HandlersTest, LegacyIMSSubscriptionNoHSS)
                              "/impu/" + IMPU,
                              "",
                              "?private_id=" + IMPI);
-  ImpuIMSSubscriptionHandler::Config cfg(false, 3600);
-  ImpuIMSSubscriptionHandler* handler = new ImpuIMSSubscriptionHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpuIMSSubscriptionTask::Config cfg(false, 3600);
+  ImpuIMSSubscriptionTask* handler = new ImpuIMSSubscriptionTask(req, &cfg, FAKE_TRAIL_ID);
 
   MockCache::MockGetIMSSubscription mock_req;
   EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU))
@@ -2264,8 +2264,8 @@ TEST_F(HandlersTest, LegacyIMSSubscriptionNoHSS_NotFound)
                              "/impu/" + IMPU,
                              "",
                              "?private_id=" + IMPI);
-  ImpuIMSSubscriptionHandler::Config cfg(false, 3600);
-  ImpuIMSSubscriptionHandler* handler = new ImpuIMSSubscriptionHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpuIMSSubscriptionTask::Config cfg(false, 3600);
+  ImpuIMSSubscriptionTask* handler = new ImpuIMSSubscriptionTask(req, &cfg, FAKE_TRAIL_ID);
 
   MockCache::MockGetIMSSubscription mock_req;
   EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU))
@@ -2298,8 +2298,8 @@ TEST_F(HandlersTest, LegacyIMSSubscriptionNoHSS_Unregistered)
                              "/impu/" + IMPU,
                              "",
                              "");
-  ImpuIMSSubscriptionHandler::Config cfg(false, 3600);
-  ImpuIMSSubscriptionHandler* handler = new ImpuIMSSubscriptionHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpuIMSSubscriptionTask::Config cfg(false, 3600);
+  ImpuIMSSubscriptionTask* handler = new ImpuIMSSubscriptionTask(req, &cfg, FAKE_TRAIL_ID);
 
   MockCache::MockGetIMSSubscription mock_req;
   EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU))
@@ -2335,8 +2335,8 @@ TEST_F(HandlersTest, IMSSubscriptionGet)
                              "",
                              "",
                              htp_method_GET);
-  ImpuRegDataHandler::Config cfg(true, 3600);
-  ImpuRegDataHandler* handler = new ImpuRegDataHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpuRegDataTask::Config cfg(true, 3600);
+  ImpuRegDataTask* handler = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
 
   MockCache::MockGetIMSSubscription mock_req;
   EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU))
@@ -2373,8 +2373,8 @@ TEST_F(HandlersTest, IMSSubscriptionInvalidType)
                              "",
                              "invalid",
                              htp_method_PUT);
-  ImpuRegDataHandler::Config cfg(false, 3600);
-  ImpuRegDataHandler* handler = new ImpuRegDataHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpuRegDataTask::Config cfg(false, 3600);
+  ImpuRegDataTask* handler = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
 
   EXPECT_CALL(*_httpstack, send_reply(_, 400, _));
   handler->run();
@@ -2390,8 +2390,8 @@ TEST_F(HandlersTest, IMSSubscriptionWrongMethod)
                              "",
                              "{\"reqtype\": \"reg\"}",
                              htp_method_DELETE);
-  ImpuRegDataHandler::Config cfg(false, 3600);
-  ImpuRegDataHandler* handler = new ImpuRegDataHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpuRegDataTask::Config cfg(false, 3600);
+  ImpuRegDataTask* handler = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
 
   EXPECT_CALL(*_httpstack, send_reply(_, 405, _));
   handler->run();
@@ -2407,8 +2407,8 @@ TEST_F(HandlersTest, IMSSubscriptionUserUnknownDereg)
                              "?private_id=" + ASSOCIATED_IDENTITY1,
                              "{\"reqtype\": \"dereg-timeout\"}",
                              htp_method_PUT);
-  ImpuRegDataHandler::Config cfg(true, 3600);
-  ImpuRegDataHandler* handler = new ImpuRegDataHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpuRegDataTask::Config cfg(true, 3600);
+  ImpuRegDataTask* handler = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
   MockCache::MockGetIMSSubscription mock_req;
 
   EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU))
@@ -2468,8 +2468,8 @@ TEST_F(HandlersTest, IMSSubscriptionOtherErrorCallReg)
                              "{\"reqtype\": \"call\"}",
                              htp_method_PUT);
   req.method();
-  ImpuRegDataHandler::Config cfg(true, 3600);
-  ImpuRegDataHandler* handler = new ImpuRegDataHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpuRegDataTask::Config cfg(true, 3600);
+  ImpuRegDataTask* handler = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
 
   MockCache::MockGetIMSSubscription mock_req;
   EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU))
@@ -2520,8 +2520,8 @@ TEST_F(HandlersTest, IMSSubscriptionCacheNotFound)
                              "",
                              "");
 
-  ImpuIMSSubscriptionHandler::Config cfg(false, 3600);
-  ImpuIMSSubscriptionHandler* handler = new ImpuIMSSubscriptionHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpuIMSSubscriptionTask::Config cfg(false, 3600);
+  ImpuIMSSubscriptionTask* handler = new ImpuIMSSubscriptionTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the handler's run function is called, expect to lookup IMS
   // subscription information for the specified public ID.
@@ -2555,8 +2555,8 @@ TEST_F(HandlersTest, IMSSubscriptionCacheFailure)
                              "",
                              "");
 
-  ImpuIMSSubscriptionHandler::Config cfg(false, 3600);
-  ImpuIMSSubscriptionHandler* handler = new ImpuIMSSubscriptionHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpuIMSSubscriptionTask::Config cfg(false, 3600);
+  ImpuIMSSubscriptionTask* handler = new ImpuIMSSubscriptionTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the handler's run function is called, expect to lookup IMS
   // subscription information for the specified public ID.
@@ -2588,8 +2588,8 @@ TEST_F(HandlersTest, RegistrationStatusHSSTimeout)
                              "registration-status",
                              "?impu=" + IMPU);
 
-  ImpiRegistrationStatusHandler::Config cfg(true);
-  ImpiRegistrationStatusHandler* handler = new ImpiRegistrationStatusHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpiRegistrationStatusTask::Config cfg(true);
+  ImpiRegistrationStatusTask* handler = new ImpiRegistrationStatusTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the handler's run function is called, expect a diameter message to be
   // sent. We don't bother checking the diameter message is as expected here. This
@@ -2616,8 +2616,8 @@ TEST_F(HandlersTest, RegistrationStatus)
                              "registration-status",
                              "?impu=" + IMPU);
 
-  ImpiRegistrationStatusHandler::Config cfg(true);
-  ImpiRegistrationStatusHandler* handler = new ImpiRegistrationStatusHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpiRegistrationStatusTask::Config cfg(true);
+  ImpiRegistrationStatusTask* handler = new ImpiRegistrationStatusTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the handler's run function is called, expect a diameter message to be
   // sent.
@@ -2669,8 +2669,8 @@ TEST_F(HandlersTest, RegistrationStatusOptParamsSubseqRegCapabs)
                              "registration-status",
                              "?impu=" + IMPU + "&visited-network=" + VISITED_NETWORK + "&auth-type=" + AUTH_TYPE_DEREG);
 
-  ImpiRegistrationStatusHandler::Config cfg(true);
-  ImpiRegistrationStatusHandler* handler = new ImpiRegistrationStatusHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpiRegistrationStatusTask::Config cfg(true);
+  ImpiRegistrationStatusTask* handler = new ImpiRegistrationStatusTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the handler's run function is called, expect a diameter message to be
   // sent.
@@ -2722,8 +2722,8 @@ TEST_F(HandlersTest, RegistrationStatusFirstRegNoCapabs)
                              "registration-status",
                              "?impu=" + IMPU);
 
-  ImpiRegistrationStatusHandler::Config cfg(true);
-  ImpiRegistrationStatusHandler* handler = new ImpiRegistrationStatusHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpiRegistrationStatusTask::Config cfg(true);
+  ImpiRegistrationStatusTask* handler = new ImpiRegistrationStatusTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the handler's run function is called, expect a diameter message to be
   // sent.
@@ -2803,8 +2803,8 @@ TEST_F(HandlersTest, RegistrationStatusNoHSS)
                              "registration-status",
                              "?impu=sip:impu@example.com");
 
-  ImpiRegistrationStatusHandler::Config cfg(false);
-  ImpiRegistrationStatusHandler* handler = new ImpiRegistrationStatusHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpiRegistrationStatusTask::Config cfg(false);
+  ImpiRegistrationStatusTask* handler = new ImpiRegistrationStatusTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the handler's run function is called, expect a successful HTTP response.
   EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
@@ -2827,8 +2827,8 @@ TEST_F(HandlersTest, LocationInfo)
                              "location",
                              "");
 
-  ImpuLocationInfoHandler::Config cfg(true);
-  ImpuLocationInfoHandler* handler = new ImpuLocationInfoHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpuLocationInfoTask::Config cfg(true);
+  ImpuLocationInfoTask* handler = new ImpuLocationInfoTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the handler's run function is called, expect a diameter message to be
   // sent.
@@ -2879,8 +2879,8 @@ TEST_F(HandlersTest, LocationInfoOptParamsUnregisteredService)
                              "location",
                              "?originating=true&auth-type=" + AUTH_TYPE_CAPAB);
 
-  ImpuLocationInfoHandler::Config cfg(true);
-  ImpuLocationInfoHandler* handler = new ImpuLocationInfoHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpuLocationInfoTask::Config cfg(true);
+  ImpuLocationInfoTask* handler = new ImpuLocationInfoTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the handler's run function is called, expect a diameter message to be
   // sent.
@@ -2949,8 +2949,8 @@ TEST_F(HandlersTest, LocationInfoNoHSS)
                              "location",
                              "");
 
-  ImpuLocationInfoHandler::Config cfg(false);
-  ImpuLocationInfoHandler* handler = new ImpuLocationInfoHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpuLocationInfoTask::Config cfg(false);
+  ImpuLocationInfoTask* handler = new ImpuLocationInfoTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the handler's run function is called, expect a successful HTTP response.
   EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
@@ -3466,8 +3466,8 @@ TEST_F(HandlerStatsTest, DigestCache)
                              "digest",
                              "?public_id=" + IMPU);
 
-  ImpiHandler::Config cfg(false);
-  ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpiTask::Config cfg(false);
+  ImpiDigestTask* handler = new ImpiDigestTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Handler does a cache digest lookup.
   MockCache::MockGetAuthVector mock_req;
@@ -3509,8 +3509,8 @@ TEST_F(HandlerStatsTest, DigestCacheFailure)
                              "digest",
                              "?public_id=" + IMPU);
 
-  ImpiHandler::Config cfg(false);
-  ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpiTask::Config cfg(false);
+  ImpiDigestTask* handler = new ImpiDigestTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Handler does a cache digest lookup.
   MockCache::MockGetAuthVector mock_req;
@@ -3546,8 +3546,8 @@ TEST_F(HandlerStatsTest, DigestHSS)
                              "digest",
                              "?public_id=" + IMPU);
 
-  ImpiHandler::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
-  ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpiTask::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
+  ImpiDigestTask* handler = new ImpiDigestTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the handler's run function is called, expect a diameter message to be sent.
   EXPECT_CALL(*_mock_stack, send(_, _, 200))
@@ -3603,8 +3603,8 @@ TEST_F(HandlerStatsTest, DigestHSSTimeout)
                              "digest",
                              "?public_id=" + IMPU);
 
-  ImpiHandler::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
-  ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpiTask::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
+  ImpiDigestTask* handler = new ImpiDigestTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the handler's run function is called, expect a diameter message to be sent.
   EXPECT_CALL(*_mock_stack, send(_, _, 200))
@@ -3640,8 +3640,8 @@ TEST_F(HandlerStatsTest, IMSSubscriptionReregHSS)
                              "{\"reqtype\": \"reg\"}",
                              htp_method_PUT);
 
-  ImpuRegDataHandler::Config cfg(true, 1800);
-  ImpuRegDataHandler* handler = new ImpuRegDataHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpuRegDataTask::Config cfg(true, 1800);
+  ImpuRegDataTask* handler = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the handler's run function is called, expect to lookup IMS
   // subscription information for the specified public ID.
@@ -3726,8 +3726,8 @@ TEST_F(HandlerStatsTest, RegistrationStatus)
                              "registration-status",
                              "?impu=" + IMPU);
 
-  ImpiRegistrationStatusHandler::Config cfg(true);
-  ImpiRegistrationStatusHandler* handler = new ImpiRegistrationStatusHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpiRegistrationStatusTask::Config cfg(true);
+  ImpiRegistrationStatusTask* handler = new ImpiRegistrationStatusTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the handler's run function is called, expect a diameter message to be
   // sent.
@@ -3768,8 +3768,8 @@ TEST_F(HandlerStatsTest, LocationInfo)
                              "location",
                              "");
 
-  ImpuLocationInfoHandler::Config cfg(true);
-  ImpuLocationInfoHandler* handler = new ImpuLocationInfoHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpuLocationInfoTask::Config cfg(true);
+  ImpuLocationInfoTask* handler = new ImpuLocationInfoTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the handler's run function is called, expect a diameter message to be
   // sent.
@@ -3811,8 +3811,8 @@ TEST_F(HandlerStatsTest, LocationInfoOverload)
                              "location",
                              "");
 
-  ImpuLocationInfoHandler::Config cfg(true);
-  ImpuLocationInfoHandler* handler = new ImpuLocationInfoHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpuLocationInfoTask::Config cfg(true);
+  ImpuLocationInfoTask* handler = new ImpuLocationInfoTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the handler's run function is called, expect a diameter message to be
   // sent.

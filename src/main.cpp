@@ -450,37 +450,37 @@ int main(int argc, char**argv)
   }
 
   HttpStack* http_stack = HttpStack::get_instance();
-  HssCacheHandler::configure_diameter(diameter_stack,
+  HssCacheTask::configure_diameter(diameter_stack,
                                       options.dest_realm.empty() ? options.home_domain : options.dest_realm,
                                       options.dest_host == "0.0.0.0" ? "" : options.dest_host,
                                       options.server_name,
                                       dict);
-  HssCacheHandler::configure_cache(cache);
-  HssCacheHandler::configure_stats(stats_manager);
+  HssCacheTask::configure_cache(cache);
+  HssCacheTask::configure_stats(stats_manager);
 
   // We should only query the cache for AV information if there is no HSS.  If there is an HSS, we
   // should always hit it.  If there is not, the AV information must have been provisioned in the
   // "cache" (which becomes persistent).
   bool hss_configured = !(options.dest_realm.empty() && (options.dest_host.empty() || options.dest_host == "0.0.0.0"));
 
-  ImpiHandler::Config impi_handler_config(hss_configured,
+  ImpiTask::Config impi_handler_config(hss_configured,
                                           options.impu_cache_ttl,
                                           options.scheme_unknown,
                                           options.scheme_digest,
                                           options.scheme_aka,
                                           options.diameter_timeout_ms);
-  ImpiRegistrationStatusHandler::Config registration_status_handler_config(hss_configured, options.diameter_timeout_ms);
-  ImpuLocationInfoHandler::Config location_info_handler_config(hss_configured, options.diameter_timeout_ms);
-  ImpuRegDataHandler::Config impu_handler_config(hss_configured, options.hss_reregistration_time, options.diameter_timeout_ms);
-  ImpuIMSSubscriptionHandler::Config impu_handler_config_old(hss_configured, options.hss_reregistration_time, options.diameter_timeout_ms);
+  ImpiRegistrationStatusTask::Config registration_status_handler_config(hss_configured, options.diameter_timeout_ms);
+  ImpuLocationInfoTask::Config location_info_handler_config(hss_configured, options.diameter_timeout_ms);
+  ImpuRegDataTask::Config impu_handler_config(hss_configured, options.hss_reregistration_time, options.diameter_timeout_ms);
+  ImpuIMSSubscriptionTask::Config impu_handler_config_old(hss_configured, options.hss_reregistration_time, options.diameter_timeout_ms);
 
   HttpStackUtils::PingController ping_controller;
-  HttpStackUtils::SpawningController<ImpiDigestHandler, ImpiHandler::Config> impi_digest_controller(&impi_handler_config);
-  HttpStackUtils::SpawningController<ImpiAvHandler, ImpiHandler::Config> impi_av_controller(&impi_handler_config);
-  HttpStackUtils::SpawningController<ImpiRegistrationStatusHandler, ImpiRegistrationStatusHandler::Config> impi_reg_status_controller(&registration_status_handler_config);
-  HttpStackUtils::SpawningController<ImpuLocationInfoHandler, ImpuLocationInfoHandler::Config> impu_loc_info_controller(&location_info_handler_config);
-  HttpStackUtils::SpawningController<ImpuRegDataHandler, ImpuRegDataHandler::Config> impu_reg_data_controller(&impu_handler_config);
-  HttpStackUtils::SpawningController<ImpuIMSSubscriptionHandler, ImpuIMSSubscriptionHandler::Config> impu_ims_sub_controller(&impu_handler_config_old);
+  HttpStackUtils::SpawningController<ImpiDigestTask, ImpiTask::Config> impi_digest_controller(&impi_handler_config);
+  HttpStackUtils::SpawningController<ImpiAvTask, ImpiTask::Config> impi_av_controller(&impi_handler_config);
+  HttpStackUtils::SpawningController<ImpiRegistrationStatusTask, ImpiRegistrationStatusTask::Config> impi_reg_status_controller(&registration_status_handler_config);
+  HttpStackUtils::SpawningController<ImpuLocationInfoTask, ImpuLocationInfoTask::Config> impu_loc_info_controller(&location_info_handler_config);
+  HttpStackUtils::SpawningController<ImpuRegDataTask, ImpuRegDataTask::Config> impu_reg_data_controller(&impu_handler_config);
+  HttpStackUtils::SpawningController<ImpuIMSSubscriptionTask, ImpuIMSSubscriptionTask::Config> impu_ims_sub_controller(&impu_handler_config_old);
 
   try
   {

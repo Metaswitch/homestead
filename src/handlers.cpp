@@ -46,32 +46,32 @@
 #include "boost/algorithm/string/join.hpp"
 
 
-Diameter::Stack* HssCacheHandler::_diameter_stack = NULL;
-std::string HssCacheHandler::_dest_realm;
-std::string HssCacheHandler::_dest_host;
-std::string HssCacheHandler::_server_name;
-Cx::Dictionary* HssCacheHandler::_dict;
-Cache* HssCacheHandler::_cache = NULL;
-StatisticsManager* HssCacheHandler::_stats_manager = NULL;
+Diameter::Stack* HssCacheTask::_diameter_stack = NULL;
+std::string HssCacheTask::_dest_realm;
+std::string HssCacheTask::_dest_host;
+std::string HssCacheTask::_server_name;
+Cx::Dictionary* HssCacheTask::_dict;
+Cache* HssCacheTask::_cache = NULL;
+StatisticsManager* HssCacheTask::_stats_manager = NULL;
 
-const static HssCacheHandler::StatsFlags DIGEST_STATS =
-  static_cast<HssCacheHandler::StatsFlags>(
-    HssCacheHandler::STAT_HSS_LATENCY |
-    HssCacheHandler::STAT_HSS_DIGEST_LATENCY);
+const static HssCacheTask::StatsFlags DIGEST_STATS =
+  static_cast<HssCacheTask::StatsFlags>(
+    HssCacheTask::STAT_HSS_LATENCY |
+    HssCacheTask::STAT_HSS_DIGEST_LATENCY);
 
-const static HssCacheHandler::StatsFlags SUBSCRIPTION_STATS =
-  static_cast<HssCacheHandler::StatsFlags>(
-    HssCacheHandler::STAT_HSS_LATENCY |
-    HssCacheHandler::STAT_HSS_SUBSCRIPTION_LATENCY);
+const static HssCacheTask::StatsFlags SUBSCRIPTION_STATS =
+  static_cast<HssCacheTask::StatsFlags>(
+    HssCacheTask::STAT_HSS_LATENCY |
+    HssCacheTask::STAT_HSS_SUBSCRIPTION_LATENCY);
 
 
-void HssCacheHandler::configure_diameter(Diameter::Stack* diameter_stack,
+void HssCacheTask::configure_diameter(Diameter::Stack* diameter_stack,
                                          const std::string& dest_realm,
                                          const std::string& dest_host,
                                          const std::string& server_name,
                                          Cx::Dictionary* dict)
 {
-  LOG_STATUS("Configuring HssCacheHandler");
+  LOG_STATUS("Configuring HssCacheTask");
   LOG_STATUS("  Dest-Realm:  %s", dest_realm.c_str());
   LOG_STATUS("  Dest-Host:   %s", dest_host.c_str());
   LOG_STATUS("  Server-Name: %s", server_name.c_str());
@@ -82,17 +82,17 @@ void HssCacheHandler::configure_diameter(Diameter::Stack* diameter_stack,
   _dict = dict;
 }
 
-void HssCacheHandler::configure_cache(Cache* cache)
+void HssCacheTask::configure_cache(Cache* cache)
 {
   _cache = cache;
 }
 
-void HssCacheHandler::configure_stats(StatisticsManager* stats_manager)
+void HssCacheTask::configure_stats(StatisticsManager* stats_manager)
 {
   _stats_manager = stats_manager;
 }
 
-void HssCacheHandler::on_diameter_timeout()
+void HssCacheTask::on_diameter_timeout()
 {
   send_http_reply(HTTP_GATEWAY_TIMEOUT);
   delete this;
@@ -100,7 +100,7 @@ void HssCacheHandler::on_diameter_timeout()
 
 // General IMPI handling.
 
-void ImpiHandler::run()
+void ImpiTask::run()
 {
   if (parse_request())
   {
@@ -123,7 +123,7 @@ void ImpiHandler::run()
   }
 }
 
-void ImpiHandler::query_cache_av()
+void ImpiTask::query_cache_av()
 {
   LOG_DEBUG("Querying cache for authentication vector for %s/%s", _impi.c_str(), _impu.c_str());
   SAS::Event event(this->trail(), SASEvent::CACHE_GET_AV, 0);
@@ -132,12 +132,12 @@ void ImpiHandler::query_cache_av()
   SAS::report_event(event);
   Cache::Request* get_av = _cache->create_GetAuthVector(_impi, _impu);
   CacheTransaction* tsx = new CacheTransaction(this);
-  tsx->set_success_clbk(&ImpiHandler::on_get_av_success);
-  tsx->set_failure_clbk(&ImpiHandler::on_get_av_failure);
+  tsx->set_success_clbk(&ImpiTask::on_get_av_success);
+  tsx->set_failure_clbk(&ImpiTask::on_get_av_failure);
   _cache->send(tsx, get_av);
 }
 
-void ImpiHandler::on_get_av_success(Cache::Request* request)
+void ImpiTask::on_get_av_success(Cache::Request* request)
 {
   SAS::Event event(this->trail(), SASEvent::CACHE_GET_AV_SUCCESS, 0);
   SAS::report_event(event);
@@ -149,7 +149,7 @@ void ImpiHandler::on_get_av_success(Cache::Request* request)
   delete this;
 }
 
-void ImpiHandler::on_get_av_failure(Cache::Request* request, Cache::ResultCode error, std::string& text)
+void ImpiTask::on_get_av_failure(Cache::Request* request, Cache::ResultCode error, std::string& text)
 {
   LOG_DEBUG("Cache query failed - reject request");
   SAS::Event event(this->trail(), SASEvent::NO_AV_CACHE, 0);
@@ -167,7 +167,7 @@ void ImpiHandler::on_get_av_failure(Cache::Request* request, Cache::ResultCode e
   delete this;
 }
 
-void ImpiHandler::get_av()
+void ImpiTask::get_av()
 {
   if (_impu.empty())
   {
@@ -193,7 +193,7 @@ void ImpiHandler::get_av()
   }
 }
 
-void ImpiHandler::query_cache_impu()
+void ImpiTask::query_cache_impu()
 {
   LOG_DEBUG("Querying cache to find public IDs associated with %s", _impi.c_str());
   SAS::Event event(this->trail(), SASEvent::CACHE_GET_ASSOC_IMPU, 0);
@@ -201,12 +201,12 @@ void ImpiHandler::query_cache_impu()
   SAS::report_event(event);
   Cache::Request* get_public_ids = _cache->create_GetAssociatedPublicIDs(_impi);
   CacheTransaction* tsx = new CacheTransaction(this);
-  tsx->set_success_clbk(&ImpiHandler::on_get_impu_success);
-  tsx->set_failure_clbk(&ImpiHandler::on_get_impu_failure);
+  tsx->set_success_clbk(&ImpiTask::on_get_impu_success);
+  tsx->set_failure_clbk(&ImpiTask::on_get_impu_failure);
   _cache->send(tsx, get_public_ids);
 }
 
-void ImpiHandler::on_get_impu_success(Cache::Request* request)
+void ImpiTask::on_get_impu_success(Cache::Request* request)
 {
   Cache::GetAssociatedPublicIDs* get_public_ids = (Cache::GetAssociatedPublicIDs*)request;
   std::vector<std::string> ids;
@@ -231,7 +231,7 @@ void ImpiHandler::on_get_impu_success(Cache::Request* request)
   }
 }
 
-void ImpiHandler::on_get_impu_failure(Cache::Request* request, Cache::ResultCode error, std::string& text)
+void ImpiTask::on_get_impu_failure(Cache::Request* request, Cache::ResultCode error, std::string& text)
 {
   SAS::Event event(this->trail(), SASEvent::CACHE_GET_ASSOC_IMPU_FAIL, 0);
   SAS::report_event(event);
@@ -248,7 +248,7 @@ void ImpiHandler::on_get_impu_failure(Cache::Request* request, Cache::ResultCode
   delete this;
 }
 
-void ImpiHandler::send_mar()
+void ImpiTask::send_mar()
 {
   Cx::MultimediaAuthRequest mar(_dict,
                                 _diameter_stack,
@@ -262,11 +262,11 @@ void ImpiHandler::send_mar()
   DiameterTransaction* tsx =
     new DiameterTransaction(_dict, this, DIGEST_STATS);
 
-  tsx->set_response_clbk(&ImpiHandler::on_mar_response);
+  tsx->set_response_clbk(&ImpiTask::on_mar_response);
   mar.send(tsx, _cfg->diameter_timeout_ms);
 }
 
-void ImpiHandler::on_mar_response(Diameter::Message& rsp)
+void ImpiTask::on_mar_response(Diameter::Message& rsp)
 {
   Cx::MultimediaAuthAnswer maa(rsp);
   int32_t result_code = 0;
@@ -330,7 +330,7 @@ void ImpiHandler::on_mar_response(Diameter::Message& rsp)
 // IMPI digest handling.
 //
 
-bool ImpiDigestHandler::parse_request()
+bool ImpiDigestTask::parse_request()
 {
   const std::string prefix = "/impi/";
   std::string path = _req.path();
@@ -343,7 +343,7 @@ bool ImpiDigestHandler::parse_request()
   return true;
 }
 
-void ImpiDigestHandler::send_reply(const DigestAuthVector& av)
+void ImpiDigestTask::send_reply(const DigestAuthVector& av)
 {
   rapidjson::StringBuffer sb;
   rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
@@ -355,7 +355,7 @@ void ImpiDigestHandler::send_reply(const DigestAuthVector& av)
   send_http_reply(200);
 }
 
-void ImpiDigestHandler::send_reply(const AKAAuthVector& av)
+void ImpiDigestTask::send_reply(const AKAAuthVector& av)
 {
   // It is an error to request AKA authentication through the digest URL.
   LOG_INFO("Digest requested but AKA received - reject");
@@ -366,7 +366,7 @@ void ImpiDigestHandler::send_reply(const AKAAuthVector& av)
 // IMPI AV handling.
 //
 
-bool ImpiAvHandler::parse_request()
+bool ImpiAvTask::parse_request()
 {
   const std::string prefix = "/impi/";
   std::string path = _req.path();
@@ -379,7 +379,7 @@ bool ImpiAvHandler::parse_request()
   }
   else if (scheme == "digest")
   {
-    _scheme = _cfg->scheme_digest; // LCOV_EXCL_LINE - digests are handled by the ImpiDigestHandler so we can't get here.
+    _scheme = _cfg->scheme_digest; // LCOV_EXCL_LINE - digests are handled by the ImpiDigestTask so we can't get here.
   }
   else if (scheme == "aka")
   {
@@ -399,7 +399,7 @@ bool ImpiAvHandler::parse_request()
   return true;
 }
 
-void ImpiAvHandler::send_reply(const DigestAuthVector& av)
+void ImpiAvTask::send_reply(const DigestAuthVector& av)
 {
   rapidjson::StringBuffer sb;
   rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
@@ -428,7 +428,7 @@ void ImpiAvHandler::send_reply(const DigestAuthVector& av)
   send_http_reply(200);
 }
 
-void ImpiAvHandler::send_reply(const AKAAuthVector& av)
+void ImpiAvTask::send_reply(const AKAAuthVector& av)
 {
   rapidjson::StringBuffer sb;
   rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
@@ -459,7 +459,7 @@ void ImpiAvHandler::send_reply(const AKAAuthVector& av)
 // IMPI Registration Status handling
 //
 
-void ImpiRegistrationStatusHandler::run()
+void ImpiRegistrationStatusTask::run()
 {
   if (_cfg->hss_configured)
   {
@@ -486,7 +486,7 @@ void ImpiRegistrationStatusHandler::run()
                                      _authorization_type);
     DiameterTransaction* tsx =
       new DiameterTransaction(_dict, this, SUBSCRIPTION_STATS);
-    tsx->set_response_clbk(&ImpiRegistrationStatusHandler::on_uar_response);
+    tsx->set_response_clbk(&ImpiRegistrationStatusTask::on_uar_response);
     uar.send(tsx, _cfg->diameter_timeout_ms);
   }
   else
@@ -508,7 +508,7 @@ void ImpiRegistrationStatusHandler::run()
   }
 }
 
-void ImpiRegistrationStatusHandler::on_uar_response(Diameter::Message& rsp)
+void ImpiRegistrationStatusTask::on_uar_response(Diameter::Message& rsp)
 {
   Cx::UserAuthorizationAnswer uaa(rsp);
   int32_t result_code = 0;
@@ -582,7 +582,7 @@ void ImpiRegistrationStatusHandler::on_uar_response(Diameter::Message& rsp)
   delete this;
 }
 
-void ImpiRegistrationStatusHandler::sas_log_hss_failure(int32_t result_code)
+void ImpiRegistrationStatusTask::sas_log_hss_failure(int32_t result_code)
 {
   SAS::Event event(this->trail(), SASEvent::REG_STATUS_HSS_FAIL, 0);
   SAS::report_event(event);
@@ -592,7 +592,7 @@ void ImpiRegistrationStatusHandler::sas_log_hss_failure(int32_t result_code)
 // IMPU Location Information handling
 //
 
-void ImpuLocationInfoHandler::run()
+void ImpuLocationInfoTask::run()
 {
   if (_cfg->hss_configured)
   {
@@ -614,7 +614,7 @@ void ImpuLocationInfoHandler::run()
                                 _authorization_type);
     DiameterTransaction* tsx =
       new DiameterTransaction(_dict, this, SUBSCRIPTION_STATS);
-    tsx->set_response_clbk(&ImpuLocationInfoHandler::on_lir_response);
+    tsx->set_response_clbk(&ImpuLocationInfoTask::on_lir_response);
     lir.send(tsx, _cfg->diameter_timeout_ms);
   }
   else
@@ -636,7 +636,7 @@ void ImpuLocationInfoHandler::run()
   }
 }
 
-void ImpuLocationInfoHandler::on_lir_response(Diameter::Message& rsp)
+void ImpuLocationInfoTask::on_lir_response(Diameter::Message& rsp)
 {
   Cx::LocationInfoAnswer lia(rsp);
   int32_t result_code = 0;
@@ -703,7 +703,7 @@ void ImpuLocationInfoHandler::on_lir_response(Diameter::Message& rsp)
   delete this;
 }
 
-void ImpuLocationInfoHandler::sas_log_hss_failure(int32_t result_code)
+void ImpuLocationInfoTask::sas_log_hss_failure(int32_t result_code)
 {
   SAS::Event event(this->trail(), SASEvent::LOC_INFO_HSS_FAIL, 0);
   SAS::report_event(event);
@@ -714,7 +714,7 @@ void ImpuLocationInfoHandler::sas_log_hss_failure(int32_t result_code)
 //
 
 // Determines whether an incoming HTTP request indicates deregistration
-bool ImpuRegDataHandler::is_deregistration_request(RequestType type)
+bool ImpuRegDataTask::is_deregistration_request(RequestType type)
 {
   switch (type)
   {
@@ -729,7 +729,7 @@ bool ImpuRegDataHandler::is_deregistration_request(RequestType type)
 
 // Determines whether an incoming HTTP request indicates
 // authentication failure
-bool ImpuRegDataHandler::is_auth_failure_request(RequestType type)
+bool ImpuRegDataTask::is_auth_failure_request(RequestType type)
 {
   switch (type)
   {
@@ -743,7 +743,7 @@ bool ImpuRegDataHandler::is_auth_failure_request(RequestType type)
 
 // If a HTTP request maps directly to a Diameter
 // Server-Assignment-Type field, return the appropriate field.
-Cx::ServerAssignmentType ImpuRegDataHandler::sar_type_for_request(RequestType type)
+Cx::ServerAssignmentType ImpuRegDataTask::sar_type_for_request(RequestType type)
 {
   switch (type)
   {
@@ -768,7 +768,7 @@ Cx::ServerAssignmentType ImpuRegDataHandler::sar_type_for_request(RequestType ty
   }
 }
 
-ImpuRegDataHandler::RequestType ImpuRegDataHandler::request_type_from_body(std::string body)
+ImpuRegDataTask::RequestType ImpuRegDataTask::request_type_from_body(std::string body)
 {
   LOG_DEBUG("Determining request type from '%s'", body.c_str());
   RequestType ret = RequestType::UNKNOWN;
@@ -818,7 +818,7 @@ ImpuRegDataHandler::RequestType ImpuRegDataHandler::request_type_from_body(std::
   return ret;
 }
 
-void ImpuRegDataHandler::run()
+void ImpuRegDataTask::run()
 {
   const std::string prefix = "/impu/";
   std::string path = _req.full_path();
@@ -870,8 +870,8 @@ void ImpuRegDataHandler::run()
   SAS::report_event(event);
   Cache::Request* get_ims_sub = _cache->create_GetIMSSubscription(_impu);
   CacheTransaction* tsx = new CacheTransaction(this);
-  tsx->set_success_clbk(&ImpuRegDataHandler::on_get_ims_subscription_success);
-  tsx->set_failure_clbk(&ImpuRegDataHandler::on_get_ims_subscription_failure);
+  tsx->set_success_clbk(&ImpuRegDataTask::on_get_ims_subscription_success);
+  tsx->set_failure_clbk(&ImpuRegDataTask::on_get_ims_subscription_failure);
   _cache->send(tsx, get_ims_sub);
 }
 
@@ -890,7 +890,7 @@ std::string regstate_to_str(RegistrationState state)
   }
 }
 
-void ImpuRegDataHandler::on_get_ims_subscription_success(Cache::Request* request)
+void ImpuRegDataTask::on_get_ims_subscription_success(Cache::Request* request)
 {
   LOG_DEBUG("Got IMS subscription from cache");
   Cache::GetIMSSubscription* get_ims_sub = (Cache::GetIMSSubscription*)request;
@@ -1164,14 +1164,14 @@ void ImpuRegDataHandler::on_get_ims_subscription_success(Cache::Request* request
   }
 }
 
-void ImpuRegDataHandler::send_reply()
+void ImpuRegDataTask::send_reply()
 {
   LOG_DEBUG("Building 200 OK response to send (body was %s)", _req.body().c_str());
   _req.add_content(XmlUtils::build_ClearwaterRegData_xml(_new_state, _xml));
   send_http_reply(200);
 }
 
-void ImpuRegDataHandler::on_get_ims_subscription_failure(Cache::Request* request, Cache::ResultCode error, std::string& text)
+void ImpuRegDataTask::on_get_ims_subscription_failure(Cache::Request* request, Cache::ResultCode error, std::string& text)
 {
   LOG_DEBUG("IMS subscription cache query failed: %u, %s", error, text.c_str());
   SAS::Event event(this->trail(), SASEvent::NO_REG_DATA_CACHE, 0);
@@ -1189,7 +1189,7 @@ void ImpuRegDataHandler::on_get_ims_subscription_failure(Cache::Request* request
   delete this;
 }
 
-void ImpuRegDataHandler::send_server_assignment_request(Cx::ServerAssignmentType type)
+void ImpuRegDataTask::send_server_assignment_request(Cx::ServerAssignmentType type)
 {
   Cx::ServerAssignmentRequest sar(_dict,
                                   _diameter_stack,
@@ -1201,11 +1201,11 @@ void ImpuRegDataHandler::send_server_assignment_request(Cx::ServerAssignmentType
                                   type);
   DiameterTransaction* tsx =
     new DiameterTransaction(_dict, this, SUBSCRIPTION_STATS);
-  tsx->set_response_clbk(&ImpuRegDataHandler::on_sar_response);
+  tsx->set_response_clbk(&ImpuRegDataTask::on_sar_response);
   sar.send(tsx, _cfg->diameter_timeout_ms);
 }
 
-std::vector<std::string> ImpuRegDataHandler::get_associated_private_ids()
+std::vector<std::string> ImpuRegDataTask::get_associated_private_ids()
 {
   std::vector<std::string> private_ids;
   if (!_impi.empty())
@@ -1222,7 +1222,7 @@ std::vector<std::string> ImpuRegDataHandler::get_associated_private_ids()
   return private_ids;
 }
 
-void ImpuRegDataHandler::put_in_cache()
+void ImpuRegDataTask::put_in_cache()
 {
   int ttl;
   if (_cfg->hss_configured)
@@ -1280,7 +1280,7 @@ void ImpuRegDataHandler::put_in_cache()
   }
 }
 
-void ImpuRegDataHandler::on_sar_response(Diameter::Message& rsp)
+void ImpuRegDataTask::on_sar_response(Diameter::Message& rsp)
 {
   Cx::ServerAssignmentAnswer saa(rsp);
   int32_t result_code = 0;
@@ -1359,7 +1359,7 @@ void ImpuRegDataHandler::on_sar_response(Diameter::Message& rsp)
 // "/impu/<public ID>". Deprecated.
 //
 
-void ImpuIMSSubscriptionHandler::run()
+void ImpuIMSSubscriptionTask::run()
 {
   const std::string prefix = "/impu/";
   std::string path = _req.full_path();
@@ -1381,12 +1381,12 @@ void ImpuIMSSubscriptionHandler::run()
   LOG_DEBUG("Try to find IMS Subscription information in the cache");
   Cache::Request* get_ims_sub = _cache->create_GetIMSSubscription(_impu);
   CacheTransaction* tsx = new CacheTransaction(this);
-  tsx->set_success_clbk(&ImpuRegDataHandler::on_get_ims_subscription_success);
-  tsx->set_failure_clbk(&ImpuRegDataHandler::on_get_ims_subscription_failure);
+  tsx->set_success_clbk(&ImpuRegDataTask::on_get_ims_subscription_success);
+  tsx->set_failure_clbk(&ImpuRegDataTask::on_get_ims_subscription_failure);
   _cache->send(tsx, get_ims_sub);
 }
 
-void ImpuIMSSubscriptionHandler::send_reply()
+void ImpuIMSSubscriptionTask::send_reply()
 {
   if (_xml != "")
   {

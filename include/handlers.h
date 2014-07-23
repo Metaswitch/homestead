@@ -87,11 +87,11 @@ const std::string JSON_INTEGRITYKEY = "integritykey";
 const std::string JSON_RC = "result-code";
 const std::string JSON_SCSCF = "scscf";
 
-class HssCacheHandler : public HttpStackUtils::Handler
+class HssCacheTask : public HttpStackUtils::Task
 {
 public:
-  HssCacheHandler(HttpStack::Request& req, SAS::TrailId trail) :
-    HttpStackUtils::Handler(req, trail)
+  HssCacheTask(HttpStack::Request& req, SAS::TrailId trail) :
+    HttpStackUtils::Task(req, trail)
   {};
 
   static void configure_diameter(Diameter::Stack* diameter_stack,
@@ -128,7 +128,7 @@ public:
       Diameter::Transaction(dict,
                             ((handler != NULL) ? handler->trail() : 0)),
       _handler(handler),
-      _timeout_clbk(&HssCacheHandler::on_diameter_timeout),
+      _timeout_clbk(&HssCacheTask::on_diameter_timeout),
       _response_clbk(NULL),
       _stat_updates(stat_updates)
     {};
@@ -183,7 +183,7 @@ public:
   private:
     void update_latency_stats()
     {
-      StatisticsManager* stats = HssCacheHandler::_stats_manager;
+      StatisticsManager* stats = HssCacheTask::_stats_manager;
 
       if (stats != NULL)
       {
@@ -261,7 +261,7 @@ public:
   private:
     void update_latency_stats()
     {
-      StatisticsManager* stats = HssCacheHandler::_stats_manager;
+      StatisticsManager* stats = HssCacheTask::_stats_manager;
 
       unsigned long latency = 0;
       if ((stats != NULL) && get_duration(latency))
@@ -282,7 +282,7 @@ protected:
   static StatisticsManager* _stats_manager;
 };
 
-class ImpiHandler : public HssCacheHandler
+class ImpiTask : public HssCacheTask
 {
 public:
   struct Config
@@ -308,8 +308,8 @@ public:
     int diameter_timeout_ms;
   };
 
-  ImpiHandler(HttpStack::Request& req, const Config* cfg, SAS::TrailId trail) :
-    HssCacheHandler(req, trail), _cfg(cfg), _impi(), _impu(), _scheme(), _authorization()
+  ImpiTask(HttpStack::Request& req, const Config* cfg, SAS::TrailId trail) :
+    HssCacheTask(req, trail), _cfg(cfg), _impi(), _impu(), _scheme(), _authorization()
   {}
 
   void run();
@@ -325,8 +325,8 @@ public:
   void on_mar_response(Diameter::Message& rsp);
   virtual void send_reply(const DigestAuthVector& av) = 0;
   virtual void send_reply(const AKAAuthVector& av) = 0;
-  typedef HssCacheHandler::CacheTransaction<ImpiHandler> CacheTransaction;
-  typedef HssCacheHandler::DiameterTransaction<ImpiHandler> DiameterTransaction;
+  typedef HssCacheTask::CacheTransaction<ImpiTask> CacheTransaction;
+  typedef HssCacheTask::DiameterTransaction<ImpiTask> DiameterTransaction;
 
 protected:
   const Config* _cfg;
@@ -336,13 +336,13 @@ protected:
   std::string _authorization;
 };
 
-class ImpiDigestHandler : public ImpiHandler
+class ImpiDigestTask : public ImpiTask
 {
 public:
-  ImpiDigestHandler(HttpStack::Request& req,
-                    const ImpiHandler::Config* cfg,
+  ImpiDigestTask(HttpStack::Request& req,
+                    const ImpiTask::Config* cfg,
                     SAS::TrailId trail) :
-    ImpiHandler(req, cfg, trail)
+    ImpiTask(req, cfg, trail)
   {}
 
   bool parse_request();
@@ -351,13 +351,13 @@ public:
 };
 
 
-class ImpiAvHandler : public ImpiHandler
+class ImpiAvTask : public ImpiTask
 {
 public:
-  ImpiAvHandler(HttpStack::Request& req,
-                const ImpiHandler::Config* cfg,
+  ImpiAvTask(HttpStack::Request& req,
+                const ImpiTask::Config* cfg,
                 SAS::TrailId trail) :
-    ImpiHandler(req, cfg, trail)
+    ImpiTask(req, cfg, trail)
   {}
 
   bool parse_request();
@@ -365,7 +365,7 @@ public:
   void send_reply(const AKAAuthVector& av);
 };
 
-class ImpiRegistrationStatusHandler : public HssCacheHandler
+class ImpiRegistrationStatusTask : public HssCacheTask
 {
 public:
   struct Config
@@ -378,15 +378,15 @@ public:
     int diameter_timeout_ms;
   };
 
-  ImpiRegistrationStatusHandler(HttpStack::Request& req, const Config* cfg, SAS::TrailId trail) :
-    HssCacheHandler(req, trail), _cfg(cfg), _impi(), _impu(), _visited_network(), _authorization_type()
+  ImpiRegistrationStatusTask(HttpStack::Request& req, const Config* cfg, SAS::TrailId trail) :
+    HssCacheTask(req, trail), _cfg(cfg), _impi(), _impu(), _visited_network(), _authorization_type()
   {}
 
   void run();
   void on_uar_response(Diameter::Message& rsp);
   void sas_log_hss_failure(int32_t result_code);
 
-  typedef HssCacheHandler::DiameterTransaction<ImpiRegistrationStatusHandler> DiameterTransaction;
+  typedef HssCacheTask::DiameterTransaction<ImpiRegistrationStatusTask> DiameterTransaction;
 
 private:
   const Config* _cfg;
@@ -396,7 +396,7 @@ private:
   std::string _authorization_type;
 };
 
-class ImpuLocationInfoHandler : public HssCacheHandler
+class ImpuLocationInfoTask : public HssCacheTask
 {
 public:
   struct Config
@@ -409,15 +409,15 @@ public:
     int diameter_timeout_ms;
   };
 
-  ImpuLocationInfoHandler(HttpStack::Request& req, const Config* cfg, SAS::TrailId trail) :
-    HssCacheHandler(req, trail), _cfg(cfg), _impu(), _originating(), _authorization_type()
+  ImpuLocationInfoTask(HttpStack::Request& req, const Config* cfg, SAS::TrailId trail) :
+    HssCacheTask(req, trail), _cfg(cfg), _impu(), _originating(), _authorization_type()
   {}
 
   void run();
   void on_lir_response(Diameter::Message& rsp);
   void sas_log_hss_failure(int32_t result_code);
 
-  typedef HssCacheHandler::DiameterTransaction<ImpuLocationInfoHandler> DiameterTransaction;
+  typedef HssCacheTask::DiameterTransaction<ImpuLocationInfoTask> DiameterTransaction;
 
 private:
   const Config* _cfg;
@@ -426,7 +426,7 @@ private:
   std::string _authorization_type;
 };
 
-class ImpuRegDataHandler : public HssCacheHandler
+class ImpuRegDataTask : public HssCacheTask
 {
 public:
   struct Config
@@ -442,18 +442,18 @@ public:
     int diameter_timeout_ms;
   };
 
-  ImpuRegDataHandler(HttpStack::Request& req, const Config* cfg, SAS::TrailId trail) :
-    HssCacheHandler(req, trail), _cfg(cfg), _impi(), _impu()
+  ImpuRegDataTask(HttpStack::Request& req, const Config* cfg, SAS::TrailId trail) :
+    HssCacheTask(req, trail), _cfg(cfg), _impi(), _impu()
   {}
-  virtual ~ImpuRegDataHandler() {};
+  virtual ~ImpuRegDataTask() {};
   virtual void run();
   void on_get_ims_subscription_success(Cache::Request* request);
   void on_get_ims_subscription_failure(Cache::Request* request, Cache::ResultCode error, std::string& text);
   void send_server_assignment_request(Cx::ServerAssignmentType type);
   void on_sar_response(Diameter::Message& rsp);
 
-  typedef HssCacheHandler::CacheTransaction<ImpuRegDataHandler> CacheTransaction;
-  typedef HssCacheHandler::DiameterTransaction<ImpuRegDataHandler> DiameterTransaction;
+  typedef HssCacheTask::CacheTransaction<ImpuRegDataTask> CacheTransaction;
+  typedef HssCacheTask::DiameterTransaction<ImpuRegDataTask> DiameterTransaction;
 
 protected:
 
@@ -484,13 +484,13 @@ protected:
   RegistrationState _new_state;
 };
 
-class ImpuIMSSubscriptionHandler : public ImpuRegDataHandler
+class ImpuIMSSubscriptionTask : public ImpuRegDataTask
 {
 public:
-  ImpuIMSSubscriptionHandler(HttpStack::Request& req,
+  ImpuIMSSubscriptionTask(HttpStack::Request& req,
                              const Config* cfg,
                              SAS::TrailId trail) :
-    ImpuRegDataHandler(req, cfg, trail)
+    ImpuRegDataTask(req, cfg, trail)
   {};
 
   void run();
@@ -527,7 +527,7 @@ public:
 
   void run();
 
-  typedef HssCacheHandler::CacheTransaction<RegistrationTerminationHandler> CacheTransaction;
+  typedef HssCacheTask::CacheTransaction<RegistrationTerminationHandler> CacheTransaction;
 
 private:
   const Config* _cfg;
@@ -582,7 +582,7 @@ public:
 
   void run();
 
-  typedef HssCacheHandler::CacheTransaction<PushProfileHandler> CacheTransaction;
+  typedef HssCacheTask::CacheTransaction<PushProfileHandler> CacheTransaction;
 
 private:
   const Config* _cfg;
