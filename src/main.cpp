@@ -419,8 +419,8 @@ int main(int argc, char**argv)
 
   RegistrationTerminationHandler::Config* rtr_config = NULL;
   PushProfileHandler::Config* ppr_config = NULL;
-  Diameter::SpawningHandler<RegistrationTerminationHandler, RegistrationTerminationHandler::Config>* rtr_handler = NULL;
-  Diameter::SpawningHandler<PushProfileHandler, PushProfileHandler::Config>* ppr_handler = NULL;
+  Diameter::SpawningController<RegistrationTerminationHandler, RegistrationTerminationHandler::Config>* rtr_handler = NULL;
+  Diameter::SpawningController<PushProfileHandler, PushProfileHandler::Config>* ppr_handler = NULL;
   Cx::Dictionary* dict = NULL;
 
   Diameter::Stack* diameter_stack = Diameter::Stack::get_instance();
@@ -433,13 +433,13 @@ int main(int argc, char**argv)
 
     rtr_config = new RegistrationTerminationHandler::Config(cache, dict, sprout_conn, options.hss_reregistration_time);
     ppr_config = new PushProfileHandler::Config(cache, dict, options.impu_cache_ttl, options.hss_reregistration_time);
-    rtr_handler = new Diameter::SpawningHandler<RegistrationTerminationHandler, RegistrationTerminationHandler::Config>(dict, rtr_config);
-    ppr_handler = new Diameter::SpawningHandler<PushProfileHandler, PushProfileHandler::Config>(dict, ppr_config);
+    rtr_handler = new Diameter::SpawningController<RegistrationTerminationHandler, RegistrationTerminationHandler::Config>(dict, rtr_config);
+    ppr_handler = new Diameter::SpawningController<PushProfileHandler, PushProfileHandler::Config>(dict, ppr_config);
 
     diameter_stack->advertize_application(Diameter::Dictionary::Application::AUTH,
                                           dict->TGPP, dict->CX);
-    diameter_stack->register_controller(dict->CX, dict->REGISTRATION_TERMINATION_REQUEST, rtr_controller);
-    diameter_stack->register_controller(dict->CX, dict->PUSH_PROFILE_REQUEST, ppr_controller);
+    diameter_stack->register_controller(dict->CX, dict->REGISTRATION_TERMINATION_REQUEST, rtr_handler);
+    diameter_stack->register_controller(dict->CX, dict->PUSH_PROFILE_REQUEST, ppr_handler);
     diameter_stack->register_fallback_controller(dict->CX);
     diameter_stack->start();
   }
@@ -561,8 +561,8 @@ int main(int argc, char**argv)
   delete dict; dict = NULL;
   delete ppr_config; ppr_config = NULL;
   delete rtr_config; rtr_config = NULL;
-  delete ppr_controller; ppr_controller = NULL;
-  delete rtr_controller; rtr_controller = NULL;
+  delete ppr_handler; ppr_handler = NULL;
+  delete rtr_handler; rtr_handler = NULL;
 
   delete sprout_conn; sprout_conn = NULL;
 
