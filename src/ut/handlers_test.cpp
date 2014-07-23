@@ -1153,8 +1153,8 @@ TEST_F(HandlersTest, SimpleMainline)
 {
   MockHttpStack::Request req(_httpstack, "/", "ping");
   EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
-  HttpStackUtils::PingController controller;
-  controller.process_request(req, 0);
+  HttpStackUtils::PingHandler handler;
+  handler.process_request(req, 0);
   EXPECT_EQ("OK", req.content());
 }
 

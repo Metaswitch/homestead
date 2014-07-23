@@ -419,8 +419,8 @@ int main(int argc, char**argv)
 
   RegistrationTerminationHandler::Config* rtr_config = NULL;
   PushProfileHandler::Config* ppr_config = NULL;
-  Diameter::SpawningController<RegistrationTerminationHandler, RegistrationTerminationHandler::Config>* rtr_controller = NULL;
-  Diameter::SpawningController<PushProfileHandler, PushProfileHandler::Config>* ppr_controller = NULL;
+  Diameter::SpawningHandler<RegistrationTerminationHandler, RegistrationTerminationHandler::Config>* rtr_handler = NULL;
+  Diameter::SpawningHandler<PushProfileHandler, PushProfileHandler::Config>* ppr_handler = NULL;
   Cx::Dictionary* dict = NULL;
 
   Diameter::Stack* diameter_stack = Diameter::Stack::get_instance();
@@ -433,8 +433,8 @@ int main(int argc, char**argv)
 
     rtr_config = new RegistrationTerminationHandler::Config(cache, dict, sprout_conn, options.hss_reregistration_time);
     ppr_config = new PushProfileHandler::Config(cache, dict, options.impu_cache_ttl, options.hss_reregistration_time);
-    rtr_controller = new Diameter::SpawningController<RegistrationTerminationHandler, RegistrationTerminationHandler::Config>(dict, rtr_config);
-    ppr_controller = new Diameter::SpawningController<PushProfileHandler, PushProfileHandler::Config>(dict, ppr_config);
+    rtr_handler = new Diameter::SpawningHandler<RegistrationTerminationHandler, RegistrationTerminationHandler::Config>(dict, rtr_config);
+    ppr_handler = new Diameter::SpawningHandler<PushProfileHandler, PushProfileHandler::Config>(dict, ppr_config);
 
     diameter_stack->advertize_application(Diameter::Dictionary::Application::AUTH,
                                           dict->TGPP, dict->CX);
@@ -474,13 +474,13 @@ int main(int argc, char**argv)
   ImpuRegDataTask::Config impu_handler_config(hss_configured, options.hss_reregistration_time, options.diameter_timeout_ms);
   ImpuIMSSubscriptionTask::Config impu_handler_config_old(hss_configured, options.hss_reregistration_time, options.diameter_timeout_ms);
 
-  HttpStackUtils::PingController ping_controller;
-  HttpStackUtils::SpawningController<ImpiDigestTask, ImpiTask::Config> impi_digest_controller(&impi_handler_config);
-  HttpStackUtils::SpawningController<ImpiAvTask, ImpiTask::Config> impi_av_controller(&impi_handler_config);
-  HttpStackUtils::SpawningController<ImpiRegistrationStatusTask, ImpiRegistrationStatusTask::Config> impi_reg_status_controller(&registration_status_handler_config);
-  HttpStackUtils::SpawningController<ImpuLocationInfoTask, ImpuLocationInfoTask::Config> impu_loc_info_controller(&location_info_handler_config);
-  HttpStackUtils::SpawningController<ImpuRegDataTask, ImpuRegDataTask::Config> impu_reg_data_controller(&impu_handler_config);
-  HttpStackUtils::SpawningController<ImpuIMSSubscriptionTask, ImpuIMSSubscriptionTask::Config> impu_ims_sub_controller(&impu_handler_config_old);
+  HttpStackUtils::PingHandler ping_handler;
+  HttpStackUtils::SpawningHandler<ImpiDigestTask, ImpiTask::Config> impi_digest_handler(&impi_handler_config);
+  HttpStackUtils::SpawningHandler<ImpiAvTask, ImpiTask::Config> impi_av_handler(&impi_handler_config);
+  HttpStackUtils::SpawningHandler<ImpiRegistrationStatusTask, ImpiRegistrationStatusTask::Config> impi_reg_status_handler(&registration_status_handler_config);
+  HttpStackUtils::SpawningHandler<ImpuLocationInfoTask, ImpuLocationInfoTask::Config> impu_loc_info_handler(&location_info_handler_config);
+  HttpStackUtils::SpawningHandler<ImpuRegDataTask, ImpuRegDataTask::Config> impu_reg_data_handler(&impu_handler_config);
+  HttpStackUtils::SpawningHandler<ImpuIMSSubscriptionTask, ImpuIMSSubscriptionTask::Config> impu_ims_sub_handler(&impu_handler_config_old);
 
   try
   {
@@ -491,20 +491,20 @@ int main(int argc, char**argv)
                           access_logger,
                           load_monitor,
                           stats_manager);
-    http_stack->register_controller("^/ping$",
-                                    &ping_controller);
-    http_stack->register_controller("^/impi/[^/]*/digest$",
-                                    &impi_digest_controller);
-    http_stack->register_controller("^/impi/[^/]*/av",
-                                    &impi_av_controller);
-    http_stack->register_controller("^/impi/[^/]*/registration-status$",
-                                    &impi_reg_status_controller);
-    http_stack->register_controller("^/impu/[^/]*/location$",
-                                    &impu_loc_info_controller);
-    http_stack->register_controller("^/impu/[^/]*/reg-data$",
-                                    &impu_reg_data_controller);
-    http_stack->register_controller("^/impu/",
-                                    &impu_ims_sub_controller);
+    http_stack->register_handler("^/ping$",
+                                    &ping_handler);
+    http_stack->register_handler("^/impi/[^/]*/digest$",
+                                    &impi_digest_handler);
+    http_stack->register_handler("^/impi/[^/]*/av",
+                                    &impi_av_handler);
+    http_stack->register_handler("^/impi/[^/]*/registration-status$",
+                                    &impi_reg_status_handler);
+    http_stack->register_handler("^/impu/[^/]*/location$",
+                                    &impu_loc_info_handler);
+    http_stack->register_handler("^/impu/[^/]*/reg-data$",
+                                    &impu_reg_data_handler);
+    http_stack->register_handler("^/impu/",
+                                    &impu_ims_sub_handler);
     http_stack->start();
   }
   catch (HttpStack::Exception& e)
