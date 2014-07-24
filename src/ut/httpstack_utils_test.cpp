@@ -173,7 +173,7 @@ private:
 };
 
 //
-// Some test controllers.
+// Some test handlers.
 //
 
 // Handler that hits a barrier when it is invoked.
@@ -243,7 +243,7 @@ public:
   sem_t sema;
 };
 
-// Test controller that emulates logging transactions at detail level.
+// Test handler that emulates logging transactions at detail level.
 class TestSasLoggingHandler : public HttpStack::HandlerInterface
 {
 public:
@@ -323,13 +323,13 @@ TEST_F(HandlerUtilsTest, SingleThread)
   // worker thread).
   bool ok;
   Barrier barrier(2);
-  TestBarrierHandler barrier_controller(&barrier);
+  TestBarrierHandler barrier_handler(&barrier);
 
   HttpStackUtils::HandlerThreadPool pool(1);
-  HttpStack::HandlerInterface* controller = pool.wrap(&barrier_controller);
+  HttpStack::HandlerInterface* handler = pool.wrap(&barrier_handler);
 
   MockHttpStack::Request req(_httpstack, "/", "kermit");
-  controller->process_request(req, FAKE_TRAIL_ID);
+  handler->process_request(req, FAKE_TRAIL_ID);
   ok = barrier.arrive(10 * 1000000); // 10s timeout
   EXPECT_TRUE(ok);
 }
@@ -344,15 +344,15 @@ TEST_F(HandlerUtilsTest, MultipleThreads)
   // threads handling the requests).
   bool ok;
   Barrier barrier(5);
-  TestBarrierHandler barrier_controller(&barrier);
+  TestBarrierHandler barrier_handler(&barrier);
 
   HttpStackUtils::HandlerThreadPool pool(10);
-  HttpStack::HandlerInterface* controller = pool.wrap(&barrier_controller);
+  HttpStack::HandlerInterface* handler = pool.wrap(&barrier_handler);
 
   for (int i = 0; i < 4; ++i)
   {
     MockHttpStack::Request req(_httpstack, "/", "kermit");
-    controller->process_request(req, FAKE_TRAIL_ID);
+    handler->process_request(req, FAKE_TRAIL_ID);
   }
 
   ok = barrier.arrive(10 * 1000000); // 10s timeout
@@ -366,21 +366,21 @@ TEST_F(HandlerUtilsTest, SingleThreadReuse)
   //
   // Test this by posting to a semaphore on every request and then waiting on
   // this semaphore once for each request.
-  TestSemaphoreHandler semaphore_controller;
+  TestSemaphoreHandler semaphore_handler;
   HttpStackUtils::HandlerThreadPool pool(1);
-  HttpStack::HandlerInterface* controller = pool.wrap(&semaphore_controller);
+  HttpStack::HandlerInterface* handler = pool.wrap(&semaphore_handler);
 
   const int NUM_REQUESTS = 5;
 
   for (int i = 0; i < NUM_REQUESTS; ++i)
   {
     MockHttpStack::Request req(_httpstack, "/", "kermit");
-    controller->process_request(req, FAKE_TRAIL_ID);
+    handler->process_request(req, FAKE_TRAIL_ID);
   }
 
   for (int i = 0; i < NUM_REQUESTS; ++i)
   {
-    bool ok = semaphore_controller.wait_for_request(10 * 1000000); // 10s timeout.
+    bool ok = semaphore_handler.wait_for_request(10 * 1000000); // 10s timeout.
     EXPECT_TRUE(ok);
   }
 }
@@ -389,13 +389,13 @@ TEST_F(HandlerUtilsTest, SingleThreadReuse)
 TEST_F(HandlerUtilsTest, SasLogLevelPassThrough)
 {
   // Check that the thread pool passes calls to sas_log_level through to the
-  // underlying controller.
+  // underlying handler.
   HttpStack::SasLogger local_sas_logger;
 
-  // This controller returns the logger we pass in on the constructor.
-  TestSasLoggingHandler controller(&local_sas_logger);
+  // This handler returns the logger we pass in on the constructor.
+  TestSasLoggingHandler handler(&local_sas_logger);
   HttpStackUtils::HandlerThreadPool pool(1);
-  HttpStack::HandlerInterface* interface = pool.wrap(&controller);
+  HttpStack::HandlerInterface* interface = pool.wrap(&handler);
 
   MockHttpStack::Request req(_httpstack, "/", "kermit");
   EXPECT_EQ(interface->sas_logger(req), &local_sas_logger);
@@ -404,11 +404,11 @@ TEST_F(HandlerUtilsTest, SasLogLevelPassThrough)
 
 TEST_F(HandlerUtilsTest, SpawningHandler)
 {
-  // Check that the spawning controller actually constructs and runs a handler
+  // Check that the spawning handler actually constructs and runs a handler
   // for each request.
   TestCountingTask::Config cfg;
   HttpStackUtils::SpawningHandler
-    <TestCountingTask, TestCountingTask::Config> controller(&cfg);
+    <TestCountingTask, TestCountingTask::Config> handler(&cfg);
 
   TestCountingTask::reset_counts();
 
@@ -417,7 +417,7 @@ TEST_F(HandlerUtilsTest, SpawningHandler)
   for (int i = 0; i < NUM_REQUESTS; ++i)
   {
     MockHttpStack::Request req(_httpstack, "/", "kermit");
-    controller.process_request(req, FAKE_TRAIL_ID);
+    handler.process_request(req, FAKE_TRAIL_ID);
   }
 
   EXPECT_EQ(TestCountingTask::construction_count, NUM_REQUESTS);
@@ -431,10 +431,10 @@ TEST_F(HandlerUtilsTest, ChronosLogging)
   mock_sas_collect_messages(true);
   MockSASMessage* event;
 
-  TestChronosHandler chronos_controller;
+  TestChronosHandler chronos_handler;
 
   MockHttpStack::Request req(_httpstack, "/", "kermit");
-  req.set_sas_logger(chronos_controller.sas_logger(req));
+  req.set_sas_logger(chronos_handler.sas_logger(req));
 
   req.sas_log_rx_http_req(FAKE_TRAIL_ID, 0);
   event = mock_sas_find_event(SASEvent::RX_HTTP_REQ_DETAIL);

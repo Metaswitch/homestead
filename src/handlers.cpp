@@ -1401,7 +1401,7 @@ void ImpuIMSSubscriptionTask::send_reply()
   }
 }
 
-void RegistrationTerminationHandler::run()
+void RegistrationTerminationTask::run()
 {
   // Save off the deregistration reason and all private and public
   // identities on the request.
@@ -1437,8 +1437,8 @@ void RegistrationTerminationHandler::run()
     SAS::report_event(event);
     Cache::Request* get_associated_impus = _cfg->cache->create_GetAssociatedPrimaryPublicIDs(_impis);
     CacheTransaction* tsx = new CacheTransaction(this);
-    tsx->set_success_clbk(&RegistrationTerminationHandler::get_assoc_primary_public_ids_success);
-    tsx->set_failure_clbk(&RegistrationTerminationHandler::get_assoc_primary_public_ids_failure);
+    tsx->set_success_clbk(&RegistrationTerminationTask::get_assoc_primary_public_ids_success);
+    tsx->set_failure_clbk(&RegistrationTerminationTask::get_assoc_primary_public_ids_failure);
     _cfg->cache->send(tsx, get_associated_impus);
   }
   else if ((!_impus.empty()) && ((_deregistration_reason == PERMANENT_TERMINATION) ||
@@ -1460,7 +1460,7 @@ void RegistrationTerminationHandler::run()
   }
 }
 
-void RegistrationTerminationHandler::get_assoc_primary_public_ids_success(Cache::Request* request)
+void RegistrationTerminationTask::get_assoc_primary_public_ids_success(Cache::Request* request)
 {
   // Get the default public identities returned by the cache.
   Cache::GetAssociatedPrimaryPublicIDs* get_associated_impus_result =
@@ -1491,7 +1491,7 @@ void RegistrationTerminationHandler::get_assoc_primary_public_ids_success(Cache:
   }
 }
 
-void RegistrationTerminationHandler::get_assoc_primary_public_ids_failure(Cache::Request* request,
+void RegistrationTerminationTask::get_assoc_primary_public_ids_failure(Cache::Request* request,
                                                                           Cache::ResultCode error,
                                                                           std::string& text)
 {
@@ -1502,7 +1502,7 @@ void RegistrationTerminationHandler::get_assoc_primary_public_ids_failure(Cache:
   delete this;
 }
 
-void RegistrationTerminationHandler::get_registration_sets()
+void RegistrationTerminationTask::get_registration_sets()
 {
   // This function issues a GetIMSSubscription cache request for a public identity
   // on the list of IMPUs and then removes that public identity from the list. It
@@ -1518,8 +1518,8 @@ void RegistrationTerminationHandler::get_registration_sets()
     SAS::report_event(event);
     Cache::Request* get_ims_sub = _cfg->cache->create_GetIMSSubscription(impu);
     CacheTransaction* tsx = new CacheTransaction(this);
-    tsx->set_success_clbk(&RegistrationTerminationHandler::get_registration_set_success);
-    tsx->set_failure_clbk(&RegistrationTerminationHandler::get_registration_set_failure);
+    tsx->set_success_clbk(&RegistrationTerminationTask::get_registration_set_success);
+    tsx->set_failure_clbk(&RegistrationTerminationTask::get_registration_set_failure);
     _cfg->cache->send(tsx, get_ims_sub);
   }
   else if (_registration_sets.empty())
@@ -1543,7 +1543,7 @@ void RegistrationTerminationHandler::get_registration_sets()
   }
 }
 
-void RegistrationTerminationHandler::get_registration_set_success(Cache::Request* request)
+void RegistrationTerminationTask::get_registration_set_success(Cache::Request* request)
 {
   Cache::GetIMSSubscription* get_ims_sub_result = (Cache::GetIMSSubscription*)request;
   std::string ims_sub;
@@ -1580,7 +1580,7 @@ void RegistrationTerminationHandler::get_registration_set_success(Cache::Request
   get_registration_sets();
 }
 
-void RegistrationTerminationHandler::get_registration_set_failure(Cache::Request* request,
+void RegistrationTerminationTask::get_registration_set_failure(Cache::Request* request,
                                                                   Cache::ResultCode error,
                                                                   std::string& text)
 {
@@ -1591,7 +1591,7 @@ void RegistrationTerminationHandler::get_registration_set_failure(Cache::Request
   delete this;
 }
 
-void RegistrationTerminationHandler::delete_registrations()
+void RegistrationTerminationTask::delete_registrations()
 {
   HTTPCode ret_code = 0;
   std::vector<std::string> empty_vector;
@@ -1684,7 +1684,7 @@ void RegistrationTerminationHandler::delete_registrations()
   delete this;
 }
 
-void RegistrationTerminationHandler::dissociate_implicit_registration_sets()
+void RegistrationTerminationTask::dissociate_implicit_registration_sets()
 {
   // Dissociate the private identities from each registration set.
   for (std::vector<std::vector<std::string>>::iterator i = _registration_sets.begin();
@@ -1704,7 +1704,7 @@ void RegistrationTerminationHandler::dissociate_implicit_registration_sets()
   }
 }
 
-void RegistrationTerminationHandler::delete_impi_mappings()
+void RegistrationTerminationTask::delete_impi_mappings()
 {
   // Delete rows from the IMPI table for all associated IMPIs.
   std::string _impis_str = boost::algorithm::join(_impis, ", ");
@@ -1719,7 +1719,7 @@ void RegistrationTerminationHandler::delete_impi_mappings()
   _cfg->cache->send(tsx, delete_impis);
 }
 
-void RegistrationTerminationHandler::send_rta(const std::string result_code)
+void RegistrationTerminationTask::send_rta(const std::string result_code)
 {
   // Use our Cx layer to create a RTA object and add the correct AVPs. The RTA is
   // created from the RTR.
@@ -1734,7 +1734,7 @@ void RegistrationTerminationHandler::send_rta(const std::string result_code)
   rta.send(trail());
 }
 
-void PushProfileHandler::run()
+void PushProfileTask::run()
 {
   // Received a Push Profile Request. We may need to update an IMS
   // subscription in the cache.
@@ -1761,8 +1761,8 @@ void PushProfileHandler::run()
                                              Cache::generate_timestamp(),
                                              (2 * _cfg->hss_reregistration_time));
     CacheTransaction* tsx = new CacheTransaction(this);
-    tsx->set_success_clbk(&PushProfileHandler::update_ims_subscription_success);
-    tsx->set_failure_clbk(&PushProfileHandler::update_ims_subscription_failure);
+    tsx->set_success_clbk(&PushProfileTask::update_ims_subscription_success);
+    tsx->set_failure_clbk(&PushProfileTask::update_ims_subscription_failure);
     _cfg->cache->send(tsx, put_ims_subscription);
   }
   else
@@ -1771,14 +1771,14 @@ void PushProfileHandler::run()
   }
 }
 
-void PushProfileHandler::update_ims_subscription_success(Cache::Request* request)
+void PushProfileTask::update_ims_subscription_success(Cache::Request* request)
 {
   SAS::Event event(this->trail(), SASEvent::UPDATED_IMS_SUBS, 0);
   SAS::report_event(event);
   send_ppa(DIAMETER_REQ_SUCCESS);
 }
 
-void PushProfileHandler::update_ims_subscription_failure(Cache::Request* request,
+void PushProfileTask::update_ims_subscription_failure(Cache::Request* request,
                                                          Cache::ResultCode error,
                                                          std::string& text)
 {
@@ -1786,7 +1786,7 @@ void PushProfileHandler::update_ims_subscription_failure(Cache::Request* request
   send_ppa(DIAMETER_REQ_FAILURE);
 }
 
-void PushProfileHandler::send_ppa(const std::string result_code)
+void PushProfileTask::send_ppa(const std::string result_code)
 {
   // Use our Cx layer to create a PPA object and add the correct AVPs. The PPA is
   // created from the PPR.

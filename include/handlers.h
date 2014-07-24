@@ -498,7 +498,7 @@ private:
   void send_reply();
 };
 
-class RegistrationTerminationHandler : public Diameter::Handler
+class RegistrationTerminationTask : public Diameter::Task
 {
 public:
   struct Config
@@ -518,16 +518,16 @@ public:
     int hss_reregistration_time;
   };
 
-  RegistrationTerminationHandler(const Diameter::Dictionary* dict,
+  RegistrationTerminationTask(const Diameter::Dictionary* dict,
                                  struct msg** fd_msg,
                                  const Config* cfg,
                                  SAS::TrailId trail):
-    Diameter::Handler(dict, fd_msg, trail), _cfg(cfg), _rtr(_msg)
+    Diameter::Task(dict, fd_msg, trail), _cfg(cfg), _rtr(_msg)
   {}
 
   void run();
 
-  typedef HssCacheTask::CacheTransaction<RegistrationTerminationHandler> CacheTransaction;
+  typedef HssCacheTask::CacheTransaction<RegistrationTerminationTask> CacheTransaction;
 
 private:
   const Config* _cfg;
@@ -553,7 +553,7 @@ private:
   void send_rta(const std::string result_code);
 };
 
-class PushProfileHandler : public Diameter::Handler
+class PushProfileTask : public Diameter::Task
 {
 public:
   struct Config
@@ -573,16 +573,16 @@ public:
     int hss_reregistration_time;
   };
 
-  PushProfileHandler(const Diameter::Dictionary* dict,
+  PushProfileTask(const Diameter::Dictionary* dict,
                      struct msg** fd_msg,
                      const Config* cfg,
                      SAS::TrailId trail) :
-    Diameter::Handler(dict, fd_msg, trail), _cfg(cfg), _ppr(_msg)
+    Diameter::Task(dict, fd_msg, trail), _cfg(cfg), _ppr(_msg)
   {}
 
   void run();
 
-  typedef HssCacheTask::CacheTransaction<PushProfileHandler> CacheTransaction;
+  typedef HssCacheTask::CacheTransaction<PushProfileTask> CacheTransaction;
 
 private:
   const Config* _cfg;
