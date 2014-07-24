@@ -173,13 +173,13 @@ public:
     _stats = new StrictMock<MockStatisticsManager>;
     _nice_stats = new NiceMock<MockStatisticsManager>;
 
-    HssCacheHandler::configure_diameter(_mock_stack,
-                                        DEST_REALM,
-                                        DEST_HOST,
-                                        DEFAULT_SERVER_NAME,
-                                        _cx_dict);
-    HssCacheHandler::configure_cache(_cache);
-    HssCacheHandler::configure_stats(_nice_stats);
+    HssCacheTask::configure_diameter(_mock_stack,
+                                     DEST_REALM,
+                                     DEST_HOST,
+                                     DEFAULT_SERVER_NAME,
+                                     _cx_dict);
+    HssCacheTask::configure_cache(_cache);
+    HssCacheTask::configure_stats(_nice_stats);
 
     cwtest_completely_control_time();
   }
@@ -339,7 +339,7 @@ public:
   }
 
   // Test function for the case where we have a HSS. Feeds a request
-  // in to a handler, checks for a SAR, checks for a resulting
+  // in to a task, checks for a SAR, checks for a resulting
   // database delete or insert, and then verifies the response.
   void reg_data_template(std::string request_type,
                          bool use_impi,
@@ -358,19 +358,19 @@ public:
                                "{\"reqtype\": \"" + request_type +"\"}",
                                htp_method_PUT);
 
-    // Configure the handler to use a HSS, and send a RE_REGISTRATION
+    // Configure the task to use a HSS, and send a RE_REGISTRATION
     // SAR to the HSS every hour.
-    ImpuRegDataHandler::Config cfg(true, 3600);
-    ImpuRegDataHandler* handler = new ImpuRegDataHandler(req, &cfg, FAKE_TRAIL_ID);
+    ImpuRegDataTask::Config cfg(true, 3600);
+    ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
 
-    // Once the request is processed by the handler, we expect it to
+    // Once the request is processed by the task, we expect it to
     // look up the subscriber's data in Cassandra.
     MockCache::MockGetIMSSubscription mock_req;
     EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU))
       .WillOnce(Return(&mock_req));
     EXPECT_CALL(*_cache, send(_, &mock_req))
       .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
-    handler->run();
+    task->run();
 
     // Have the cache return the values passed in for this test.
     Cache::Transaction* t = mock_req.get_trx();
@@ -485,7 +485,7 @@ public:
 
   // Test function for the case where we have a HSS, but we're making a
   // request that doesn't require a SAR or database hit. Feeds a request
-  // in to a handler and then verifies the response.
+  // in to a task and then verifies the response.
   void reg_data_template_no_sar(std::string request_type,
                                 bool use_impi,
                                 RegistrationState db_regstate,
@@ -499,19 +499,19 @@ public:
                                "{\"reqtype\": \"" + request_type +"\"}",
                                htp_method_PUT);
 
-    // Configure the handler to use a HSS, and send a RE_REGISTRATION
+    // Configure the task to use a HSS, and send a RE_REGISTRATION
     // SAR to the HSS every hour.
-    ImpuRegDataHandler::Config cfg(true, 3600);
-    ImpuRegDataHandler* handler = new ImpuRegDataHandler(req, &cfg, FAKE_TRAIL_ID);
+    ImpuRegDataTask::Config cfg(true, 3600);
+    ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
 
-    // Once the request is processed by the handler, we expect it to
+    // Once the request is processed by the task, we expect it to
     // look up the subscriber's data in Cassandra.
     MockCache::MockGetIMSSubscription mock_req;
     EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU))
       .WillOnce(Return(&mock_req));
     EXPECT_CALL(*_cache, send(_, &mock_req))
       .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
-    handler->run();
+    task->run();
 
     // Have the cache return the values passed in for this test.
     Cache::Transaction* t = mock_req.get_trx();
@@ -549,15 +549,15 @@ public:
                                use_impi ? "?private_id=" + IMPI : "",
                                "{\"reqtype\": \"" + body +"\"}",
                                htp_method_PUT);
-    ImpuRegDataHandler::Config cfg(hss_configured, 3600);
-    ImpuRegDataHandler* handler = new ImpuRegDataHandler(req, &cfg, FAKE_TRAIL_ID);
+    ImpuRegDataTask::Config cfg(hss_configured, 3600);
+    ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
 
     MockCache::MockGetIMSSubscription mock_req;
     EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU))
       .WillOnce(Return(&mock_req));
     EXPECT_CALL(*_cache, send(_, &mock_req))
       .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
-    handler->run();
+    task->run();
 
     Cache::Transaction* t = mock_req.get_trx();
     ASSERT_FALSE(t == NULL);
@@ -627,20 +627,20 @@ public:
                                "{\"reqtype\": \"" + body +"\"}",
                                htp_method_PUT);
 
-    // Configure the handler to use a HSS, and send a RE_REGISTRATION
+    // Configure the task to use a HSS, and send a RE_REGISTRATION
     // SAR to the HSS every hour.
 
-    ImpuRegDataHandler::Config cfg(false, 3600);
-    ImpuRegDataHandler* handler = new ImpuRegDataHandler(req, &cfg, FAKE_TRAIL_ID);
+    ImpuRegDataTask::Config cfg(false, 3600);
+    ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
 
-    // Once the request is processed by the handler, we expect it to
+    // Once the request is processed by the task, we expect it to
     // look up the subscriber's data in Cassandra.
     MockCache::MockGetIMSSubscription mock_req;
     EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU))
       .WillOnce(Return(&mock_req));
     EXPECT_CALL(*_cache, send(_, &mock_req))
       .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
-    handler->run();
+    task->run();
 
     // Have the cache return the values passed in for this test.
     Cache::Transaction* t = mock_req.get_trx();
@@ -694,15 +694,15 @@ public:
                                "?private_id=" + IMPI,
                                "{\"reqtype\": \"dereg-user\"}",
                                htp_method_PUT);
-    ImpuRegDataHandler::Config cfg(hss_configured, 3600);
-    ImpuRegDataHandler* handler = new ImpuRegDataHandler(req, &cfg, FAKE_TRAIL_ID);
+    ImpuRegDataTask::Config cfg(hss_configured, 3600);
+    ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
 
     MockCache::MockGetIMSSubscription mock_req;
     EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU))
       .WillOnce(Return(&mock_req));
     EXPECT_CALL(*_cache, send(_, &mock_req))
       .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
-    handler->run();
+    task->run();
 
     Cache::Transaction* t = mock_req.get_trx();
     ASSERT_FALSE(t == NULL);
@@ -735,16 +735,16 @@ public:
                                "registration-status",
                                "?impu=" + IMPU);
 
-    ImpiRegistrationStatusHandler::Config cfg(true);
-    ImpiRegistrationStatusHandler* handler = new ImpiRegistrationStatusHandler(req, &cfg, FAKE_TRAIL_ID);
+    ImpiRegistrationStatusTask::Config cfg(true);
+    ImpiRegistrationStatusTask* task = new ImpiRegistrationStatusTask(req, &cfg, FAKE_TRAIL_ID);
 
-    // Once the handler's run function is called, expect a diameter message to be
+    // Once the task's run function is called, expect a diameter message to be
     // sent. We don't bother checking the diameter message is as expected here. This
     // is done by other tests.
     EXPECT_CALL(*_mock_stack, send(_, _, 200))
       .Times(1)
       .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
-    handler->run();
+    task->run();
     ASSERT_FALSE(_caught_diam_tsx == NULL);
 
     // Create a response with the correct return code set and expect an HTTP response
@@ -772,16 +772,16 @@ public:
                                "location",
                                "");
 
-    ImpuLocationInfoHandler::Config cfg(true);
-    ImpuLocationInfoHandler* handler = new ImpuLocationInfoHandler(req, &cfg, FAKE_TRAIL_ID);
+    ImpuLocationInfoTask::Config cfg(true);
+    ImpuLocationInfoTask* task = new ImpuLocationInfoTask(req, &cfg, FAKE_TRAIL_ID);
 
-    // Once the handler's run function is called, expect a diameter message to be
+    // Once the task's run function is called, expect a diameter message to be
     // sent. We don't bother checking the diameter message is as expected here. This
     // is done by other tests.
     EXPECT_CALL(*_mock_stack, send(_, _, 200))
       .Times(1)
       .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
-    handler->run();
+    task->run();
     ASSERT_FALSE(_caught_diam_tsx == NULL);
 
     // Create a response with the correct return code set and expect an HTTP response
@@ -821,14 +821,14 @@ public:
     // then the request will be freed twice.
     rtr._free_on_delete = false;
 
-    RegistrationTerminationHandler::Config cfg(_cache, _cx_dict, _sprout_conn, 0);
-    RegistrationTerminationHandler* handler = new RegistrationTerminationHandler(_cx_dict, &rtr._fd_msg, &cfg, FAKE_TRAIL_ID);
+    RegistrationTerminationTask::Config cfg(_cache, _cx_dict, _sprout_conn, 0);
+    RegistrationTerminationTask* task = new RegistrationTerminationTask(_cx_dict, &rtr._fd_msg, &cfg, FAKE_TRAIL_ID);
 
     // We have to make sure the message is pointing at the mock stack.
-    handler->_msg._stack = _mock_stack;
-    handler->_rtr._stack = _mock_stack;
+    task->_msg._stack = _mock_stack;
+    task->_rtr._stack = _mock_stack;
 
-    // Once the handler's run function is called, we expect a cache request for
+    // Once the task's run function is called, we expect a cache request for
     // the IMS subscription of the final public identity in IMPUS.
     MockCache::MockGetIMSSubscription mock_req;
     EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU2))
@@ -836,7 +836,7 @@ public:
     EXPECT_CALL(*_cache, send(_, &mock_req))
       .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
 
-    handler->run();
+    task->run();
 
     // The cache successfully returns the correct IMS subscription.
     Cache::Transaction* t = mock_req.get_trx();
@@ -928,14 +928,14 @@ public:
     // then the request will be freed twice.
     rtr._free_on_delete = false;
 
-    RegistrationTerminationHandler::Config cfg(_cache, _cx_dict, _sprout_conn, 0);
-    RegistrationTerminationHandler* handler = new RegistrationTerminationHandler(_cx_dict, &rtr._fd_msg, &cfg, FAKE_TRAIL_ID);
+    RegistrationTerminationTask::Config cfg(_cache, _cx_dict, _sprout_conn, 0);
+    RegistrationTerminationTask* task = new RegistrationTerminationTask(_cx_dict, &rtr._fd_msg, &cfg, FAKE_TRAIL_ID);
 
     // We have to make sure the message is pointing at the mock stack.
-    handler->_msg._stack = _mock_stack;
-    handler->_rtr._stack = _mock_stack;
+    task->_msg._stack = _mock_stack;
+    task->_rtr._stack = _mock_stack;
 
-    // No public identities, so once the handler's run function is called, we
+    // No public identities, so once the task's run function is called, we
     // expect a cache request for associated default public identities.
     std::vector<std::string> impis{IMPI, ASSOCIATED_IDENTITY1, ASSOCIATED_IDENTITY2};
     MockCache::MockGetAssociatedPrimaryPublicIDs mock_req;
@@ -944,7 +944,7 @@ public:
     EXPECT_CALL(*_cache, send(_, &mock_req))
       .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
 
-    handler->run();
+    task->run();
 
     // The cache successfully returns a list of public identities.
     Cache::Transaction* t = mock_req.get_trx();
@@ -1064,11 +1064,11 @@ public:
     if (ignore)
     {
       Mock::VerifyAndClear(_stats);
-      HssCacheHandler::configure_stats(_nice_stats);
+      HssCacheTask::configure_stats(_nice_stats);
     }
     else
     {
-      HssCacheHandler::configure_stats(_stats);
+      HssCacheTask::configure_stats(_stats);
     }
   }
 };
@@ -1153,8 +1153,8 @@ TEST_F(HandlersTest, SimpleMainline)
 {
   MockHttpStack::Request req(_httpstack, "/", "ping");
   EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
-  HttpStackUtils::PingController controller;
-  controller.process_request(req, 0);
+  HttpStackUtils::PingHandler handler;
+  handler.process_request(req, 0);
   EXPECT_EQ("OK", req.content());
 }
 
@@ -1164,17 +1164,17 @@ TEST_F(HandlersTest, SimpleMainline)
 
 TEST_F(HandlersTest, DigestCache)
 {
-  // This test tests an Impi Digest handler case where no HSS is configured.
+  // This test tests an Impi Digest task case where no HSS is configured.
   // Start by building the HTTP request which will invoke a cache lookup.
   MockHttpStack::Request req(_httpstack,
                              "/impi/" + IMPI,
                              "digest",
                              "?public_id=" + IMPU);
 
-  ImpiHandler::Config cfg(false);
-  ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpiTask::Config cfg(false);
+  ImpiDigestTask* task = new ImpiDigestTask(req, &cfg, FAKE_TRAIL_ID);
 
-  // Once the handler's run function is called, expect to lookup an auth
+  // Once the task's run function is called, expect to lookup an auth
   // vector for the specified public and private IDs.
   MockCache::MockGetAuthVector mock_req;
   EXPECT_CALL(*_cache, create_GetAuthVector(IMPI, IMPU))
@@ -1182,7 +1182,7 @@ TEST_F(HandlersTest, DigestCache)
   EXPECT_CALL(*_cache, send(_, &mock_req))
     .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
 
-  handler->run();
+  task->run();
 
   DigestAuthVector digest;
   digest.ha1 = "ha1";
@@ -1195,7 +1195,7 @@ TEST_F(HandlersTest, DigestCache)
   Cache::Transaction* t = mock_req.get_trx();
   ASSERT_FALSE(t == NULL);
 
-  // When the cache result returns the handler gets the digest result, and sends
+  // When the cache result returns the task gets the digest result, and sends
   // an HTTP reply.
   EXPECT_CALL(mock_req, get_result(_))
     .WillRepeatedly(SetArgReferee<0>(digest));
@@ -1208,7 +1208,7 @@ TEST_F(HandlersTest, DigestCache)
 
 TEST_F(HandlersTest, DigestCacheNotFound)
 {
-  // This test tests an Impi Digest handler case where no HSS is configured, and
+  // This test tests an Impi Digest task case where no HSS is configured, and
   // the cache request fails. Start by building the HTTP request which will
   // invoke a cache lookup.
   MockHttpStack::Request req(_httpstack,
@@ -1216,10 +1216,10 @@ TEST_F(HandlersTest, DigestCacheNotFound)
                              "digest",
                              "?public_id=" + IMPU);
 
-  ImpiHandler::Config cfg(false);
-  ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpiTask::Config cfg(false);
+  ImpiDigestTask* task = new ImpiDigestTask(req, &cfg, FAKE_TRAIL_ID);
 
-  // Once the handler's run function is called, expect to lookup an auth
+  // Once the task's run function is called, expect to lookup an auth
   // vector for the specified public and private IDs.
   MockCache::MockGetAuthVector mock_req;
   EXPECT_CALL(*_cache, create_GetAuthVector(IMPI, IMPU))
@@ -1227,13 +1227,13 @@ TEST_F(HandlersTest, DigestCacheNotFound)
   EXPECT_CALL(*_cache, send(_, &mock_req))
     .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
 
-  handler->run();
+  task->run();
 
   // Confirm that the cache transaction is not NULL.
   Cache::Transaction* t = mock_req.get_trx();
   ASSERT_FALSE(t == NULL);
 
-  // Expect a 404 HTTP response once the cache returns an error to the handler.
+  // Expect a 404 HTTP response once the cache returns an error to the task.
   EXPECT_CALL(*_httpstack, send_reply(_, 404, _));
 
   std::string error_text = "error";
@@ -1242,7 +1242,7 @@ TEST_F(HandlersTest, DigestCacheNotFound)
 
 TEST_F(HandlersTest, DigestCacheFailure)
 {
-  // This test tests an Impi Digest handler case where no HSS is configured, and
+  // This test tests an Impi Digest task case where no HSS is configured, and
   // the cache request fails. Start by building the HTTP request which will
   // invoke a cache lookup.
   MockHttpStack::Request req(_httpstack,
@@ -1250,10 +1250,10 @@ TEST_F(HandlersTest, DigestCacheFailure)
                              "digest",
                              "?public_id=" + IMPU);
 
-  ImpiHandler::Config cfg(false);
-  ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpiTask::Config cfg(false);
+  ImpiDigestTask* task = new ImpiDigestTask(req, &cfg, FAKE_TRAIL_ID);
 
-  // Once the handler's run function is called, expect to lookup an auth
+  // Once the task's run function is called, expect to lookup an auth
   // vector for the specified public and private IDs.
   MockCache::MockGetAuthVector mock_req;
   EXPECT_CALL(*_cache, create_GetAuthVector(IMPI, IMPU))
@@ -1261,13 +1261,13 @@ TEST_F(HandlersTest, DigestCacheFailure)
   EXPECT_CALL(*_cache, send(_, &mock_req))
     .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
 
-  handler->run();
+  task->run();
 
   // Confirm that the cache transaction is not NULL.
   Cache::Transaction* t = mock_req.get_trx();
   ASSERT_FALSE(t == NULL);
 
-  // Expect a 504 HTTP response once the cache returns an error to the handler.
+  // Expect a 504 HTTP response once the cache returns an error to the task.
   EXPECT_CALL(*_httpstack, send_reply(_, 504, _));
 
   std::string error_text = "error";
@@ -1276,21 +1276,21 @@ TEST_F(HandlersTest, DigestCacheFailure)
 
 TEST_F(HandlersTest, DigestHSS)
 {
-  // This test tests an Impi Digest handler case with an HSS configured.
+  // This test tests an Impi Digest task case with an HSS configured.
   // Start by building the HTTP request which will invoke an HSS lookup.
   MockHttpStack::Request req(_httpstack,
                              "/impi/" + IMPI,
                              "digest",
                              "?public_id=" + IMPU);
 
-  ImpiHandler::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
-  ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpiTask::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
+  ImpiDigestTask* task = new ImpiDigestTask(req, &cfg, FAKE_TRAIL_ID);
 
-  // Once the handler's run function is called, expect a diameter message to be sent.
+  // Once the task's run function is called, expect a diameter message to be sent.
   EXPECT_CALL(*_mock_stack, send(_, _, 200))
     .Times(1)
     .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
-  handler->run();
+  task->run();
   ASSERT_FALSE(_caught_diam_tsx == NULL);
 
   // Turn the caught Diameter msg structure into a MAR and check its contents.
@@ -1344,21 +1344,21 @@ TEST_F(HandlersTest, DigestHSS)
 
 TEST_F(HandlersTest, DigestHSSTimeout)
 {
-  // This test tests an Impi Digest handler case with an HSS configured.
+  // This test tests an Impi Digest task case with an HSS configured.
   // Start by building the HTTP request which will invoke an HSS lookup.
   MockHttpStack::Request req(_httpstack,
                              "/impi/" + IMPI,
                              "digest",
                              "?public_id=" + IMPU);
 
-  ImpiHandler::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
-  ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpiTask::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
+  ImpiDigestTask* task = new ImpiDigestTask(req, &cfg, FAKE_TRAIL_ID);
 
-  // Once the handler's run function is called, expect a diameter message to be sent.
+  // Once the task's run function is called, expect a diameter message to be sent.
   EXPECT_CALL(*_mock_stack, send(_, _, 200))
     .Times(1)
     .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
-  handler->run();
+  task->run();
   ASSERT_FALSE(_caught_diam_tsx == NULL);
 
   // Turn the caught Diameter msg structure into a MAR and check its contents.
@@ -1389,7 +1389,7 @@ TEST_F(HandlersTest, DigestHSSTimeout)
 // Test that the timeout is configurable
 TEST_F(HandlersTest, DigestHSSConfigurableTimeout)
 {
-  // This test tests an Impi Digest handler case with an HSS configured.
+  // This test tests an Impi Digest task case with an HSS configured.
   // Start by building the HTTP request which will invoke an HSS lookup.
   MockHttpStack::Request req(_httpstack,
                              "/impi/" + IMPI,
@@ -1397,15 +1397,15 @@ TEST_F(HandlersTest, DigestHSSConfigurableTimeout)
                              "?public_id=" + IMPU);
 
   // Set timeout to 300
-  ImpiHandler::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA, 300);
-  ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpiTask::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA, 300);
+  ImpiDigestTask* task = new ImpiDigestTask(req, &cfg, FAKE_TRAIL_ID);
 
-  // Once the handler's run function is called, expect a diameter message to be sent.
+  // Once the task's run function is called, expect a diameter message to be sent.
   // It should have a timeout of 300.
   EXPECT_CALL(*_mock_stack, send(_, _, 300))
     .Times(1)
     .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
-  handler->run();
+  task->run();
   ASSERT_FALSE(_caught_diam_tsx == NULL);
 
   // Turn the caught Diameter msg structure into a MAR.
@@ -1417,7 +1417,7 @@ TEST_F(HandlersTest, DigestHSSConfigurableTimeout)
 
 TEST_F(HandlersTest, DigestHSSNoIMPU)
 {
-  // This test tests an Impi Digest handler case with an HSS configured, but
+  // This test tests an Impi Digest task case with an HSS configured, but
   // no public ID is specified on the HTTP request. Start by building the
   // HTTP request which will invoke a cache lookup.
   MockHttpStack::Request req(_httpstack,
@@ -1425,10 +1425,10 @@ TEST_F(HandlersTest, DigestHSSNoIMPU)
                              "digest",
                              "");
 
-  ImpiHandler::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
-  ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpiTask::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
+  ImpiDigestTask* task = new ImpiDigestTask(req, &cfg, FAKE_TRAIL_ID);
 
-  // Once the handler's run function is called, expect to look for associated
+  // Once the task's run function is called, expect to look for associated
   // public IDs in the cache.
   MockCache::MockGetAssociatedPublicIDs mock_req;
   EXPECT_CALL(*_cache, create_GetAssociatedPublicIDs(IMPI))
@@ -1436,7 +1436,7 @@ TEST_F(HandlersTest, DigestHSSNoIMPU)
   EXPECT_CALL(*_cache, send(_, &mock_req))
     .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
 
-  handler->run();
+  task->run();
 
   // Confirm the transaction is not NULL, and specify a list of IMPUS to be returned on
   // the expected call for the cache request's results.
@@ -1505,7 +1505,7 @@ TEST_F(HandlersTest, DigestHSSNoIMPU)
 
 TEST_F(HandlersTest, DigestHSSUserUnknown)
 {
-  // This test tests an Impi Digest handler case with an HSS configured, but
+  // This test tests an Impi Digest task case with an HSS configured, but
   // the HSS returns a user unknown error. Start by building the HTTP
   // request which will invoke an HSS lookup.
   MockHttpStack::Request req(_httpstack,
@@ -1513,16 +1513,16 @@ TEST_F(HandlersTest, DigestHSSUserUnknown)
                              "digest",
                              "?public_id=" + IMPU);
 
-  ImpiHandler::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
-  ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpiTask::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
+  ImpiDigestTask* task = new ImpiDigestTask(req, &cfg, FAKE_TRAIL_ID);
 
-  // Once the handler's run function is called, expect a diameter message to be sent.
+  // Once the task's run function is called, expect a diameter message to be sent.
   // We don't bother checking the contents of this message since this is done in
   // previous tests.
   EXPECT_CALL(*_mock_stack, send(_, _, 200))
     .Times(1)
     .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
-  handler->run();
+  task->run();
   ASSERT_FALSE(_caught_diam_tsx == NULL);
 
   DigestAuthVector digest;
@@ -1548,7 +1548,7 @@ TEST_F(HandlersTest, DigestHSSUserUnknown)
 
 TEST_F(HandlersTest, DigestHSSOtherError)
 {
-  // This test tests an Impi Digest handler case with an HSS configured, but
+  // This test tests an Impi Digest task case with an HSS configured, but
   // the HSS returns an error. Start by building the HTTP
   // request which will invoke an HSS lookup.
   MockHttpStack::Request req(_httpstack,
@@ -1556,16 +1556,16 @@ TEST_F(HandlersTest, DigestHSSOtherError)
                              "digest",
                              "?public_id=" + IMPU);
 
-  ImpiHandler::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
-  ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpiTask::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
+  ImpiDigestTask* task = new ImpiDigestTask(req, &cfg, FAKE_TRAIL_ID);
 
-  // Once the handler's run function is called, expect a diameter message to be sent.
+  // Once the task's run function is called, expect a diameter message to be sent.
   // We don't bother checking the contents of this message since this is done in
   // previous tests.
   EXPECT_CALL(*_mock_stack, send(_, _, 200))
     .Times(1)
     .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
-  handler->run();
+  task->run();
   ASSERT_FALSE(_caught_diam_tsx == NULL);
 
   DigestAuthVector digest;
@@ -1591,7 +1591,7 @@ TEST_F(HandlersTest, DigestHSSOtherError)
 
 TEST_F(HandlersTest, DigestHSSUnkownScheme)
 {
-  // This test tests an Impi Digest handler case with an HSS configured, but
+  // This test tests an Impi Digest task case with an HSS configured, but
   // the HSS returns an unknown scheme. Start by building the HTTP
   // request which will invoke an HSS lookup.
   MockHttpStack::Request req(_httpstack,
@@ -1599,16 +1599,16 @@ TEST_F(HandlersTest, DigestHSSUnkownScheme)
                              "digest",
                              "?public_id=" + IMPU);
 
-  ImpiHandler::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
-  ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpiTask::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
+  ImpiDigestTask* task = new ImpiDigestTask(req, &cfg, FAKE_TRAIL_ID);
 
-  // Once the handler's run function is called, expect a diameter message to be sent.
+  // Once the task's run function is called, expect a diameter message to be sent.
   // We don't bother checking the contents of this message since this is done in
   // previous tests.
   EXPECT_CALL(*_mock_stack, send(_, _, 200))
     .Times(1)
     .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
-  handler->run();
+  task->run();
   ASSERT_FALSE(_caught_diam_tsx == NULL);
 
   DigestAuthVector digest;
@@ -1634,7 +1634,7 @@ TEST_F(HandlersTest, DigestHSSUnkownScheme)
 
 TEST_F(HandlersTest, DigestHSSAKAReturned)
 {
-  // This test tests an Impi Digest handler case with an HSS configured, but
+  // This test tests an Impi Digest task case with an HSS configured, but
   // the HSS returns an AKA scheme rather than a digest. Start by building the HTTP
   // request which will invoke an HSS lookup.
   MockHttpStack::Request req(_httpstack,
@@ -1642,16 +1642,16 @@ TEST_F(HandlersTest, DigestHSSAKAReturned)
                              "digest",
                              "?public_id=" + IMPU);
 
-  ImpiHandler::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
-  ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpiTask::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
+  ImpiDigestTask* task = new ImpiDigestTask(req, &cfg, FAKE_TRAIL_ID);
 
-  // Once the handler's run function is called, expect a diameter message to be sent.
+  // Once the task's run function is called, expect a diameter message to be sent.
   // We don't bother checking the contents of this message since this is done in
   // previous tests.
   EXPECT_CALL(*_mock_stack, send(_, _, 200))
     .Times(1)
     .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
-  handler->run();
+  task->run();
   ASSERT_FALSE(_caught_diam_tsx == NULL);
 
   DigestAuthVector digest;
@@ -1677,17 +1677,17 @@ TEST_F(HandlersTest, DigestHSSAKAReturned)
 
 TEST_F(HandlersTest, DigestNoCachedIMPUs)
 {
-  // This test tests an Impi Digest handler case where no public ID is specified
+  // This test tests an Impi Digest task case where no public ID is specified
   // on the HTTP request, and the cache returns an empty list. Start by building the HTTP
   // request which will invoke a cache lookup.
   MockHttpStack::Request req(_httpstack,
                              "/impi/" + IMPI,
                              "digest",
                              "");
-  ImpiHandler::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
-  ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpiTask::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
+  ImpiDigestTask* task = new ImpiDigestTask(req, &cfg, FAKE_TRAIL_ID);
 
-  // Once the handler's run function is called, expect to look for associated
+  // Once the task's run function is called, expect to look for associated
   // public IDs in the cache.
   MockCache::MockGetAssociatedPublicIDs mock_req;
   EXPECT_CALL(*_cache, create_GetAssociatedPublicIDs(IMPI))
@@ -1695,7 +1695,7 @@ TEST_F(HandlersTest, DigestNoCachedIMPUs)
   EXPECT_CALL(*_cache, send(_, &mock_req))
     .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
 
-  handler->run();
+  task->run();
 
   // Confirm the transaction is not NULL, and specify an empty list of IMPUs to be
   // returned on the expected call for the cache request's results.
@@ -1711,7 +1711,7 @@ TEST_F(HandlersTest, DigestNoCachedIMPUs)
 
 TEST_F(HandlersTest, DigestIMPUNotFound)
 {
-  // This test tests an Impi Digest handler case where no public ID is specified
+  // This test tests an Impi Digest task case where no public ID is specified
   // on the HTTP request, and none can be found in the cache. Start by building the HTTP
   // request which will invoke a cache lookup.
   MockHttpStack::Request req(_httpstack,
@@ -1719,10 +1719,10 @@ TEST_F(HandlersTest, DigestIMPUNotFound)
                              "digest",
                              "");
 
-  ImpiHandler::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
-  ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpiTask::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
+  ImpiDigestTask* task = new ImpiDigestTask(req, &cfg, FAKE_TRAIL_ID);
 
-  // Once the handler's run function is called, expect to look for associated
+  // Once the task's run function is called, expect to look for associated
   // public IDs in the cache.
   MockCache::MockGetAssociatedPublicIDs mock_req;
   EXPECT_CALL(*_cache, create_GetAssociatedPublicIDs(IMPI))
@@ -1730,7 +1730,7 @@ TEST_F(HandlersTest, DigestIMPUNotFound)
   EXPECT_CALL(*_cache, send(_, &mock_req))
     .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
 
-  handler->run();
+  task->run();
 
   // Confirm the transaction is not NULL.
   Cache::Transaction* t = mock_req.get_trx();
@@ -1745,7 +1745,7 @@ TEST_F(HandlersTest, DigestIMPUNotFound)
 
 TEST_F(HandlersTest, DigestNoIMPUCacheFailure)
 {
-  // This test tests an Impi Digest handler case where no public ID is specified
+  // This test tests an Impi Digest task case where no public ID is specified
   // on the HTTP request, the cache request fails. Start by building the HTTP
   // request which will invoke a cache lookup.
   MockHttpStack::Request req(_httpstack,
@@ -1753,10 +1753,10 @@ TEST_F(HandlersTest, DigestNoIMPUCacheFailure)
                              "digest",
                              "");
 
-  ImpiHandler::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
-  ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpiTask::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
+  ImpiDigestTask* task = new ImpiDigestTask(req, &cfg, FAKE_TRAIL_ID);
 
-  // Once the handler's run function is called, expect to look for associated
+  // Once the task's run function is called, expect to look for associated
   // public IDs in the cache.
   MockCache::MockGetAssociatedPublicIDs mock_req;
   EXPECT_CALL(*_cache, create_GetAssociatedPublicIDs(IMPI))
@@ -1764,7 +1764,7 @@ TEST_F(HandlersTest, DigestNoIMPUCacheFailure)
   EXPECT_CALL(*_cache, send(_, &mock_req))
     .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
 
-  handler->run();
+  task->run();
 
   // Confirm the transaction is not NULL.
   Cache::Transaction* t = mock_req.get_trx();
@@ -1779,17 +1779,17 @@ TEST_F(HandlersTest, DigestNoIMPUCacheFailure)
 
 TEST_F(HandlersTest, AvCache)
 {
-  // This test tests an Impi Av handler case where no HSS is configured.
+  // This test tests an Impi Av task case where no HSS is configured.
   // Start by building the HTTP request which will invoke a cache lookup.
   MockHttpStack::Request req(_httpstack,
                              "/impi/" + IMPI,
                              "av",
                              "?impu=" + IMPU);
 
-  ImpiHandler::Config cfg(false);
-  ImpiAvHandler* handler = new ImpiAvHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpiTask::Config cfg(false);
+  ImpiAvTask* task = new ImpiAvTask(req, &cfg, FAKE_TRAIL_ID);
 
-  // Once the handler's run function is called, expect to lookup an auth
+  // Once the task's run function is called, expect to lookup an auth
   // vector for the specified public and private IDs.
   MockCache::MockGetAuthVector mock_req;
   EXPECT_CALL(*_cache, create_GetAuthVector(IMPI, IMPU))
@@ -1797,7 +1797,7 @@ TEST_F(HandlersTest, AvCache)
   EXPECT_CALL(*_cache, send(_, &mock_req))
     .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
 
-  handler->run();
+  task->run();
 
   DigestAuthVector digest;
   digest.ha1 = "ha1";
@@ -1821,17 +1821,17 @@ TEST_F(HandlersTest, AvCache)
 
 TEST_F(HandlersTest, AvEmptyQoP)
 {
-  // This test tests an Impi Av handler case where no HSS is configured.
+  // This test tests an Impi Av task case where no HSS is configured.
   // Start by building the HTTP request which will invoke a cache lookup.
   MockHttpStack::Request req(_httpstack,
                              "/impi/" + IMPI,
                              "av",
                              "?impu=" + IMPU);
 
-  ImpiHandler::Config cfg(false);
-  ImpiAvHandler* handler = new ImpiAvHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpiTask::Config cfg(false);
+  ImpiAvTask* task = new ImpiAvTask(req, &cfg, FAKE_TRAIL_ID);
 
-  // Once the handler's run function is called, expect to lookup an auth
+  // Once the task's run function is called, expect to lookup an auth
   // vector for the specified public and private IDs.
   MockCache::MockGetAuthVector mock_req;
   EXPECT_CALL(*_cache, create_GetAuthVector(IMPI, IMPU))
@@ -1839,7 +1839,7 @@ TEST_F(HandlersTest, AvEmptyQoP)
   EXPECT_CALL(*_cache, send(_, &mock_req))
     .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
 
-  handler->run();
+  task->run();
 
   // Set up the returned auth vector to have qop set to the empty string.
   // Homestead should convert this to auth.
@@ -1865,17 +1865,17 @@ TEST_F(HandlersTest, AvEmptyQoP)
 
 TEST_F(HandlersTest, AvNoPublicIDHSSAKA)
 {
-  // This test tests an Impi Av handler case with an HSS configured and no
+  // This test tests an Impi Av task case with an HSS configured and no
   // public IDs specified on the HTTP request. Start by building the HTTP
   // request which will invoke an HSS lookup.
   MockHttpStack::Request req(_httpstack,
                              "/impi/" + IMPI,
                              "av",
                              "?autn=" + SIP_AUTHORIZATION);
-  ImpiHandler::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
-  ImpiAvHandler* handler = new ImpiAvHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpiTask::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
+  ImpiAvTask* task = new ImpiAvTask(req, &cfg, FAKE_TRAIL_ID);
 
-  // Once the handler's run function is called, expect to look for associated
+  // Once the task's run function is called, expect to look for associated
   // public IDs in the cache.
   MockCache::MockGetAssociatedPublicIDs mock_req;
   EXPECT_CALL(*_cache, create_GetAssociatedPublicIDs(IMPI))
@@ -1883,7 +1883,7 @@ TEST_F(HandlersTest, AvNoPublicIDHSSAKA)
   EXPECT_CALL(*_cache, send(_, &mock_req))
     .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
 
-  handler->run();
+  task->run();
 
   // Confirm the transaction is not NULL, and specify a list of IMPUS to be returned on
   // the expected call for the cache request's results.
@@ -1948,37 +1948,37 @@ TEST_F(HandlersTest, AvNoPublicIDHSSAKA)
 
 TEST_F(HandlersTest, AuthInvalidScheme)
 {
-  // This test tests an Impi Av handler case with an invalid scheme on the HTTP
+  // This test tests an Impi Av task case with an invalid scheme on the HTTP
   // request. Start by building the HTTP request.
   MockHttpStack::Request req(_httpstack,
                              "/impi/" + IMPI,
                              "invalid",
                              "");
 
-  ImpiHandler::Config cfg(true);
-  ImpiAvHandler* handler = new ImpiAvHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpiTask::Config cfg(true);
+  ImpiAvTask* task = new ImpiAvTask(req, &cfg, FAKE_TRAIL_ID);
 
-  // Once the handler's run function is called, expect a 404 HTTP response.
+  // Once the task's run function is called, expect a 404 HTTP response.
   EXPECT_CALL(*_httpstack, send_reply(_, 404, _));
-  handler->run();
+  task->run();
 }
 
 TEST_F(HandlersTest, AkaNoIMPU)
 {
-  // This test tests an Impi Av handler case with AKA specified on the HTTP
+  // This test tests an Impi Av task case with AKA specified on the HTTP
   // request, but no public ID. Start by building the HTTP request.
   MockHttpStack::Request req(_httpstack,
                              "/impi/" + IMPI,
                              "aka",
                              "");
 
-  ImpiHandler::Config cfg(true);
-  ImpiAvHandler* handler = new ImpiAvHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpiTask::Config cfg(true);
+  ImpiAvTask* task = new ImpiAvTask(req, &cfg, FAKE_TRAIL_ID);
 
-  // Once the handler's run function is called, expect a 404 HTTP response.
+  // Once the task's run function is called, expect a 404 HTTP response.
   EXPECT_CALL(*_httpstack, send_reply(_, 404, _));
   std::string error_text = "error";
-  handler->run();
+  task->run();
 }
 
 //
@@ -2161,15 +2161,15 @@ TEST_F(HandlersTest, IMSSubscriptionNoHSSUnknown)
                              "?private_id=" + IMPI,
                              "{\"reqtype\": \"reg\"}",
                              htp_method_PUT);
-  ImpuRegDataHandler::Config cfg(false, 3600);
-  ImpuRegDataHandler* handler = new ImpuRegDataHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpuRegDataTask::Config cfg(false, 3600);
+  ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
 
   MockCache::MockGetIMSSubscription mock_req;
   EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU))
     .WillOnce(Return(&mock_req));
   EXPECT_CALL(*_cache, send(_, &mock_req))
     .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
-  handler->run();
+  task->run();
 
   Cache::Transaction* t = mock_req.get_trx();
   ASSERT_FALSE(t == NULL);
@@ -2196,15 +2196,15 @@ TEST_F(HandlersTest, IMSSubscriptionNoHSSUnknownCall)
                              "",
                              "{\"reqtype\": \"call\"}",
                              htp_method_PUT);
-  ImpuRegDataHandler::Config cfg(false, 3600);
-  ImpuRegDataHandler* handler = new ImpuRegDataHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpuRegDataTask::Config cfg(false, 3600);
+  ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
 
   MockCache::MockGetIMSSubscription mock_req;
   EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU))
     .WillOnce(Return(&mock_req));
   EXPECT_CALL(*_cache, send(_, &mock_req))
     .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
-  handler->run();
+  task->run();
 
   Cache::Transaction* t = mock_req.get_trx();
   ASSERT_FALSE(t == NULL);
@@ -2231,15 +2231,15 @@ TEST_F(HandlersTest, LegacyIMSSubscriptionNoHSS)
                              "/impu/" + IMPU,
                              "",
                              "?private_id=" + IMPI);
-  ImpuIMSSubscriptionHandler::Config cfg(false, 3600);
-  ImpuIMSSubscriptionHandler* handler = new ImpuIMSSubscriptionHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpuIMSSubscriptionTask::Config cfg(false, 3600);
+  ImpuIMSSubscriptionTask* task = new ImpuIMSSubscriptionTask(req, &cfg, FAKE_TRAIL_ID);
 
   MockCache::MockGetIMSSubscription mock_req;
   EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU))
     .WillOnce(Return(&mock_req));
   EXPECT_CALL(*_cache, send(_, &mock_req))
     .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
-  handler->run();
+  task->run();
 
   Cache::Transaction* t = mock_req.get_trx();
   ASSERT_FALSE(t == NULL);
@@ -2264,15 +2264,15 @@ TEST_F(HandlersTest, LegacyIMSSubscriptionNoHSS_NotFound)
                              "/impu/" + IMPU,
                              "",
                              "?private_id=" + IMPI);
-  ImpuIMSSubscriptionHandler::Config cfg(false, 3600);
-  ImpuIMSSubscriptionHandler* handler = new ImpuIMSSubscriptionHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpuIMSSubscriptionTask::Config cfg(false, 3600);
+  ImpuIMSSubscriptionTask* task = new ImpuIMSSubscriptionTask(req, &cfg, FAKE_TRAIL_ID);
 
   MockCache::MockGetIMSSubscription mock_req;
   EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU))
     .WillOnce(Return(&mock_req));
   EXPECT_CALL(*_cache, send(_, &mock_req))
     .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
-  handler->run();
+  task->run();
 
   Cache::Transaction* t = mock_req.get_trx();
   ASSERT_FALSE(t == NULL);
@@ -2298,15 +2298,15 @@ TEST_F(HandlersTest, LegacyIMSSubscriptionNoHSS_Unregistered)
                              "/impu/" + IMPU,
                              "",
                              "");
-  ImpuIMSSubscriptionHandler::Config cfg(false, 3600);
-  ImpuIMSSubscriptionHandler* handler = new ImpuIMSSubscriptionHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpuIMSSubscriptionTask::Config cfg(false, 3600);
+  ImpuIMSSubscriptionTask* task = new ImpuIMSSubscriptionTask(req, &cfg, FAKE_TRAIL_ID);
 
   MockCache::MockGetIMSSubscription mock_req;
   EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU))
     .WillOnce(Return(&mock_req));
   EXPECT_CALL(*_cache, send(_, &mock_req))
     .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
-  handler->run();
+  task->run();
 
   Cache::Transaction* t = mock_req.get_trx();
   ASSERT_FALSE(t == NULL);
@@ -2335,15 +2335,15 @@ TEST_F(HandlersTest, IMSSubscriptionGet)
                              "",
                              "",
                              htp_method_GET);
-  ImpuRegDataHandler::Config cfg(true, 3600);
-  ImpuRegDataHandler* handler = new ImpuRegDataHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpuRegDataTask::Config cfg(true, 3600);
+  ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
 
   MockCache::MockGetIMSSubscription mock_req;
   EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU))
     .WillOnce(Return(&mock_req));
   EXPECT_CALL(*_cache, send(_, &mock_req))
     .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
-  handler->run();
+  task->run();
 
   Cache::Transaction* t = mock_req.get_trx();
   ASSERT_FALSE(t == NULL);
@@ -2373,11 +2373,11 @@ TEST_F(HandlersTest, IMSSubscriptionInvalidType)
                              "",
                              "invalid",
                              htp_method_PUT);
-  ImpuRegDataHandler::Config cfg(false, 3600);
-  ImpuRegDataHandler* handler = new ImpuRegDataHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpuRegDataTask::Config cfg(false, 3600);
+  ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
 
   EXPECT_CALL(*_httpstack, send_reply(_, 400, _));
-  handler->run();
+  task->run();
 }
 
 // If we don't get a PUT or GET, we should reject the request
@@ -2390,11 +2390,11 @@ TEST_F(HandlersTest, IMSSubscriptionWrongMethod)
                              "",
                              "{\"reqtype\": \"reg\"}",
                              htp_method_DELETE);
-  ImpuRegDataHandler::Config cfg(false, 3600);
-  ImpuRegDataHandler* handler = new ImpuRegDataHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpuRegDataTask::Config cfg(false, 3600);
+  ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
 
   EXPECT_CALL(*_httpstack, send_reply(_, 405, _));
-  handler->run();
+  task->run();
 }
 
 // HSS USER_UNKNOWN errors should translate into a 404
@@ -2407,15 +2407,15 @@ TEST_F(HandlersTest, IMSSubscriptionUserUnknownDereg)
                              "?private_id=" + ASSOCIATED_IDENTITY1,
                              "{\"reqtype\": \"dereg-timeout\"}",
                              htp_method_PUT);
-  ImpuRegDataHandler::Config cfg(true, 3600);
-  ImpuRegDataHandler* handler = new ImpuRegDataHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpuRegDataTask::Config cfg(true, 3600);
+  ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
   MockCache::MockGetIMSSubscription mock_req;
 
   EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU))
     .WillOnce(Return(&mock_req));
   EXPECT_CALL(*_cache, send(_, &mock_req))
     .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
-  handler->run();
+  task->run();
 
   Cache::Transaction* t = mock_req.get_trx();
   ASSERT_FALSE(t == NULL);
@@ -2468,15 +2468,15 @@ TEST_F(HandlersTest, IMSSubscriptionOtherErrorCallReg)
                              "{\"reqtype\": \"call\"}",
                              htp_method_PUT);
   req.method();
-  ImpuRegDataHandler::Config cfg(true, 3600);
-  ImpuRegDataHandler* handler = new ImpuRegDataHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpuRegDataTask::Config cfg(true, 3600);
+  ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
 
   MockCache::MockGetIMSSubscription mock_req;
   EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU))
     .WillOnce(Return(&mock_req));
   EXPECT_CALL(*_cache, send(_, &mock_req))
     .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
-  handler->run();
+  task->run();
 
   Cache::Transaction* t = mock_req.get_trx();
   ASSERT_FALSE(t == NULL);
@@ -2520,10 +2520,10 @@ TEST_F(HandlersTest, IMSSubscriptionCacheNotFound)
                              "",
                              "");
 
-  ImpuIMSSubscriptionHandler::Config cfg(false, 3600);
-  ImpuIMSSubscriptionHandler* handler = new ImpuIMSSubscriptionHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpuIMSSubscriptionTask::Config cfg(false, 3600);
+  ImpuIMSSubscriptionTask* task = new ImpuIMSSubscriptionTask(req, &cfg, FAKE_TRAIL_ID);
 
-  // Once the handler's run function is called, expect to lookup IMS
+  // Once the task's run function is called, expect to lookup IMS
   // subscription information for the specified public ID.
   MockCache::MockGetIMSSubscription mock_req;
   EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU))
@@ -2531,13 +2531,13 @@ TEST_F(HandlersTest, IMSSubscriptionCacheNotFound)
   EXPECT_CALL(*_cache, send(_, &mock_req))
     .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
 
-  handler->run();
+  task->run();
 
   // Confirm that the cache transaction is not NULL.
   Cache::Transaction* t = mock_req.get_trx();
   ASSERT_FALSE(t == NULL);
 
-  // Expect a 404 HTTP response once the cache returns an error to the handler.
+  // Expect a 404 HTTP response once the cache returns an error to the task.
   EXPECT_CALL(*_httpstack, send_reply(_, 404, _));
 
   std::string error_text = "error";
@@ -2555,10 +2555,10 @@ TEST_F(HandlersTest, IMSSubscriptionCacheFailure)
                              "",
                              "");
 
-  ImpuIMSSubscriptionHandler::Config cfg(false, 3600);
-  ImpuIMSSubscriptionHandler* handler = new ImpuIMSSubscriptionHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpuIMSSubscriptionTask::Config cfg(false, 3600);
+  ImpuIMSSubscriptionTask* task = new ImpuIMSSubscriptionTask(req, &cfg, FAKE_TRAIL_ID);
 
-  // Once the handler's run function is called, expect to lookup IMS
+  // Once the task's run function is called, expect to lookup IMS
   // subscription information for the specified public ID.
   MockCache::MockGetIMSSubscription mock_req;
   EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU))
@@ -2566,13 +2566,13 @@ TEST_F(HandlersTest, IMSSubscriptionCacheFailure)
   EXPECT_CALL(*_cache, send(_, &mock_req))
     .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
 
-  handler->run();
+  task->run();
 
   // Confirm that the cache transaction is not NULL.
   Cache::Transaction* t = mock_req.get_trx();
   ASSERT_FALSE(t == NULL);
 
-  // Expect a 504 HTTP response once the cache returns an error to the handler.
+  // Expect a 504 HTTP response once the cache returns an error to the task.
   EXPECT_CALL(*_httpstack, send_reply(_, 504, _));
 
   std::string error_text = "error";
@@ -2588,19 +2588,19 @@ TEST_F(HandlersTest, RegistrationStatusHSSTimeout)
                              "registration-status",
                              "?impu=" + IMPU);
 
-  ImpiRegistrationStatusHandler::Config cfg(true);
-  ImpiRegistrationStatusHandler* handler = new ImpiRegistrationStatusHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpiRegistrationStatusTask::Config cfg(true);
+  ImpiRegistrationStatusTask* task = new ImpiRegistrationStatusTask(req, &cfg, FAKE_TRAIL_ID);
 
-  // Once the handler's run function is called, expect a diameter message to be
+  // Once the task's run function is called, expect a diameter message to be
   // sent. We don't bother checking the diameter message is as expected here. This
   // is done by other tests.
   EXPECT_CALL(*_mock_stack, send(_, _, 200))
     .Times(1)
     .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
-  handler->run();
+  task->run();
   ASSERT_FALSE(_caught_diam_tsx == NULL);
 
-  // Expect a 504 response once we notify the handler about the timeout error.
+  // Expect a 504 response once we notify the task about the timeout error.
   EXPECT_CALL(*_httpstack, send_reply(_, 504, _));
   _caught_diam_tsx->on_timeout();
   fd_msg_free(_caught_fd_msg); _caught_fd_msg = NULL;
@@ -2609,22 +2609,22 @@ TEST_F(HandlersTest, RegistrationStatusHSSTimeout)
 
 TEST_F(HandlersTest, RegistrationStatus)
 {
-  // This test tests a mainline Registration Status handler case. Build the HTTP request
+  // This test tests a mainline Registration Status task case. Build the HTTP request
   // which will invoke a UAR to be sent to the HSS.
   MockHttpStack::Request req(_httpstack,
                              "/impi/" + IMPI + "/",
                              "registration-status",
                              "?impu=" + IMPU);
 
-  ImpiRegistrationStatusHandler::Config cfg(true);
-  ImpiRegistrationStatusHandler* handler = new ImpiRegistrationStatusHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpiRegistrationStatusTask::Config cfg(true);
+  ImpiRegistrationStatusTask* task = new ImpiRegistrationStatusTask(req, &cfg, FAKE_TRAIL_ID);
 
-  // Once the handler's run function is called, expect a diameter message to be
+  // Once the task's run function is called, expect a diameter message to be
   // sent.
   EXPECT_CALL(*_mock_stack, send(_, _, 200))
     .Times(1)
     .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
-  handler->run();
+  task->run();
   ASSERT_FALSE(_caught_diam_tsx == NULL);
 
   // Turn the caught Diameter msg structure into a UAR and check its contents.
@@ -2659,7 +2659,7 @@ TEST_F(HandlersTest, RegistrationStatus)
 
 TEST_F(HandlersTest, RegistrationStatusOptParamsSubseqRegCapabs)
 {
-  // This test tests a Registration Status handler case. The scenario is unrealistic
+  // This test tests a Registration Status task case. The scenario is unrealistic
   // but lots of code branches are tested. Specifically, optional parameters
   // on the HTTP request are added, and the success code
   // DIAMETER_SUBSEQUENT_REGISTRATION is returned by the HSS with a set of server
@@ -2669,15 +2669,15 @@ TEST_F(HandlersTest, RegistrationStatusOptParamsSubseqRegCapabs)
                              "registration-status",
                              "?impu=" + IMPU + "&visited-network=" + VISITED_NETWORK + "&auth-type=" + AUTH_TYPE_DEREG);
 
-  ImpiRegistrationStatusHandler::Config cfg(true);
-  ImpiRegistrationStatusHandler* handler = new ImpiRegistrationStatusHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpiRegistrationStatusTask::Config cfg(true);
+  ImpiRegistrationStatusTask* task = new ImpiRegistrationStatusTask(req, &cfg, FAKE_TRAIL_ID);
 
-  // Once the handler's run function is called, expect a diameter message to be
+  // Once the task's run function is called, expect a diameter message to be
   // sent.
   EXPECT_CALL(*_mock_stack, send(_, _, 200))
     .Times(1)
     .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
-  handler->run();
+  task->run();
   ASSERT_FALSE(_caught_diam_tsx == NULL);
 
   // Turn the caught Diameter msg structure into a UAR and check its contents.
@@ -2712,7 +2712,7 @@ TEST_F(HandlersTest, RegistrationStatusOptParamsSubseqRegCapabs)
 
 TEST_F(HandlersTest, RegistrationStatusFirstRegNoCapabs)
 {
-  // This test tests a Registration Status handler case. The scenario is unrealistic
+  // This test tests a Registration Status task case. The scenario is unrealistic
   // but lots of code branches are tested. Specifically, the success code
   // DIAMETER_FIRST_REGISTRATION is returned by the HSS, but no server or server
   // capabilities are specified. Build the HTTP request which will invoke a UAR to be sent
@@ -2722,15 +2722,15 @@ TEST_F(HandlersTest, RegistrationStatusFirstRegNoCapabs)
                              "registration-status",
                              "?impu=" + IMPU);
 
-  ImpiRegistrationStatusHandler::Config cfg(true);
-  ImpiRegistrationStatusHandler* handler = new ImpiRegistrationStatusHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpiRegistrationStatusTask::Config cfg(true);
+  ImpiRegistrationStatusTask* task = new ImpiRegistrationStatusTask(req, &cfg, FAKE_TRAIL_ID);
 
-  // Once the handler's run function is called, expect a diameter message to be
+  // Once the task's run function is called, expect a diameter message to be
   // sent.
   EXPECT_CALL(*_mock_stack, send(_, _, 200))
     .Times(1)
     .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
-  handler->run();
+  task->run();
   ASSERT_FALSE(_caught_diam_tsx == NULL);
 
   // Turn the caught Diameter msg structure into a UAR and check its contents.
@@ -2797,18 +2797,18 @@ TEST_F(HandlersTest, RegistrationStatusOtherError)
 
 TEST_F(HandlersTest, RegistrationStatusNoHSS)
 {
-  // Test Registration Status handler when no HSS is configured.
+  // Test Registration Status task when no HSS is configured.
   MockHttpStack::Request req(_httpstack,
                              "/impi/" + IMPI + "/",
                              "registration-status",
                              "?impu=sip:impu@example.com");
 
-  ImpiRegistrationStatusHandler::Config cfg(false);
-  ImpiRegistrationStatusHandler* handler = new ImpiRegistrationStatusHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpiRegistrationStatusTask::Config cfg(false);
+  ImpiRegistrationStatusTask* task = new ImpiRegistrationStatusTask(req, &cfg, FAKE_TRAIL_ID);
 
-  // Once the handler's run function is called, expect a successful HTTP response.
+  // Once the task's run function is called, expect a successful HTTP response.
   EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
-  handler->run();
+  task->run();
 
   // Build the expected JSON response and check it's correct.
   EXPECT_EQ(build_icscf_json(DIAMETER_SUCCESS, DEFAULT_SERVER_NAME, NO_CAPABILITIES), req.content());
@@ -2820,22 +2820,22 @@ TEST_F(HandlersTest, RegistrationStatusNoHSS)
 
 TEST_F(HandlersTest, LocationInfo)
 {
-  // This test tests a mainline Location Info handler case. Build the HTTP request
+  // This test tests a mainline Location Info task case. Build the HTTP request
   // which will invoke an LIR to be sent to the HSS.
   MockHttpStack::Request req(_httpstack,
                              "/impu/" + IMPU + "/",
                              "location",
                              "");
 
-  ImpuLocationInfoHandler::Config cfg(true);
-  ImpuLocationInfoHandler* handler = new ImpuLocationInfoHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpuLocationInfoTask::Config cfg(true);
+  ImpuLocationInfoTask* task = new ImpuLocationInfoTask(req, &cfg, FAKE_TRAIL_ID);
 
-  // Once the handler's run function is called, expect a diameter message to be
+  // Once the task's run function is called, expect a diameter message to be
   // sent.
   EXPECT_CALL(*_mock_stack, send(_, _, 200))
     .Times(1)
     .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
-  handler->run();
+  task->run();
   ASSERT_FALSE(_caught_diam_tsx == NULL);
 
   // Turn the caught Diameter msg structure into a LIR and check its contents.
@@ -2868,7 +2868,7 @@ TEST_F(HandlersTest, LocationInfo)
 
 TEST_F(HandlersTest, LocationInfoOptParamsUnregisteredService)
 {
-  // This test tests a Location Info handler case. The scenario is unrealistic
+  // This test tests a Location Info task case. The scenario is unrealistic
   // but lots of code branches are tested. Specifically, optional parameters
   // on the HTTP request are added, and the success code
   // DIAMETER_UNREGISTERED_SERVICE is returned by the HSS with a set of server
@@ -2879,15 +2879,15 @@ TEST_F(HandlersTest, LocationInfoOptParamsUnregisteredService)
                              "location",
                              "?originating=true&auth-type=" + AUTH_TYPE_CAPAB);
 
-  ImpuLocationInfoHandler::Config cfg(true);
-  ImpuLocationInfoHandler* handler = new ImpuLocationInfoHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpuLocationInfoTask::Config cfg(true);
+  ImpuLocationInfoTask* task = new ImpuLocationInfoTask(req, &cfg, FAKE_TRAIL_ID);
 
-  // Once the handler's run function is called, expect a diameter message to be
+  // Once the task's run function is called, expect a diameter message to be
   // sent.
   EXPECT_CALL(*_mock_stack, send(_, _, 200))
     .Times(1)
     .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
-  handler->run();
+  task->run();
   ASSERT_FALSE(_caught_diam_tsx == NULL);
 
   // Turn the caught Diameter msg structure into a LIR and check its contents.
@@ -2943,18 +2943,18 @@ TEST_F(HandlersTest, LocationInfoOtherError)
 
 TEST_F(HandlersTest, LocationInfoNoHSS)
 {
-  // Test Location Info handler when no HSS is configured.
+  // Test Location Info task when no HSS is configured.
   MockHttpStack::Request req(_httpstack,
                              "/impu/" + IMPU + "/",
                              "location",
                              "");
 
-  ImpuLocationInfoHandler::Config cfg(false);
-  ImpuLocationInfoHandler* handler = new ImpuLocationInfoHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpuLocationInfoTask::Config cfg(false);
+  ImpuLocationInfoTask* task = new ImpuLocationInfoTask(req, &cfg, FAKE_TRAIL_ID);
 
-  // Once the handler's run function is called, expect a successful HTTP response.
+  // Once the task's run function is called, expect a successful HTTP response.
   EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
-  handler->run();
+  task->run();
 
   // Build the expected JSON response and check it's correct.
   EXPECT_EQ(build_icscf_json(DIAMETER_SUCCESS, DEFAULT_SERVER_NAME, NO_CAPABILITIES), req.content());
@@ -3030,14 +3030,14 @@ TEST_F(HandlersTest, RegistrationTerminationNoRegSets)
   // then the request will be freed twice.
   rtr._free_on_delete = false;
 
-  RegistrationTerminationHandler::Config cfg(_cache, _cx_dict, _sprout_conn, 0);
-  RegistrationTerminationHandler* handler = new RegistrationTerminationHandler(_cx_dict, &rtr._fd_msg, &cfg, FAKE_TRAIL_ID);
+  RegistrationTerminationTask::Config cfg(_cache, _cx_dict, _sprout_conn, 0);
+  RegistrationTerminationTask* task = new RegistrationTerminationTask(_cx_dict, &rtr._fd_msg, &cfg, FAKE_TRAIL_ID);
 
   // We have to make sure the message is pointing at the mock stack.
-  handler->_msg._stack = _mock_stack;
-  handler->_rtr._stack = _mock_stack;
+  task->_msg._stack = _mock_stack;
+  task->_rtr._stack = _mock_stack;
 
-  // Once the handler's run function is called, we expect a cache request for
+  // Once the task's run function is called, we expect a cache request for
   // the IMS subscription of the final public identity in IMPUS.
   MockCache::MockGetIMSSubscription mock_req;
   EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU2))
@@ -3045,7 +3045,7 @@ TEST_F(HandlersTest, RegistrationTerminationNoRegSets)
   EXPECT_CALL(*_cache, send(_, &mock_req))
     .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
 
-  handler->run();
+  task->run();
 
   // The cache indicates success, but couldn't find any IMS subscription
   // information.
@@ -3102,14 +3102,14 @@ TEST_F(HandlersTest, RegistrationTerminationRegSetsCacheFailure)
   // then the request will be freed twice.
   rtr._free_on_delete = false;
 
-  RegistrationTerminationHandler::Config cfg(_cache, _cx_dict, _sprout_conn, 0);
-  RegistrationTerminationHandler* handler = new RegistrationTerminationHandler(_cx_dict, &rtr._fd_msg, &cfg, FAKE_TRAIL_ID);
+  RegistrationTerminationTask::Config cfg(_cache, _cx_dict, _sprout_conn, 0);
+  RegistrationTerminationTask* task = new RegistrationTerminationTask(_cx_dict, &rtr._fd_msg, &cfg, FAKE_TRAIL_ID);
 
   // We have to make sure the message is pointing at the mock stack.
-  handler->_msg._stack = _mock_stack;
-  handler->_rtr._stack = _mock_stack;
+  task->_msg._stack = _mock_stack;
+  task->_rtr._stack = _mock_stack;
 
-  // Once the handler's run function is called, we expect a cache request for
+  // Once the task's run function is called, we expect a cache request for
   // the IMS subscription of the final public identity in IMPUS.
   MockCache::MockGetIMSSubscription mock_req;
   EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU2))
@@ -3117,7 +3117,7 @@ TEST_F(HandlersTest, RegistrationTerminationRegSetsCacheFailure)
   EXPECT_CALL(*_cache, send(_, &mock_req))
     .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
 
-  handler->run();
+  task->run();
 
   // The cache request fails.
   Cache::Transaction* t = mock_req.get_trx();
@@ -3155,14 +3155,14 @@ TEST_F(HandlersTest, RegistrationTerminationNoAssocIMPUs)
   // then the request will be freed twice.
   rtr._free_on_delete = false;
 
-  RegistrationTerminationHandler::Config cfg(_cache, _cx_dict, _sprout_conn, 0);
-  RegistrationTerminationHandler* handler = new RegistrationTerminationHandler(_cx_dict, &rtr._fd_msg, &cfg, FAKE_TRAIL_ID);
+  RegistrationTerminationTask::Config cfg(_cache, _cx_dict, _sprout_conn, 0);
+  RegistrationTerminationTask* task = new RegistrationTerminationTask(_cx_dict, &rtr._fd_msg, &cfg, FAKE_TRAIL_ID);
 
   // We have to make sure the message is pointing at the mock stack.
-  handler->_msg._stack = _mock_stack;
-  handler->_rtr._stack = _mock_stack;
+  task->_msg._stack = _mock_stack;
+  task->_rtr._stack = _mock_stack;
 
-  // No public identities, so once the handler's run function is called, we
+  // No public identities, so once the task's run function is called, we
   // expect a cache request for associated default public identities.
   std::vector<std::string> impis{IMPI, ASSOCIATED_IDENTITY1, ASSOCIATED_IDENTITY2};
   MockCache::MockGetAssociatedPrimaryPublicIDs mock_req;
@@ -3171,7 +3171,7 @@ TEST_F(HandlersTest, RegistrationTerminationNoAssocIMPUs)
   EXPECT_CALL(*_cache, send(_, &mock_req))
     .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
 
-  handler->run();
+  task->run();
 
   // The cache indicates success but returns an empty list of IMPUs.
   Cache::Transaction* t = mock_req.get_trx();
@@ -3210,14 +3210,14 @@ TEST_F(HandlersTest, RegistrationTerminationAssocIMPUsCacheFailure)
   // then the request will be freed twice.
   rtr._free_on_delete = false;
 
-  RegistrationTerminationHandler::Config cfg(_cache, _cx_dict, _sprout_conn, 0);
-  RegistrationTerminationHandler* handler = new RegistrationTerminationHandler(_cx_dict, &rtr._fd_msg, &cfg, FAKE_TRAIL_ID);
+  RegistrationTerminationTask::Config cfg(_cache, _cx_dict, _sprout_conn, 0);
+  RegistrationTerminationTask* task = new RegistrationTerminationTask(_cx_dict, &rtr._fd_msg, &cfg, FAKE_TRAIL_ID);
 
   // We have to make sure the message is pointing at the mock stack.
-  handler->_msg._stack = _mock_stack;
-  handler->_rtr._stack = _mock_stack;
+  task->_msg._stack = _mock_stack;
+  task->_rtr._stack = _mock_stack;
 
-  // No public identities, so once the handler's run function is called, we
+  // No public identities, so once the task's run function is called, we
   // expect a cache request for associated default public identities.
   std::vector<std::string> impis{IMPI, ASSOCIATED_IDENTITY1, ASSOCIATED_IDENTITY2};
   MockCache::MockGetAssociatedPrimaryPublicIDs mock_req;
@@ -3226,7 +3226,7 @@ TEST_F(HandlersTest, RegistrationTerminationAssocIMPUsCacheFailure)
   EXPECT_CALL(*_cache, send(_, &mock_req))
     .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
 
-  handler->run();
+  task->run();
 
   // The cache request fails.
   Cache::Transaction* t = mock_req.get_trx();
@@ -3264,19 +3264,19 @@ TEST_F(HandlersTest, RegistrationTerminationInvalidDeregReason)
   // then the request will be freed twice.
   rtr._free_on_delete = false;
 
-  RegistrationTerminationHandler::Config cfg(_cache, _cx_dict, _sprout_conn, 0);
-  RegistrationTerminationHandler* handler = new RegistrationTerminationHandler(_cx_dict, &rtr._fd_msg, &cfg, FAKE_TRAIL_ID);
+  RegistrationTerminationTask::Config cfg(_cache, _cx_dict, _sprout_conn, 0);
+  RegistrationTerminationTask* task = new RegistrationTerminationTask(_cx_dict, &rtr._fd_msg, &cfg, FAKE_TRAIL_ID);
 
   // We have to make sure the message is pointing at the mock stack.
-  handler->_msg._stack = _mock_stack;
-  handler->_rtr._stack = _mock_stack;
+  task->_msg._stack = _mock_stack;
+  task->_rtr._stack = _mock_stack;
 
   // We expect to receive a diameter message.
   EXPECT_CALL(*_mock_stack, send(_))
     .Times(1)
     .WillOnce(WithArgs<0>(Invoke(store_msg)));
 
-  handler->run();
+  task->run();
 
   // Turn the caught Diameter msg structure into a RTA and confirm it's contents.
   std::vector<std::string> impis{IMPI, ASSOCIATED_IDENTITY1, ASSOCIATED_IDENTITY2};
@@ -3294,7 +3294,7 @@ TEST_F(HandlersTest, RegistrationTerminationInvalidDeregReason)
 
 TEST_F(HandlersTest, PushProfile)
 {
-  // Build a PPR and create a Push Profile Handler with this message. This PPR
+  // Build a PPR and create a Push Profile Task with this message. This PPR
   // contains an IMS subscription.
   Cx::PushProfileRequest ppr(_cx_dict,
                              _mock_stack,
@@ -3307,14 +3307,14 @@ TEST_F(HandlersTest, PushProfile)
   // then the request will be freed twice.
   ppr._free_on_delete = false;
 
-  PushProfileHandler::Config cfg(_cache, _cx_dict, 0, 3600);
-  PushProfileHandler* handler = new PushProfileHandler(_cx_dict, &ppr._fd_msg, &cfg, FAKE_TRAIL_ID);
+  PushProfileTask::Config cfg(_cache, _cx_dict, 0, 3600);
+  PushProfileTask* task = new PushProfileTask(_cx_dict, &ppr._fd_msg, &cfg, FAKE_TRAIL_ID);
 
   // We have to make sure the message is pointing at the mock stack.
-  handler->_msg._stack = _mock_stack;
-  handler->_ppr._stack = _mock_stack;
+  task->_msg._stack = _mock_stack;
+  task->_ppr._stack = _mock_stack;
 
-  // Once the handler's run function is called, we expect to try and update
+  // Once the task's run function is called, we expect to try and update
   // the IMS Subscription in the cache.
   MockCache::MockPutIMSSubscription mock_req;
   std::vector<std::string> impus{IMPU};
@@ -3324,7 +3324,7 @@ TEST_F(HandlersTest, PushProfile)
     .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
 
   // Finally we expect a PPA.
-  handler->run();
+  task->run();
 
   Cache::Transaction* t = mock_req.get_trx();
   ASSERT_FALSE(t == NULL);
@@ -3345,7 +3345,7 @@ TEST_F(HandlersTest, PushProfile)
 
 TEST_F(HandlersTest, PushProfileCacheFailure)
 {
-  // Build a PPR and create a Push Profile Handler with this message. This PPR
+  // Build a PPR and create a Push Profile Task with this message. This PPR
   // contains an IMS subscription.
   Cx::PushProfileRequest ppr(_cx_dict,
                              _mock_stack,
@@ -3358,14 +3358,14 @@ TEST_F(HandlersTest, PushProfileCacheFailure)
   // then the request will be freed twice.
   ppr._free_on_delete = false;
 
-  PushProfileHandler::Config cfg(_cache, _cx_dict, 0, 3600);
-  PushProfileHandler* handler = new PushProfileHandler(_cx_dict, &ppr._fd_msg, &cfg, FAKE_TRAIL_ID);
+  PushProfileTask::Config cfg(_cache, _cx_dict, 0, 3600);
+  PushProfileTask* task = new PushProfileTask(_cx_dict, &ppr._fd_msg, &cfg, FAKE_TRAIL_ID);
 
   // We have to make sure the message is pointing at the mock stack.
-  handler->_msg._stack = _mock_stack;
-  handler->_ppr._stack = _mock_stack;
+  task->_msg._stack = _mock_stack;
+  task->_ppr._stack = _mock_stack;
 
-  // Once the handler's run function is called, we expect to try and update
+  // Once the task's run function is called, we expect to try and update
   // the IMS Subscription in the cache.
   MockCache::MockPutIMSSubscription mock_req;
   std::vector<std::string> impus{IMPU};
@@ -3374,7 +3374,7 @@ TEST_F(HandlersTest, PushProfileCacheFailure)
   EXPECT_CALL(*_cache, send(_, &mock_req))
     .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
 
-  handler->run();
+  task->run();
 
   Cache::Transaction* t = mock_req.get_trx();
   ASSERT_FALSE(t == NULL);
@@ -3395,7 +3395,7 @@ TEST_F(HandlersTest, PushProfileCacheFailure)
 
 TEST_F(HandlersTest, PushProfileNoIMSSub)
 {
-  // Build a PPR and create a Push Profile Handler with this message. This PPR
+  // Build a PPR and create a Push Profile Task with this message. This PPR
   // does not contian an IMS subscription.
   Cx::PushProfileRequest ppr(_cx_dict,
                              _mock_stack,
@@ -3408,20 +3408,20 @@ TEST_F(HandlersTest, PushProfileNoIMSSub)
   // then the request will be freed twice.
   ppr._free_on_delete = false;
 
-  PushProfileHandler::Config cfg(_cache, _cx_dict, 0, 3600);
-  PushProfileHandler* handler = new PushProfileHandler(_cx_dict, &ppr._fd_msg, &cfg, FAKE_TRAIL_ID);
+  PushProfileTask::Config cfg(_cache, _cx_dict, 0, 3600);
+  PushProfileTask* task = new PushProfileTask(_cx_dict, &ppr._fd_msg, &cfg, FAKE_TRAIL_ID);
 
   // We have to make sure the message representations are pointing at the mock stack.
-  handler->_msg._stack = _mock_stack;
-  handler->_ppr._stack = _mock_stack;
+  task->_msg._stack = _mock_stack;
+  task->_ppr._stack = _mock_stack;
 
-  // Once the handler's run function is called, we just expect a PPA to be sent
+  // Once the task's run function is called, we just expect a PPA to be sent
   // since there was nothing to do on this PPR.
   EXPECT_CALL(*_mock_stack, send(_))
     .Times(1)
     .WillOnce(WithArgs<0>(Invoke(store_msg)));
 
-  handler->run();
+  task->run();
 
   // Turn the caught Diameter msg structure into a PPA and confirm the result code.
   Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
@@ -3466,8 +3466,8 @@ TEST_F(HandlerStatsTest, DigestCache)
                              "digest",
                              "?public_id=" + IMPU);
 
-  ImpiHandler::Config cfg(false);
-  ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpiTask::Config cfg(false);
+  ImpiDigestTask* task = new ImpiDigestTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Handler does a cache digest lookup.
   MockCache::MockGetAuthVector mock_req;
@@ -3475,7 +3475,7 @@ TEST_F(HandlerStatsTest, DigestCache)
     .WillOnce(Return(&mock_req));
   EXPECT_CALL(*_cache, send(_, &mock_req))
     .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
-  handler->run();
+  task->run();
 
   // The cache request takes some time.
   Cache::Transaction* t = mock_req.get_trx();
@@ -3509,8 +3509,8 @@ TEST_F(HandlerStatsTest, DigestCacheFailure)
                              "digest",
                              "?public_id=" + IMPU);
 
-  ImpiHandler::Config cfg(false);
-  ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpiTask::Config cfg(false);
+  ImpiDigestTask* task = new ImpiDigestTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Handler does a cache digest lookup.
   MockCache::MockGetAuthVector mock_req;
@@ -3518,7 +3518,7 @@ TEST_F(HandlerStatsTest, DigestCacheFailure)
     .WillOnce(Return(&mock_req));
   EXPECT_CALL(*_cache, send(_, &mock_req))
     .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
-  handler->run();
+  task->run();
 
   // The cache request takes some time.
   Cache::Transaction* t = mock_req.get_trx();
@@ -3546,14 +3546,14 @@ TEST_F(HandlerStatsTest, DigestHSS)
                              "digest",
                              "?public_id=" + IMPU);
 
-  ImpiHandler::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
-  ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpiTask::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
+  ImpiDigestTask* task = new ImpiDigestTask(req, &cfg, FAKE_TRAIL_ID);
 
-  // Once the handler's run function is called, expect a diameter message to be sent.
+  // Once the task's run function is called, expect a diameter message to be sent.
   EXPECT_CALL(*_mock_stack, send(_, _, 200))
     .Times(1)
     .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
-  handler->run();
+  task->run();
 
   // The transaction takes some time.
   ASSERT_FALSE(_caught_diam_tsx == NULL);
@@ -3603,14 +3603,14 @@ TEST_F(HandlerStatsTest, DigestHSSTimeout)
                              "digest",
                              "?public_id=" + IMPU);
 
-  ImpiHandler::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
-  ImpiDigestHandler* handler = new ImpiDigestHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpiTask::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
+  ImpiDigestTask* task = new ImpiDigestTask(req, &cfg, FAKE_TRAIL_ID);
 
-  // Once the handler's run function is called, expect a diameter message to be sent.
+  // Once the task's run function is called, expect a diameter message to be sent.
   EXPECT_CALL(*_mock_stack, send(_, _, 200))
     .Times(1)
     .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
-  handler->run();
+  task->run();
   ASSERT_FALSE(_caught_diam_tsx == NULL);
 
   // The transaction takes some time.
@@ -3640,17 +3640,17 @@ TEST_F(HandlerStatsTest, IMSSubscriptionReregHSS)
                              "{\"reqtype\": \"reg\"}",
                              htp_method_PUT);
 
-  ImpuRegDataHandler::Config cfg(true, 1800);
-  ImpuRegDataHandler* handler = new ImpuRegDataHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpuRegDataTask::Config cfg(true, 1800);
+  ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
 
-  // Once the handler's run function is called, expect to lookup IMS
+  // Once the task's run function is called, expect to lookup IMS
   // subscription information for the specified public ID.
   MockCache::MockGetIMSSubscription mock_req;
   EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU))
     .WillOnce(Return(&mock_req));
   EXPECT_CALL(*_cache, send(_, &mock_req))
     .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
-  handler->run();
+  task->run();
 
   // Check the cache get latency is recorded.
   Cache::Transaction* t = mock_req.get_trx();
@@ -3726,15 +3726,15 @@ TEST_F(HandlerStatsTest, RegistrationStatus)
                              "registration-status",
                              "?impu=" + IMPU);
 
-  ImpiRegistrationStatusHandler::Config cfg(true);
-  ImpiRegistrationStatusHandler* handler = new ImpiRegistrationStatusHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpiRegistrationStatusTask::Config cfg(true);
+  ImpiRegistrationStatusTask* task = new ImpiRegistrationStatusTask(req, &cfg, FAKE_TRAIL_ID);
 
-  // Once the handler's run function is called, expect a diameter message to be
+  // Once the task's run function is called, expect a diameter message to be
   // sent.
   EXPECT_CALL(*_mock_stack, send(_, _, 200))
     .Times(1)
     .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
-  handler->run();
+  task->run();
 
   // The diameter message takes some time.
   ASSERT_FALSE(_caught_diam_tsx == NULL);
@@ -3768,15 +3768,15 @@ TEST_F(HandlerStatsTest, LocationInfo)
                              "location",
                              "");
 
-  ImpuLocationInfoHandler::Config cfg(true);
-  ImpuLocationInfoHandler* handler = new ImpuLocationInfoHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpuLocationInfoTask::Config cfg(true);
+  ImpuLocationInfoTask* task = new ImpuLocationInfoTask(req, &cfg, FAKE_TRAIL_ID);
 
-  // Once the handler's run function is called, expect a diameter message to be
+  // Once the task's run function is called, expect a diameter message to be
   // sent.
   EXPECT_CALL(*_mock_stack, send(_, _, 200))
     .Times(1)
     .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
-  handler->run();
+  task->run();
   ASSERT_FALSE(_caught_diam_tsx == NULL);
 
   _caught_diam_tsx->start_timer();
@@ -3804,22 +3804,22 @@ TEST_F(HandlerStatsTest, LocationInfo)
 
 TEST_F(HandlerStatsTest, LocationInfoOverload)
 {
-  // Check that an HSS overload repsonse causes the handlers to record a latency
+  // Check that an HSS overload repsonse causes the tasks to record a latency
   // penalty in the HTTP stack.
   MockHttpStack::Request req(_httpstack,
                              "/impu/" + IMPU + "/",
                              "location",
                              "");
 
-  ImpuLocationInfoHandler::Config cfg(true);
-  ImpuLocationInfoHandler* handler = new ImpuLocationInfoHandler(req, &cfg, FAKE_TRAIL_ID);
+  ImpuLocationInfoTask::Config cfg(true);
+  ImpuLocationInfoTask* task = new ImpuLocationInfoTask(req, &cfg, FAKE_TRAIL_ID);
 
-  // Once the handler's run function is called, expect a diameter message to be
+  // Once the task's run function is called, expect a diameter message to be
   // sent.
   EXPECT_CALL(*_mock_stack, send(_, _, 200))
     .Times(1)
     .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
-  handler->run();
+  task->run();
   ASSERT_FALSE(_caught_diam_tsx == NULL);
 
   _caught_diam_tsx->start_timer();
