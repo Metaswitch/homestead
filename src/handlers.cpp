@@ -66,10 +66,10 @@ const static HssCacheTask::StatsFlags SUBSCRIPTION_STATS =
 
 
 void HssCacheTask::configure_diameter(Diameter::Stack* diameter_stack,
-                                         const std::string& dest_realm,
-                                         const std::string& dest_host,
-                                         const std::string& server_name,
-                                         Cx::Dictionary* dict)
+                                      const std::string& dest_realm,
+                                      const std::string& dest_host,
+                                      const std::string& server_name,
+                                      Cx::Dictionary* dict)
 {
   LOG_STATUS("Configuring HssCacheTask");
   LOG_STATUS("  Dest-Realm:  %s", dest_realm.c_str());
@@ -1492,8 +1492,8 @@ void RegistrationTerminationTask::get_assoc_primary_public_ids_success(Cache::Re
 }
 
 void RegistrationTerminationTask::get_assoc_primary_public_ids_failure(Cache::Request* request,
-                                                                          Cache::ResultCode error,
-                                                                          std::string& text)
+                                                                       Cache::ResultCode error,
+                                                                       std::string& text)
 {
   LOG_DEBUG("Failed to get associated default public identities");
   SAS::Event event(this->trail(), SASEvent::DEREG_SUCCESS, 0);
@@ -1581,8 +1581,8 @@ void RegistrationTerminationTask::get_registration_set_success(Cache::Request* r
 }
 
 void RegistrationTerminationTask::get_registration_set_failure(Cache::Request* request,
-                                                                  Cache::ResultCode error,
-                                                                  std::string& text)
+                                                               Cache::ResultCode error,
+                                                               std::string& text)
 {
   LOG_DEBUG("Failed to get a registration set - report failure to HSS");
   SAS::Event event(this->trail(), SASEvent::DEREG_FAIL, 0);
@@ -1779,8 +1779,8 @@ void PushProfileTask::update_ims_subscription_success(Cache::Request* request)
 }
 
 void PushProfileTask::update_ims_subscription_failure(Cache::Request* request,
-                                                         Cache::ResultCode error,
-                                                         std::string& text)
+                                                      Cache::ResultCode error,
+                                                      std::string& text)
 {
   LOG_DEBUG("Failed to update IMS subscription - report failure to HSS");
   send_ppa(DIAMETER_REQ_FAILURE);

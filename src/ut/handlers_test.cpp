@@ -174,10 +174,10 @@ public:
     _nice_stats = new NiceMock<MockStatisticsManager>;
 
     HssCacheTask::configure_diameter(_mock_stack,
-                                        DEST_REALM,
-                                        DEST_HOST,
-                                        DEFAULT_SERVER_NAME,
-                                        _cx_dict);
+                                     DEST_REALM,
+                                     DEST_HOST,
+                                     DEFAULT_SERVER_NAME,
+                                     _cx_dict);
     HssCacheTask::configure_cache(_cache);
     HssCacheTask::configure_stats(_nice_stats);
 

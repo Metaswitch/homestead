@@ -340,8 +340,8 @@ class ImpiDigestTask : public ImpiTask
 {
 public:
   ImpiDigestTask(HttpStack::Request& req,
-                    const ImpiTask::Config* cfg,
-                    SAS::TrailId trail) :
+                 const ImpiTask::Config* cfg,
+                 SAS::TrailId trail) :
     ImpiTask(req, cfg, trail)
   {}
 
@@ -355,8 +355,8 @@ class ImpiAvTask : public ImpiTask
 {
 public:
   ImpiAvTask(HttpStack::Request& req,
-                const ImpiTask::Config* cfg,
-                SAS::TrailId trail) :
+             const ImpiTask::Config* cfg,
+             SAS::TrailId trail) :
     ImpiTask(req, cfg, trail)
   {}
 
@@ -488,8 +488,8 @@ class ImpuIMSSubscriptionTask : public ImpuRegDataTask
 {
 public:
   ImpuIMSSubscriptionTask(HttpStack::Request& req,
-                             const Config* cfg,
-                             SAS::TrailId trail) :
+                          const Config* cfg,
+                          SAS::TrailId trail) :
     ImpuRegDataTask(req, cfg, trail)
   {};
 
@@ -519,9 +519,9 @@ public:
   };
 
   RegistrationTerminationTask(const Diameter::Dictionary* dict,
-                                 struct msg** fd_msg,
-                                 const Config* cfg,
-                                 SAS::TrailId trail):
+                              struct msg** fd_msg,
+                              const Config* cfg,
+                              SAS::TrailId trail):
     Diameter::Task(dict, fd_msg, trail), _cfg(cfg), _rtr(_msg)
   {}
 
@@ -574,9 +574,9 @@ public:
   };
 
   PushProfileTask(const Diameter::Dictionary* dict,
-                     struct msg** fd_msg,
-                     const Config* cfg,
-                     SAS::TrailId trail) :
+                  struct msg** fd_msg,
+                  const Config* cfg,
+                  SAS::TrailId trail) :
     Diameter::Task(dict, fd_msg, trail), _cfg(cfg), _ppr(_msg)
   {}
 

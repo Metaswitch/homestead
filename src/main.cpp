@@ -451,10 +451,10 @@ int main(int argc, char**argv)
 
   HttpStack* http_stack = HttpStack::get_instance();
   HssCacheTask::configure_diameter(diameter_stack,
-                                      options.dest_realm.empty() ? options.home_domain : options.dest_realm,
-                                      options.dest_host == "0.0.0.0" ? "" : options.dest_host,
-                                      options.server_name,
-                                      dict);
+                                   options.dest_realm.empty() ? options.home_domain : options.dest_realm,
+                                   options.dest_host == "0.0.0.0" ? "" : options.dest_host,
+                                   options.server_name,
+                                   dict);
   HssCacheTask::configure_cache(cache);
   HssCacheTask::configure_stats(stats_manager);
 
@@ -464,11 +464,11 @@ int main(int argc, char**argv)
   bool hss_configured = !(options.dest_realm.empty() && (options.dest_host.empty() || options.dest_host == "0.0.0.0"));
 
   ImpiTask::Config impi_handler_config(hss_configured,
-                                          options.impu_cache_ttl,
-                                          options.scheme_unknown,
-                                          options.scheme_digest,
-                                          options.scheme_aka,
-                                          options.diameter_timeout_ms);
+                                       options.impu_cache_ttl,
+                                       options.scheme_unknown,
+                                       options.scheme_digest,
+                                       options.scheme_aka,
+                                       options.diameter_timeout_ms);
   ImpiRegistrationStatusTask::Config registration_status_handler_config(hss_configured, options.diameter_timeout_ms);
   ImpuLocationInfoTask::Config location_info_handler_config(hss_configured, options.diameter_timeout_ms);
   ImpuRegDataTask::Config impu_handler_config(hss_configured, options.hss_reregistration_time, options.diameter_timeout_ms);
