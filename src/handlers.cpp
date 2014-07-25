@@ -47,32 +47,32 @@
 #include "boost/algorithm/string/join.hpp"
 
 
-Diameter::Stack* HssCacheHandler::_diameter_stack = NULL;
-std::string HssCacheHandler::_dest_realm;
-std::string HssCacheHandler::_dest_host;
-std::string HssCacheHandler::_server_name;
-Cx::Dictionary* HssCacheHandler::_dict;
-Cache* HssCacheHandler::_cache = NULL;
-StatisticsManager* HssCacheHandler::_stats_manager = NULL;
+Diameter::Stack* HssCacheTask::_diameter_stack = NULL;
+std::string HssCacheTask::_dest_realm;
+std::string HssCacheTask::_dest_host;
+std::string HssCacheTask::_server_name;
+Cx::Dictionary* HssCacheTask::_dict;
+Cache* HssCacheTask::_cache = NULL;
+StatisticsManager* HssCacheTask::_stats_manager = NULL;
 
-const static HssCacheHandler::StatsFlags DIGEST_STATS =
-  static_cast<HssCacheHandler::StatsFlags>(
-    HssCacheHandler::STAT_HSS_LATENCY |
-    HssCacheHandler::STAT_HSS_DIGEST_LATENCY);
+const static HssCacheTask::StatsFlags DIGEST_STATS =
+  static_cast<HssCacheTask::StatsFlags>(
+    HssCacheTask::STAT_HSS_LATENCY |
+    HssCacheTask::STAT_HSS_DIGEST_LATENCY);
 
-const static HssCacheHandler::StatsFlags SUBSCRIPTION_STATS =
-  static_cast<HssCacheHandler::StatsFlags>(
-    HssCacheHandler::STAT_HSS_LATENCY |
-    HssCacheHandler::STAT_HSS_SUBSCRIPTION_LATENCY);
+const static HssCacheTask::StatsFlags SUBSCRIPTION_STATS =
+  static_cast<HssCacheTask::StatsFlags>(
+    HssCacheTask::STAT_HSS_LATENCY |
+    HssCacheTask::STAT_HSS_SUBSCRIPTION_LATENCY);
 
 
-void HssCacheHandler::configure_diameter(Diameter::Stack* diameter_stack,
-                                         const std::string& dest_realm,
-                                         const std::string& dest_host,
-                                         const std::string& server_name,
-                                         Cx::Dictionary* dict)
+void HssCacheTask::configure_diameter(Diameter::Stack* diameter_stack,
+                                      const std::string& dest_realm,
+                                      const std::string& dest_host,
+                                      const std::string& server_name,
+                                      Cx::Dictionary* dict)
 {
-  LOG_STATUS("Configuring HssCacheHandler");
+  LOG_STATUS("Configuring HssCacheTask");
   LOG_STATUS("  Dest-Realm:  %s", dest_realm.c_str());
   LOG_STATUS("  Dest-Host:   %s", dest_host.c_str());
   LOG_STATUS("  Server-Name: %s", server_name.c_str());
@@ -83,17 +83,17 @@ void HssCacheHandler::configure_diameter(Diameter::Stack* diameter_stack,
   _dict = dict;
 }
 
-void HssCacheHandler::configure_cache(Cache* cache)
+void HssCacheTask::configure_cache(Cache* cache)
 {
   _cache = cache;
 }
 
-void HssCacheHandler::configure_stats(StatisticsManager* stats_manager)
+void HssCacheTask::configure_stats(StatisticsManager* stats_manager)
 {
   _stats_manager = stats_manager;
 }
 
-void HssCacheHandler::on_diameter_timeout()
+void HssCacheTask::on_diameter_timeout()
 {
   send_http_reply(HTTP_GATEWAY_TIMEOUT);
   delete this;
@@ -101,7 +101,7 @@ void HssCacheHandler::on_diameter_timeout()
 
 // General IMPI handling.
 
-void ImpiHandler::run()
+void ImpiTask::run()
 {
   if (parse_request())
   {
@@ -124,7 +124,7 @@ void ImpiHandler::run()
   }
 }
 
-void ImpiHandler::query_cache_av()
+void ImpiTask::query_cache_av()
 {
   LOG_DEBUG("Querying cache for authentication vector for %s/%s", _impi.c_str(), _impu.c_str());
   SAS::Event event(this->trail(), SASEvent::CACHE_GET_AV, 0);
@@ -134,12 +134,12 @@ void ImpiHandler::query_cache_av()
   CassandraStore::Operation* get_av = _cache->create_GetAuthVector(_impi, _impu);
   CassandraStore::Transaction* tsx =
     new CacheTransaction(this,
-                         &ImpiHandler::on_get_av_success,
-                         &ImpiHandler::on_get_av_failure);
+                         &ImpiTask::on_get_av_success,
+                         &ImpiTask::on_get_av_failure);
   _cache->do_async(get_av, tsx);
 }
 
-void ImpiHandler::on_get_av_success(CassandraStore::Operation* op)
+void ImpiTask::on_get_av_success(CassandraStore::Operation* op)
 {
   SAS::Event event(this->trail(), SASEvent::CACHE_GET_AV_SUCCESS, 0);
   SAS::report_event(event);
@@ -151,9 +151,9 @@ void ImpiHandler::on_get_av_success(CassandraStore::Operation* op)
   delete this;
 }
 
-void ImpiHandler::on_get_av_failure(CassandraStore::Operation* op,
-                                    CassandraStore::ResultCode error,
-                                    std::string& text)
+void ImpiTask::on_get_av_failure(CassandraStore::Operation* op,
+                                 CassandraStore::ResultCode error,
+                                 std::string& text)
 {
   LOG_DEBUG("Cache query failed - reject request");
   SAS::Event event(this->trail(), SASEvent::NO_AV_CACHE, 0);
@@ -171,7 +171,7 @@ void ImpiHandler::on_get_av_failure(CassandraStore::Operation* op,
   delete this;
 }
 
-void ImpiHandler::get_av()
+void ImpiTask::get_av()
 {
   if (_impu.empty())
   {
@@ -197,7 +197,7 @@ void ImpiHandler::get_av()
   }
 }
 
-void ImpiHandler::query_cache_impu()
+void ImpiTask::query_cache_impu()
 {
   LOG_DEBUG("Querying cache to find public IDs associated with %s", _impi.c_str());
   SAS::Event event(this->trail(), SASEvent::CACHE_GET_ASSOC_IMPU, 0);
@@ -206,12 +206,12 @@ void ImpiHandler::query_cache_impu()
   CassandraStore::Operation* get_public_ids = _cache->create_GetAssociatedPublicIDs(_impi);
   CassandraStore::Transaction* tsx =
     new CacheTransaction(this,
-                         &ImpiHandler::on_get_impu_success,
-                         &ImpiHandler::on_get_impu_failure);
+                         &ImpiTask::on_get_impu_success,
+                         &ImpiTask::on_get_impu_failure);
   _cache->do_async(get_public_ids, tsx);
 }
 
-void ImpiHandler::on_get_impu_success(CassandraStore::Operation* op)
+void ImpiTask::on_get_impu_success(CassandraStore::Operation* op)
 {
   Cache::GetAssociatedPublicIDs* get_public_ids = (Cache::GetAssociatedPublicIDs*)op;
   std::vector<std::string> ids;
@@ -236,7 +236,7 @@ void ImpiHandler::on_get_impu_success(CassandraStore::Operation* op)
   }
 }
 
-void ImpiHandler::on_get_impu_failure(CassandraStore::Operation* op, CassandraStore::ResultCode error, std::string& text)
+void ImpiTask::on_get_impu_failure(CassandraStore::Operation* op, CassandraStore::ResultCode error, std::string& text)
 {
   SAS::Event event(this->trail(), SASEvent::CACHE_GET_ASSOC_IMPU_FAIL, 0);
   SAS::report_event(event);
@@ -253,7 +253,7 @@ void ImpiHandler::on_get_impu_failure(CassandraStore::Operation* op, CassandraSt
   delete this;
 }
 
-void ImpiHandler::send_mar()
+void ImpiTask::send_mar()
 {
   Cx::MultimediaAuthRequest mar(_dict,
                                 _diameter_stack,
@@ -265,11 +265,11 @@ void ImpiHandler::send_mar()
                                 _scheme,
                                 _authorization);
   DiameterTransaction* tsx =
-    new DiameterTransaction(_dict, this, DIGEST_STATS, &ImpiHandler::on_mar_response);
+    new DiameterTransaction(_dict, this, DIGEST_STATS, &ImpiTask::on_mar_response);
   mar.send(tsx, _cfg->diameter_timeout_ms);
 }
 
-void ImpiHandler::on_mar_response(Diameter::Message& rsp)
+void ImpiTask::on_mar_response(Diameter::Message& rsp)
 {
   Cx::MultimediaAuthAnswer maa(rsp);
   int32_t result_code = 0;
@@ -333,7 +333,7 @@ void ImpiHandler::on_mar_response(Diameter::Message& rsp)
 // IMPI digest handling.
 //
 
-bool ImpiDigestHandler::parse_request()
+bool ImpiDigestTask::parse_request()
 {
   const std::string prefix = "/impi/";
   std::string path = _req.path();
@@ -346,7 +346,7 @@ bool ImpiDigestHandler::parse_request()
   return true;
 }
 
-void ImpiDigestHandler::send_reply(const DigestAuthVector& av)
+void ImpiDigestTask::send_reply(const DigestAuthVector& av)
 {
   rapidjson::StringBuffer sb;
   rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
@@ -358,7 +358,7 @@ void ImpiDigestHandler::send_reply(const DigestAuthVector& av)
   send_http_reply(200);
 }
 
-void ImpiDigestHandler::send_reply(const AKAAuthVector& av)
+void ImpiDigestTask::send_reply(const AKAAuthVector& av)
 {
   // It is an error to request AKA authentication through the digest URL.
   LOG_INFO("Digest requested but AKA received - reject");
@@ -369,7 +369,7 @@ void ImpiDigestHandler::send_reply(const AKAAuthVector& av)
 // IMPI AV handling.
 //
 
-bool ImpiAvHandler::parse_request()
+bool ImpiAvTask::parse_request()
 {
   const std::string prefix = "/impi/";
   std::string path = _req.path();
@@ -382,7 +382,7 @@ bool ImpiAvHandler::parse_request()
   }
   else if (scheme == "digest")
   {
-    _scheme = _cfg->scheme_digest; // LCOV_EXCL_LINE - digests are handled by the ImpiDigestHandler so we can't get here.
+    _scheme = _cfg->scheme_digest; // LCOV_EXCL_LINE - digests are handled by the ImpiDigestTask so we can't get here.
   }
   else if (scheme == "aka")
   {
@@ -402,7 +402,7 @@ bool ImpiAvHandler::parse_request()
   return true;
 }
 
-void ImpiAvHandler::send_reply(const DigestAuthVector& av)
+void ImpiAvTask::send_reply(const DigestAuthVector& av)
 {
   rapidjson::StringBuffer sb;
   rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
@@ -431,7 +431,7 @@ void ImpiAvHandler::send_reply(const DigestAuthVector& av)
   send_http_reply(200);
 }
 
-void ImpiAvHandler::send_reply(const AKAAuthVector& av)
+void ImpiAvTask::send_reply(const AKAAuthVector& av)
 {
   rapidjson::StringBuffer sb;
   rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
@@ -462,7 +462,7 @@ void ImpiAvHandler::send_reply(const AKAAuthVector& av)
 // IMPI Registration Status handling
 //
 
-void ImpiRegistrationStatusHandler::run()
+void ImpiRegistrationStatusTask::run()
 {
   if (_cfg->hss_configured)
   {
@@ -491,7 +491,7 @@ void ImpiRegistrationStatusHandler::run()
       new DiameterTransaction(_dict,
                               this,
                               SUBSCRIPTION_STATS,
-                              &ImpiRegistrationStatusHandler::on_uar_response);
+                              &ImpiRegistrationStatusTask::on_uar_response);
     uar.send(tsx, _cfg->diameter_timeout_ms);
   }
   else
@@ -513,7 +513,7 @@ void ImpiRegistrationStatusHandler::run()
   }
 }
 
-void ImpiRegistrationStatusHandler::on_uar_response(Diameter::Message& rsp)
+void ImpiRegistrationStatusTask::on_uar_response(Diameter::Message& rsp)
 {
   Cx::UserAuthorizationAnswer uaa(rsp);
   int32_t result_code = 0;
@@ -587,7 +587,7 @@ void ImpiRegistrationStatusHandler::on_uar_response(Diameter::Message& rsp)
   delete this;
 }
 
-void ImpiRegistrationStatusHandler::sas_log_hss_failure(int32_t result_code)
+void ImpiRegistrationStatusTask::sas_log_hss_failure(int32_t result_code)
 {
   SAS::Event event(this->trail(), SASEvent::REG_STATUS_HSS_FAIL, 0);
   SAS::report_event(event);
@@ -597,7 +597,7 @@ void ImpiRegistrationStatusHandler::sas_log_hss_failure(int32_t result_code)
 // IMPU Location Information handling
 //
 
-void ImpuLocationInfoHandler::run()
+void ImpuLocationInfoTask::run()
 {
   if (_cfg->hss_configured)
   {
@@ -621,7 +621,7 @@ void ImpuLocationInfoHandler::run()
       new DiameterTransaction(_dict,
                               this,
                               SUBSCRIPTION_STATS,
-                              &ImpuLocationInfoHandler::on_lir_response);
+                              &ImpuLocationInfoTask::on_lir_response);
     lir.send(tsx, _cfg->diameter_timeout_ms);
   }
   else
@@ -643,7 +643,7 @@ void ImpuLocationInfoHandler::run()
   }
 }
 
-void ImpuLocationInfoHandler::on_lir_response(Diameter::Message& rsp)
+void ImpuLocationInfoTask::on_lir_response(Diameter::Message& rsp)
 {
   Cx::LocationInfoAnswer lia(rsp);
   int32_t result_code = 0;
@@ -710,7 +710,7 @@ void ImpuLocationInfoHandler::on_lir_response(Diameter::Message& rsp)
   delete this;
 }
 
-void ImpuLocationInfoHandler::sas_log_hss_failure(int32_t result_code)
+void ImpuLocationInfoTask::sas_log_hss_failure(int32_t result_code)
 {
   SAS::Event event(this->trail(), SASEvent::LOC_INFO_HSS_FAIL, 0);
   SAS::report_event(event);
@@ -721,7 +721,7 @@ void ImpuLocationInfoHandler::sas_log_hss_failure(int32_t result_code)
 //
 
 // Determines whether an incoming HTTP request indicates deregistration
-bool ImpuRegDataHandler::is_deregistration_request(RequestType type)
+bool ImpuRegDataTask::is_deregistration_request(RequestType type)
 {
   switch (type)
   {
@@ -736,7 +736,7 @@ bool ImpuRegDataHandler::is_deregistration_request(RequestType type)
 
 // Determines whether an incoming HTTP request indicates
 // authentication failure
-bool ImpuRegDataHandler::is_auth_failure_request(RequestType type)
+bool ImpuRegDataTask::is_auth_failure_request(RequestType type)
 {
   switch (type)
   {
@@ -750,7 +750,7 @@ bool ImpuRegDataHandler::is_auth_failure_request(RequestType type)
 
 // If a HTTP request maps directly to a Diameter
 // Server-Assignment-Type field, return the appropriate field.
-Cx::ServerAssignmentType ImpuRegDataHandler::sar_type_for_request(RequestType type)
+Cx::ServerAssignmentType ImpuRegDataTask::sar_type_for_request(RequestType type)
 {
   switch (type)
   {
@@ -775,7 +775,7 @@ Cx::ServerAssignmentType ImpuRegDataHandler::sar_type_for_request(RequestType ty
   }
 }
 
-ImpuRegDataHandler::RequestType ImpuRegDataHandler::request_type_from_body(std::string body)
+ImpuRegDataTask::RequestType ImpuRegDataTask::request_type_from_body(std::string body)
 {
   LOG_DEBUG("Determining request type from '%s'", body.c_str());
   RequestType ret = RequestType::UNKNOWN;
@@ -825,7 +825,7 @@ ImpuRegDataHandler::RequestType ImpuRegDataHandler::request_type_from_body(std::
   return ret;
 }
 
-void ImpuRegDataHandler::run()
+void ImpuRegDataTask::run()
 {
   const std::string prefix = "/impu/";
   std::string path = _req.full_path();
@@ -878,8 +878,8 @@ void ImpuRegDataHandler::run()
   CassandraStore::Operation* get_ims_sub = _cache->create_GetIMSSubscription(_impu);
   CassandraStore::Transaction* tsx =
     new CacheTransaction(this,
-                         &ImpuRegDataHandler::on_get_ims_subscription_success,
-                         &ImpuRegDataHandler::on_get_ims_subscription_failure);
+                         &ImpuRegDataTask::on_get_ims_subscription_success,
+                         &ImpuRegDataTask::on_get_ims_subscription_failure);
   _cache->do_async(get_ims_sub, tsx);
 }
 
@@ -898,7 +898,7 @@ std::string regstate_to_str(RegistrationState state)
   }
 }
 
-void ImpuRegDataHandler::on_get_ims_subscription_success(CassandraStore::Operation* op)
+void ImpuRegDataTask::on_get_ims_subscription_success(CassandraStore::Operation* op)
 {
   LOG_DEBUG("Got IMS subscription from cache");
   Cache::GetIMSSubscription* get_ims_sub = (Cache::GetIMSSubscription*)op;
@@ -1172,16 +1172,16 @@ void ImpuRegDataHandler::on_get_ims_subscription_success(CassandraStore::Operati
   }
 }
 
-void ImpuRegDataHandler::send_reply()
+void ImpuRegDataTask::send_reply()
 {
   LOG_DEBUG("Building 200 OK response to send (body was %s)", _req.body().c_str());
   _req.add_content(XmlUtils::build_ClearwaterRegData_xml(_new_state, _xml));
   send_http_reply(200);
 }
 
-void ImpuRegDataHandler::on_get_ims_subscription_failure(CassandraStore::Operation* op,
-                                                         CassandraStore::ResultCode error,
-                                                         std::string& text)
+void ImpuRegDataTask::on_get_ims_subscription_failure(CassandraStore::Operation* op,
+                                                      CassandraStore::ResultCode error,
+                                                      std::string& text)
 {
   LOG_DEBUG("IMS subscription cache query failed: %u, %s", error, text.c_str());
   SAS::Event event(this->trail(), SASEvent::NO_REG_DATA_CACHE, 0);
@@ -1199,7 +1199,7 @@ void ImpuRegDataHandler::on_get_ims_subscription_failure(CassandraStore::Operati
   delete this;
 }
 
-void ImpuRegDataHandler::send_server_assignment_request(Cx::ServerAssignmentType type)
+void ImpuRegDataTask::send_server_assignment_request(Cx::ServerAssignmentType type)
 {
   Cx::ServerAssignmentRequest sar(_dict,
                                   _diameter_stack,
@@ -1213,11 +1213,11 @@ void ImpuRegDataHandler::send_server_assignment_request(Cx::ServerAssignmentType
     new DiameterTransaction(_dict,
                             this,
                             SUBSCRIPTION_STATS,
-                            &ImpuRegDataHandler::on_sar_response);
+                            &ImpuRegDataTask::on_sar_response);
   sar.send(tsx, _cfg->diameter_timeout_ms);
 }
 
-std::vector<std::string> ImpuRegDataHandler::get_associated_private_ids()
+std::vector<std::string> ImpuRegDataTask::get_associated_private_ids()
 {
   std::vector<std::string> private_ids;
   if (!_impi.empty())
@@ -1234,7 +1234,7 @@ std::vector<std::string> ImpuRegDataHandler::get_associated_private_ids()
   return private_ids;
 }
 
-void ImpuRegDataHandler::put_in_cache()
+void ImpuRegDataTask::put_in_cache()
 {
   int ttl;
   if (_cfg->hss_configured)
@@ -1292,7 +1292,7 @@ void ImpuRegDataHandler::put_in_cache()
   }
 }
 
-void ImpuRegDataHandler::on_sar_response(Diameter::Message& rsp)
+void ImpuRegDataTask::on_sar_response(Diameter::Message& rsp)
 {
   Cx::ServerAssignmentAnswer saa(rsp);
   int32_t result_code = 0;
@@ -1371,7 +1371,7 @@ void ImpuRegDataHandler::on_sar_response(Diameter::Message& rsp)
 // "/impu/<public ID>". Deprecated.
 //
 
-void ImpuIMSSubscriptionHandler::run()
+void ImpuIMSSubscriptionTask::run()
 {
   const std::string prefix = "/impu/";
   std::string path = _req.full_path();
@@ -1394,12 +1394,12 @@ void ImpuIMSSubscriptionHandler::run()
   CassandraStore::Operation* get_ims_sub = _cache->create_GetIMSSubscription(_impu);
   CassandraStore::Transaction* tsx =
     new CacheTransaction(this,
-                         &ImpuRegDataHandler::on_get_ims_subscription_success,
-                         &ImpuRegDataHandler::on_get_ims_subscription_failure);
+                         &ImpuRegDataTask::on_get_ims_subscription_success,
+                         &ImpuRegDataTask::on_get_ims_subscription_failure);
   _cache->do_async(get_ims_sub, tsx);
 }
 
-void ImpuIMSSubscriptionHandler::send_reply()
+void ImpuIMSSubscriptionTask::send_reply()
 {
   if (_xml != "")
   {
@@ -1414,7 +1414,7 @@ void ImpuIMSSubscriptionHandler::send_reply()
   }
 }
 
-void RegistrationTerminationHandler::run()
+void RegistrationTerminationTask::run()
 {
   // Save off the deregistration reason and all private and public
   // identities on the request.
@@ -1451,8 +1451,8 @@ void RegistrationTerminationHandler::run()
     CassandraStore::Operation* get_associated_impus = _cfg->cache->create_GetAssociatedPrimaryPublicIDs(_impis);
     CassandraStore::Transaction* tsx =
       new CacheTransaction(this,
-                           &RegistrationTerminationHandler::get_assoc_primary_public_ids_success,
-                           &RegistrationTerminationHandler::get_assoc_primary_public_ids_failure);
+                           &RegistrationTerminationTask::get_assoc_primary_public_ids_success,
+                           &RegistrationTerminationTask::get_assoc_primary_public_ids_failure);
     _cfg->cache->do_async(get_associated_impus, tsx);
   }
   else if ((!_impus.empty()) && ((_deregistration_reason == PERMANENT_TERMINATION) ||
@@ -1474,7 +1474,7 @@ void RegistrationTerminationHandler::run()
   }
 }
 
-void RegistrationTerminationHandler::get_assoc_primary_public_ids_success(CassandraStore::Operation* op)
+void RegistrationTerminationTask::get_assoc_primary_public_ids_success(CassandraStore::Operation* op)
 {
   // Get the default public identities returned by the cache.
   Cache::GetAssociatedPrimaryPublicIDs* get_associated_impus_result =
@@ -1505,7 +1505,7 @@ void RegistrationTerminationHandler::get_assoc_primary_public_ids_success(Cassan
   }
 }
 
-void RegistrationTerminationHandler::get_assoc_primary_public_ids_failure(CassandraStore::Operation* op,
+void RegistrationTerminationTask::get_assoc_primary_public_ids_failure(CassandraStore::Operation* op,
                                                                           CassandraStore::ResultCode error,
                                                                           std::string& text)
 {
@@ -1516,7 +1516,7 @@ void RegistrationTerminationHandler::get_assoc_primary_public_ids_failure(Cassan
   delete this;
 }
 
-void RegistrationTerminationHandler::get_registration_sets()
+void RegistrationTerminationTask::get_registration_sets()
 {
   // This function issues a GetIMSSubscription cache request for a public identity
   // on the list of IMPUs and then removes that public identity from the list. It
@@ -1533,8 +1533,8 @@ void RegistrationTerminationHandler::get_registration_sets()
     CassandraStore::Operation* get_ims_sub = _cfg->cache->create_GetIMSSubscription(impu);
     CassandraStore::Transaction* tsx =
       new CacheTransaction(this,
-                           &RegistrationTerminationHandler::get_registration_set_success,
-                           &RegistrationTerminationHandler::get_registration_set_failure);
+                           &RegistrationTerminationTask::get_registration_set_success,
+                           &RegistrationTerminationTask::get_registration_set_failure);
     _cfg->cache->do_async(get_ims_sub, tsx);
   }
   else if (_registration_sets.empty())
@@ -1558,7 +1558,7 @@ void RegistrationTerminationHandler::get_registration_sets()
   }
 }
 
-void RegistrationTerminationHandler::get_registration_set_success(CassandraStore::Operation* op)
+void RegistrationTerminationTask::get_registration_set_success(CassandraStore::Operation* op)
 {
   Cache::GetIMSSubscription* get_ims_sub_result = (Cache::GetIMSSubscription*)op;
   std::string ims_sub;
@@ -1595,9 +1595,9 @@ void RegistrationTerminationHandler::get_registration_set_success(CassandraStore
   get_registration_sets();
 }
 
-void RegistrationTerminationHandler::get_registration_set_failure(CassandraStore::Operation* op,
-                                                                  CassandraStore::ResultCode error,
-                                                                  std::string& text)
+void RegistrationTerminationTask::get_registration_set_failure(CassandraStore::Operation* op,
+                                                               CassandraStore::ResultCode error,
+                                                               std::string& text)
 {
   LOG_DEBUG("Failed to get a registration set - report failure to HSS");
   SAS::Event event(this->trail(), SASEvent::DEREG_FAIL, 0);
@@ -1606,7 +1606,7 @@ void RegistrationTerminationHandler::get_registration_set_failure(CassandraStore
   delete this;
 }
 
-void RegistrationTerminationHandler::delete_registrations()
+void RegistrationTerminationTask::delete_registrations()
 {
   HTTPCode ret_code = 0;
   std::vector<std::string> empty_vector;
@@ -1699,7 +1699,7 @@ void RegistrationTerminationHandler::delete_registrations()
   delete this;
 }
 
-void RegistrationTerminationHandler::dissociate_implicit_registration_sets()
+void RegistrationTerminationTask::dissociate_implicit_registration_sets()
 {
   // Dissociate the private identities from each registration set.
   for (std::vector<std::vector<std::string>>::iterator i = _registration_sets.begin();
@@ -1719,7 +1719,7 @@ void RegistrationTerminationHandler::dissociate_implicit_registration_sets()
   }
 }
 
-void RegistrationTerminationHandler::delete_impi_mappings()
+void RegistrationTerminationTask::delete_impi_mappings()
 {
   // Delete rows from the IMPI table for all associated IMPIs.
   std::string _impis_str = boost::algorithm::join(_impis, ", ");
@@ -1734,7 +1734,7 @@ void RegistrationTerminationHandler::delete_impi_mappings()
   _cfg->cache->do_async(delete_impis, tsx);
 }
 
-void RegistrationTerminationHandler::send_rta(const std::string result_code)
+void RegistrationTerminationTask::send_rta(const std::string result_code)
 {
   // Use our Cx layer to create a RTA object and add the correct AVPs. The RTA is
   // created from the RTR.
@@ -1749,7 +1749,7 @@ void RegistrationTerminationHandler::send_rta(const std::string result_code)
   rta.send(trail());
 }
 
-void PushProfileHandler::run()
+void PushProfileTask::run()
 {
   // Received a Push Profile Request. We may need to update an IMS
   // subscription in the cache.
@@ -1777,8 +1777,8 @@ void PushProfileHandler::run()
                                              (2 * _cfg->hss_reregistration_time));
     CassandraStore::Transaction* tsx =
       new CacheTransaction(this,
-                           &PushProfileHandler::update_ims_subscription_success,
-                           &PushProfileHandler::update_ims_subscription_failure);
+                           &PushProfileTask::update_ims_subscription_success,
+                           &PushProfileTask::update_ims_subscription_failure);
     _cfg->cache->do_async(put_ims_subscription, tsx);
   }
   else
@@ -1787,14 +1787,14 @@ void PushProfileHandler::run()
   }
 }
 
-void PushProfileHandler::update_ims_subscription_success(CassandraStore::Operation* op)
+void PushProfileTask::update_ims_subscription_success(CassandraStore::Operation* op)
 {
   SAS::Event event(this->trail(), SASEvent::UPDATED_IMS_SUBS, 0);
   SAS::report_event(event);
   send_ppa(DIAMETER_REQ_SUCCESS);
 }
 
-void PushProfileHandler::update_ims_subscription_failure(CassandraStore::Operation* op,
+void PushProfileTask::update_ims_subscription_failure(CassandraStore::Operation* op,
                                                          CassandraStore::ResultCode error,
                                                          std::string& text)
 {
@@ -1802,7 +1802,7 @@ void PushProfileHandler::update_ims_subscription_failure(CassandraStore::Operati
   send_ppa(DIAMETER_REQ_FAILURE);
 }
 
-void PushProfileHandler::send_ppa(const std::string result_code)
+void PushProfileTask::send_ppa(const std::string result_code)
 {
   // Use our Cx layer to create a PPA object and add the correct AVPs. The PPA is
   // created from the PPR.

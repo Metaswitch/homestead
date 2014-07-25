@@ -15,8 +15,6 @@ modules/cpp-common/src/load_monitor.cpp
 modules/cpp-common/src/statistic.cpp
 modules/cpp-common/src/zmq_lvc.cpp
 modules/cpp-common/src/saslogger.cpp
-modules/cpp-common/test_utils/test_interposer.cpp
-modules/cpp-common/test_utils/mock_sas.cpp
 modules/cpp-common/src/httpresolver.cpp
 modules/cpp-common/test_utils/fakehttpresolver.hpp
 modules/cpp-common/test_utils/cass_test_utils.h
