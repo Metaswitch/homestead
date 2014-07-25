@@ -37,30 +37,18 @@
 #ifndef MOCKCACHE_H__
 #define MOCKCACHE_H__
 
-#include "gmock/gmock.h"
 #include "cache.h"
+#include "mock_cassandra_store.h"
+
+#include "gmock/gmock.h"
 
 static DigestAuthVector mock_digest_av;
 
-class MockCache : public Cache
+class MockCache : public MockCassandraStore<Cache>
 {
 public:
   MockCache() {};
   virtual ~MockCache() {};
-
-  //
-  // Initialization / termination methods
-  //
-  MOCK_METHOD0(initialize, void());
-
-  MOCK_METHOD4(configure, void(std::string cass_hostname,
-                               uint16_t cass_port,
-                               unsigned int num_threads,
-                               unsigned int max_queue));
-  MOCK_METHOD0(start, ResultCode());
-  MOCK_METHOD0(stop, void());
-  MOCK_METHOD0(wait_stopped, void());
-  MOCK_METHOD2(send, void(Transaction* trx, Request* req));
 
   //
   // Methods that create cache request objects.
@@ -172,31 +160,32 @@ public:
   //
   // These classes just implement a default constructor.  This make the mocking
   // code and the UTs easier to write.
-  class MockPutIMSSubscription : public PutIMSSubscription
+  //
+  class MockPutIMSSubscription : public PutIMSSubscription, public MockOperationMixin
   {
     MockPutIMSSubscription() : PutIMSSubscription("", "", RegistrationState::REGISTERED, {}, 0, 0) {}
     virtual ~MockPutIMSSubscription() {}
   };
 
-  class MockPutAssociatedPrivateID : public PutAssociatedPrivateID
+  class MockPutAssociatedPrivateID : public PutAssociatedPrivateID, public MockOperationMixin
   {
     MockPutAssociatedPrivateID() : PutAssociatedPrivateID({}, "", 0, 0) {}
     virtual ~MockPutAssociatedPrivateID() {}
   };
 
-  class MockPutAssociatedPublicID : public PutAssociatedPublicID
+  class MockPutAssociatedPublicID : public PutAssociatedPublicID, public MockOperationMixin
   {
     MockPutAssociatedPublicID() : PutAssociatedPublicID("", "", 0, 0) {}
     virtual ~MockPutAssociatedPublicID() {}
   };
 
-  class MockPutAuthVector : public PutAuthVector
+  class MockPutAuthVector : public PutAuthVector, public MockOperationMixin
   {
     MockPutAuthVector() : PutAuthVector("", mock_digest_av, 0, 0) {}
     virtual ~MockPutAuthVector() {}
   };
 
-  class MockGetIMSSubscription : public GetIMSSubscription
+  class MockGetIMSSubscription : public GetIMSSubscription, public MockOperationMixin
   {
     MockGetIMSSubscription() : GetIMSSubscription("") {}
     virtual ~MockGetIMSSubscription() {}
@@ -206,7 +195,7 @@ public:
     MOCK_METHOD1(get_associated_impis, void(std::vector<std::string>& associated_impis));
   };
 
-  class MockGetAssociatedPublicIDs : public GetAssociatedPublicIDs
+  class MockGetAssociatedPublicIDs : public GetAssociatedPublicIDs, public MockOperationMixin
   {
     MockGetAssociatedPublicIDs() : GetAssociatedPublicIDs("") {}
     virtual ~MockGetAssociatedPublicIDs() {}
@@ -214,7 +203,7 @@ public:
     MOCK_METHOD1(get_result, void(std::vector<std::string>& public_ids));
   };
 
-  class MockGetAssociatedPrimaryPublicIDs : public GetAssociatedPrimaryPublicIDs
+  class MockGetAssociatedPrimaryPublicIDs : public GetAssociatedPrimaryPublicIDs, public MockOperationMixin
   {
     MockGetAssociatedPrimaryPublicIDs() : GetAssociatedPrimaryPublicIDs("") {}
     virtual ~MockGetAssociatedPrimaryPublicIDs() {}
@@ -222,7 +211,7 @@ public:
     MOCK_METHOD1(get_result, void(std::vector<std::string>& public_ids));
   };
 
-  class MockGetAuthVector : public GetAuthVector
+  class MockGetAuthVector : public GetAuthVector, public MockOperationMixin
   {
     MockGetAuthVector() : GetAuthVector("") {}
     virtual ~MockGetAuthVector() {}
@@ -230,25 +219,25 @@ public:
     MOCK_METHOD1(get_result, void(DigestAuthVector& av));
   };
 
-  class MockDeletePublicIDs : public DeletePublicIDs
+  class MockDeletePublicIDs : public DeletePublicIDs, public MockOperationMixin
   {
     MockDeletePublicIDs() : DeletePublicIDs("", {}, 0) {}
     virtual ~MockDeletePublicIDs() {}
   };
 
-  class MockDeletePrivateIDs : public DeletePrivateIDs
+  class MockDeletePrivateIDs : public DeletePrivateIDs, public MockOperationMixin
   {
     MockDeletePrivateIDs() : DeletePrivateIDs("", 0) {}
     virtual ~MockDeletePrivateIDs() {}
   };
 
-  class MockDeleteIMPIMapping : public DeleteIMPIMapping
+  class MockDeleteIMPIMapping : public DeleteIMPIMapping, public MockOperationMixin
   {
     MockDeleteIMPIMapping() : DeleteIMPIMapping({}, 0) {}
     virtual ~MockDeleteIMPIMapping() {}
   };
 
-  class MockDissociateImplicitRegistrationSetFromImpi : public DissociateImplicitRegistrationSetFromImpi
+  class MockDissociateImplicitRegistrationSetFromImpi : public DissociateImplicitRegistrationSetFromImpi, public MockOperationMixin
   {
     MockDissociateImplicitRegistrationSetFromImpi() : DissociateImplicitRegistrationSetFromImpi({}, "", 0) {}
     virtual ~MockDissociateImplicitRegistrationSetFromImpi() {}

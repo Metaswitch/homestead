@@ -15,6 +15,7 @@ TARGET_SOURCES := accesslogger.cpp \
                   accumulator.cpp \
                   baseresolver.cpp \
                   cache.cpp \
+                  cassandra_store.cpp \
                   counter.cpp \
                   cx.cpp \
                   diameterstack.cpp \

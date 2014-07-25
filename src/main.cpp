@@ -403,17 +403,17 @@ int main(int argc, char**argv)
   Cache* cache = Cache::get_instance();
   cache->initialize();
   cache->configure(options.cassandra, 9160, options.cache_threads);
-  Cache::ResultCode rc = cache->start();
+  CassandraStore::ResultCode rc = cache->start();
 
-  if (rc != Cache::OK)
+  if (rc != CassandraStore::OK)
   {
     LOG_ERROR("Failed to initialize cache - rc %d", rc);
     exit(2);
   }
 
   HttpConnection* http = new HttpConnection(options.sprout_http_name,
-                                            http_resolver,
                                             false,
+                                            http_resolver,
                                             SASEvent::HttpLogLevel::PROTOCOL);
   SproutConnection* sprout_conn = new SproutConnection(http);
 

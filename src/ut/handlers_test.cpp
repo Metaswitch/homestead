@@ -365,19 +365,18 @@ public:
 
     // Once the request is processed by the task, we expect it to
     // look up the subscriber's data in Cassandra.
-    MockCache::MockGetIMSSubscription mock_req;
+    MockCache::MockGetIMSSubscription mock_op;
     EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU))
-      .WillOnce(Return(&mock_req));
-    EXPECT_CALL(*_cache, send(_, &mock_req))
-      .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
+      .WillOnce(Return(&mock_op));
+    _cache->EXPECT_DO_ASYNC(mock_op);
     task->run();
 
     // Have the cache return the values passed in for this test.
-    Cache::Transaction* t = mock_req.get_trx();
+    CassandraStore::Transaction* t = mock_op.get_trx();
     ASSERT_FALSE(t == NULL);
-    EXPECT_CALL(mock_req, get_xml(_, _))
+    EXPECT_CALL(mock_op, get_xml(_, _))
       .WillRepeatedly(DoAll(SetArgReferee<0>(IMPU_IMS_SUBSCRIPTION), SetArgReferee<1>(db_ttl)));
-    EXPECT_CALL(mock_req, get_registration_state(_, _))
+    EXPECT_CALL(mock_op, get_registration_state(_, _))
       .WillRepeatedly(DoAll(SetArgReferee<0>(db_regstate), SetArgReferee<1>(db_ttl)));
 
     // If we have the new_binding flag set, return a list of associated IMPIs
@@ -388,18 +387,17 @@ public:
     {
       associated_identities.push_back(IMPI);
     }
-    EXPECT_CALL(mock_req, get_associated_impis(_))
+    EXPECT_CALL(mock_op, get_associated_impis(_))
       .WillRepeatedly(SetArgReferee<0>(associated_identities));
 
     // If this is a new binding, we expect to put the new associated
     // IMPI in the cache.
-    MockCache::MockPutAssociatedPrivateID mock_req2;
+    MockCache::MockPutAssociatedPrivateID mock_op2;
     if (new_binding)
     {
       EXPECT_CALL(*_cache, create_PutAssociatedPrivateID(IMPU_REG_SET, IMPI, _, 7200))
-        .WillOnce(Return(&mock_req2));
-      EXPECT_CALL(*_cache, send(_, &mock_req2))
-        .WillOnce(WithArgs<0>(Invoke(&mock_req2, &Cache::Request::set_trx)));
+        .WillOnce(Return(&mock_op2));
+      _cache->EXPECT_DO_ASYNC(mock_op2);
     }
 
     // A Server-Assignment-Request should be generated for this
@@ -408,11 +406,11 @@ public:
       .Times(1)
       .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
 
-    t->on_success(&mock_req);
+    t->on_success(&mock_op);
 
     if ((new_binding) && (use_impi))
     {
-      t = mock_req2.get_trx();
+      t = mock_op2.get_trx();
       ASSERT_FALSE(t == NULL);
     }
     ASSERT_FALSE(_caught_diam_tsx == NULL);
@@ -445,16 +443,15 @@ public:
 
       // Once we simulate the Diameter response, check that the
       // database is updated and a 200 OK is sent.
-      MockCache::MockPutIMSSubscription mock_req3;
+      MockCache::MockPutIMSSubscription mock_op3;
       EXPECT_CALL(*_cache, create_PutIMSSubscription(IMPU_REG_SET, IMPU_IMS_SUBSCRIPTION, expected_new_state, IMPI_IN_VECTOR, _, 7200))
-        .WillOnce(Return(&mock_req3));
-      EXPECT_CALL(*_cache, send(_, &mock_req3))
-        .WillOnce(WithArgs<0>(Invoke(&mock_req3, &Cache::Request::set_trx)));
+        .WillOnce(Return(&mock_op3));
+      _cache->EXPECT_DO_ASYNC(mock_op3);
 
       EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
       _caught_diam_tsx->on_response(saa);
 
-      t = mock_req3.get_trx();
+      t = mock_op3.get_trx();
       ASSERT_FALSE(t == NULL);
     }
     else
@@ -463,16 +460,15 @@ public:
       // the database after the SAA. Check that they are, and that a
       // 200 OK HTTP response is sent.
 
-      MockCache::MockDeletePublicIDs mock_req3;
+      MockCache::MockDeletePublicIDs mock_op3;
       EXPECT_CALL(*_cache, create_DeletePublicIDs(IMPU_REG_SET, IMPI_IN_VECTOR, _))
-        .WillOnce(Return(&mock_req3));
-      EXPECT_CALL(*_cache, send(_, &mock_req3))
-        .WillOnce(WithArgs<0>(Invoke(&mock_req3, &Cache::Request::set_trx)));
+        .WillOnce(Return(&mock_op3));
+      _cache->EXPECT_DO_ASYNC(mock_op3);
 
       EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
       _caught_diam_tsx->on_response(saa);
 
-      t = mock_req3.get_trx();
+      t = mock_op3.get_trx();
       ASSERT_FALSE(t == NULL);
     }
 
@@ -506,27 +502,26 @@ public:
 
     // Once the request is processed by the task, we expect it to
     // look up the subscriber's data in Cassandra.
-    MockCache::MockGetIMSSubscription mock_req;
+    MockCache::MockGetIMSSubscription mock_op;
     EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU))
-      .WillOnce(Return(&mock_req));
-    EXPECT_CALL(*_cache, send(_, &mock_req))
-      .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
+      .WillOnce(Return(&mock_op));
+    _cache->EXPECT_DO_ASYNC(mock_op);
     task->run();
 
     // Have the cache return the values passed in for this test.
-    Cache::Transaction* t = mock_req.get_trx();
+    CassandraStore::Transaction* t = mock_op.get_trx();
     ASSERT_FALSE(t == NULL);
-    EXPECT_CALL(mock_req, get_xml(_, _))
+    EXPECT_CALL(mock_op, get_xml(_, _))
       .WillRepeatedly(DoAll(SetArgReferee<0>(IMPU_IMS_SUBSCRIPTION), SetArgReferee<1>(db_ttl)));
-    EXPECT_CALL(mock_req, get_registration_state(_, _))
+    EXPECT_CALL(mock_op, get_registration_state(_, _))
       .WillRepeatedly(DoAll(SetArgReferee<0>(db_regstate), SetArgReferee<1>(db_ttl)));
-    EXPECT_CALL(mock_req, get_associated_impis(_))
+    EXPECT_CALL(mock_op, get_associated_impis(_))
             .WillRepeatedly(SetArgReferee<0>(IMPI_IN_VECTOR));
 
     // No SAR was generated, so there shouldn't be any effect on the
     // database - just check that we send back a response.
     EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
-    t->on_success(&mock_req);
+    t->on_success(&mock_op);
 
     // Build the expected response and check it's correct
     EXPECT_EQ(expected_result, req.content());
@@ -552,20 +547,19 @@ public:
     ImpuRegDataTask::Config cfg(hss_configured, 3600);
     ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
 
-    MockCache::MockGetIMSSubscription mock_req;
+    MockCache::MockGetIMSSubscription mock_op;
     EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU))
-      .WillOnce(Return(&mock_req));
-    EXPECT_CALL(*_cache, send(_, &mock_req))
-      .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
+      .WillOnce(Return(&mock_op));
+    _cache->EXPECT_DO_ASYNC(mock_op);
     task->run();
 
-    Cache::Transaction* t = mock_req.get_trx();
+    CassandraStore::Transaction* t = mock_op.get_trx();
     ASSERT_FALSE(t == NULL);
-    EXPECT_CALL(mock_req, get_xml(_, _))
+    EXPECT_CALL(mock_op, get_xml(_, _))
       .WillRepeatedly(DoAll(SetArgReferee<0>(IMPU_IMS_SUBSCRIPTION), SetArgReferee<1>(db_ttl)));
-    EXPECT_CALL(mock_req, get_registration_state(_, _))
+    EXPECT_CALL(mock_op, get_registration_state(_, _))
       .WillRepeatedly(DoAll(SetArgReferee<0>(db_regstate), SetArgReferee<1>(db_ttl)));
-    EXPECT_CALL(mock_req, get_associated_impis(_))
+    EXPECT_CALL(mock_op, get_associated_impis(_))
           .WillRepeatedly(SetArgReferee<0>(IMPI_IN_VECTOR));
 
     if (hss_configured)
@@ -579,7 +573,7 @@ public:
       EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
     }
 
-    t->on_success(&mock_req);
+    t->on_success(&mock_op);
 
     if (hss_configured)
     {
@@ -635,27 +629,26 @@ public:
 
     // Once the request is processed by the task, we expect it to
     // look up the subscriber's data in Cassandra.
-    MockCache::MockGetIMSSubscription mock_req;
+    MockCache::MockGetIMSSubscription mock_op;
     EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU))
-      .WillOnce(Return(&mock_req));
-    EXPECT_CALL(*_cache, send(_, &mock_req))
-      .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
+      .WillOnce(Return(&mock_op));
+    _cache->EXPECT_DO_ASYNC(mock_op);
     task->run();
 
     // Have the cache return the values passed in for this test.
-    Cache::Transaction* t = mock_req.get_trx();
+    CassandraStore::Transaction* t = mock_op.get_trx();
     ASSERT_FALSE(t == NULL);
-    EXPECT_CALL(mock_req, get_xml(_, _))
+    EXPECT_CALL(mock_op, get_xml(_, _))
       .WillRepeatedly(DoAll(SetArgReferee<0>(IMPU_IMS_SUBSCRIPTION), SetArgReferee<1>(db_ttl)));
-    EXPECT_CALL(mock_req, get_registration_state(_, _))
+    EXPECT_CALL(mock_op, get_registration_state(_, _))
       .WillRepeatedly(DoAll(SetArgReferee<0>(db_regstate), SetArgReferee<1>(db_ttl)));
-    EXPECT_CALL(mock_req, get_associated_impis(_));
+    EXPECT_CALL(mock_op, get_associated_impis(_));
 
     if (expect_update)
     {
       // If we expect the subscriber's registration state to be updated,
       // check that an appropriate database write is made.
-      MockCache::MockPutIMSSubscription mock_req2;
+      MockCache::MockPutIMSSubscription mock_op2;
       std::vector<std::string> no_associated_impis;
 
       // We should never set a TTL in the non-HSS case
@@ -665,14 +658,13 @@ public:
                                                      no_associated_impis,
                                                      _,
                                                      0))
-        .WillOnce(Return(&mock_req2));
-      EXPECT_CALL(*_cache, send(_, &mock_req2))
-        .WillOnce(WithArgs<0>(Invoke(&mock_req2, &Cache::Request::set_trx)));
+        .WillOnce(Return(&mock_op2));
+      _cache->EXPECT_DO_ASYNC(mock_op2);
 
       EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
-      t->on_success(&mock_req);
+      t->on_success(&mock_op);
 
-      t = mock_req2.get_trx();
+      t = mock_op2.get_trx();
       ASSERT_FALSE(t == NULL);
     }
     else
@@ -680,7 +672,7 @@ public:
       // If we're not expecting a database update, just check that we
       // return 200 OK.
       EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
-      t->on_success(&mock_req);
+      t->on_success(&mock_op);
     }
     // Build the expected response and check it's correct
     EXPECT_EQ(expected_result, req.content());
@@ -697,27 +689,26 @@ public:
     ImpuRegDataTask::Config cfg(hss_configured, 3600);
     ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
 
-    MockCache::MockGetIMSSubscription mock_req;
+    MockCache::MockGetIMSSubscription mock_op;
     EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU))
-      .WillOnce(Return(&mock_req));
-    EXPECT_CALL(*_cache, send(_, &mock_req))
-      .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
+      .WillOnce(Return(&mock_op));
+    _cache->EXPECT_DO_ASYNC(mock_op);
     task->run();
 
-    Cache::Transaction* t = mock_req.get_trx();
+    CassandraStore::Transaction* t = mock_op.get_trx();
     ASSERT_FALSE(t == NULL);
-    EXPECT_CALL(mock_req, get_xml(_, _))
+    EXPECT_CALL(mock_op, get_xml(_, _))
       .WillRepeatedly(SetArgReferee<0>(IMS_SUBSCRIPTION));
-    EXPECT_CALL(mock_req, get_associated_impis(_))
+    EXPECT_CALL(mock_op, get_associated_impis(_))
       .WillRepeatedly(SetArgReferee<0>(IMPI_IN_VECTOR));
 
     // Ensure that the database returns NOT_REGISTERED.
-    EXPECT_CALL(mock_req, get_registration_state(_, _))
+    EXPECT_CALL(mock_op, get_registration_state(_, _))
       .WillRepeatedly(SetArgReferee<0>(RegistrationState::NOT_REGISTERED));
 
     // A 400 error should be sent as a result.
     EXPECT_CALL(*_httpstack, send_reply(_, 400, _));
-    t->on_success(&mock_req);
+    t->on_success(&mock_op);
 
     EXPECT_EQ("", req.content());
 
@@ -830,34 +821,32 @@ public:
 
     // Once the task's run function is called, we expect a cache request for
     // the IMS subscription of the final public identity in IMPUS.
-    MockCache::MockGetIMSSubscription mock_req;
+    MockCache::MockGetIMSSubscription mock_op;
     EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU2))
-      .WillOnce(Return(&mock_req));
-    EXPECT_CALL(*_cache, send(_, &mock_req))
-      .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
+      .WillOnce(Return(&mock_op));
+    _cache->EXPECT_DO_ASYNC(mock_op);
 
     task->run();
 
     // The cache successfully returns the correct IMS subscription.
-    Cache::Transaction* t = mock_req.get_trx();
+    CassandraStore::Transaction* t = mock_op.get_trx();
     ASSERT_FALSE(t == NULL);
-    EXPECT_CALL(mock_req, get_xml(_, _))
+    EXPECT_CALL(mock_op, get_xml(_, _))
       .WillRepeatedly(DoAll(SetArgReferee<0>(IMPU3_IMS_SUBSCRIPTION), SetArgReferee<1>(0)));
 
     // Expect another cache request for the IMS subscription of the next
     // public identity in IMPUS.
-    MockCache::MockGetIMSSubscription mock_req2;
+    MockCache::MockGetIMSSubscription mock_op2;
     EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU))
-      .WillOnce(Return(&mock_req2));
-    EXPECT_CALL(*_cache, send(_, &mock_req2))
-      .WillOnce(WithArgs<0>(Invoke(&mock_req2, &Cache::Request::set_trx)));
+      .WillOnce(Return(&mock_op2));
+    _cache->EXPECT_DO_ASYNC(mock_op2);
 
-    t->on_success(&mock_req);
+    t->on_success(&mock_op);
 
     // The cache successfully returns the correct IMS subscription.
-    t = mock_req2.get_trx();
+    t = mock_op2.get_trx();
     ASSERT_FALSE(t == NULL);
-    EXPECT_CALL(mock_req2, get_xml(_, _))
+    EXPECT_CALL(mock_op2, get_xml(_, _))
       .WillRepeatedly(DoAll(SetArgReferee<0>(IMPU_IMS_SUBSCRIPTION), SetArgReferee<1>(0)));
 
     // Expect a delete to be sent to Sprout.
@@ -872,19 +861,17 @@ public:
 
     // We also expect to receive cache requests for each registration set. Catch these.
     std::vector<std::string> impis{IMPI, ASSOCIATED_IDENTITY1, ASSOCIATED_IDENTITY2};
-    MockCache::MockDissociateImplicitRegistrationSetFromImpi mock_req3;
+    MockCache::MockDissociateImplicitRegistrationSetFromImpi mock_op3;
     EXPECT_CALL(*_cache, create_DissociateImplicitRegistrationSetFromImpi(IMPU_REG_SET, impis, _))
-      .WillOnce(Return(&mock_req3));
-    EXPECT_CALL(*_cache, send(_, &mock_req3))
-      .WillOnce(WithArgs<0>(Invoke(&mock_req3, &Cache::Request::set_trx)));
+      .WillOnce(Return(&mock_op3));
+    _cache->EXPECT_DO_ASYNC(mock_op3);
 
-    MockCache::MockDissociateImplicitRegistrationSetFromImpi mock_req4;
+    MockCache::MockDissociateImplicitRegistrationSetFromImpi mock_op4;
     EXPECT_CALL(*_cache, create_DissociateImplicitRegistrationSetFromImpi(IMPU3_REG_SET, impis, _))
-      .WillOnce(Return(&mock_req4));
-    EXPECT_CALL(*_cache, send(_, &mock_req4))
-      .WillOnce(WithArgs<0>(Invoke(&mock_req4, &Cache::Request::set_trx)));
+      .WillOnce(Return(&mock_op4));
+    _cache->EXPECT_DO_ASYNC(mock_op4);
 
-    t->on_success(&mock_req2);
+    t->on_success(&mock_op2);
 
     // Turn the caught Diameter msg structure into a RTA and confirm it's contents.
     Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
@@ -902,9 +889,9 @@ public:
     EXPECT_EQ(AUTH_SESSION_STATE, rta.auth_session_state());
 
     // Check the cache requests have transactions.
-    t = mock_req3.get_trx();
+    t = mock_op3.get_trx();
     ASSERT_FALSE(t == NULL);
-    t = mock_req4.get_trx();
+    t = mock_op4.get_trx();
     ASSERT_FALSE(t == NULL);
   }
 
@@ -938,34 +925,32 @@ public:
     // No public identities, so once the task's run function is called, we
     // expect a cache request for associated default public identities.
     std::vector<std::string> impis{IMPI, ASSOCIATED_IDENTITY1, ASSOCIATED_IDENTITY2};
-    MockCache::MockGetAssociatedPrimaryPublicIDs mock_req;
+    MockCache::MockGetAssociatedPrimaryPublicIDs mock_op;
     EXPECT_CALL(*_cache, create_GetAssociatedPrimaryPublicIDs(impis))
-      .WillOnce(Return(&mock_req));
-    EXPECT_CALL(*_cache, send(_, &mock_req))
-      .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
+      .WillOnce(Return(&mock_op));
+    _cache->EXPECT_DO_ASYNC(mock_op);
 
     task->run();
 
     // The cache successfully returns a list of public identities.
-    Cache::Transaction* t = mock_req.get_trx();
+    CassandraStore::Transaction* t = mock_op.get_trx();
     ASSERT_FALSE(t == NULL);
-    EXPECT_CALL(mock_req, get_result(_))
+    EXPECT_CALL(mock_op, get_result(_))
       .WillRepeatedly(SetArgReferee<0>(IMPUS));
 
     // Next expect a cache request for the IMS subscription of the final
     // public identity in IMPUS.
-    MockCache::MockGetIMSSubscription mock_req2;
+    MockCache::MockGetIMSSubscription mock_op2;
     EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU))
-      .WillOnce(Return(&mock_req2));
-    EXPECT_CALL(*_cache, send(_, &mock_req2))
-      .WillOnce(WithArgs<0>(Invoke(&mock_req2, &Cache::Request::set_trx)));
+      .WillOnce(Return(&mock_op2));
+    _cache->EXPECT_DO_ASYNC(mock_op2);
 
-    t->on_success(&mock_req);
+    t->on_success(&mock_op);
 
     // The cache successfully returns the correct IMS subscription.
-    t = mock_req2.get_trx();
+    t = mock_op2.get_trx();
     ASSERT_FALSE(t == NULL);
-    EXPECT_CALL(mock_req2, get_xml(_, _))
+    EXPECT_CALL(mock_op2, get_xml(_, _))
       .WillRepeatedly(DoAll(SetArgReferee<0>(IMPU_IMS_SUBSCRIPTION), SetArgReferee<1>(0)));
 
     // Sometimes we're interested in the associated identities returned by
@@ -973,24 +958,23 @@ public:
     if ((dereg_reason == SERVER_CHANGE) ||
         (dereg_reason == NEW_SERVER_ASSIGNED))
     {
-      EXPECT_CALL(mock_req2, get_associated_impis(_))
+      EXPECT_CALL(mock_op2, get_associated_impis(_))
         .WillRepeatedly(SetArgReferee<0>(ASSOCIATED_IDENTITIES));
     }
 
     // Expect another cache request for the IMS subscription of the next
     // public identity in IMPUS.
-    MockCache::MockGetIMSSubscription mock_req3;
+    MockCache::MockGetIMSSubscription mock_op3;
     EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU2))
-      .WillOnce(Return(&mock_req3));
-    EXPECT_CALL(*_cache, send(_, &mock_req3))
-      .WillOnce(WithArgs<0>(Invoke(&mock_req3, &Cache::Request::set_trx)));
+      .WillOnce(Return(&mock_op3));
+    _cache->EXPECT_DO_ASYNC(mock_op3);
 
-    t->on_success(&mock_req2);
+    t->on_success(&mock_op2);
 
     // The cache successfully returns the correct IMS subscription.
-    t = mock_req3.get_trx();
+    t = mock_op3.get_trx();
     ASSERT_FALSE(t == NULL);
-    EXPECT_CALL(mock_req3, get_xml(_, _))
+    EXPECT_CALL(mock_op3, get_xml(_, _))
       .WillRepeatedly(DoAll(SetArgReferee<0>(IMPU3_IMS_SUBSCRIPTION), SetArgReferee<1>(0)));
 
     // Sometimes we're interested in the associated identities returned by
@@ -998,7 +982,7 @@ public:
     if ((dereg_reason == SERVER_CHANGE) ||
         (dereg_reason == NEW_SERVER_ASSIGNED))
     {
-      EXPECT_CALL(mock_req3, get_associated_impis(_))
+      EXPECT_CALL(mock_op3, get_associated_impis(_))
         .WillRepeatedly(SetArgReferee<0>(ASSOCIATED_IDENTITIES));
     }
 
@@ -1013,30 +997,27 @@ public:
       .WillOnce(WithArgs<0>(Invoke(store_msg)));
 
     // We also expect to receive cache requests for each registration set. Catch these.
-    MockCache::MockDissociateImplicitRegistrationSetFromImpi mock_req4;
+    MockCache::MockDissociateImplicitRegistrationSetFromImpi mock_op4;
     EXPECT_CALL(*_cache, create_DissociateImplicitRegistrationSetFromImpi(IMPU_REG_SET, impis, _))
-      .WillOnce(Return(&mock_req4));
-    EXPECT_CALL(*_cache, send(_, &mock_req4))
-      .WillOnce(WithArgs<0>(Invoke(&mock_req4, &Cache::Request::set_trx)));
+      .WillOnce(Return(&mock_op4));
+    _cache->EXPECT_DO_ASYNC(mock_op4);
 
-    MockCache::MockDissociateImplicitRegistrationSetFromImpi mock_req5;
+    MockCache::MockDissociateImplicitRegistrationSetFromImpi mock_op5;
     EXPECT_CALL(*_cache, create_DissociateImplicitRegistrationSetFromImpi(IMPU3_REG_SET, impis, _))
-      .WillOnce(Return(&mock_req5));
-    EXPECT_CALL(*_cache, send(_, &mock_req5))
-      .WillOnce(WithArgs<0>(Invoke(&mock_req5, &Cache::Request::set_trx)));
+      .WillOnce(Return(&mock_op5));
+    _cache->EXPECT_DO_ASYNC(mock_op5);
 
     // Sometimes we want to delete entire IMPI rows.
-    MockCache::MockDeleteIMPIMapping mock_req6;
+    MockCache::MockDeleteIMPIMapping mock_op6;
     if ((dereg_reason == SERVER_CHANGE) ||
         (dereg_reason == NEW_SERVER_ASSIGNED))
     {
       EXPECT_CALL(*_cache, create_DeleteIMPIMapping(impis, _))
-        .WillOnce(Return(&mock_req6));
-      EXPECT_CALL(*_cache, send(_, &mock_req6))
-        .WillOnce(WithArgs<0>(Invoke(&mock_req6, &Cache::Request::set_trx)));
+        .WillOnce(Return(&mock_op6));
+      _cache->EXPECT_DO_ASYNC(mock_op6);
     }
 
-    t->on_success(&mock_req3);
+    t->on_success(&mock_op3);
 
     // Turn the caught Diameter msg structure into a RTA and confirm it's contents.
     Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
@@ -1047,14 +1028,14 @@ public:
     EXPECT_EQ(AUTH_SESSION_STATE, rta.auth_session_state());
 
     // Check the cache requests have transactions.
-    t = mock_req4.get_trx();
+    t = mock_op4.get_trx();
     ASSERT_FALSE(t == NULL);
-    t = mock_req5.get_trx();
+    t = mock_op5.get_trx();
     ASSERT_FALSE(t == NULL);
     if ((dereg_reason == SERVER_CHANGE) ||
         (dereg_reason == NEW_SERVER_ASSIGNED))
     {
-      t = mock_req6.get_trx();
+      t = mock_op6.get_trx();
       ASSERT_FALSE(t == NULL);
     }
   }
@@ -1176,11 +1157,10 @@ TEST_F(HandlersTest, DigestCache)
 
   // Once the task's run function is called, expect to lookup an auth
   // vector for the specified public and private IDs.
-  MockCache::MockGetAuthVector mock_req;
+  MockCache::MockGetAuthVector mock_op;
   EXPECT_CALL(*_cache, create_GetAuthVector(IMPI, IMPU))
-    .WillOnce(Return(&mock_req));
-  EXPECT_CALL(*_cache, send(_, &mock_req))
-    .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
+    .WillOnce(Return(&mock_op));
+  _cache->EXPECT_DO_ASYNC(mock_op);
 
   task->run();
 
@@ -1192,15 +1172,15 @@ TEST_F(HandlersTest, DigestCache)
   // Confirm the cache transaction is not NULL, and specify an auth vector
   // to be returned on the expected call for the cache request's results.
   // We also expect a successful HTTP response.
-  Cache::Transaction* t = mock_req.get_trx();
+  CassandraStore::Transaction* t = mock_op.get_trx();
   ASSERT_FALSE(t == NULL);
 
   // When the cache result returns the task gets the digest result, and sends
   // an HTTP reply.
-  EXPECT_CALL(mock_req, get_result(_))
+  EXPECT_CALL(mock_op, get_result(_))
     .WillRepeatedly(SetArgReferee<0>(digest));
   EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
-  t->on_success(&mock_req);
+  t->on_success(&mock_op);
 
   // Build the expected response and check it's correct.
   EXPECT_EQ(build_digest_json(digest), req.content());
@@ -1221,23 +1201,23 @@ TEST_F(HandlersTest, DigestCacheNotFound)
 
   // Once the task's run function is called, expect to lookup an auth
   // vector for the specified public and private IDs.
-  MockCache::MockGetAuthVector mock_req;
+  MockCache::MockGetAuthVector mock_op;
   EXPECT_CALL(*_cache, create_GetAuthVector(IMPI, IMPU))
-    .WillOnce(Return(&mock_req));
-  EXPECT_CALL(*_cache, send(_, &mock_req))
-    .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
+    .WillOnce(Return(&mock_op));
+  _cache->EXPECT_DO_ASYNC(mock_op);
 
   task->run();
 
   // Confirm that the cache transaction is not NULL.
-  Cache::Transaction* t = mock_req.get_trx();
+  CassandraStore::Transaction* t = mock_op.get_trx();
   ASSERT_FALSE(t == NULL);
 
   // Expect a 404 HTTP response once the cache returns an error to the task.
   EXPECT_CALL(*_httpstack, send_reply(_, 404, _));
 
-  std::string error_text = "error";
-  t->on_failure(&mock_req, Cache::NOT_FOUND, error_text);
+  mock_op._cass_status = CassandraStore::NOT_FOUND;
+  mock_op._cass_error_text = "error";
+  t->on_failure(&mock_op);
 }
 
 TEST_F(HandlersTest, DigestCacheFailure)
@@ -1255,23 +1235,23 @@ TEST_F(HandlersTest, DigestCacheFailure)
 
   // Once the task's run function is called, expect to lookup an auth
   // vector for the specified public and private IDs.
-  MockCache::MockGetAuthVector mock_req;
+  MockCache::MockGetAuthVector mock_op;
   EXPECT_CALL(*_cache, create_GetAuthVector(IMPI, IMPU))
-    .WillOnce(Return(&mock_req));
-  EXPECT_CALL(*_cache, send(_, &mock_req))
-    .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
+    .WillOnce(Return(&mock_op));
+  _cache->EXPECT_DO_ASYNC(mock_op);
 
   task->run();
 
   // Confirm that the cache transaction is not NULL.
-  Cache::Transaction* t = mock_req.get_trx();
+  CassandraStore::Transaction* t = mock_op.get_trx();
   ASSERT_FALSE(t == NULL);
 
   // Expect a 504 HTTP response once the cache returns an error to the task.
   EXPECT_CALL(*_httpstack, send_reply(_, 504, _));
 
-  std::string error_text = "error";
-  t->on_failure(&mock_req, Cache::UNKNOWN_ERROR, error_text);
+  mock_op._cass_status = CassandraStore::UNKNOWN_ERROR;
+  mock_op._cass_error_text = "error";
+  t->on_failure(&mock_op);
 }
 
 TEST_F(HandlersTest, DigestHSS)
@@ -1323,11 +1303,10 @@ TEST_F(HandlersTest, DigestHSS)
 
   // Once it receives the MAA, check that the handler tries to add the public ID
   // to the database and that a successful HTTP response is sent.
-  MockCache::MockPutAssociatedPublicID mock_req;
+  MockCache::MockPutAssociatedPublicID mock_op;
   EXPECT_CALL(*_cache, create_PutAssociatedPublicID(IMPI, IMPU,  _, 300))
-    .WillOnce(Return(&mock_req));
-  EXPECT_CALL(*_cache, send(_, &mock_req))
-    .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
+    .WillOnce(Return(&mock_op));
+  _cache->EXPECT_DO_ASYNC(mock_op);
 
   EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
   _caught_diam_tsx->on_response(maa);
@@ -1335,7 +1314,7 @@ TEST_F(HandlersTest, DigestHSS)
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
 
   // Confirm the cache transaction is not NULL.
-  Cache::Transaction* t = mock_req.get_trx();
+  CassandraStore::Transaction* t = mock_op.get_trx();
   ASSERT_FALSE(t == NULL);
 
   // Build the expected response and check it's correct.
@@ -1430,20 +1409,19 @@ TEST_F(HandlersTest, DigestHSSNoIMPU)
 
   // Once the task's run function is called, expect to look for associated
   // public IDs in the cache.
-  MockCache::MockGetAssociatedPublicIDs mock_req;
+  MockCache::MockGetAssociatedPublicIDs mock_op;
   EXPECT_CALL(*_cache, create_GetAssociatedPublicIDs(IMPI))
-    .WillOnce(Return(&mock_req));
-  EXPECT_CALL(*_cache, send(_, &mock_req))
-    .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
+    .WillOnce(Return(&mock_op));
+  _cache->EXPECT_DO_ASYNC(mock_op);
 
   task->run();
 
   // Confirm the transaction is not NULL, and specify a list of IMPUS to be returned on
   // the expected call for the cache request's results.
-  Cache::Transaction* t = mock_req.get_trx();
+  CassandraStore::Transaction* t = mock_op.get_trx();
   ASSERT_FALSE(t == NULL);
   std::vector<std::string> impus = {IMPU, "another_impu"};
-  EXPECT_CALL(mock_req, get_result(_))
+  EXPECT_CALL(mock_op, get_result(_))
     .WillRepeatedly(SetArgReferee<0>(impus));
 
   // Once the cache transaction's on_success callback is called, expect a
@@ -1451,7 +1429,7 @@ TEST_F(HandlersTest, DigestHSSNoIMPU)
   EXPECT_CALL(*_mock_stack, send(_, _, 200))
     .Times(1)
     .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
-  t->on_success(&mock_req);
+  t->on_success(&mock_op);
   ASSERT_FALSE(_caught_diam_tsx == NULL);
 
   // Turn the caught Diameter msg structure into a MAR and check its contents.
@@ -1484,11 +1462,10 @@ TEST_F(HandlersTest, DigestHSSNoIMPU)
 
   // Once it receives the MAA, check that the handler tries to add the public
   // ID to the database, and that a successful HTTP response is sent.
-  MockCache::MockPutAssociatedPublicID mock_req2;
+  MockCache::MockPutAssociatedPublicID mock_op2;
   EXPECT_CALL(*_cache, create_PutAssociatedPublicID(IMPI, IMPU,  _, 300))
-    .WillOnce(Return(&mock_req2));
-  EXPECT_CALL(*_cache, send(_, &mock_req2))
-    .WillOnce(WithArgs<0>(Invoke(&mock_req2, &Cache::Request::set_trx)));
+    .WillOnce(Return(&mock_op2));
+  _cache->EXPECT_DO_ASYNC(mock_op2);
 
   EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
   _caught_diam_tsx->on_response(maa);
@@ -1496,7 +1473,7 @@ TEST_F(HandlersTest, DigestHSSNoIMPU)
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
 
   // Confirm the cache transaction is not NULL.
-  t = mock_req2.get_trx();
+  t = mock_op2.get_trx();
   ASSERT_FALSE(t == NULL);
 
   // Build the expected response and check it's correct.
@@ -1689,24 +1666,23 @@ TEST_F(HandlersTest, DigestNoCachedIMPUs)
 
   // Once the task's run function is called, expect to look for associated
   // public IDs in the cache.
-  MockCache::MockGetAssociatedPublicIDs mock_req;
+  MockCache::MockGetAssociatedPublicIDs mock_op;
   EXPECT_CALL(*_cache, create_GetAssociatedPublicIDs(IMPI))
-    .WillOnce(Return(&mock_req));
-  EXPECT_CALL(*_cache, send(_, &mock_req))
-    .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
+    .WillOnce(Return(&mock_op));
+  _cache->EXPECT_DO_ASYNC(mock_op);
 
   task->run();
 
   // Confirm the transaction is not NULL, and specify an empty list of IMPUs to be
   // returned on the expected call for the cache request's results.
-  Cache::Transaction* t = mock_req.get_trx();
+  CassandraStore::Transaction* t = mock_op.get_trx();
   ASSERT_FALSE(t == NULL);
-  EXPECT_CALL(mock_req, get_result(_))
+  EXPECT_CALL(mock_op, get_result(_))
     .WillRepeatedly(SetArgReferee<0>(EMPTY_VECTOR));
 
   // Expect a 404 HTTP response.
   EXPECT_CALL(*_httpstack, send_reply(_, 404, _));
-  t->on_success(&mock_req);
+  t->on_success(&mock_op);
 }
 
 TEST_F(HandlersTest, DigestIMPUNotFound)
@@ -1724,23 +1700,24 @@ TEST_F(HandlersTest, DigestIMPUNotFound)
 
   // Once the task's run function is called, expect to look for associated
   // public IDs in the cache.
-  MockCache::MockGetAssociatedPublicIDs mock_req;
+  MockCache::MockGetAssociatedPublicIDs mock_op;
   EXPECT_CALL(*_cache, create_GetAssociatedPublicIDs(IMPI))
-    .WillOnce(Return(&mock_req));
-  EXPECT_CALL(*_cache, send(_, &mock_req))
-    .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
+    .WillOnce(Return(&mock_op));
+  _cache->EXPECT_DO_ASYNC(mock_op);
 
   task->run();
 
   // Confirm the transaction is not NULL.
-  Cache::Transaction* t = mock_req.get_trx();
+  CassandraStore::Transaction* t = mock_op.get_trx();
   ASSERT_FALSE(t == NULL);
 
   // Once the cache transaction's failure callback is called, expect a 404 HTTP
   // response.
   EXPECT_CALL(*_httpstack, send_reply(_, 404, _));
-  std::string error_text = "error";
-  t->on_failure(&mock_req, Cache::NOT_FOUND, error_text);
+
+  mock_op._cass_status = CassandraStore::NOT_FOUND;
+  mock_op._cass_error_text = "error";
+  t->on_failure(&mock_op);
 }
 
 TEST_F(HandlersTest, DigestNoIMPUCacheFailure)
@@ -1758,23 +1735,24 @@ TEST_F(HandlersTest, DigestNoIMPUCacheFailure)
 
   // Once the task's run function is called, expect to look for associated
   // public IDs in the cache.
-  MockCache::MockGetAssociatedPublicIDs mock_req;
+  MockCache::MockGetAssociatedPublicIDs mock_op;
   EXPECT_CALL(*_cache, create_GetAssociatedPublicIDs(IMPI))
-    .WillOnce(Return(&mock_req));
-  EXPECT_CALL(*_cache, send(_, &mock_req))
-    .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
+    .WillOnce(Return(&mock_op));
+  _cache->EXPECT_DO_ASYNC(mock_op);
 
   task->run();
 
   // Confirm the transaction is not NULL.
-  Cache::Transaction* t = mock_req.get_trx();
+  CassandraStore::Transaction* t = mock_op.get_trx();
   ASSERT_FALSE(t == NULL);
 
   // Once the cache transaction's failure callback is called, expect a 504 HTTP
   // response.
   EXPECT_CALL(*_httpstack, send_reply(_, 504, _));
-  std::string error_text = "error";
-  t->on_failure(&mock_req, Cache::UNKNOWN_ERROR, error_text);
+
+  mock_op._cass_status = CassandraStore::UNKNOWN_ERROR;
+  mock_op._cass_error_text = "error";
+  t->on_failure(&mock_op);
 }
 
 TEST_F(HandlersTest, AvCache)
@@ -1791,11 +1769,10 @@ TEST_F(HandlersTest, AvCache)
 
   // Once the task's run function is called, expect to lookup an auth
   // vector for the specified public and private IDs.
-  MockCache::MockGetAuthVector mock_req;
+  MockCache::MockGetAuthVector mock_op;
   EXPECT_CALL(*_cache, create_GetAuthVector(IMPI, IMPU))
-    .WillOnce(Return(&mock_req));
-  EXPECT_CALL(*_cache, send(_, &mock_req))
-    .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
+    .WillOnce(Return(&mock_op));
+  _cache->EXPECT_DO_ASYNC(mock_op);
 
   task->run();
 
@@ -1807,13 +1784,13 @@ TEST_F(HandlersTest, AvCache)
   // Confirm the cache transaction is not NULL, and specify an auth vector
   // to be returned on the expected call for the cache request's results.
   // We also expect a successful HTTP response.
-  Cache::Transaction* t = mock_req.get_trx();
+  CassandraStore::Transaction* t = mock_op.get_trx();
   ASSERT_FALSE(t == NULL);
-  EXPECT_CALL(mock_req, get_result(_))
+  EXPECT_CALL(mock_op, get_result(_))
     .WillRepeatedly(SetArgReferee<0>(digest));
   EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
 
-  t->on_success(&mock_req);
+  t->on_success(&mock_op);
 
   // Build the expected response and check it's correct.
   EXPECT_EQ(build_av_json(digest), req.content());
@@ -1833,11 +1810,10 @@ TEST_F(HandlersTest, AvEmptyQoP)
 
   // Once the task's run function is called, expect to lookup an auth
   // vector for the specified public and private IDs.
-  MockCache::MockGetAuthVector mock_req;
+  MockCache::MockGetAuthVector mock_op;
   EXPECT_CALL(*_cache, create_GetAuthVector(IMPI, IMPU))
-    .WillOnce(Return(&mock_req));
-  EXPECT_CALL(*_cache, send(_, &mock_req))
-    .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
+    .WillOnce(Return(&mock_op));
+  _cache->EXPECT_DO_ASYNC(mock_op);
 
   task->run();
 
@@ -1851,13 +1827,13 @@ TEST_F(HandlersTest, AvEmptyQoP)
   // Confirm the cache transaction is not NULL, and specify an auth vector
   // to be returned on the expected call for the cache request's results.
   // We also expect a successful HTTP response.
-  Cache::Transaction* t = mock_req.get_trx();
+  CassandraStore::Transaction* t = mock_op.get_trx();
   ASSERT_FALSE(t == NULL);
-  EXPECT_CALL(mock_req, get_result(_))
+  EXPECT_CALL(mock_op, get_result(_))
     .WillRepeatedly(SetArgReferee<0>(digest));
   EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
 
-  t->on_success(&mock_req);
+  t->on_success(&mock_op);
 
   // Build the expected response and check it's correct.
   EXPECT_EQ(build_av_json(digest), req.content());
@@ -1877,20 +1853,19 @@ TEST_F(HandlersTest, AvNoPublicIDHSSAKA)
 
   // Once the task's run function is called, expect to look for associated
   // public IDs in the cache.
-  MockCache::MockGetAssociatedPublicIDs mock_req;
+  MockCache::MockGetAssociatedPublicIDs mock_op;
   EXPECT_CALL(*_cache, create_GetAssociatedPublicIDs(IMPI))
-    .WillOnce(Return(&mock_req));
-  EXPECT_CALL(*_cache, send(_, &mock_req))
-    .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
+    .WillOnce(Return(&mock_op));
+  _cache->EXPECT_DO_ASYNC(mock_op);
 
   task->run();
 
   // Confirm the transaction is not NULL, and specify a list of IMPUS to be returned on
   // the expected call for the cache request's results.
-  Cache::Transaction* t = mock_req.get_trx();
+  CassandraStore::Transaction* t = mock_op.get_trx();
   ASSERT_FALSE(t == NULL);
   std::vector<std::string> impus = {IMPU, "another_impu"};
-  EXPECT_CALL(mock_req, get_result(_))
+  EXPECT_CALL(mock_op, get_result(_))
     .WillRepeatedly(SetArgReferee<0>(impus));
 
   // Once the cache transaction's on_success callback is called, expect a
@@ -1898,7 +1873,7 @@ TEST_F(HandlersTest, AvNoPublicIDHSSAKA)
   EXPECT_CALL(*_mock_stack, send(_, _, 200))
     .Times(1)
     .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
-  t->on_success(&mock_req);
+  t->on_success(&mock_op);
   ASSERT_FALSE(_caught_diam_tsx == NULL);
 
   // Turn the caught Diameter msg structure into an MAR and check its contents.
@@ -2164,22 +2139,21 @@ TEST_F(HandlersTest, IMSSubscriptionNoHSSUnknown)
   ImpuRegDataTask::Config cfg(false, 3600);
   ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
 
-  MockCache::MockGetIMSSubscription mock_req;
+  MockCache::MockGetIMSSubscription mock_op;
   EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU))
-    .WillOnce(Return(&mock_req));
-  EXPECT_CALL(*_cache, send(_, &mock_req))
-    .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
+    .WillOnce(Return(&mock_op));
+  _cache->EXPECT_DO_ASYNC(mock_op);
   task->run();
 
-  Cache::Transaction* t = mock_req.get_trx();
+  CassandraStore::Transaction* t = mock_op.get_trx();
   ASSERT_FALSE(t == NULL);
-  EXPECT_CALL(mock_req, get_xml(_, _))
+  EXPECT_CALL(mock_op, get_xml(_, _))
     .WillRepeatedly(SetArgReferee<0>(""));
-  EXPECT_CALL(mock_req, get_registration_state(_, _))
+  EXPECT_CALL(mock_op, get_registration_state(_, _))
     .WillRepeatedly(SetArgReferee<0>(RegistrationState::NOT_REGISTERED));
-  EXPECT_CALL(mock_req, get_associated_impis(_));
+  EXPECT_CALL(mock_op, get_associated_impis(_));
   EXPECT_CALL(*_httpstack, send_reply(_, 404, _));
-  t->on_success(&mock_req);
+  t->on_success(&mock_op);
 
   // Build the expected response and check it's correct
   EXPECT_EQ("", req.content());
@@ -2199,22 +2173,21 @@ TEST_F(HandlersTest, IMSSubscriptionNoHSSUnknownCall)
   ImpuRegDataTask::Config cfg(false, 3600);
   ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
 
-  MockCache::MockGetIMSSubscription mock_req;
+  MockCache::MockGetIMSSubscription mock_op;
   EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU))
-    .WillOnce(Return(&mock_req));
-  EXPECT_CALL(*_cache, send(_, &mock_req))
-    .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
+    .WillOnce(Return(&mock_op));
+  _cache->EXPECT_DO_ASYNC(mock_op);
   task->run();
 
-  Cache::Transaction* t = mock_req.get_trx();
+  CassandraStore::Transaction* t = mock_op.get_trx();
   ASSERT_FALSE(t == NULL);
-  EXPECT_CALL(mock_req, get_xml(_, _))
+  EXPECT_CALL(mock_op, get_xml(_, _))
     .WillRepeatedly(SetArgReferee<0>(""));
-  EXPECT_CALL(mock_req, get_registration_state(_, _))
+  EXPECT_CALL(mock_op, get_registration_state(_, _))
     .WillRepeatedly(SetArgReferee<0>(RegistrationState::NOT_REGISTERED));
-  EXPECT_CALL(mock_req, get_associated_impis(_));
+  EXPECT_CALL(mock_op, get_associated_impis(_));
   EXPECT_CALL(*_httpstack, send_reply(_, 404, _));
-  t->on_success(&mock_req);
+  t->on_success(&mock_op);
 
   // Build the expected response and check it's correct
   EXPECT_EQ("", req.content());
@@ -2234,22 +2207,21 @@ TEST_F(HandlersTest, LegacyIMSSubscriptionNoHSS)
   ImpuIMSSubscriptionTask::Config cfg(false, 3600);
   ImpuIMSSubscriptionTask* task = new ImpuIMSSubscriptionTask(req, &cfg, FAKE_TRAIL_ID);
 
-  MockCache::MockGetIMSSubscription mock_req;
+  MockCache::MockGetIMSSubscription mock_op;
   EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU))
-    .WillOnce(Return(&mock_req));
-  EXPECT_CALL(*_cache, send(_, &mock_req))
-    .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
+    .WillOnce(Return(&mock_op));
+  _cache->EXPECT_DO_ASYNC(mock_op);
   task->run();
 
-  Cache::Transaction* t = mock_req.get_trx();
+  CassandraStore::Transaction* t = mock_op.get_trx();
   ASSERT_FALSE(t == NULL);
-  EXPECT_CALL(mock_req, get_xml(_, _))
+  EXPECT_CALL(mock_op, get_xml(_, _))
     .WillRepeatedly(SetArgReferee<0>(IMS_SUBSCRIPTION));
-  EXPECT_CALL(mock_req, get_registration_state(_, _))
+  EXPECT_CALL(mock_op, get_registration_state(_, _))
     .WillRepeatedly(SetArgReferee<0>(RegistrationState::REGISTERED));
-  EXPECT_CALL(mock_req, get_associated_impis(_));
+  EXPECT_CALL(mock_op, get_associated_impis(_));
   EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
-  t->on_success(&mock_req);
+  t->on_success(&mock_op);
 
   // Build the expected response and check it's correct
   EXPECT_EQ(IMS_SUBSCRIPTION, req.content());
@@ -2267,22 +2239,21 @@ TEST_F(HandlersTest, LegacyIMSSubscriptionNoHSS_NotFound)
   ImpuIMSSubscriptionTask::Config cfg(false, 3600);
   ImpuIMSSubscriptionTask* task = new ImpuIMSSubscriptionTask(req, &cfg, FAKE_TRAIL_ID);
 
-  MockCache::MockGetIMSSubscription mock_req;
+  MockCache::MockGetIMSSubscription mock_op;
   EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU))
-    .WillOnce(Return(&mock_req));
-  EXPECT_CALL(*_cache, send(_, &mock_req))
-    .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
+    .WillOnce(Return(&mock_op));
+  _cache->EXPECT_DO_ASYNC(mock_op);
   task->run();
 
-  Cache::Transaction* t = mock_req.get_trx();
+  CassandraStore::Transaction* t = mock_op.get_trx();
   ASSERT_FALSE(t == NULL);
-  EXPECT_CALL(mock_req, get_xml(_, _))
+  EXPECT_CALL(mock_op, get_xml(_, _))
     .WillRepeatedly(SetArgReferee<0>(""));
-  EXPECT_CALL(mock_req, get_registration_state(_, _))
+  EXPECT_CALL(mock_op, get_registration_state(_, _))
     .WillRepeatedly(SetArgReferee<0>(RegistrationState::NOT_REGISTERED));
   EXPECT_CALL(*_httpstack, send_reply(_, 404, _));
-  EXPECT_CALL(mock_req, get_associated_impis(_));
-  t->on_success(&mock_req);
+  EXPECT_CALL(mock_op, get_associated_impis(_));
+  t->on_success(&mock_op);
 
   // Build the expected response and check it's correct
   EXPECT_EQ("", req.content());
@@ -2301,21 +2272,20 @@ TEST_F(HandlersTest, LegacyIMSSubscriptionNoHSS_Unregistered)
   ImpuIMSSubscriptionTask::Config cfg(false, 3600);
   ImpuIMSSubscriptionTask* task = new ImpuIMSSubscriptionTask(req, &cfg, FAKE_TRAIL_ID);
 
-  MockCache::MockGetIMSSubscription mock_req;
+  MockCache::MockGetIMSSubscription mock_op;
   EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU))
-    .WillOnce(Return(&mock_req));
-  EXPECT_CALL(*_cache, send(_, &mock_req))
-    .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
+    .WillOnce(Return(&mock_op));
+  _cache->EXPECT_DO_ASYNC(mock_op);
   task->run();
 
-  Cache::Transaction* t = mock_req.get_trx();
+  CassandraStore::Transaction* t = mock_op.get_trx();
   ASSERT_FALSE(t == NULL);
-  EXPECT_CALL(mock_req, get_xml(_, _))
+  EXPECT_CALL(mock_op, get_xml(_, _))
     .WillRepeatedly(SetArgReferee<0>(IMS_SUBSCRIPTION));
-  EXPECT_CALL(mock_req, get_registration_state(_, _))
+  EXPECT_CALL(mock_op, get_registration_state(_, _))
     .WillRepeatedly(SetArgReferee<0>(RegistrationState::UNREGISTERED));
   EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
-  t->on_success(&mock_req);
+  t->on_success(&mock_op);
 
   // Build the expected response and check it's correct
   EXPECT_EQ(IMS_SUBSCRIPTION, req.content());
@@ -2338,24 +2308,23 @@ TEST_F(HandlersTest, IMSSubscriptionGet)
   ImpuRegDataTask::Config cfg(true, 3600);
   ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
 
-  MockCache::MockGetIMSSubscription mock_req;
+  MockCache::MockGetIMSSubscription mock_op;
   EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU))
-    .WillOnce(Return(&mock_req));
-  EXPECT_CALL(*_cache, send(_, &mock_req))
-    .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
+    .WillOnce(Return(&mock_op));
+  _cache->EXPECT_DO_ASYNC(mock_op);
   task->run();
 
-  Cache::Transaction* t = mock_req.get_trx();
+  CassandraStore::Transaction* t = mock_op.get_trx();
   ASSERT_FALSE(t == NULL);
-  EXPECT_CALL(mock_req, get_xml(_, _))
+  EXPECT_CALL(mock_op, get_xml(_, _))
     .WillRepeatedly(SetArgReferee<0>(IMPU_IMS_SUBSCRIPTION));
-  EXPECT_CALL(mock_req, get_registration_state(_, _))
+  EXPECT_CALL(mock_op, get_registration_state(_, _))
     .WillRepeatedly(SetArgReferee<0>(RegistrationState::REGISTERED));
-  EXPECT_CALL(mock_req, get_associated_impis(_));
+  EXPECT_CALL(mock_op, get_associated_impis(_));
 
   // HTTP response is sent straight back - no state is changed.
   EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
-  t->on_success(&mock_req);
+  t->on_success(&mock_op);
 
   // Build the expected response and check it's correct
   EXPECT_EQ(REGDATA_RESULT, req.content());
@@ -2409,34 +2378,32 @@ TEST_F(HandlersTest, IMSSubscriptionUserUnknownDereg)
                              htp_method_PUT);
   ImpuRegDataTask::Config cfg(true, 3600);
   ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
-  MockCache::MockGetIMSSubscription mock_req;
+  MockCache::MockGetIMSSubscription mock_op;
 
   EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU))
-    .WillOnce(Return(&mock_req));
-  EXPECT_CALL(*_cache, send(_, &mock_req))
-    .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
+    .WillOnce(Return(&mock_op));
+  _cache->EXPECT_DO_ASYNC(mock_op);
   task->run();
 
-  Cache::Transaction* t = mock_req.get_trx();
+  CassandraStore::Transaction* t = mock_op.get_trx();
   ASSERT_FALSE(t == NULL);
-  EXPECT_CALL(mock_req, get_xml(_, _))
+  EXPECT_CALL(mock_op, get_xml(_, _))
     .WillRepeatedly(SetArgReferee<0>(IMPU_IMS_SUBSCRIPTION));
-  EXPECT_CALL(mock_req, get_registration_state(_, _))
+  EXPECT_CALL(mock_op, get_registration_state(_, _))
     .WillRepeatedly(SetArgReferee<0>(RegistrationState::REGISTERED));
-  EXPECT_CALL(mock_req, get_associated_impis(_))
+  EXPECT_CALL(mock_op, get_associated_impis(_))
     .WillRepeatedly(SetArgReferee<0>(ASSOCIATED_IDENTITY1_IN_VECTOR));
 
-  MockCache::MockDeletePublicIDs mock_req2;
+  MockCache::MockDeletePublicIDs mock_op2;
   EXPECT_CALL(*_cache, create_DeletePublicIDs(IMPU_REG_SET, _, _))
-    .WillOnce(Return(&mock_req2));
-  EXPECT_CALL(*_cache, send(_, &mock_req2))
-    .WillOnce(WithArgs<0>(Invoke(&mock_req2, &Cache::Request::set_trx)));
+    .WillOnce(Return(&mock_op2));
+  _cache->EXPECT_DO_ASYNC(mock_op2);
 
   EXPECT_CALL(*_mock_stack, send(_, _, 200))
     .Times(1)
     .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
   std::string error_text = "error";
-  t->on_success(&mock_req);
+  t->on_success(&mock_op);
 
   ASSERT_FALSE(_caught_diam_tsx == NULL);
   Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
@@ -2450,7 +2417,7 @@ TEST_F(HandlersTest, IMSSubscriptionUserUnknownDereg)
   EXPECT_CALL(*_httpstack, send_reply(_, 404, _));
   _caught_diam_tsx->on_response(saa);
 
-  Cache::Transaction* t2 = mock_req2.get_trx();
+  CassandraStore::Transaction* t2 = mock_op2.get_trx();
   ASSERT_FALSE(t2 == NULL);
 
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
@@ -2471,27 +2438,26 @@ TEST_F(HandlersTest, IMSSubscriptionOtherErrorCallReg)
   ImpuRegDataTask::Config cfg(true, 3600);
   ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
 
-  MockCache::MockGetIMSSubscription mock_req;
+  MockCache::MockGetIMSSubscription mock_op;
   EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU))
-    .WillOnce(Return(&mock_req));
-  EXPECT_CALL(*_cache, send(_, &mock_req))
-    .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
+    .WillOnce(Return(&mock_op));
+  _cache->EXPECT_DO_ASYNC(mock_op);
   task->run();
 
-  Cache::Transaction* t = mock_req.get_trx();
+  CassandraStore::Transaction* t = mock_op.get_trx();
   ASSERT_FALSE(t == NULL);
-  EXPECT_CALL(mock_req, get_xml(_, _))
+  EXPECT_CALL(mock_op, get_xml(_, _))
     .WillRepeatedly(SetArgReferee<0>(IMPU_IMS_SUBSCRIPTION));
-  EXPECT_CALL(mock_req, get_registration_state(_, _))
+  EXPECT_CALL(mock_op, get_registration_state(_, _))
     .WillRepeatedly(SetArgReferee<0>(RegistrationState::NOT_REGISTERED));
-  EXPECT_CALL(mock_req, get_associated_impis(_))
+  EXPECT_CALL(mock_op, get_associated_impis(_))
     .WillRepeatedly(SetArgReferee<0>(IMPI_IN_VECTOR));
 
   EXPECT_CALL(*_mock_stack, send(_, _, 200))
     .Times(1)
     .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
   std::string error_text = "error";
-  t->on_success(&mock_req);
+  t->on_success(&mock_op);
 
   ASSERT_FALSE(_caught_diam_tsx == NULL);
   Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
@@ -2525,23 +2491,23 @@ TEST_F(HandlersTest, IMSSubscriptionCacheNotFound)
 
   // Once the task's run function is called, expect to lookup IMS
   // subscription information for the specified public ID.
-  MockCache::MockGetIMSSubscription mock_req;
+  MockCache::MockGetIMSSubscription mock_op;
   EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU))
-    .WillOnce(Return(&mock_req));
-  EXPECT_CALL(*_cache, send(_, &mock_req))
-    .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
+    .WillOnce(Return(&mock_op));
+  _cache->EXPECT_DO_ASYNC(mock_op);
 
   task->run();
 
   // Confirm that the cache transaction is not NULL.
-  Cache::Transaction* t = mock_req.get_trx();
+  CassandraStore::Transaction* t = mock_op.get_trx();
   ASSERT_FALSE(t == NULL);
 
   // Expect a 404 HTTP response once the cache returns an error to the task.
   EXPECT_CALL(*_httpstack, send_reply(_, 404, _));
 
-  std::string error_text = "error";
-  t->on_failure(&mock_req, Cache::NOT_FOUND, error_text);
+  mock_op._cass_status = CassandraStore::NOT_FOUND;
+  mock_op._cass_error_text = "error";
+  t->on_failure(&mock_op);
 }
 
 // Cache failures should translate into a 504 Bad Gateway error
@@ -2560,23 +2526,23 @@ TEST_F(HandlersTest, IMSSubscriptionCacheFailure)
 
   // Once the task's run function is called, expect to lookup IMS
   // subscription information for the specified public ID.
-  MockCache::MockGetIMSSubscription mock_req;
+  MockCache::MockGetIMSSubscription mock_op;
   EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU))
-    .WillOnce(Return(&mock_req));
-  EXPECT_CALL(*_cache, send(_, &mock_req))
-    .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
+    .WillOnce(Return(&mock_op));
+  _cache->EXPECT_DO_ASYNC(mock_op);
 
   task->run();
 
   // Confirm that the cache transaction is not NULL.
-  Cache::Transaction* t = mock_req.get_trx();
+  CassandraStore::Transaction* t = mock_op.get_trx();
   ASSERT_FALSE(t == NULL);
 
   // Expect a 504 HTTP response once the cache returns an error to the task.
   EXPECT_CALL(*_httpstack, send_reply(_, 504, _));
 
-  std::string error_text = "error";
-  t->on_failure(&mock_req, Cache::UNKNOWN_ERROR, error_text);
+  mock_op._cass_status = CassandraStore::UNKNOWN_ERROR;
+  mock_op._cass_error_text = "error";
+  t->on_failure(&mock_op);
 }
 
 TEST_F(HandlersTest, RegistrationStatusHSSTimeout)
@@ -3039,36 +3005,34 @@ TEST_F(HandlersTest, RegistrationTerminationNoRegSets)
 
   // Once the task's run function is called, we expect a cache request for
   // the IMS subscription of the final public identity in IMPUS.
-  MockCache::MockGetIMSSubscription mock_req;
+  MockCache::MockGetIMSSubscription mock_op;
   EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU2))
-    .WillOnce(Return(&mock_req));
-  EXPECT_CALL(*_cache, send(_, &mock_req))
-    .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
+    .WillOnce(Return(&mock_op));
+  _cache->EXPECT_DO_ASYNC(mock_op);
 
   task->run();
 
   // The cache indicates success, but couldn't find any IMS subscription
   // information.
-  Cache::Transaction* t = mock_req.get_trx();
+  CassandraStore::Transaction* t = mock_op.get_trx();
   ASSERT_FALSE(t == NULL);
-  EXPECT_CALL(mock_req, get_xml(_, _))
+  EXPECT_CALL(mock_op, get_xml(_, _))
     .WillRepeatedly(DoAll(SetArgReferee<0>(""), SetArgReferee<1>(0)));
 
   // Expect another cache request for the IMS subscription of the next
   // public identity in IMPUS.
-  MockCache::MockGetIMSSubscription mock_req2;
+  MockCache::MockGetIMSSubscription mock_op2;
   EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU))
-    .WillOnce(Return(&mock_req2));
-  EXPECT_CALL(*_cache, send(_, &mock_req2))
-    .WillOnce(WithArgs<0>(Invoke(&mock_req2, &Cache::Request::set_trx)));
+    .WillOnce(Return(&mock_op2));
+  _cache->EXPECT_DO_ASYNC(mock_op2);
 
-  t->on_success(&mock_req);
+  t->on_success(&mock_op);
 
   // The cache indicates success, but couldn't find any IMS subscription
   // information.
-  t = mock_req2.get_trx();
+  t = mock_op2.get_trx();
   ASSERT_FALSE(t == NULL);
-  EXPECT_CALL(mock_req2, get_xml(_, _))
+  EXPECT_CALL(mock_op2, get_xml(_, _))
     .WillRepeatedly(DoAll(SetArgReferee<0>(""), SetArgReferee<1>(0)));
 
   // Expect to receive a diameter message.
@@ -3076,7 +3040,7 @@ TEST_F(HandlersTest, RegistrationTerminationNoRegSets)
     .Times(1)
     .WillOnce(WithArgs<0>(Invoke(store_msg)));
 
-  t->on_success(&mock_req2);
+  t->on_success(&mock_op2);
 
   // Turn the caught Diameter msg structure into a RTA and confirm the result
   // code is correct.
@@ -3111,16 +3075,15 @@ TEST_F(HandlersTest, RegistrationTerminationRegSetsCacheFailure)
 
   // Once the task's run function is called, we expect a cache request for
   // the IMS subscription of the final public identity in IMPUS.
-  MockCache::MockGetIMSSubscription mock_req;
+  MockCache::MockGetIMSSubscription mock_op;
   EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU2))
-    .WillOnce(Return(&mock_req));
-  EXPECT_CALL(*_cache, send(_, &mock_req))
-    .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
+    .WillOnce(Return(&mock_op));
+  _cache->EXPECT_DO_ASYNC(mock_op);
 
   task->run();
 
   // The cache request fails.
-  Cache::Transaction* t = mock_req.get_trx();
+  CassandraStore::Transaction* t = mock_op.get_trx();
   ASSERT_FALSE(t == NULL);
 
   // Expect to receive a diameter message.
@@ -3128,8 +3091,9 @@ TEST_F(HandlersTest, RegistrationTerminationRegSetsCacheFailure)
     .Times(1)
     .WillOnce(WithArgs<0>(Invoke(store_msg)));
 
-  std::string error_text = "error";
-  t->on_failure(&mock_req, Cache::INVALID_REQUEST, error_text);
+  mock_op._cass_status = CassandraStore::INVALID_REQUEST;
+  mock_op._cass_error_text = "error";
+  t->on_failure(&mock_op);
 
   // Turn the caught Diameter msg structure into a RTA and confirm the result
   // code is correct.
@@ -3165,18 +3129,17 @@ TEST_F(HandlersTest, RegistrationTerminationNoAssocIMPUs)
   // No public identities, so once the task's run function is called, we
   // expect a cache request for associated default public identities.
   std::vector<std::string> impis{IMPI, ASSOCIATED_IDENTITY1, ASSOCIATED_IDENTITY2};
-  MockCache::MockGetAssociatedPrimaryPublicIDs mock_req;
+  MockCache::MockGetAssociatedPrimaryPublicIDs mock_op;
   EXPECT_CALL(*_cache, create_GetAssociatedPrimaryPublicIDs(impis))
-    .WillOnce(Return(&mock_req));
-  EXPECT_CALL(*_cache, send(_, &mock_req))
-    .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
+    .WillOnce(Return(&mock_op));
+  _cache->EXPECT_DO_ASYNC(mock_op);
 
   task->run();
 
   // The cache indicates success but returns an empty list of IMPUs.
-  Cache::Transaction* t = mock_req.get_trx();
+  CassandraStore::Transaction* t = mock_op.get_trx();
   ASSERT_FALSE(t == NULL);
-  EXPECT_CALL(mock_req, get_result(_))
+  EXPECT_CALL(mock_op, get_result(_))
     .WillRepeatedly(SetArgReferee<0>(EMPTY_VECTOR));
 
   // Expect to receive a diameter message.
@@ -3184,7 +3147,7 @@ TEST_F(HandlersTest, RegistrationTerminationNoAssocIMPUs)
     .Times(1)
     .WillOnce(WithArgs<0>(Invoke(store_msg)));
 
-  t->on_success(&mock_req);
+  t->on_success(&mock_op);
 
   // Turn the caught Diameter msg structure into a RTA and confirm the result
   // code is correct.
@@ -3220,16 +3183,15 @@ TEST_F(HandlersTest, RegistrationTerminationAssocIMPUsCacheFailure)
   // No public identities, so once the task's run function is called, we
   // expect a cache request for associated default public identities.
   std::vector<std::string> impis{IMPI, ASSOCIATED_IDENTITY1, ASSOCIATED_IDENTITY2};
-  MockCache::MockGetAssociatedPrimaryPublicIDs mock_req;
+  MockCache::MockGetAssociatedPrimaryPublicIDs mock_op;
   EXPECT_CALL(*_cache, create_GetAssociatedPrimaryPublicIDs(impis))
-    .WillOnce(Return(&mock_req));
-  EXPECT_CALL(*_cache, send(_, &mock_req))
-    .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
+    .WillOnce(Return(&mock_op));
+  _cache->EXPECT_DO_ASYNC(mock_op);
 
   task->run();
 
   // The cache request fails.
-  Cache::Transaction* t = mock_req.get_trx();
+  CassandraStore::Transaction* t = mock_op.get_trx();
   ASSERT_FALSE(t == NULL);
 
   // Expect to receive a diameter message.
@@ -3237,8 +3199,9 @@ TEST_F(HandlersTest, RegistrationTerminationAssocIMPUsCacheFailure)
     .Times(1)
     .WillOnce(WithArgs<0>(Invoke(store_msg)));
 
-  std::string error_text = "error";
-  t->on_failure(&mock_req, Cache::INVALID_REQUEST, error_text);
+  mock_op._cass_status = CassandraStore::INVALID_REQUEST;
+  mock_op._cass_error_text = "error";
+  t->on_failure(&mock_op);
 
   // Turn the caught Diameter msg structure into a RTA and confirm the result
   // code is correct.
@@ -3316,24 +3279,23 @@ TEST_F(HandlersTest, PushProfile)
 
   // Once the task's run function is called, we expect to try and update
   // the IMS Subscription in the cache.
-  MockCache::MockPutIMSSubscription mock_req;
+  MockCache::MockPutIMSSubscription mock_op;
   std::vector<std::string> impus{IMPU};
   EXPECT_CALL(*_cache, create_PutIMSSubscription(impus, IMS_SUBSCRIPTION, _, _, 7200))
-    .WillOnce(Return(&mock_req));
-  EXPECT_CALL(*_cache, send(_, &mock_req))
-    .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
+    .WillOnce(Return(&mock_op));
+  _cache->EXPECT_DO_ASYNC(mock_op);
 
   // Finally we expect a PPA.
   task->run();
 
-  Cache::Transaction* t = mock_req.get_trx();
+  CassandraStore::Transaction* t = mock_op.get_trx();
   ASSERT_FALSE(t == NULL);
 
   EXPECT_CALL(*_mock_stack, send(_))
     .Times(1)
     .WillOnce(WithArgs<0>(Invoke(store_msg)));
 
-  t->on_success(&mock_req);
+  t->on_success(&mock_op);
 
   // Turn the caught Diameter msg structure into a PPA and confirm it's contents.
   Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
@@ -3367,24 +3329,24 @@ TEST_F(HandlersTest, PushProfileCacheFailure)
 
   // Once the task's run function is called, we expect to try and update
   // the IMS Subscription in the cache.
-  MockCache::MockPutIMSSubscription mock_req;
+  MockCache::MockPutIMSSubscription mock_op;
   std::vector<std::string> impus{IMPU};
   EXPECT_CALL(*_cache, create_PutIMSSubscription(impus, IMS_SUBSCRIPTION, _, _, 7200))
-    .WillOnce(Return(&mock_req));
-  EXPECT_CALL(*_cache, send(_, &mock_req))
-    .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
+    .WillOnce(Return(&mock_op));
+  _cache->EXPECT_DO_ASYNC(mock_op);
 
   task->run();
 
-  Cache::Transaction* t = mock_req.get_trx();
+  CassandraStore::Transaction* t = mock_op.get_trx();
   ASSERT_FALSE(t == NULL);
   EXPECT_CALL(*_mock_stack, send(_))
     .Times(1)
     .WillOnce(WithArgs<0>(Invoke(store_msg)));
 
   // The cache request fails.
-  std::string error_text = "error";
-  t->on_failure(&mock_req, Cache::INVALID_REQUEST, error_text);
+  mock_op._cass_status = CassandraStore::INVALID_REQUEST;
+  mock_op._cass_error_text = "error";
+  t->on_failure(&mock_op);
 
   // Turn the caught Diameter msg structure into a PPA and confirm the result code.
   Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
@@ -3470,15 +3432,14 @@ TEST_F(HandlerStatsTest, DigestCache)
   ImpiDigestTask* task = new ImpiDigestTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Handler does a cache digest lookup.
-  MockCache::MockGetAuthVector mock_req;
+  MockCache::MockGetAuthVector mock_op;
   EXPECT_CALL(*_cache, create_GetAuthVector(IMPI, IMPU))
-    .WillOnce(Return(&mock_req));
-  EXPECT_CALL(*_cache, send(_, &mock_req))
-    .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
+    .WillOnce(Return(&mock_op));
+  _cache->EXPECT_DO_ASYNC(mock_op);
   task->run();
 
   // The cache request takes some time.
-  Cache::Transaction* t = mock_req.get_trx();
+  CassandraStore::Transaction* t = mock_op.get_trx();
   ASSERT_FALSE(t == NULL);
 
   t->start_timer();
@@ -3492,10 +3453,10 @@ TEST_F(HandlerStatsTest, DigestCache)
   digest.qop = "qop";
 
   EXPECT_CALL(*_stats, update_H_cache_latency_us(12000));
-  EXPECT_CALL(mock_req, get_result(_))
+  EXPECT_CALL(mock_op, get_result(_))
     .WillRepeatedly(SetArgReferee<0>(digest));
   EXPECT_CALL(*_httpstack, send_reply(_, _, _));
-  t->on_success(&mock_req);
+  t->on_success(&mock_op);
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
 }
 
@@ -3513,15 +3474,14 @@ TEST_F(HandlerStatsTest, DigestCacheFailure)
   ImpiDigestTask* task = new ImpiDigestTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Handler does a cache digest lookup.
-  MockCache::MockGetAuthVector mock_req;
+  MockCache::MockGetAuthVector mock_op;
   EXPECT_CALL(*_cache, create_GetAuthVector(IMPI, IMPU))
-    .WillOnce(Return(&mock_req));
-  EXPECT_CALL(*_cache, send(_, &mock_req))
-    .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
+    .WillOnce(Return(&mock_op));
+  _cache->EXPECT_DO_ASYNC(mock_op);
   task->run();
 
   // The cache request takes some time.
-  Cache::Transaction* t = mock_req.get_trx();
+  CassandraStore::Transaction* t = mock_op.get_trx();
   ASSERT_FALSE(t == NULL);
 
   t->start_timer();
@@ -3532,8 +3492,10 @@ TEST_F(HandlerStatsTest, DigestCacheFailure)
   EXPECT_CALL(*_httpstack, send_reply(_, _, _));
   EXPECT_CALL(*_stats, update_H_cache_latency_us(12000));
 
-  std::string error_text = "error";
-  t->on_failure(&mock_req, Cache::NOT_FOUND, error_text);
+  mock_op._cass_status = CassandraStore::NOT_FOUND;
+  mock_op._cass_error_text = "error";
+  t->on_failure(&mock_op);
+
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
 }
 
@@ -3582,11 +3544,10 @@ TEST_F(HandlerStatsTest, DigestHSS)
   EXPECT_CALL(*_stats, update_H_hss_latency_us(13000));
   EXPECT_CALL(*_stats, update_H_hss_digest_latency_us(13000));
 
-  MockCache::MockPutAssociatedPublicID mock_req;
+  MockCache::MockPutAssociatedPublicID mock_op;
   EXPECT_CALL(*_cache, create_PutAssociatedPublicID(IMPI, IMPU,  _, _))
-    .WillOnce(Return(&mock_req));
-  EXPECT_CALL(*_cache, send(_, &mock_req))
-    .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
+    .WillOnce(Return(&mock_op));
+  _cache->EXPECT_DO_ASYNC(mock_op);
 
   EXPECT_CALL(*_httpstack, send_reply(_, _, _));
   _caught_diam_tsx->on_response(maa);
@@ -3645,21 +3606,20 @@ TEST_F(HandlerStatsTest, IMSSubscriptionReregHSS)
 
   // Once the task's run function is called, expect to lookup IMS
   // subscription information for the specified public ID.
-  MockCache::MockGetIMSSubscription mock_req;
+  MockCache::MockGetIMSSubscription mock_op;
   EXPECT_CALL(*_cache, create_GetIMSSubscription(IMPU))
-    .WillOnce(Return(&mock_req));
-  EXPECT_CALL(*_cache, send(_, &mock_req))
-    .WillOnce(WithArgs<0>(Invoke(&mock_req, &Cache::Request::set_trx)));
+    .WillOnce(Return(&mock_op));
+  _cache->EXPECT_DO_ASYNC(mock_op);
   task->run();
 
   // Check the cache get latency is recorded.
-  Cache::Transaction* t = mock_req.get_trx();
+  CassandraStore::Transaction* t = mock_op.get_trx();
   ASSERT_FALSE(t == NULL);
-  EXPECT_CALL(mock_req, get_xml(_, _))
+  EXPECT_CALL(mock_op, get_xml(_, _))
     .WillRepeatedly(DoAll(SetArgReferee<0>(""), SetArgReferee<1>(0)));
-  EXPECT_CALL(mock_req, get_registration_state(_, _))
+  EXPECT_CALL(mock_op, get_registration_state(_, _))
     .WillRepeatedly(DoAll(SetArgReferee<0>(RegistrationState::NOT_REGISTERED), SetArgReferee<1>(0)));
-  EXPECT_CALL(mock_req, get_associated_impis(_));
+  EXPECT_CALL(mock_op, get_associated_impis(_));
 
   t->start_timer();
   cwtest_advance_time_ms(10);
@@ -3673,7 +3633,7 @@ TEST_F(HandlerStatsTest, IMSSubscriptionReregHSS)
     .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
   EXPECT_CALL(*_stats, update_H_cache_latency_us(10000));
 
-  t->on_success(&mock_req);
+  t->on_success(&mock_op);
   ASSERT_FALSE(_caught_diam_tsx == NULL);
 
   // The diameter SAR takes some time to process.
@@ -3690,12 +3650,11 @@ TEST_F(HandlerStatsTest, IMSSubscriptionReregHSS)
                                  DIAMETER_SUCCESS,
                                  IMS_SUBSCRIPTION);
 
-  MockCache::MockPutIMSSubscription mock_req2;
+  MockCache::MockPutIMSSubscription mock_op2;
   std::vector<std::string> impus{IMPU};
   EXPECT_CALL(*_cache, create_PutIMSSubscription(impus, IMS_SUBSCRIPTION, _, _, _, 3600))
-    .WillOnce(Return(&mock_req2));
-  EXPECT_CALL(*_cache, send(_, &mock_req2))
-    .WillOnce(WithArgs<0>(Invoke(&mock_req2, &Cache::Request::set_trx)));
+    .WillOnce(Return(&mock_op2));
+  _cache->EXPECT_DO_ASYNC(mock_op2);
 
   // Expect the stats to get updated.
   EXPECT_CALL(*_stats, update_H_hss_latency_us(20000));
@@ -3705,7 +3664,7 @@ TEST_F(HandlerStatsTest, IMSSubscriptionReregHSS)
   _caught_diam_tsx->on_response(saa);
 
   // Check the cache put latency is recorded.
-  t = mock_req2.get_trx();
+  t = mock_op2.get_trx();
   ASSERT_FALSE(t == NULL);
 
   t->start_timer();
@@ -3713,7 +3672,7 @@ TEST_F(HandlerStatsTest, IMSSubscriptionReregHSS)
   t->stop_timer();
 
   EXPECT_CALL(*_stats, update_H_cache_latency_us(11000));
-  t->on_success(&mock_req2);
+  t->on_success(&mock_op2);
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
 }
 
