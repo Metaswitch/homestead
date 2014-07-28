@@ -390,7 +390,7 @@ TEST_F(HandlerUtilsTest, SasLogLevelPassThrough)
 {
   // Check that the thread pool passes calls to sas_log_level through to the
   // underlying handler.
-  HttpStack::SasLogger local_sas_logger;
+  HttpStack::DefaultSasLogger local_sas_logger;
 
   // This handler returns the logger we pass in on the constructor.
   TestSasLoggingHandler handler(&local_sas_logger);
