@@ -5,15 +5,25 @@ All access must go via this API, rather than directly to the database or HSS.
 
 ## IMPI
 
-    /impi/<private ID>/digest
+    /impi/<private ID>/av
+    /impi/<private ID>/av/digest
+    /impi/<private ID>/av/aka
 
-Make a GET request to this URL to retrieve the digest of the specified private ID. It maps to a Multimedia-Auth-Request to the HSS.
+Make a GET request to this URL to retrieve the authentication of the specified private ID. It maps to a Multimedia-Auth-Request to the HSS. This Multimedia-Auth-Request will specifically request SIP Digest or IMS AKA authentication vectors if those URLs are used; if the bare `/impi/<private ID>/av` is used, it will allow the HSS to choose by specifying "Unknown".
 
-The URL takes an optional query parameter: `public_id=<public_id>` If specified a digest is only returned if the private ID is able to authenticate the public ID.
+The URL takes two optional query parameters:
+
+* `public_id=<public_id>` If specified a digest is only returned if the private ID is able to authenticate the public ID.
+* `autn=<autn>` If specified, this triggers an authentication resync for IMS AKA.
+
+
 
 Response:
 
-* 200 if the digest is found, returned as JSON: `{ "digest_ha1": "<DIGEST>" }`
+* 200 if the digest is found, returned as JSON: `{ "digest": {"ha1": "abcde1234", "qop": "auth", "realm": "example.com"}}` or `{ "aka": {"challenge": "abcde1234", "response": "abcde1234", "crypt_key": "c3VyZS4=", "integrity_key": "c3VyZS4="}}`.
+    * The `ha1`, `challenge` and `response` fields are the ASCII representation of hex digits, matching how they will be used in the SIP headers.
+    * The `crypt_key` and `integrity_key` fields are BASE64-encoded, again matching how they will be used in the SIP headers.
+
 * 404 if the digest is not found.
 
 
