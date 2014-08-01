@@ -1,6 +1,6 @@
 [submodule "modules/freeDiameter"]
 	path = modules/freeDiameter
-	url = git@github.com:Metaswitch/freeDiameter.git
+	url = git@github.com:ClearwaterCore/freeDiameter.git
 [submodule "modules/cassandra"]
 	path = modules/cassandra
 	url = https://github.com/apache/cassandra.git
@@ -12,19 +12,19 @@
 	url = https://github.com/zvelo/rapidjson.git
 [submodule "build-infra"]
 	path = build-infra
-	url = git@github.com:Metaswitch/clearwater-build-infra.git
+	url = git@github.com:ClearwaterCore/clearwater-build-infra.git
 [submodule "modules/gmock"]
 	path = modules/gmock
-	url = git@github.com:Metaswitch/gmock-upstream.git
+	url = git@github.com:ClearwaterCore/gmock-upstream.git
 [submodule "modules/libevhtp"]
 	path = modules/libevhtp
-	url = git@github.com:Metaswitch/libevhtp.git
+	url = git@github.com:ClearwaterCore/libevhtp.git
 [submodule "modules/cpp-common"]
 	path = modules/cpp-common
-	url = git@github.com:Metaswitch/cpp-common.git
+	url = git@github.com:ClearwaterCore/cpp-common.git
 [submodule "modules/sas-client"]
 	path = modules/sas-client
-	url = git@github.com:Metaswitch/sas-client.git
+	url = git@github.com:ClearwaterCore/sas-client.git
 [submodule "modules/c-ares"]
 	path = modules/c-ares
 	url = git@github.com:bagder/c-ares.git
