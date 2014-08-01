@@ -15,6 +15,7 @@ TARGET_SOURCES := accesslogger.cpp \
                   accumulator.cpp \
                   baseresolver.cpp \
                   cache.cpp \
+                  cassandra_store.cpp \
                   counter.cpp \
                   cx.cpp \
                   diameterstack.cpp \
@@ -142,7 +143,7 @@ GMOCK_SRCS_ := $(GMOCK_DIR)/src/*.cc $(GMOCK_HEADERS)
 # End of boilerplate
 
 COVERAGEFLAGS = $(OBJ_DIR_TEST) --object-directory=$(shell pwd) --root=${ROOT} \
-                --exclude='(^include/|^modules/gmock/|^modules/rapidjson/|^modules/cpp-common/include/|^ut/|^usr/)' \
+                --exclude='(^include/|^modules/gmock/|^modules/rapidjson/|^modules/cpp-common/include/|^modules/cpp-common/test_utils|^ut/|^usr/)' \
                 --sort-percentage
 
 VGFLAGS = --suppressions=$(VG_SUPPRESS) \

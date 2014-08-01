@@ -87,11 +87,11 @@ const std::string JSON_INTEGRITYKEY = "integritykey";
 const std::string JSON_RC = "result-code";
 const std::string JSON_SCSCF = "scscf";
 
-class HssCacheHandler : public HttpStackUtils::Handler
+class HssCacheTask : public HttpStackUtils::Task
 {
 public:
-  HssCacheHandler(HttpStack::Request& req, SAS::TrailId trail) :
-    HttpStackUtils::Handler(req, trail)
+  HssCacheTask(HttpStack::Request& req, SAS::TrailId trail) :
+    HttpStackUtils::Task(req, trail)
   {};
 
   static void configure_diameter(Diameter::Stack* diameter_stack,
@@ -121,36 +121,27 @@ public:
   class DiameterTransaction : public Diameter::Transaction
   {
   public:
-
-    DiameterTransaction(Cx::Dictionary* dict,
-                        H* handler,
-                        StatsFlags stat_updates) :
-      Diameter::Transaction(dict,
-                            ((handler != NULL) ? handler->trail() : 0)),
-      _handler(handler),
-      _timeout_clbk(&HssCacheHandler::on_diameter_timeout),
-      _response_clbk(NULL),
-      _stat_updates(stat_updates)
-    {};
-
     typedef void(H::*timeout_clbk_t)();
     typedef void(H::*response_clbk_t)(Diameter::Message&);
 
-    void set_timeout_clbk(timeout_clbk_t fun)
-    {
-      _timeout_clbk = fun;
-    }
-
-    void set_response_clbk(response_clbk_t fun)
-    {
-      _response_clbk = fun;
-    }
+    DiameterTransaction(Cx::Dictionary* dict,
+                        H* handler,
+                        StatsFlags stat_updates,
+                        response_clbk_t response_clbk,
+                        timeout_clbk_t timeout_clbk = &HssCacheTask::on_diameter_timeout) :
+      Diameter::Transaction(dict,
+                            ((handler != NULL) ? handler->trail() : 0)),
+      _handler(handler),
+      _stat_updates(stat_updates),
+      _response_clbk(response_clbk),
+      _timeout_clbk(timeout_clbk)
+    {};
 
   protected:
     H* _handler;
-    timeout_clbk_t _timeout_clbk;
-    response_clbk_t _response_clbk;
     StatsFlags _stat_updates;
+    response_clbk_t _response_clbk;
+    timeout_clbk_t _timeout_clbk;
 
     void on_timeout()
     {
@@ -183,7 +174,7 @@ public:
   private:
     void update_latency_stats()
     {
-      StatisticsManager* stats = HssCacheHandler::_stats_manager;
+      StatisticsManager* stats = HssCacheTask::_stats_manager;
 
       if (stats != NULL)
       {
@@ -208,60 +199,62 @@ public:
   };
 
   template <class H>
-  class CacheTransaction : public Cache::Transaction
+  class CacheTransaction : public CassandraStore::Transaction
   {
   public:
-    CacheTransaction(H* handler) :
-      Cache::Transaction((handler != NULL) ? handler->trail() : 0),
-      _handler(handler),
+    typedef void(H::*success_clbk_t)(CassandraStore::Operation*);
+    typedef void(H::*failure_clbk_t)(CassandraStore::Operation*,
+                                     CassandraStore::ResultCode,
+                                     std::string&);
+    CacheTransaction() :
+      CassandraStore::Transaction(0),
+      _handler(NULL),
       _success_clbk(NULL),
       _failure_clbk(NULL)
     {};
 
-    typedef void(H::*success_clbk_t)(Cache::Request*);
-    typedef void(H::*failure_clbk_t)(Cache::Request*, Cache::ResultCode, std::string&);
-
-    void set_success_clbk(success_clbk_t fun)
-    {
-      _success_clbk = fun;
-    }
-
-    void set_failure_clbk(failure_clbk_t fun)
-    {
-      _failure_clbk = fun;
-    }
+    CacheTransaction(H* handler,
+                     success_clbk_t success_clbk,
+                     failure_clbk_t failure_clbk) :
+      CassandraStore::Transaction((handler != NULL) ? handler->trail() : 0),
+      _handler(handler),
+      _success_clbk(success_clbk),
+      _failure_clbk(failure_clbk)
+    {};
 
   protected:
     H* _handler;
     success_clbk_t _success_clbk;
     failure_clbk_t _failure_clbk;
 
-    void on_success(Cache::Request* req)
+    void on_success(CassandraStore::Operation* op)
     {
       update_latency_stats();
 
       if ((_handler != NULL) && (_success_clbk != NULL))
       {
-        boost::bind(_success_clbk, _handler, req)();
+        boost::bind(_success_clbk, _handler, op)();
       }
     }
 
-    void on_failure(Cache::Request* req,
-                    Cache::ResultCode error,
-                    std::string& text)
+    void on_failure(CassandraStore::Operation* op)
     {
       update_latency_stats();
 
       if ((_handler != NULL) && (_failure_clbk != NULL))
       {
-        boost::bind(_failure_clbk, _handler, req, error, text)();
+        boost::bind(_failure_clbk,
+                    _handler,
+                    op,
+                    op->get_result_code(),
+                    op->get_error_text())();
       }
     }
 
   private:
     void update_latency_stats()
     {
-      StatisticsManager* stats = HssCacheHandler::_stats_manager;
+      StatisticsManager* stats = HssCacheTask::_stats_manager;
 
       unsigned long latency = 0;
       if ((stats != NULL) && get_duration(latency))
@@ -269,7 +262,6 @@ public:
         stats->update_H_cache_latency_us(latency);
       }
     }
-
   };
 
 protected:
@@ -282,7 +274,7 @@ protected:
   static StatisticsManager* _stats_manager;
 };
 
-class ImpiHandler : public HssCacheHandler
+class ImpiTask : public HssCacheTask
 {
 public:
   struct Config
@@ -308,25 +300,25 @@ public:
     int diameter_timeout_ms;
   };
 
-  ImpiHandler(HttpStack::Request& req, const Config* cfg, SAS::TrailId trail) :
-    HssCacheHandler(req, trail), _cfg(cfg), _impi(), _impu(), _scheme(), _authorization()
+  ImpiTask(HttpStack::Request& req, const Config* cfg, SAS::TrailId trail) :
+    HssCacheTask(req, trail), _cfg(cfg), _impi(), _impu(), _scheme(), _authorization()
   {}
 
   void run();
   virtual bool parse_request() = 0;
   void query_cache_av();
-  void on_get_av_success(Cache::Request* request);
-  void on_get_av_failure(Cache::Request* request, Cache::ResultCode error, std::string& text);
+  void on_get_av_success(CassandraStore::Operation* op);
+  void on_get_av_failure(CassandraStore::Operation* op, CassandraStore::ResultCode error, std::string& text);
   void get_av();
   void query_cache_impu();
-  void on_get_impu_success(Cache::Request* request);
-  void on_get_impu_failure(Cache::Request* request, Cache::ResultCode error, std::string& text);
+  void on_get_impu_success(CassandraStore::Operation* op);
+  void on_get_impu_failure(CassandraStore::Operation* op, CassandraStore::ResultCode error, std::string& text);
   void send_mar();
   void on_mar_response(Diameter::Message& rsp);
   virtual void send_reply(const DigestAuthVector& av) = 0;
   virtual void send_reply(const AKAAuthVector& av) = 0;
-  typedef HssCacheHandler::CacheTransaction<ImpiHandler> CacheTransaction;
-  typedef HssCacheHandler::DiameterTransaction<ImpiHandler> DiameterTransaction;
+  typedef HssCacheTask::CacheTransaction<ImpiTask> CacheTransaction;
+  typedef HssCacheTask::DiameterTransaction<ImpiTask> DiameterTransaction;
 
 protected:
   const Config* _cfg;
@@ -336,13 +328,13 @@ protected:
   std::string _authorization;
 };
 
-class ImpiDigestHandler : public ImpiHandler
+class ImpiDigestTask : public ImpiTask
 {
 public:
-  ImpiDigestHandler(HttpStack::Request& req,
-                    const ImpiHandler::Config* cfg,
-                    SAS::TrailId trail) :
-    ImpiHandler(req, cfg, trail)
+  ImpiDigestTask(HttpStack::Request& req,
+                 const ImpiTask::Config* cfg,
+                 SAS::TrailId trail) :
+    ImpiTask(req, cfg, trail)
   {}
 
   bool parse_request();
@@ -351,13 +343,13 @@ public:
 };
 
 
-class ImpiAvHandler : public ImpiHandler
+class ImpiAvTask : public ImpiTask
 {
 public:
-  ImpiAvHandler(HttpStack::Request& req,
-                const ImpiHandler::Config* cfg,
-                SAS::TrailId trail) :
-    ImpiHandler(req, cfg, trail)
+  ImpiAvTask(HttpStack::Request& req,
+             const ImpiTask::Config* cfg,
+             SAS::TrailId trail) :
+    ImpiTask(req, cfg, trail)
   {}
 
   bool parse_request();
@@ -365,7 +357,7 @@ public:
   void send_reply(const AKAAuthVector& av);
 };
 
-class ImpiRegistrationStatusHandler : public HssCacheHandler
+class ImpiRegistrationStatusTask : public HssCacheTask
 {
 public:
   struct Config
@@ -378,15 +370,15 @@ public:
     int diameter_timeout_ms;
   };
 
-  ImpiRegistrationStatusHandler(HttpStack::Request& req, const Config* cfg, SAS::TrailId trail) :
-    HssCacheHandler(req, trail), _cfg(cfg), _impi(), _impu(), _visited_network(), _authorization_type()
+  ImpiRegistrationStatusTask(HttpStack::Request& req, const Config* cfg, SAS::TrailId trail) :
+    HssCacheTask(req, trail), _cfg(cfg), _impi(), _impu(), _visited_network(), _authorization_type()
   {}
 
   void run();
   void on_uar_response(Diameter::Message& rsp);
   void sas_log_hss_failure(int32_t result_code);
 
-  typedef HssCacheHandler::DiameterTransaction<ImpiRegistrationStatusHandler> DiameterTransaction;
+  typedef HssCacheTask::DiameterTransaction<ImpiRegistrationStatusTask> DiameterTransaction;
 
 private:
   const Config* _cfg;
@@ -396,7 +388,7 @@ private:
   std::string _authorization_type;
 };
 
-class ImpuLocationInfoHandler : public HssCacheHandler
+class ImpuLocationInfoTask : public HssCacheTask
 {
 public:
   struct Config
@@ -409,15 +401,15 @@ public:
     int diameter_timeout_ms;
   };
 
-  ImpuLocationInfoHandler(HttpStack::Request& req, const Config* cfg, SAS::TrailId trail) :
-    HssCacheHandler(req, trail), _cfg(cfg), _impu(), _originating(), _authorization_type()
+  ImpuLocationInfoTask(HttpStack::Request& req, const Config* cfg, SAS::TrailId trail) :
+    HssCacheTask(req, trail), _cfg(cfg), _impu(), _originating(), _authorization_type()
   {}
 
   void run();
   void on_lir_response(Diameter::Message& rsp);
   void sas_log_hss_failure(int32_t result_code);
 
-  typedef HssCacheHandler::DiameterTransaction<ImpuLocationInfoHandler> DiameterTransaction;
+  typedef HssCacheTask::DiameterTransaction<ImpuLocationInfoTask> DiameterTransaction;
 
 private:
   const Config* _cfg;
@@ -426,7 +418,7 @@ private:
   std::string _authorization_type;
 };
 
-class ImpuRegDataHandler : public HssCacheHandler
+class ImpuRegDataTask : public HssCacheTask
 {
 public:
   struct Config
@@ -442,18 +434,18 @@ public:
     int diameter_timeout_ms;
   };
 
-  ImpuRegDataHandler(HttpStack::Request& req, const Config* cfg, SAS::TrailId trail) :
-    HssCacheHandler(req, trail), _cfg(cfg), _impi(), _impu()
+  ImpuRegDataTask(HttpStack::Request& req, const Config* cfg, SAS::TrailId trail) :
+    HssCacheTask(req, trail), _cfg(cfg), _impi(), _impu()
   {}
-  virtual ~ImpuRegDataHandler() {};
+  virtual ~ImpuRegDataTask() {};
   virtual void run();
-  void on_get_ims_subscription_success(Cache::Request* request);
-  void on_get_ims_subscription_failure(Cache::Request* request, Cache::ResultCode error, std::string& text);
+  void on_get_ims_subscription_success(CassandraStore::Operation* op);
+  void on_get_ims_subscription_failure(CassandraStore::Operation* op, CassandraStore::ResultCode error, std::string& text);
   void send_server_assignment_request(Cx::ServerAssignmentType type);
   void on_sar_response(Diameter::Message& rsp);
 
-  typedef HssCacheHandler::CacheTransaction<ImpuRegDataHandler> CacheTransaction;
-  typedef HssCacheHandler::DiameterTransaction<ImpuRegDataHandler> DiameterTransaction;
+  typedef HssCacheTask::CacheTransaction<ImpuRegDataTask> CacheTransaction;
+  typedef HssCacheTask::DiameterTransaction<ImpuRegDataTask> DiameterTransaction;
 
 protected:
 
@@ -484,13 +476,13 @@ protected:
   RegistrationState _new_state;
 };
 
-class ImpuIMSSubscriptionHandler : public ImpuRegDataHandler
+class ImpuIMSSubscriptionTask : public ImpuRegDataTask
 {
 public:
-  ImpuIMSSubscriptionHandler(HttpStack::Request& req,
-                             const Config* cfg,
-                             SAS::TrailId trail) :
-    ImpuRegDataHandler(req, cfg, trail)
+  ImpuIMSSubscriptionTask(HttpStack::Request& req,
+                          const Config* cfg,
+                          SAS::TrailId trail) :
+    ImpuRegDataTask(req, cfg, trail)
   {};
 
   void run();
@@ -498,7 +490,7 @@ private:
   void send_reply();
 };
 
-class RegistrationTerminationHandler : public Diameter::Handler
+class RegistrationTerminationTask : public Diameter::Task
 {
 public:
   struct Config
@@ -518,16 +510,16 @@ public:
     int hss_reregistration_time;
   };
 
-  RegistrationTerminationHandler(const Diameter::Dictionary* dict,
-                                 struct msg** fd_msg,
-                                 const Config* cfg,
-                                 SAS::TrailId trail):
-    Diameter::Handler(dict, fd_msg, trail), _cfg(cfg), _rtr(_msg)
+  RegistrationTerminationTask(const Diameter::Dictionary* dict,
+                              struct msg** fd_msg,
+                              const Config* cfg,
+                              SAS::TrailId trail):
+    Diameter::Task(dict, fd_msg, trail), _cfg(cfg), _rtr(_msg)
   {}
 
   void run();
 
-  typedef HssCacheHandler::CacheTransaction<RegistrationTerminationHandler> CacheTransaction;
+  typedef HssCacheTask::CacheTransaction<RegistrationTerminationTask> CacheTransaction;
 
 private:
   const Config* _cfg;
@@ -538,14 +530,14 @@ private:
   std::vector<std::string> _impus;
   std::vector<std::vector<std::string>> _registration_sets;
 
-  void get_assoc_primary_public_ids_success(Cache::Request* request);
-  void get_assoc_primary_public_ids_failure(Cache::Request* request,
-                                            Cache::ResultCode error,
+  void get_assoc_primary_public_ids_success(CassandraStore::Operation* op);
+  void get_assoc_primary_public_ids_failure(CassandraStore::Operation* op,
+                                            CassandraStore::ResultCode error,
                                             std::string& text);
   void get_registration_sets();
-  void get_registration_set_success(Cache::Request* request);
-  void get_registration_set_failure(Cache::Request* request,
-                                    Cache::ResultCode error,
+  void get_registration_set_success(CassandraStore::Operation* op);
+  void get_registration_set_failure(CassandraStore::Operation* op,
+                                    CassandraStore::ResultCode error,
                                     std::string& text);
   void delete_registrations();
   void dissociate_implicit_registration_sets();
@@ -553,7 +545,7 @@ private:
   void send_rta(const std::string result_code);
 };
 
-class PushProfileHandler : public Diameter::Handler
+class PushProfileTask : public Diameter::Task
 {
 public:
   struct Config
@@ -573,24 +565,24 @@ public:
     int hss_reregistration_time;
   };
 
-  PushProfileHandler(const Diameter::Dictionary* dict,
-                     struct msg** fd_msg,
-                     const Config* cfg,
-                     SAS::TrailId trail) :
-    Diameter::Handler(dict, fd_msg, trail), _cfg(cfg), _ppr(_msg)
+  PushProfileTask(const Diameter::Dictionary* dict,
+                  struct msg** fd_msg,
+                  const Config* cfg,
+                  SAS::TrailId trail) :
+    Diameter::Task(dict, fd_msg, trail), _cfg(cfg), _ppr(_msg)
   {}
 
   void run();
 
-  typedef HssCacheHandler::CacheTransaction<PushProfileHandler> CacheTransaction;
+  typedef HssCacheTask::CacheTransaction<PushProfileTask> CacheTransaction;
 
 private:
   const Config* _cfg;
   Cx::PushProfileRequest _ppr;
 
-  void update_ims_subscription_success(Cache::Request* request);
-  void update_ims_subscription_failure(Cache::Request* request,
-                                       Cache::ResultCode error,
+  void update_ims_subscription_success(CassandraStore::Operation* op);
+  void update_ims_subscription_failure(CassandraStore::Operation* op,
+                                       CassandraStore::ResultCode error,
                                        std::string& text);
   void send_ppa(const std::string result_code);
 };
