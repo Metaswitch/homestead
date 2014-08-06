@@ -444,7 +444,7 @@ TEST_F(HandlerUtilsTest, ChronosLogging)
   event = mock_sas_find_event(SASEvent::TX_HTTP_RSP_DETAIL);
   EXPECT_TRUE(event != NULL);
 
-  req.sas_log_overload(FAKE_TRAIL_ID, 503, 0);
+  req.sas_log_overload(FAKE_TRAIL_ID, 503, 0, 0, 0.0, 0);
   event = mock_sas_find_event(SASEvent::HTTP_REJECTED_OVERLOAD_DETAIL);
   EXPECT_TRUE(event != NULL);
 
