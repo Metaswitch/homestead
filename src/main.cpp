@@ -85,6 +85,46 @@ struct options
   int diameter_timeout_ms;
 };
 
+// Enum for option types not assigned short-forms
+enum OptionTypes
+{
+  SCHEME_UNKNOWN = 128, // start after the ASCII set ends to avoid conflicts
+  SCHEME_DIGEST,
+  SCHEME_AKA,
+  SAS_CONFIG,
+  DIAMETER_TIMEOUT_MS
+};
+
+const static struct option long_opt[] =
+{
+  {"localhost",               required_argument, NULL, 'l'},
+  {"home-domain",             required_argument, NULL, 'r'},
+  {"diameter-conf",           required_argument, NULL, 'c'},
+  {"http",                    required_argument, NULL, 'H'},
+  {"http-threads",            required_argument, NULL, 't'},
+  {"cache-threads",           required_argument, NULL, 'u'},
+  {"cassandra",               required_argument, NULL, 'S'},
+  {"dest-realm",              required_argument, NULL, 'D'},
+  {"dest-host",               required_argument, NULL, 'd'},
+  {"max-peers",               required_argument, NULL, 'p'},
+  {"server-name",             required_argument, NULL, 's'},
+  {"impu-cache-ttl",          required_argument, NULL, 'i'},
+  {"hss-reregistration-time", required_argument, NULL, 'I'},
+  {"sprout-http-name",        required_argument, NULL, 'j'},
+  {"scheme-unknown",          required_argument, NULL, SCHEME_UNKNOWN},
+  {"scheme-digest",           required_argument, NULL, SCHEME_DIGEST},
+  {"scheme-aka",              required_argument, NULL, SCHEME_AKA},
+  {"access-log",              required_argument, NULL, 'a'},
+  {"sas",                     required_argument, NULL, SAS_CONFIG},
+  {"diameter-timeout-ms",     required_argument, NULL, DIAMETER_TIMEOUT_MS},
+  {"log-file",                required_argument, NULL, 'F'},
+  {"log-level",               required_argument, NULL, 'L'},
+  {"help",                    no_argument,       NULL, 'h'},
+  {NULL,                      0,                 NULL, 0},
+};
+
+static std::string options_description = "l:r:c:H:t:u:S:D:d:p:s:i:I:a:F:L:h";
+
 void usage(void)
 {
   puts("Options:\n"
@@ -126,121 +166,131 @@ void usage(void)
        " -h, --help                 Show this help screen\n");
 }
 
-// Enum for option types not assigned short-forms
-enum OptionTypes
+int init_logging_options(int argc, char**argv, struct options& options)
 {
-  SCHEME_UNKNOWN = 128, // start after the ASCII set ends to avoid conflicts
-  SCHEME_DIGEST,
-  SCHEME_AKA,
-  SAS_CONFIG,
-  DIAMETER_TIMEOUT_MS
-};
+  int opt;
+  int long_opt_ind;
+
+  optind = 0;
+  while ((opt = getopt_long(argc, argv, options_description.c_str(), long_opt, &long_opt_ind)) != -1)
+  {
+    switch (opt)
+    {
+    case 'F':
+      options.log_to_file = true;
+      options.log_directory = std::string(optarg);
+      break;
+
+    case 'L':
+      options.log_level = atoi(optarg);
+      break;
+
+    default:
+      // Ignore other options at this point
+      break;
+    }
+  }
+
+  return 0;
+}
 
 int init_options(int argc, char**argv, struct options& options)
 {
-  struct option long_opt[] =
-  {
-    {"localhost",               required_argument, NULL, 'l'},
-    {"home-domain",             required_argument, NULL, 'r'},
-    {"diameter-conf",           required_argument, NULL, 'c'},
-    {"http",                    required_argument, NULL, 'H'},
-    {"http-threads",            required_argument, NULL, 't'},
-    {"cache-threads",           required_argument, NULL, 'u'},
-    {"cassandra",               required_argument, NULL, 'S'},
-    {"dest-realm",              required_argument, NULL, 'D'},
-    {"dest-host",               required_argument, NULL, 'd'},
-    {"max-peers",               required_argument, NULL, 'p'},
-    {"server-name",             required_argument, NULL, 's'},
-    {"impu-cache-ttl",          required_argument, NULL, 'i'},
-    {"hss-reregistration-time", required_argument, NULL, 'I'},
-    {"sprout-http-name",        required_argument, NULL, 'j'},
-    {"scheme-unknown",          required_argument, NULL, SCHEME_UNKNOWN},
-    {"scheme-digest",           required_argument, NULL, SCHEME_DIGEST},
-    {"scheme-aka",              required_argument, NULL, SCHEME_AKA},
-    {"access-log",              required_argument, NULL, 'a'},
-    {"sas",                     required_argument, NULL, SAS_CONFIG},
-    {"diameter-timeout-ms",     required_argument, NULL, DIAMETER_TIMEOUT_MS},
-    {"log-file",                required_argument, NULL, 'F'},
-    {"log-level",               required_argument, NULL, 'L'},
-    {"help",                    no_argument,       NULL, 'h'},
-    {NULL,                      0,                 NULL, 0},
-  };
-
   int opt;
   int long_opt_ind;
-  while ((opt = getopt_long(argc, argv, "l:r:c:H:t:u:S:D:d:p:s:i:I:a:F:L:h", long_opt, &long_opt_ind)) != -1)
+
+  optind = 0;
+  while ((opt = getopt_long(argc, argv, options_description.c_str(), long_opt, &long_opt_ind)) != -1)
   {
     switch (opt)
     {
     case 'l':
+      LOG_INFO("Local host: %s", optarg);
       options.local_host = std::string(optarg);
       break;
 
     case 'r':
+      LOG_INFO("Home domain: %s", optarg);
       options.home_domain = std::string(optarg);
       break;
 
     case 'c':
+      LOG_INFO("Diameter configuration file: %s", optarg);
       options.diameter_conf = std::string(optarg);
       break;
 
     case 'H':
+      LOG_INFO("HTTP address: %s", optarg);
       options.http_address = std::string(optarg);
       break;
 
     case 't':
+      LOG_INFO("HTTP threads: %s", optarg);
       options.http_threads = atoi(optarg);
       break;
 
     case 'u':
+      LOG_INFO("Cache threads: %s", optarg);
       options.cache_threads = atoi(optarg);
       break;
 
     case 'S':
+      LOG_INFO("Cassandra host: %s", optarg);
       options.cassandra = std::string(optarg);
       break;
 
     case 'D':
+      LOG_INFO("Destination realm: %s", optarg);
       options.dest_realm = std::string(optarg);
       break;
 
     case 'd':
+      LOG_INFO("Destination host: %s", optarg);
       options.dest_host = std::string(optarg);
       break;
 
     case 'p':
+      LOG_INFO("Maximum peers: %s", optarg);
       options.max_peers = atoi(optarg);
       break;
 
     case 's':
+      LOG_INFO("Server name: %s", optarg);
       options.server_name = std::string(optarg);
       break;
 
     case 'i':
+      LOG_INFO("IMPU cache TTL: %s", optarg);
       options.impu_cache_ttl = atoi(optarg);
       break;
 
     case 'I':
+      LOG_INFO("HSS reregistration time: %s", optarg);
       options.hss_reregistration_time = atoi(optarg);
       break;
 
     case 'j':
+      LOG_INFO("Sprout HTTP name: %s", optarg);
       options.sprout_http_name = std::string(optarg);
       break;
 
     case SCHEME_UNKNOWN:
+      LOG_INFO("Scheme unknown: %s", optarg);
       options.scheme_unknown = std::string(optarg);
       break;
 
     case SCHEME_DIGEST:
+      LOG_INFO("Scheme digest: %s", optarg);
       options.scheme_digest = std::string(optarg);
       break;
 
     case SCHEME_AKA:
+      LOG_INFO("Scheme AKA: %s", optarg);
       options.scheme_aka = std::string(optarg);
       break;
 
     case 'a':
+      LOG_INFO("Access log: %s", optarg);
       options.access_log_enabled = true;
       options.access_log_directory = std::string(optarg);
       break;
@@ -253,27 +303,24 @@ int init_options(int argc, char**argv, struct options& options)
         {
           options.sas_server = sas_options[0];
           options.sas_system_name = sas_options[1];
-          fprintf(stdout, "SAS set to %s\n", options.sas_server.c_str());
-          fprintf(stdout, "System name is set to %s\n", options.sas_system_name.c_str());
+          LOG_INFO("SAS set to %s\n", options.sas_server.c_str());
+          LOG_INFO("System name is set to %s\n", options.sas_system_name.c_str());
         }
         else
         {
-          fprintf(stdout, "Invalid --sas option, SAS disabled\n");
+          LOG_WARNING("Invalid --sas option, SAS disabled\n");
         }
       }
       break;
 
     case DIAMETER_TIMEOUT_MS:
+      LOG_INFO("Diameter timeout: %s", optarg);
       options.diameter_timeout_ms = atoi(optarg);
       break;
 
     case 'F':
-      options.log_to_file = true;
-      options.log_directory = std::string(optarg);
-      break;
-
     case 'L':
-      options.log_level = atoi(optarg);
+      // Ignore F and L - these are handled by init_logging_options
       break;
 
     case 'h':
@@ -281,7 +328,7 @@ int init_options(int argc, char**argv, struct options& options)
       return -1;
 
     default:
-      fprintf(stdout, "Unknown option.  Run with --help for options.\n");
+      LOG_ERROR("Unknown option.  Run with --help for options.\n");
       return -1;
     }
   }
@@ -350,7 +397,7 @@ int main(int argc, char**argv)
   options.sas_system_name = "";
   options.diameter_timeout_ms = 200;
 
-  if (init_options(argc, argv, options) != 0)
+  if (init_logging_options(argc, argv, options) != 0)
   {
     return 1;
   }
@@ -368,14 +415,29 @@ int main(int argc, char**argv)
     Log::setLogger(new Logger(options.log_directory, prog_name));
   }
 
+  LOG_STATUS("Log level set to %d", options.log_level);
+
+  std::stringstream options_ss;
+  for (int ii = 0; ii < argc; ii++)
+  {
+    options_ss << argv[ii];
+    options_ss << " ";
+  }
+  std::string options_str = "Command-line options were: " + options_ss.str();
+
+  LOG_INFO(options_str.c_str());
+
+  if (init_options(argc, argv, options) != 0)
+  {
+    return 1;
+  }
+
   AccessLogger* access_logger = NULL;
   if (options.access_log_enabled)
   {
     LOG_STATUS("Access logging enabled to %s", options.access_log_directory.c_str());
     access_logger = new AccessLogger(options.access_log_directory);
   }
-
-  LOG_STATUS("Log level set to %d", options.log_level);
 
   // Create a DNS resolver and a SIP specific resolver.
   int af = AF_INET;
