@@ -13,7 +13,7 @@ Make a GET request to this URL to retrieve the authentication of the specified p
 
 The URL takes two optional query parameters:
 
-* `public_id=<public_id>` If specified a digest is only returned if the private ID is able to authenticate the public ID.
+* `impu=<impu>` If specified a digest is only returned if the private ID is able to authenticate the public ID.
 * `autn=<autn>` If specified, this triggers an authentication resync for IMS AKA.
 
 
