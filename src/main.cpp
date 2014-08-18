@@ -563,7 +563,7 @@ int main(int argc, char**argv)
   }
   catch (HttpStack::Exception& e)
   {
-    syslog(SYSLOG_ERR, "Failed to stop HttpStack stack - function %s, rc %d", e._func, e._rc);
+    syslog(SYSLOG_ERR, "Failed to stop HttpStack stack in function %s with error %d", e._func, e._rc);
     LOG_ERROR("Failed to stop HttpStack stack - function %s, rc %d", e._func, e._rc);
   }
 
