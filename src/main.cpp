@@ -34,6 +34,10 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
+ extern "C" {
+#include "syslog_facade.h"
+}
+
 #include <getopt.h>
 #include <signal.h>
 #include <semaphore.h>
@@ -253,11 +257,12 @@ int init_options(int argc, char**argv, struct options& options)
         {
           options.sas_server = sas_options[0];
           options.sas_system_name = sas_options[1];
-          fprintf(stdout, "SAS set to %s\n", options.sas_server.c_str());
+	  fprintf(stdout, "SAS set to %s\n", options.sas_server.c_str());
           fprintf(stdout, "System name is set to %s\n", options.sas_system_name.c_str());
         }
         else
         {
+	  syslog(SYSLOG_ERR, "Invalid --sas option, SAS disabled");
           fprintf(stdout, "Invalid --sas option, SAS disabled\n");
         }
       }
@@ -278,9 +283,11 @@ int init_options(int argc, char**argv, struct options& options)
 
     case 'h':
       usage();
+      syslog(SYSLOG_NOTICE, "Help(h) option causes program to exit");
       return -1;
 
     default:
+      syslog(SYSLOG_ERR, "Fatal - Unknown command line option %c.  Run with --help for options.", opt);
       fprintf(stdout, "Unknown option.  Run with --help for options.\n");
       return -1;
     }
@@ -305,6 +312,8 @@ void exception_handler(int sig)
   signal(SIGSEGV, SIG_DFL);
 
   // Log the signal, along with a backtrace.
+  syslog(SYSLOG_ERR, "Fatal - Homestead has exited or crashed with signal %d occurred", sig);
+  closelog();
   LOG_BACKTRACE("Signal %d caught", sig);
 
   // Ensure the log files are complete - the core file created by abort() below
@@ -350,9 +359,13 @@ int main(int argc, char**argv)
   options.sas_system_name = "";
   options.diameter_timeout_ms = 200;
 
+  openlog("homestead", SYSLOG_PID, SYSLOG_LOCAL6);
+  syslog(SYSLOG_NOTICE, "Homestead started");
+
   if (init_options(argc, argv, options) != 0)
   {
     return 1;
+    closelog();
   }
 
   Log::setLoggingLevel(options.log_level);
@@ -407,6 +420,8 @@ int main(int argc, char**argv)
 
   if (rc != CassandraStore::OK)
   {
+    syslog(SYSLOG_ERR, "Fatal - Failed to initialize the cache for the CassandraStore - error code %d", rc);
+    closelog();
     LOG_ERROR("Failed to initialize cache - rc %d", rc);
     exit(2);
   }
@@ -445,6 +460,8 @@ int main(int argc, char**argv)
   }
   catch (Diameter::Stack::Exception& e)
   {
+    syslog(SYSLOG_ERR, "Fatal - Failed to initialize Diameter stack in function %s with error %d", e._func, e._rc);
+    closelog();
     LOG_ERROR("Failed to initialize Diameter stack - function %s, rc %d", e._func, e._rc);
     exit(2);
   }
@@ -509,6 +526,8 @@ int main(int argc, char**argv)
   }
   catch (HttpStack::Exception& e)
   {
+    syslog(SYSLOG_ERR, "Fatal - Failed to initialize HttpStack stack in function %s with error %d", e._func, e._rc);
+    closelog();
     LOG_ERROR("Failed to initialize HttpStack stack - function %s, rc %d", e._func, e._rc);
     exit(2);
   }
@@ -535,6 +554,7 @@ int main(int argc, char**argv)
   LOG_STATUS("Start-up complete - wait for termination signal");
   sem_wait(&term_sem);
   LOG_STATUS("Termination signal received - terminating");
+  syslog(SYSLOG_ERR, "Fatal - Termination signal received - terminating");
 
   try
   {
@@ -543,6 +563,7 @@ int main(int argc, char**argv)
   }
   catch (HttpStack::Exception& e)
   {
+    syslog(SYSLOG_ERR, "Failed to stop HttpStack stack - function %s, rc %d", e._func, e._rc);
     LOG_ERROR("Failed to stop HttpStack stack - function %s, rc %d", e._func, e._rc);
   }
 
@@ -556,6 +577,7 @@ int main(int argc, char**argv)
   }
   catch (Diameter::Stack::Exception& e)
   {
+    syslog(SYSLOG_ERR, "Failed to stop Diameter stack in function %s with error  %d", e._func, e._rc);
     LOG_ERROR("Failed to stop Diameter stack - function %s, rc %d", e._func, e._rc);
   }
   delete dict; dict = NULL;
@@ -583,6 +605,7 @@ int main(int argc, char**argv)
   delete load_monitor; load_monitor = NULL;
 
   SAS::term();
+  closelog();
 
   signal(SIGTERM, SIG_DFL);
   sem_destroy(&term_sem);
