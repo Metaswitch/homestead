@@ -140,6 +140,42 @@ enum OptionTypes
   DIAMETER_TIMEOUT_MS
 };
 
+static const char* signal_description[] =
+  {
+    "Hangup", // 1
+    "Terminal Interrupt",
+    "Terminal Quit",
+    "Illegal Instruction",
+    "Trace/Breakpoint",
+    "Process Abort",
+    "Bus Error",
+    "Arithmetic Error",
+    "Kill",
+    "USR1", // 10
+    "Segment Trap",
+    "USR2",
+    "PIPE",
+    "Alarm",
+    "Termination",
+    "Stack Fault",
+    "CHLD",
+    "CONT",
+    "Stop",
+    "Terminal stop", // 20
+    "TTIN",
+    "TTOU",
+    "URG",
+    "XCPU",
+    "XFSZ",
+    "VTALRM",
+    "PROF",
+    "WINCH",
+    "POLL",
+    "LOST",
+    "Power", // 30
+    "System"
+  };
+
 int init_options(int argc, char**argv, struct options& options)
 {
   struct option long_opt[] =
@@ -312,7 +348,8 @@ void exception_handler(int sig)
   signal(SIGSEGV, SIG_DFL);
 
   // Log the signal, along with a backtrace.
-  syslog(SYSLOG_ERR, "Fatal - Homestead has exited or crashed with signal %d occurred", sig);
+  const char* signamep = (sig >= SIGHUP and sig <= SIGSYS) ? signal_description[sig-1] : "Unknown";
+  syslog(SYSLOG_ERR, "Fatal - Homestead has exited or crashed with signal %s", signamep);
   closelog();
   LOG_BACKTRACE("Signal %d caught", sig);
 
