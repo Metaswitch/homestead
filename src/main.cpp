@@ -359,7 +359,8 @@ void exception_handler(int sig)
   signal(SIGSEGV, SIG_DFL);
 
   // Log the signal, along with a backtrace.
-  syslog(SYSLOG_ERR, "Fatal - Homestead has exited or crashed with signal %d occurred", sig);
+  const char* signamep = (sig >= SIGHUP and sig <= SIGSYS) ? signal_description[sig-1] : "Unknown";
+  syslog(SYSLOG_ERR, "Fatal - Homestead has exited or crashed with signal %s", signamep);
   closelog();
   LOG_BACKTRACE("Signal %d caught", sig);
 
