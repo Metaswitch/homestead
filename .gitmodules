@@ -9,7 +9,7 @@
 	url = https://github.com/apache/thrift.git
 [submodule "modules/rapidjson"]
 	path = modules/rapidjson
-	url = https://github.com/zvelo/rapidjson.git
+  url = git@github.com:miloyip/rapidjson.git
 [submodule "build-infra"]
 	path = build-infra
 	url = git@github.com:Metaswitch/clearwater-build-infra.git
