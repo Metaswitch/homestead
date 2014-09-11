@@ -897,7 +897,9 @@ PushProfileRequest::PushProfileRequest(const Dictionary* dict,
   }
 }
 
-void PushProfileRequest::charging_addrs(ChargingAddresses& charging_addrs) const
+// Get charging addresses from a PPR. Return false if there is no Charging-Information AVP, true
+// otherwise.
+bool PushProfileRequest::charging_addrs(ChargingAddresses& charging_addrs) const
 {
 
   Diameter::AVP::iterator avps = begin(((Cx::Dictionary*)dict())->CHARGING_INFORMATION);
@@ -931,7 +933,9 @@ void PushProfileRequest::charging_addrs(ChargingAddresses& charging_addrs) const
       charging_addrs.ecfs.push_back(avps2->val_str());
       LOG_DEBUG("Found Secondary-Event-Charging-Function-Name %s", avps2->val_str().c_str());
     }
+    return true;
   }
+  return false;
 }
 
 PushProfileAnswer::PushProfileAnswer(Cx::PushProfileRequest& ppr,

@@ -353,7 +353,7 @@ public:
     return get_str_from_avp(((Cx::Dictionary*)dict())->USER_DATA, str);
   }
 
-  void charging_addrs(ChargingAddresses& charging_addrs) const;
+  bool charging_addrs(ChargingAddresses& charging_addrs) const;
 };
 
 class PushProfileAnswer : public Diameter::Message
