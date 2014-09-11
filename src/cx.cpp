@@ -88,7 +88,11 @@ Dictionary::Dictionary() :
   DEREGISTRATION_REASON("3GPP", "Deregistration-Reason"),
   REASON_CODE("3GPP", "Reason-Code"),
   IDENTITY_WITH_EMERGENCY_REGISTRATION("3GPP", "Identity-with-Emergency-Registration"),
-  CHARGING_INFORMATION("3GPP", "Charging-Information")
+  CHARGING_INFORMATION("3GPP", "Charging-Information"),
+  PRIMARY_CHARGING_COLLECTION_FUNCTION_NAME("3GPP", "Primary-Charging-Collection-Function-Name"),
+  SECONDARY_CHARGING_COLLECTION_FUNCTION_NAME("3GPP", "Secondary-Charging-Collection-Function-Name"),
+  PRIMARY_EVENT_CHARGING_FUNCTION_NAME("3GPP", "Primary-Event-Charging-Function-Name"),
+  SECONDARY_EVENT_CHARGING_FUNCTION_NAME("3GPP", "Secondary-Event-Charging-Function-Name")
 {
 }
 
@@ -635,7 +639,8 @@ ServerAssignmentRequest::ServerAssignmentRequest(const Dictionary* dict,
 ServerAssignmentAnswer::ServerAssignmentAnswer(const Dictionary* dict,
                                                Diameter::Stack* stack,
                                                const int32_t& result_code,
-                                               const std::string& ims_subscription) :
+                                               const std::string& ims_subscription,
+                                               const ChargingAddresses& charging_addrs) :
                                                Diameter::Message(dict, dict->SERVER_ASSIGNMENT_ANSWER, stack)
 {
   LOG_DEBUG("Building Server-Assignment answer");
@@ -644,6 +649,72 @@ ServerAssignmentAnswer::ServerAssignmentAnswer(const Dictionary* dict,
   // testing our handlers code, which is currently all it is used for.
   add(Diameter::AVP(dict->RESULT_CODE).val_i32(result_code));
   add(Diameter::AVP(dict->USER_DATA).val_str(ims_subscription));
+  if ((!charging_addrs.ccfs.empty()) && (!charging_addrs.ecfs.empty()))
+  {
+    Diameter::AVP charging_information(dict->CHARGING_INFORMATION);
+    if (!charging_addrs.ccfs.empty())
+    {
+      LOG_DEBUG("Adding Primary-Charging-Collection-Function-Name %s", charging_addrs.ccfs[0].c_str());
+      charging_information.add(Diameter::AVP(dict->PRIMARY_CHARGING_COLLECTION_FUNCTION_NAME).
+                               val_str(charging_addrs.ccfs[0]));
+    }
+    if (charging_addrs.ccfs.size() > 1)
+    {
+      LOG_DEBUG("Adding Secondary-Charging-Collection-Function-Name %s", charging_addrs.ccfs[1].c_str());
+      charging_information.add(Diameter::AVP(dict->SECONDARY_CHARGING_COLLECTION_FUNCTION_NAME).
+                               val_str(charging_addrs.ccfs[1]));
+    }
+    if (!charging_addrs.ecfs.empty())
+    {
+      LOG_DEBUG("Adding Primary-Event-Charging-Function-Name %s", charging_addrs.ecfs[0].c_str());
+      charging_information.add(Diameter::AVP(dict->PRIMARY_EVENT_CHARGING_FUNCTION_NAME).
+                               val_str(charging_addrs.ecfs[0]));
+    }
+    if (charging_addrs.ccfs.size() > 1)
+    {
+      LOG_DEBUG("Adding Secondary-Event-Charging-Function-Name %s", charging_addrs.ecfs[1].c_str());
+      charging_information.add(Diameter::AVP(dict->SECONDARY_EVENT_CHARGING_FUNCTION_NAME).
+                               val_str(charging_addrs.ecfs[1]));
+    }
+    add(charging_information);
+  }
+}
+
+void ServerAssignmentAnswer::charging_addrs(ChargingAddresses& charging_addrs) const
+{
+
+  Diameter::AVP::iterator avps = begin(((Cx::Dictionary*)dict())->CHARGING_INFORMATION);
+  if (avps != end())
+  {
+    Diameter::AVP::iterator avps2 =
+      avps->begin(((Cx::Dictionary*)dict())->PRIMARY_CHARGING_COLLECTION_FUNCTION_NAME);
+    if (avps2 != avps->end())
+    {
+      charging_addrs.ccfs.push_back(avps2->val_str());
+      LOG_DEBUG("Found Primary-Charging-Collection-Function-Name %s", avps2->val_str().c_str());
+    }
+
+    avps2 = avps->begin(((Cx::Dictionary*)dict())->SECONDARY_CHARGING_COLLECTION_FUNCTION_NAME);
+    if (avps2 != avps->end())
+    {
+      charging_addrs.ccfs.push_back(avps2->val_str());
+      LOG_DEBUG("Found Secondary-Charging-Collection-Function-Name %s", avps2->val_str().c_str());
+    }
+
+    avps2 = avps->begin(((Cx::Dictionary*)dict())->PRIMARY_EVENT_CHARGING_FUNCTION_NAME);
+    if (avps2 != avps->end())
+    {
+      charging_addrs.ecfs.push_back(avps2->val_str());
+      LOG_DEBUG("Found Primary-Event-Charging-Function-Name %s", avps2->val_str().c_str());
+    }
+
+    avps2 = avps->begin(((Cx::Dictionary*)dict())->SECONDARY_EVENT_CHARGING_FUNCTION_NAME);
+    if (avps2 != avps->end())
+    {
+      charging_addrs.ecfs.push_back(avps2->val_str());
+      LOG_DEBUG("Found Secondary-Event-Charging-Function-Name %s", avps2->val_str().c_str());
+    }
+  }
 }
 
 RegistrationTerminationRequest::RegistrationTerminationRequest(const Dictionary* dict,
@@ -788,12 +859,79 @@ std::vector<std::string> RegistrationTerminationAnswer::associated_identities() 
 PushProfileRequest::PushProfileRequest(const Dictionary* dict,
                                        Diameter::Stack* stack,
                                        const std::string& ims_subscription,
+                                       const ChargingAddresses& charging_addrs,
                                        const int32_t& auth_session_state) :
                                        Diameter::Message(dict, dict->PUSH_PROFILE_REQUEST, stack)
 {
   LOG_DEBUG("Building Push-Profile request");
   add(Diameter::AVP(dict->USER_DATA).val_str(ims_subscription));
   add(Diameter::AVP(dict->AUTH_SESSION_STATE).val_i32(auth_session_state));
+  if ((!charging_addrs.ccfs.empty()) && (!charging_addrs.ecfs.empty()))
+  {
+    Diameter::AVP charging_information(dict->CHARGING_INFORMATION);
+    if (!charging_addrs.ccfs.empty())
+    {
+      LOG_DEBUG("Adding Primary-Charging-Collection-Function-Name %s", charging_addrs.ccfs[0].c_str());
+      charging_information.add(Diameter::AVP(dict->PRIMARY_CHARGING_COLLECTION_FUNCTION_NAME).
+                               val_str(charging_addrs.ccfs[0]));
+    }
+    if (charging_addrs.ccfs.size() > 1)
+    {
+      LOG_DEBUG("Adding Secondary-Charging-Collection-Function-Name %s", charging_addrs.ccfs[1].c_str());
+      charging_information.add(Diameter::AVP(dict->SECONDARY_CHARGING_COLLECTION_FUNCTION_NAME).
+                               val_str(charging_addrs.ccfs[1]));
+    }
+    if (!charging_addrs.ecfs.empty())
+    {
+      LOG_DEBUG("Adding Primary-Event-Charging-Function-Name %s", charging_addrs.ecfs[0].c_str());
+      charging_information.add(Diameter::AVP(dict->PRIMARY_EVENT_CHARGING_FUNCTION_NAME).
+                               val_str(charging_addrs.ecfs[0]));
+    }
+    if (charging_addrs.ccfs.size() > 1)
+    {
+      LOG_DEBUG("Adding Secondary-Event-Charging-Function-Name %s", charging_addrs.ecfs[1].c_str());
+      charging_information.add(Diameter::AVP(dict->SECONDARY_EVENT_CHARGING_FUNCTION_NAME).
+                               val_str(charging_addrs.ecfs[1]));
+    }
+    add(charging_information);
+  }
+}
+
+void PushProfileRequest::charging_addrs(ChargingAddresses& charging_addrs) const
+{
+
+  Diameter::AVP::iterator avps = begin(((Cx::Dictionary*)dict())->CHARGING_INFORMATION);
+  if (avps != end())
+  {
+    Diameter::AVP::iterator avps2 =
+      avps->begin(((Cx::Dictionary*)dict())->PRIMARY_CHARGING_COLLECTION_FUNCTION_NAME);
+    if (avps2 != avps->end())
+    {
+      charging_addrs.ccfs.push_back(avps2->val_str());
+      LOG_DEBUG("Found Primary-Charging-Collection-Function-Name %s", avps2->val_str().c_str());
+    }
+
+    avps2 = avps->begin(((Cx::Dictionary*)dict())->SECONDARY_CHARGING_COLLECTION_FUNCTION_NAME);
+    if (avps2 != avps->end())
+    {
+      charging_addrs.ccfs.push_back(avps2->val_str());
+      LOG_DEBUG("Found Secondary-Charging-Collection-Function-Name %s", avps2->val_str().c_str());
+    }
+
+    avps2 = avps->begin(((Cx::Dictionary*)dict())->PRIMARY_EVENT_CHARGING_FUNCTION_NAME);
+    if (avps2 != avps->end())
+    {
+      charging_addrs.ecfs.push_back(avps2->val_str());
+      LOG_DEBUG("Found Primary-Event-Charging-Function-Name %s", avps2->val_str().c_str());
+    }
+
+    avps2 = avps->begin(((Cx::Dictionary*)dict())->SECONDARY_EVENT_CHARGING_FUNCTION_NAME);
+    if (avps2 != avps->end())
+    {
+      charging_addrs.ecfs.push_back(avps2->val_str());
+      LOG_DEBUG("Found Secondary-Event-Charging-Function-Name %s", avps2->val_str().c_str());
+    }
+  }
 }
 
 PushProfileAnswer::PushProfileAnswer(Cx::PushProfileRequest& ppr,
