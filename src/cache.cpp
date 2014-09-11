@@ -52,6 +52,10 @@ const static std::string IMPU = "impu";
 // Column names in the IMPU column family.
 const static std::string IMS_SUB_XML_COLUMN_NAME = "ims_subscription_xml";
 const static std::string REG_STATE_COLUMN_NAME = "is_registered";
+const static std::string PRIMARY_CCF_COLUMN_NAME = "primary_ccf";
+const static std::string SECONDARY_CCF_COLUMN_NAME = "secondary_ccf";
+const static std::string PRIMARY_ECF_COLUMN_NAME = "primary_ecf";
+const static std::string SECONDARY_ECF_COLUMN_NAME = "secondary_ccf";
 const static std::string IMPI_COLUMN_PREFIX = "associated_impi__";
 const static std::string IMPI_MAPPING_PREFIX = "associated_primary_impu__";
 
@@ -87,6 +91,7 @@ PutIMSSubscription(const std::string& public_id,
                    const std::string& xml,
                    const RegistrationState reg_state,
                    const std::vector<std::string>& impis,
+                   const ChargingAddresses& charging_addrs,
                    const int64_t timestamp,
                    const int32_t ttl):
   CassandraStore::Operation(),
@@ -94,6 +99,7 @@ PutIMSSubscription(const std::string& public_id,
   _impis(impis),
   _xml(xml),
   _reg_state(reg_state),
+  _charging_addrs(charging_addrs),
   _timestamp(timestamp),
   _ttl(ttl)
 {}
@@ -103,6 +109,7 @@ PutIMSSubscription(const std::vector<std::string>& public_ids,
                    const std::string& xml,
                    const RegistrationState reg_state,
                    const std::vector<std::string>& impis,
+                   const ChargingAddresses& charging_addrs,
                    const int64_t timestamp,
                    const int32_t ttl):
   CassandraStore::Operation(),
@@ -110,6 +117,7 @@ PutIMSSubscription(const std::vector<std::string>& public_ids,
   _impis(impis),
   _xml(xml),
   _reg_state(reg_state),
+  _charging_addrs(charging_addrs),
   _timestamp(timestamp),
   _ttl(ttl)
 {}
@@ -163,6 +171,38 @@ bool Cache::PutIMSSubscription::perform(CassandraStore::ClientInterface* client,
        row++)
   {
     to_put.push_back(CassandraStore::RowColumns(IMPU, *row, columns));
+  }
+
+  if (_charging_addrs.ccfs.empty())
+  {
+    columns[PRIMARY_CCF_COLUMN_NAME] = "";
+    columns[SECONDARY_CCF_COLUMN_NAME] = "";
+  }
+  else if (_charging_addrs.ccfs.size() == 1)
+  {
+    columns[PRIMARY_CCF_COLUMN_NAME] = _charging_addrs.ccfs[0];
+    columns[SECONDARY_CCF_COLUMN_NAME] = "";
+  }
+  else
+  {
+    columns[PRIMARY_CCF_COLUMN_NAME] = _charging_addrs.ccfs[0];
+    columns[SECONDARY_CCF_COLUMN_NAME] = _charging_addrs.ccfs[1];
+  }
+
+  if (_charging_addrs.ecfs.empty())
+  {
+    columns[PRIMARY_ECF_COLUMN_NAME] = "";
+    columns[SECONDARY_ECF_COLUMN_NAME] = "";
+  }
+  else if (_charging_addrs.ecfs.size() == 1)
+  {
+    columns[PRIMARY_ECF_COLUMN_NAME] = _charging_addrs.ecfs[0];
+    columns[SECONDARY_ECF_COLUMN_NAME] = "";
+  }
+  else
+  {
+    columns[PRIMARY_ECF_COLUMN_NAME] = _charging_addrs.ecfs[0];
+    columns[SECONDARY_ECF_COLUMN_NAME] = _charging_addrs.ecfs[1];
   }
 
   put_columns(client, to_put, _timestamp, _ttl);
@@ -300,7 +340,8 @@ GetIMSSubscription(const std::string& public_id) :
   _reg_state(RegistrationState::NOT_REGISTERED),
   _xml_ttl(0),
   _reg_state_ttl(0),
-  _impis()
+  _impis(),
+  _charging_addrs()
 {}
 
 
@@ -370,6 +411,30 @@ bool Cache::GetIMSSubscription::perform(CassandraStore::ClientInterface* client,
         std::string impi = it->column.name.substr(IMPI_COLUMN_PREFIX.length());
         _impis.push_back(impi);
       }
+      else if ((it->column.name == PRIMARY_CCF_COLUMN_NAME) && (it->column.value != ""))
+      {
+        _charging_addrs.ccfs.push_front(it->column.value);
+        LOG_DEBUG("Retrived primary_ccf column with value %s",
+                  it->column.value.c_str());
+      }
+      else if ((it->column.name == SECONDARY_CCF_COLUMN_NAME) && (it->column.value != ""))
+      {
+        _charging_addrs.ccfs.push_back(it->column.value);
+        LOG_DEBUG("Retrived secondary_ccf column with value %s",
+                  it->column.value.c_str());
+      }
+      else if ((it->column.name == PRIMARY_ECF_COLUMN_NAME) && (it->column.value != ""))
+      {
+        _charging_addrs.ecfs.push_front(it->column.value);
+        LOG_DEBUG("Retrived primary_ecf column with value %s",
+                  it->column.value.c_str());
+      }
+      else if ((it->column.name == SECONDARY_ECF_COLUMN_NAME) && (it->column.value != ""))
+      {
+        _charging_addrs.ecfs.push_back(it->column.value);
+        LOG_DEBUG("Retrived secondary_ecf column with value %s",
+                  it->column.value.c_str());
+      }
     }
 
     // If we're storing user data for this subscriber (i.e. there is
@@ -405,6 +470,19 @@ void Cache::GetIMSSubscription::get_associated_impis(std::vector<std::string>& a
 }
 
 
+void Cache::GetIMSSubscription::get_registration_state(RegistrationState& reg_state, int32_t& ttl)
+{
+  reg_state = _reg_state;
+  ttl = _reg_state_ttl;
+}
+
+
+void Cache::GetIMSSubscription::get_charging_addrs(ChargingAddresses& charging_addrs)
+{
+  charging_addrs = _charging_addrs;
+}
+
+
 void Cache::GetIMSSubscription::get_result(std::pair<RegistrationState, std::string>& result)
 {
   RegistrationState state;
@@ -418,6 +496,7 @@ void Cache::GetIMSSubscription::get_result(std::pair<RegistrationState, std::str
   result.second = xml;
 }
 
+
 void Cache::GetIMSSubscription::get_result(Cache::GetIMSSubscription::Result& result)
 {
   int32_t unused_ttl;
@@ -425,14 +504,9 @@ void Cache::GetIMSSubscription::get_result(Cache::GetIMSSubscription::Result& re
   get_registration_state(result.state, unused_ttl);
   get_xml(result.xml, unused_ttl);
   get_associated_impis(result.impis);
+  get_charging_addrs(result.charging_addrs);
 }
 
-
-void Cache::GetIMSSubscription::get_registration_state(RegistrationState& reg_state, int32_t& ttl)
-{
-  reg_state = _reg_state;
-  ttl = _reg_state_ttl;
-}
 
 //
 // GetAssociatedPublicIDs methods
