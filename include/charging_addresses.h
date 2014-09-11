@@ -51,6 +51,9 @@ public:
   /// (normally the HSS).
   std::deque<std::string> ccfs;
   std::deque<std::string> ecfs;
+
+  /// Helper function to determine whether we have any charging addresses.
+  inline bool empty() const { return (ccfs.empty()) && (ecfs.empty()); }
 };
 
 #endif

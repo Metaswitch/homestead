@@ -649,7 +649,7 @@ ServerAssignmentAnswer::ServerAssignmentAnswer(const Dictionary* dict,
   // testing our handlers code, which is currently all it is used for.
   add(Diameter::AVP(dict->RESULT_CODE).val_i32(result_code));
   add(Diameter::AVP(dict->USER_DATA).val_str(ims_subscription));
-  if ((!charging_addrs.ccfs.empty()) && (!charging_addrs.ecfs.empty()))
+  if (!charging_addrs.empty())
   {
     Diameter::AVP charging_information(dict->CHARGING_INFORMATION);
     if (!charging_addrs.ccfs.empty())
@@ -866,7 +866,7 @@ PushProfileRequest::PushProfileRequest(const Dictionary* dict,
   LOG_DEBUG("Building Push-Profile request");
   add(Diameter::AVP(dict->USER_DATA).val_str(ims_subscription));
   add(Diameter::AVP(dict->AUTH_SESSION_STATE).val_i32(auth_session_state));
-  if ((!charging_addrs.ccfs.empty()) && (!charging_addrs.ecfs.empty()))
+  if (!charging_addrs.empty())
   {
     Diameter::AVP charging_information(dict->CHARGING_INFORMATION);
     if (!charging_addrs.ccfs.empty())
