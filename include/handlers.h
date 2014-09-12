@@ -439,8 +439,10 @@ public:
   {}
   virtual ~ImpuRegDataTask() {};
   virtual void run();
-  void on_get_ims_subscription_success(CassandraStore::Operation* op);
-  void on_get_ims_subscription_failure(CassandraStore::Operation* op, CassandraStore::ResultCode error, std::string& text);
+  void on_get_reg_data_success(CassandraStore::Operation* op);
+  void on_get_reg_data_failure(CassandraStore::Operation* op,
+                               CassandraStore::ResultCode error,
+                               std::string& text);
   void send_server_assignment_request(Cx::ServerAssignmentType type);
   void on_sar_response(Diameter::Message& rsp);
 
@@ -581,10 +583,10 @@ private:
   const Config* _cfg;
   Cx::PushProfileRequest _ppr;
 
-  void update_ims_subscription_success(CassandraStore::Operation* op);
-  void update_ims_subscription_failure(CassandraStore::Operation* op,
-                                       CassandraStore::ResultCode error,
-                                       std::string& text);
+  void update_reg_data_success(CassandraStore::Operation* op);
+  void update_reg_data_failure(CassandraStore::Operation* op,
+                               CassandraStore::ResultCode error,
+                               std::string& text);
   void send_ppa(const std::string result_code);
 };
 #endif
