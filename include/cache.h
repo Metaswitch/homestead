@@ -70,17 +70,21 @@ public:
   class PutRegData : public CassandraStore::Operation
   {
   public:
-    /// Constructor that sets the IMS subscription XML for a *single* public ID.
+    /// Constructor that sets the registration data for a *single* public ID.
     ///
     /// @param public_id the public ID
+    /// @param update_xml Whether the subscription XML needs updating.
     /// @param xml the subscription XML
     /// @param reg_state The new registration state
     /// @param impis A set of private IDs to associate with this public ID
+    /// @param update_charging_addrs Whether the charging addresses need updating.
     /// @param charging_addrs The charging addresses for this public ID
     PutRegData(const std::string& public_id,
+               const bool update_xml,
                const std::string& xml,
                const RegistrationState reg_state,
                const std::vector<std::string>& impis,
+               const bool update_charging_addrs,
                const ChargingAddresses& charging_addrs,
                const int64_t timestamp,
                const int32_t ttl = 0);
@@ -89,14 +93,18 @@ public:
     /// IDs.
     ///
     /// @param public_ids a vector of public IDs to set the XML for
+    /// @param update_xml Whether the subscription XML needs updating.
     /// @param xml the subscription XML
     /// @param reg_state The new registration state
     /// @param impis A set of private IDs to associate with these public IDs
+    /// @param update_charging_addrs Whether the charging addresses need updating.
     /// @param charging_addrs The charging addresses for these public IDs
     PutRegData(const std::vector<std::string>& public_ids,
+               const bool update_xml,
                const std::string& xml,
                const RegistrationState reg_state,
                const std::vector<std::string>& impis,
+               const bool update_charging_addrs,
                const ChargingAddresses& charging_addrs,
                const int64_t timestamp,
                const int32_t ttl = 0);
@@ -106,8 +114,10 @@ public:
   protected:
     std::vector<std::string> _public_ids;
     std::vector<std::string> _impis;
+    bool _update_xml;
     std::string _xml;
     RegistrationState _reg_state;
+    bool _update_charging_addrs;
     ChargingAddresses _charging_addrs;
     int64_t _timestamp;
     int32_t _ttl;
@@ -123,7 +133,15 @@ public:
                                         const int64_t timestamp,
                                         const int32_t ttl = 0)
   {
-    return new PutRegData(public_id, xml, reg_state, impis, charging_addrs, timestamp, ttl);
+    return new PutRegData(public_id,
+                          true,
+                          xml,
+                          reg_state,
+                          impis,
+                          true,
+                          charging_addrs,
+                          timestamp,
+                          ttl);
   }
 
   virtual PutRegData* create_PutRegData(const std::vector<std::string>& public_ids,
@@ -134,7 +152,15 @@ public:
                                         const int64_t timestamp,
                                         const int32_t ttl = 0)
   {
-    return new PutRegData(public_ids, xml, reg_state, impis, charging_addrs, timestamp, ttl);
+    return new PutRegData(public_ids,
+                          true,
+                          xml,
+                          reg_state,
+                          impis,
+                          true,
+                          charging_addrs,
+                          timestamp,
+                          ttl);
   }
 
   virtual PutRegData* create_PutRegData(const std::vector<std::string>& public_ids,
@@ -145,7 +171,15 @@ public:
                                         const int32_t ttl = 0)
   {
     std::vector<std::string> no_impis;
-    return new PutRegData(public_ids, xml, reg_state, no_impis, charging_addrs, timestamp, ttl);
+    return new PutRegData(public_ids,
+                          true,
+                          xml,
+                          reg_state,
+                          no_impis,
+                          true,
+                          charging_addrs,
+                          timestamp,
+                          ttl);
   }
 
   virtual PutRegData* create_PutRegData(const std::string& public_id,
@@ -156,7 +190,38 @@ public:
                                         const int32_t ttl = 0)
   {
     std::vector<std::string> no_impis;
-    return new PutRegData(public_id, xml, reg_state, no_impis, charging_addrs, timestamp, ttl);
+    return new PutRegData(public_id,
+                          true,
+                          xml,
+                          reg_state,
+                          no_impis,
+                          true,
+                          charging_addrs,
+                          timestamp,
+                          ttl);
+  }
+
+  /// This create method is used by PPRs since not all the registration data
+  /// may need to be updated.
+  virtual PutRegData* create_PutRegData(const std::vector<std::string>& public_ids,
+                                        const bool update_xml,
+                                        const std::string& xml,
+                                        const RegistrationState reg_state,
+                                        const bool update_charging_addrs,
+                                        const ChargingAddresses& charging_addrs,
+                                        const int64_t timestamp,
+                                        const int32_t ttl = 0)
+  {
+    std::vector<std::string> no_impis;
+    return new PutRegData(public_ids,
+                          update_xml,
+                          xml,
+                          reg_state,
+                          no_impis,
+                          update_charging_addrs,
+                          charging_addrs,
+                          timestamp,
+                          ttl);
   }
 
   class PutAssociatedPrivateID : public CassandraStore::Operation
