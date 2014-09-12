@@ -908,6 +908,7 @@ void ImpuRegDataTask::on_get_ims_subscription_success(CassandraStore::Operation*
   get_ims_sub->get_xml(_xml, ttl);
   get_ims_sub->get_registration_state(old_state, ttl);
   get_ims_sub->get_associated_impis(associated_impis);
+  get_ims_sub->get_charging_addrs(_charging_addrs);
   bool new_binding = false;
   LOG_DEBUG("TTL for this database record is %d, IMS Subscription XML is %s, and registration state is %s",
             ttl,
@@ -1175,7 +1176,9 @@ void ImpuRegDataTask::on_get_ims_subscription_success(CassandraStore::Operation*
 void ImpuRegDataTask::send_reply()
 {
   LOG_DEBUG("Building 200 OK response to send (body was %s)", _req.body().c_str());
-  _req.add_content(XmlUtils::build_ClearwaterRegData_xml(_new_state, _xml));
+  _req.add_content(XmlUtils::build_ClearwaterRegData_xml(_new_state,
+                                                         _xml,
+                                                         _charging_addrs));
   send_http_reply(200);
 }
 

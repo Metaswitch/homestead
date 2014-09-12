@@ -474,6 +474,7 @@ protected:
   RequestType _type;
   std::string _xml;
   RegistrationState _new_state;
+  ChargingAddresses _charging_addrs;
 };
 
 class ImpuIMSSubscriptionTask : public ImpuRegDataTask
