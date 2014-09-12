@@ -55,7 +55,7 @@ const static std::string REG_STATE_COLUMN_NAME = "is_registered";
 const static std::string PRIMARY_CCF_COLUMN_NAME = "primary_ccf";
 const static std::string SECONDARY_CCF_COLUMN_NAME = "secondary_ccf";
 const static std::string PRIMARY_ECF_COLUMN_NAME = "primary_ecf";
-const static std::string SECONDARY_ECF_COLUMN_NAME = "secondary_ccf";
+const static std::string SECONDARY_ECF_COLUMN_NAME = "secondary_ecf";
 const static std::string IMPI_COLUMN_PREFIX = "associated_impi__";
 const static std::string IMPI_MAPPING_PREFIX = "associated_primary_impu__";
 
@@ -177,13 +177,6 @@ bool Cache::PutRegData::perform(CassandraStore::ClientInterface* client,
     to_put.push_back(CassandraStore::RowColumns(IMPI_MAPPING, *impi, impi_columns));
   }
 
-  for (std::vector<std::string>::iterator row = _public_ids.begin();
-       row != _public_ids.end();
-       row++)
-  {
-    to_put.push_back(CassandraStore::RowColumns(IMPU, *row, columns));
-  }
-
   if (_update_charging_addrs)
   {
     if (_charging_addrs.ccfs.empty())
@@ -217,6 +210,13 @@ bool Cache::PutRegData::perform(CassandraStore::ClientInterface* client,
       columns[PRIMARY_ECF_COLUMN_NAME] = _charging_addrs.ecfs[0];
       columns[SECONDARY_ECF_COLUMN_NAME] = _charging_addrs.ecfs[1];
     }
+  }
+
+  for (std::vector<std::string>::iterator row = _public_ids.begin();
+       row != _public_ids.end();
+       row++)
+  {
+    to_put.push_back(CassandraStore::RowColumns(IMPU, *row, columns));
   }
 
   put_columns(client, to_put, _timestamp, _ttl);
