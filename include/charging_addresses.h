@@ -54,6 +54,38 @@ public:
 
   /// Helper function to determine whether we have any charging addresses.
   inline bool empty() const { return (ccfs.empty()) && (ecfs.empty()); }
+
+  /// Convert the charging functions into a string to display in logs
+  std::string log_string()
+  {
+    std::string log_str;
+
+    if (!ccfs.empty())
+    {
+      log_str.append("Primary CCF: ").append(ccfs[0]);
+
+      if (ccfs.size() > 1)
+      {
+        log_str.append(", Secondary CCF: ").append(ccfs[1]);
+      }
+    }
+    if (!ecfs.empty())
+    {
+      if (!ccfs.empty())
+      {
+        log_str.append(", ");
+      }
+
+      log_str.append("Primary ECF: ").append(ecfs[0]);
+
+      if (ecfs.size() > 1)
+      {
+        log_str.append(", Secondary ECF: ").append(ecfs[1]);
+      }
+    }
+
+    return log_str;
+  }
 };
 
 #endif
