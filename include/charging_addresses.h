@@ -45,6 +45,14 @@
 class ChargingAddresses
 {
 public:
+  /// Default constructor.
+  inline ChargingAddresses() : ccfs(), ecfs() {}
+
+  /// Constructor which takes CCFs and ECFs.
+  inline ChargingAddresses(std::deque<std::string> ccfs,
+                           std::deque<std::string> ecfs) : ccfs(ccfs), ecfs(ecfs) {}
+
+
   /// Double ended queues of collect charging function addresses and event
   /// charging function addresses. These are stored in priority order, and
   /// they are stored in the format given by the provisioning server
