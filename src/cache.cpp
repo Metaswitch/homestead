@@ -83,17 +83,17 @@ Cache::~Cache() {}
 
 
 //
-// PutIMSSubscription methods.
+// PutRegData methods.
 //
 
-Cache::PutIMSSubscription::
-PutIMSSubscription(const std::string& public_id,
-                   const std::string& xml,
-                   const RegistrationState reg_state,
-                   const std::vector<std::string>& impis,
-                   const ChargingAddresses& charging_addrs,
-                   const int64_t timestamp,
-                   const int32_t ttl):
+Cache::PutRegData::
+PutRegData(const std::string& public_id,
+           const std::string& xml,
+           const RegistrationState reg_state,
+           const std::vector<std::string>& impis,
+           const ChargingAddresses& charging_addrs,
+           const int64_t timestamp,
+           const int32_t ttl):
   CassandraStore::Operation(),
   _public_ids(1, public_id),
   _impis(impis),
@@ -104,14 +104,14 @@ PutIMSSubscription(const std::string& public_id,
   _ttl(ttl)
 {}
 
-Cache::PutIMSSubscription::
-PutIMSSubscription(const std::vector<std::string>& public_ids,
-                   const std::string& xml,
-                   const RegistrationState reg_state,
-                   const std::vector<std::string>& impis,
-                   const ChargingAddresses& charging_addrs,
-                   const int64_t timestamp,
-                   const int32_t ttl):
+Cache::PutRegData::
+PutRegData(const std::vector<std::string>& public_ids,
+           const std::string& xml,
+           const RegistrationState reg_state,
+           const std::vector<std::string>& impis,
+           const ChargingAddresses& charging_addrs,
+           const int64_t timestamp,
+           const int32_t ttl):
   CassandraStore::Operation(),
   _public_ids(public_ids),
   _impis(impis),
@@ -123,13 +123,13 @@ PutIMSSubscription(const std::vector<std::string>& public_ids,
 {}
 
 
-Cache::PutIMSSubscription::
-~PutIMSSubscription()
+Cache::PutRegData::
+~PutRegData()
 {}
 
 
-bool Cache::PutIMSSubscription::perform(CassandraStore::ClientInterface* client,
-                                        SAS::TrailId trail)
+bool Cache::PutRegData::perform(CassandraStore::ClientInterface* client,
+                                SAS::TrailId trail)
 {
   std::vector<CassandraStore::RowColumns> to_put;
   std::map<std::string, std::string> columns;
@@ -329,11 +329,11 @@ bool Cache::PutAuthVector::perform(CassandraStore::ClientInterface* client,
 
 
 //
-// GetIMSSubscription methods
+// GetRegData methods
 //
 
-Cache::GetIMSSubscription::
-GetIMSSubscription(const std::string& public_id) :
+Cache::GetRegData::
+GetRegData(const std::string& public_id) :
   CassandraStore::Operation(),
   _public_id(public_id),
   _xml(),
@@ -345,13 +345,13 @@ GetIMSSubscription(const std::string& public_id) :
 {}
 
 
-Cache::GetIMSSubscription::
-~GetIMSSubscription()
+Cache::GetRegData::
+~GetRegData()
 {}
 
 
-bool Cache::GetIMSSubscription::perform(CassandraStore::ClientInterface* client,
-                                        SAS::TrailId trail)
+bool Cache::GetRegData::perform(CassandraStore::ClientInterface* client,
+                                SAS::TrailId trail)
 {
   int64_t now = generate_timestamp();
   LOG_DEBUG("Issuing get for key %s", _public_id.c_str());
@@ -458,32 +458,32 @@ bool Cache::GetIMSSubscription::perform(CassandraStore::ClientInterface* client,
   return true;
 }
 
-void Cache::GetIMSSubscription::get_xml(std::string& xml, int32_t& ttl)
+void Cache::GetRegData::get_xml(std::string& xml, int32_t& ttl)
 {
   xml = _xml;
   ttl = _xml_ttl;
 }
 
-void Cache::GetIMSSubscription::get_associated_impis(std::vector<std::string>& associated_impis)
+void Cache::GetRegData::get_associated_impis(std::vector<std::string>& associated_impis)
 {
   associated_impis = _impis;
 }
 
 
-void Cache::GetIMSSubscription::get_registration_state(RegistrationState& reg_state, int32_t& ttl)
+void Cache::GetRegData::get_registration_state(RegistrationState& reg_state, int32_t& ttl)
 {
   reg_state = _reg_state;
   ttl = _reg_state_ttl;
 }
 
 
-void Cache::GetIMSSubscription::get_charging_addrs(ChargingAddresses& charging_addrs)
+void Cache::GetRegData::get_charging_addrs(ChargingAddresses& charging_addrs)
 {
   charging_addrs = _charging_addrs;
 }
 
 
-void Cache::GetIMSSubscription::get_result(std::pair<RegistrationState, std::string>& result)
+void Cache::GetRegData::get_result(std::pair<RegistrationState, std::string>& result)
 {
   RegistrationState state;
   int32_t reg_ttl;
@@ -497,7 +497,7 @@ void Cache::GetIMSSubscription::get_result(std::pair<RegistrationState, std::str
 }
 
 
-void Cache::GetIMSSubscription::get_result(Cache::GetIMSSubscription::Result& result)
+void Cache::GetRegData::get_result(Cache::GetRegData::Result& result)
 {
   int32_t unused_ttl;
 

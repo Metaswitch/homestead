@@ -66,8 +66,8 @@ public:
   // Operations
   //
 
-  /// @class PutIMSSubscription write the IMS subscription XML for a public ID.
-  class PutIMSSubscription : public CassandraStore::Operation
+  /// @class PutRegData write the IMS subscription XML for a public ID.
+  class PutRegData : public CassandraStore::Operation
   {
   public:
     /// Constructor that sets the IMS subscription XML for a *single* public ID.
@@ -77,13 +77,13 @@ public:
     /// @param reg_state The new registration state
     /// @param impis A set of private IDs to associate with this public ID
     /// @param charging_addrs The charging addresses for this public ID
-    PutIMSSubscription(const std::string& public_id,
-                       const std::string& xml,
-                       const RegistrationState reg_state,
-                       const std::vector<std::string>& impis,
-                       const ChargingAddresses& charging_addrs,
-                       const int64_t timestamp,
-                       const int32_t ttl = 0);
+    PutRegData(const std::string& public_id,
+               const std::string& xml,
+               const RegistrationState reg_state,
+               const std::vector<std::string>& impis,
+               const ChargingAddresses& charging_addrs,
+               const int64_t timestamp,
+               const int32_t ttl = 0);
 
     /// Constructor that sets the same IMS subscription XML for multiple public
     /// IDs.
@@ -93,15 +93,15 @@ public:
     /// @param reg_state The new registration state
     /// @param impis A set of private IDs to associate with these public IDs
     /// @param charging_addrs The charging addresses for these public IDs
-    PutIMSSubscription(const std::vector<std::string>& public_ids,
-                       const std::string& xml,
-                       const RegistrationState reg_state,
-                       const std::vector<std::string>& impis,
-                       const ChargingAddresses& charging_addrs,
-                       const int64_t timestamp,
-                       const int32_t ttl = 0);
+    PutRegData(const std::vector<std::string>& public_ids,
+               const std::string& xml,
+               const RegistrationState reg_state,
+               const std::vector<std::string>& impis,
+               const ChargingAddresses& charging_addrs,
+               const int64_t timestamp,
+               const int32_t ttl = 0);
 
-    virtual ~PutIMSSubscription();
+    virtual ~PutRegData();
 
   protected:
     std::vector<std::string> _public_ids;
@@ -115,48 +115,48 @@ public:
     bool perform(CassandraStore::ClientInterface* client, SAS::TrailId trail);
   };
 
-  virtual PutIMSSubscription* create_PutIMSSubscription(const std::string& public_id,
-                                                        const std::string& xml,
-                                                        const RegistrationState reg_state,
-                                                        const std::vector<std::string>& impis,
-                                                        const ChargingAddresses& charging_addrs,
-                                                        const int64_t timestamp,
-                                                        const int32_t ttl = 0)
+  virtual PutRegData* create_PutRegData(const std::string& public_id,
+                                        const std::string& xml,
+                                        const RegistrationState reg_state,
+                                        const std::vector<std::string>& impis,
+                                        const ChargingAddresses& charging_addrs,
+                                        const int64_t timestamp,
+                                        const int32_t ttl = 0)
   {
-    return new PutIMSSubscription(public_id, xml, reg_state, impis, charging_addrs, timestamp, ttl);
+    return new PutRegData(public_id, xml, reg_state, impis, charging_addrs, timestamp, ttl);
   }
 
-  virtual PutIMSSubscription* create_PutIMSSubscription(const std::vector<std::string>& public_ids,
-                                                        const std::string& xml,
-                                                        const RegistrationState reg_state,
-                                                        const std::vector<std::string>& impis,
-                                                        const ChargingAddresses& charging_addrs,
-                                                        const int64_t timestamp,
-                                                        const int32_t ttl = 0)
+  virtual PutRegData* create_PutRegData(const std::vector<std::string>& public_ids,
+                                        const std::string& xml,
+                                        const RegistrationState reg_state,
+                                        const std::vector<std::string>& impis,
+                                        const ChargingAddresses& charging_addrs,
+                                        const int64_t timestamp,
+                                        const int32_t ttl = 0)
   {
-    return new PutIMSSubscription(public_ids, xml, reg_state, impis, charging_addrs, timestamp, ttl);
+    return new PutRegData(public_ids, xml, reg_state, impis, charging_addrs, timestamp, ttl);
   }
 
-  virtual PutIMSSubscription* create_PutIMSSubscription(const std::vector<std::string>& public_ids,
-                                                        const std::string& xml,
-                                                        const RegistrationState reg_state,
-                                                        const ChargingAddresses& charging_addrs,
-                                                        const int64_t timestamp,
-                                                        const int32_t ttl = 0)
+  virtual PutRegData* create_PutRegData(const std::vector<std::string>& public_ids,
+                                        const std::string& xml,
+                                        const RegistrationState reg_state,
+                                        const ChargingAddresses& charging_addrs,
+                                        const int64_t timestamp,
+                                        const int32_t ttl = 0)
   {
     std::vector<std::string> no_impis;
-    return new PutIMSSubscription(public_ids, xml, reg_state, no_impis, charging_addrs, timestamp, ttl);
+    return new PutRegData(public_ids, xml, reg_state, no_impis, charging_addrs, timestamp, ttl);
   }
 
-  virtual PutIMSSubscription* create_PutIMSSubscription(const std::string& public_id,
-                                                        const std::string& xml,
-                                                        const RegistrationState reg_state,
-                                                        const ChargingAddresses& charging_addrs,
-                                                        const int64_t timestamp,
-                                                        const int32_t ttl = 0)
+  virtual PutRegData* create_PutRegData(const std::string& public_id,
+                                        const std::string& xml,
+                                        const RegistrationState reg_state,
+                                        const ChargingAddresses& charging_addrs,
+                                        const int64_t timestamp,
+                                        const int32_t ttl = 0)
   {
     std::vector<std::string> no_impis;
-    return new PutIMSSubscription(public_id, xml, reg_state, no_impis, charging_addrs, timestamp, ttl);
+    return new PutRegData(public_id, xml, reg_state, no_impis, charging_addrs, timestamp, ttl);
   }
 
   class PutAssociatedPrivateID : public CassandraStore::Operation
@@ -253,14 +253,14 @@ public:
     return new PutAuthVector(private_id, auth_vector, timestamp, ttl);
   }
 
-  class GetIMSSubscription : public CassandraStore::Operation
+  class GetRegData : public CassandraStore::Operation
   {
   public:
     /// Get the IMS subscription XML for a public identity.
     ///
     /// @param public_id the public identity.
-    GetIMSSubscription(const std::string& public_id);
-    virtual ~GetIMSSubscription();
+    GetRegData(const std::string& public_id);
+    virtual ~GetRegData();
     virtual void get_result(std::pair<RegistrationState, std::string>& result);
 
     /// Access the result of the request.
@@ -309,9 +309,9 @@ public:
     bool perform(CassandraStore::ClientInterface* client, SAS::TrailId trail);
   };
 
-  virtual GetIMSSubscription* create_GetIMSSubscription(const std::string& public_id)
+  virtual GetRegData* create_GetRegData(const std::string& public_id)
   {
-    return new GetIMSSubscription(public_id);
+    return new GetRegData(public_id);
   }
 
   /// Get all the public IDs that are associated with one or more
