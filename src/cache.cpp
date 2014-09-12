@@ -88,17 +88,21 @@ Cache::~Cache() {}
 
 Cache::PutRegData::
 PutRegData(const std::string& public_id,
+           const bool update_xml,
            const std::string& xml,
            const RegistrationState reg_state,
            const std::vector<std::string>& impis,
+           const bool update_charging_addrs,
            const ChargingAddresses& charging_addrs,
            const int64_t timestamp,
            const int32_t ttl):
   CassandraStore::Operation(),
   _public_ids(1, public_id),
   _impis(impis),
+  _update_xml(update_xml),
   _xml(xml),
   _reg_state(reg_state),
+  _update_charging_addrs(update_charging_addrs),
   _charging_addrs(charging_addrs),
   _timestamp(timestamp),
   _ttl(ttl)
@@ -106,17 +110,21 @@ PutRegData(const std::string& public_id,
 
 Cache::PutRegData::
 PutRegData(const std::vector<std::string>& public_ids,
+           const bool update_xml,
            const std::string& xml,
            const RegistrationState reg_state,
            const std::vector<std::string>& impis,
+           const bool update_charging_addrs,
            const ChargingAddresses& charging_addrs,
            const int64_t timestamp,
            const int32_t ttl):
   CassandraStore::Operation(),
   _public_ids(public_ids),
   _impis(impis),
+  _update_xml(update_xml),
   _xml(xml),
   _reg_state(reg_state),
+  _update_charging_addrs(update_charging_addrs),
   _charging_addrs(charging_addrs),
   _timestamp(timestamp),
   _ttl(ttl)
@@ -133,7 +141,10 @@ bool Cache::PutRegData::perform(CassandraStore::ClientInterface* client,
 {
   std::vector<CassandraStore::RowColumns> to_put;
   std::map<std::string, std::string> columns;
-  columns[IMS_SUB_XML_COLUMN_NAME] = _xml;
+  if (_update_xml)
+  {
+    columns[IMS_SUB_XML_COLUMN_NAME] = _xml;
+  }
 
   if (_reg_state == RegistrationState::REGISTERED)
   {
@@ -173,36 +184,39 @@ bool Cache::PutRegData::perform(CassandraStore::ClientInterface* client,
     to_put.push_back(CassandraStore::RowColumns(IMPU, *row, columns));
   }
 
-  if (_charging_addrs.ccfs.empty())
+  if (_update_charging_addrs)
   {
-    columns[PRIMARY_CCF_COLUMN_NAME] = "";
-    columns[SECONDARY_CCF_COLUMN_NAME] = "";
-  }
-  else if (_charging_addrs.ccfs.size() == 1)
-  {
-    columns[PRIMARY_CCF_COLUMN_NAME] = _charging_addrs.ccfs[0];
-    columns[SECONDARY_CCF_COLUMN_NAME] = "";
-  }
-  else
-  {
-    columns[PRIMARY_CCF_COLUMN_NAME] = _charging_addrs.ccfs[0];
-    columns[SECONDARY_CCF_COLUMN_NAME] = _charging_addrs.ccfs[1];
-  }
+    if (_charging_addrs.ccfs.empty())
+    {
+      columns[PRIMARY_CCF_COLUMN_NAME] = "";
+      columns[SECONDARY_CCF_COLUMN_NAME] = "";
+    }
+    else if (_charging_addrs.ccfs.size() == 1)
+    {
+      columns[PRIMARY_CCF_COLUMN_NAME] = _charging_addrs.ccfs[0];
+      columns[SECONDARY_CCF_COLUMN_NAME] = "";
+    }
+    else
+    {
+      columns[PRIMARY_CCF_COLUMN_NAME] = _charging_addrs.ccfs[0];
+      columns[SECONDARY_CCF_COLUMN_NAME] = _charging_addrs.ccfs[1];
+    }
 
-  if (_charging_addrs.ecfs.empty())
-  {
-    columns[PRIMARY_ECF_COLUMN_NAME] = "";
-    columns[SECONDARY_ECF_COLUMN_NAME] = "";
-  }
-  else if (_charging_addrs.ecfs.size() == 1)
-  {
-    columns[PRIMARY_ECF_COLUMN_NAME] = _charging_addrs.ecfs[0];
-    columns[SECONDARY_ECF_COLUMN_NAME] = "";
-  }
-  else
-  {
-    columns[PRIMARY_ECF_COLUMN_NAME] = _charging_addrs.ecfs[0];
-    columns[SECONDARY_ECF_COLUMN_NAME] = _charging_addrs.ecfs[1];
+    if (_charging_addrs.ecfs.empty())
+    {
+      columns[PRIMARY_ECF_COLUMN_NAME] = "";
+      columns[SECONDARY_ECF_COLUMN_NAME] = "";
+    }
+    else if (_charging_addrs.ecfs.size() == 1)
+    {
+      columns[PRIMARY_ECF_COLUMN_NAME] = _charging_addrs.ecfs[0];
+      columns[SECONDARY_ECF_COLUMN_NAME] = "";
+    }
+    else
+    {
+      columns[PRIMARY_ECF_COLUMN_NAME] = _charging_addrs.ecfs[0];
+      columns[SECONDARY_ECF_COLUMN_NAME] = _charging_addrs.ecfs[1];
+    }
   }
 
   put_columns(client, to_put, _timestamp, _ttl);

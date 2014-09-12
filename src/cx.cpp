@@ -901,10 +901,13 @@ PushProfileRequest::PushProfileRequest(const Dictionary* dict,
 // otherwise.
 bool PushProfileRequest::charging_addrs(ChargingAddresses& charging_addrs) const
 {
+  bool found_charging_info = false;
 
   Diameter::AVP::iterator avps = begin(((Cx::Dictionary*)dict())->CHARGING_INFORMATION);
   if (avps != end())
   {
+    found_charging_info = true;
+
     Diameter::AVP::iterator avps2 =
       avps->begin(((Cx::Dictionary*)dict())->PRIMARY_CHARGING_COLLECTION_FUNCTION_NAME);
     if (avps2 != avps->end())
@@ -933,9 +936,8 @@ bool PushProfileRequest::charging_addrs(ChargingAddresses& charging_addrs) const
       charging_addrs.ecfs.push_back(avps2->val_str());
       LOG_DEBUG("Found Secondary-Event-Charging-Function-Name %s", avps2->val_str().c_str());
     }
-    return true;
   }
-  return false;
+  return found_charging_info;
 }
 
 PushProfileAnswer::PushProfileAnswer(Cx::PushProfileRequest& ppr,

@@ -44,6 +44,8 @@
 const char* CCF = "ccf";
 const char* ECF = "ecf";
 const char* PRIORITY = "priority";
+const char* PRIORITY_1 = "1";
+const char* PRIORITY_2 = "2";
 
 namespace XmlUtils
 {
