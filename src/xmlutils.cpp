@@ -41,8 +41,8 @@
 #include "rapidxml/rapidxml.hpp"
 #include "rapidxml/rapidxml_print.hpp"
 
-const char* CCF = "ccf";
-const char* ECF = "ecf";
+const char* CCF = "CCF";
+const char* ECF = "ECF";
 const char* PRIORITY = "priority";
 const char* PRIORITY_1 = "1";
 const char* PRIORITY_2 = "2";
