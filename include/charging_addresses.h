@@ -46,7 +46,7 @@ class ChargingAddresses
 {
 public:
   /// Default constructor.
-  inline ChargingAddresses() : ccfs(), ecfs() {}
+  inline ChargingAddresses() {}
 
   /// Constructor which takes CCFs and ECFs.
   inline ChargingAddresses(std::deque<std::string> ccfs,

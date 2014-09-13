@@ -43,6 +43,7 @@
 #include "gmock/gmock.h"
 
 static DigestAuthVector mock_digest_av;
+static ChargingAddresses mock_charging_addrs;
 
 class MockCache : public MockCassandraStore<Cache>
 {
@@ -57,14 +58,14 @@ public:
                PutRegData*(const std::string& public_id,
                            const std::string& xml,
                            const RegistrationState reg_state,
-                           ChargingAddresses& charging_addrs,
+                           const ChargingAddresses& charging_addrs,
                            const int64_t timestamp,
                            const int32_t ttl));
   MOCK_METHOD6(create_PutRegData,
                PutRegData*(const std::vector<std::string>& public_ids,
                            const std::string& xml,
                            const RegistrationState reg_state,
-                           ChargingAddresses& charging_addrs,
+                           const ChargingAddresses& charging_addrs,
                            const int64_t timestamp,
                            const int32_t ttl));
   MOCK_METHOD7(create_PutRegData,
@@ -72,7 +73,7 @@ public:
                            const std::string& xml,
                            const RegistrationState reg_state,
                            const std::vector<std::string>& impis,
-                           ChargingAddresses& charging_addrs,
+                           const ChargingAddresses& charging_addrs,
                            const int64_t timestamp,
                            const int32_t ttl));
   MOCK_METHOD7(create_PutRegData,
@@ -80,7 +81,7 @@ public:
                            const std::string& xml,
                            const RegistrationState reg_state,
                            const std::vector<std::string>& impis,
-                           ChargingAddresses& charging_addrs,
+                           const ChargingAddresses& charging_addrs,
                            const int64_t timestamp,
                            const int32_t ttl));
   MOCK_METHOD8(create_PutRegData,
@@ -89,7 +90,7 @@ public:
                            const std::string& xml,
                            const RegistrationState reg_state,
                            const bool update_charging_addrs,
-                           ChargingAddresses& charging_addrs,
+                           const ChargingAddresses& charging_addrs,
                            const int64_t timestamp,
                            const int32_t ttl));
   MOCK_METHOD4(create_PutAssociatedPrivateID,
@@ -176,8 +177,7 @@ public:
   //
   class MockPutRegData : public PutRegData, public MockOperationMixin
   {
-    ChargingAddresses charging_addrs;
-    MockPutRegData() : PutRegData("", true, "", RegistrationState::REGISTERED, {}, true, charging_addrs, 0, 0) {}
+    MockPutRegData() : PutRegData("", true, "", RegistrationState::REGISTERED, {}, true, mock_charging_addrs, 0, 0) {}
     virtual ~MockPutRegData() {}
   };
 
