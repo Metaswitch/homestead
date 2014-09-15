@@ -343,6 +343,7 @@ class PushProfileRequest : public Diameter::Message
 public:
   PushProfileRequest(const Dictionary* dict,
                      Diameter::Stack* stack,
+                     const std::string& impi,
                      const std::string& ims_subscription,
                      const ChargingAddresses& charging_addrs,
                      const int32_t& auth_session_state);

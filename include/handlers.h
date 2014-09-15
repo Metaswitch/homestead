@@ -583,6 +583,18 @@ private:
   const Config* _cfg;
   Cx::PushProfileRequest _ppr;
 
+  bool _ims_sub_present;
+  std::string _ims_subscription;
+  bool _charging_addrs_present;
+  ChargingAddresses _charging_addrs;
+  std::string _impi;
+  std::vector<std::string> _impus;
+
+  void on_get_impus_success(CassandraStore::Operation* op);
+  void on_get_impus_failure(CassandraStore::Operation* op,
+                            CassandraStore::ResultCode error,
+                            std::string& text);
+  void update_reg_data();
   void update_reg_data_success(CassandraStore::Operation* op);
   void update_reg_data_failure(CassandraStore::Operation* op,
                                CassandraStore::ResultCode error,

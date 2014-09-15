@@ -825,10 +825,12 @@ TEST_F(CxTest, PPTest)
   ChargingAddresses charging_addrs;
   Cx::PushProfileRequest ppr(_cx_dict,
                              _mock_stack,
+                             IMPI,
                              IMS_SUBSCRIPTION,
                              FULL_CHARGING_ADDRESSES,
                              AUTH_SESSION_STATE);
   launder_message(ppr);
+  EXPECT_EQ(IMPI, ppr.impi());
   EXPECT_TRUE(ppr.user_data(test_str));
   EXPECT_EQ(IMS_SUBSCRIPTION, test_str);
   EXPECT_TRUE(ppr.get_i32_from_avp(_cx_dict->AUTH_SESSION_STATE, test_i32));
@@ -854,6 +856,7 @@ TEST_F(CxTest, PPTestNoChargingAddresses)
   ChargingAddresses charging_addrs;
   Cx::PushProfileRequest ppr(_cx_dict,
                              _mock_stack,
+                             IMPI,
                              IMS_SUBSCRIPTION,
                              NO_CHARGING_ADDRESSES,
                              AUTH_SESSION_STATE);

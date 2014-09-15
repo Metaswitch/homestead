@@ -858,13 +858,18 @@ std::vector<std::string> RegistrationTerminationAnswer::associated_identities() 
 
 PushProfileRequest::PushProfileRequest(const Dictionary* dict,
                                        Diameter::Stack* stack,
+                                       const std::string& impi,
                                        const std::string& ims_subscription,
                                        const ChargingAddresses& charging_addrs,
                                        const int32_t& auth_session_state) :
                                        Diameter::Message(dict, dict->PUSH_PROFILE_REQUEST, stack)
 {
   LOG_DEBUG("Building Push-Profile request");
-  add(Diameter::AVP(dict->USER_DATA).val_str(ims_subscription));
+  add(Diameter::AVP(dict->USER_NAME).val_str(impi));
+  if (!ims_subscription.empty())
+  {
+    add(Diameter::AVP(dict->USER_DATA).val_str(ims_subscription));
+  }
   add(Diameter::AVP(dict->AUTH_SESSION_STATE).val_i32(auth_session_state));
   if (!charging_addrs.empty())
   {
