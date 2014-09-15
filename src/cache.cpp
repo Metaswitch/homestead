@@ -550,38 +550,39 @@ Cache::GetAssociatedPublicIDs::
 bool Cache::GetAssociatedPublicIDs::perform(CassandraStore::ClientInterface* client,
                                             SAS::TrailId trail)
 {
-  std::vector<ColumnOrSuperColumn> columns;
+  std::map<std::string, std::vector<ColumnOrSuperColumn> > columns;
   std::set<std::string> public_ids;
 
-  for (std::vector<std::string>::iterator it = _private_ids.begin();
-       it != _private_ids.end();
-       ++it)
+  LOG_DEBUG("Looking for public IDs for private ID %s and %d others",
+            _private_ids.front().c_str(),
+            _private_ids.size());
+  try
   {
-    LOG_DEBUG("Looking for public IDs for private ID %s", it->c_str());
-    try
-    {
-      ha_get_columns_with_prefix(client,
-                                 IMPI,
-                                 *it,
-                                 ASSOC_PUBLIC_ID_COLUMN_PREFIX,
-                                 columns);
-    }
-    catch(CassandraStore::RowNotFoundException& rnfe)
-    {
-      LOG_INFO("Couldn't find any public IDs for private ID %s", (*it).c_str());
-    }
+    ha_multiget_columns_with_prefix(client,
+                                    IMPI,
+                                    _private_ids,
+                                    ASSOC_PUBLIC_ID_COLUMN_PREFIX,
+                                    columns);
+  }
+  catch(CassandraStore::RowNotFoundException& rnfe)
+  {
+    LOG_INFO("Couldn't find any public IDs");
+  }
 
-    // Convert the query results from a vector of columns to a vector containing
-    // the column names. The public_id prefix has already been stripped, so this
-    // is just a list of public IDs and can be passed directly to on_success.
-    for(std::vector<ColumnOrSuperColumn>::const_iterator column_it = columns.begin();
-        column_it != columns.end();
-        ++column_it)
+  // Convert the query results from a vector of columns to a vector containing
+  // the column names. The public_id prefix has already been stripped, so this
+  // is just a list of public IDs and can be passed directly to on_success.
+  for(std::map<std::string, std::vector<ColumnOrSuperColumn> >::const_iterator key_it = columns.begin();
+      key_it != columns.end();
+      ++key_it)
+  {
+    for(std::vector<ColumnOrSuperColumn>::const_iterator column = key_it->second.begin();
+        column != key_it->second.end();
+        ++column)
     {
-      LOG_DEBUG("Found associated public ID %s", column_it->column.name.c_str());
-      public_ids.insert(column_it->column.name);
+      LOG_DEBUG("Found associated public ID %s", column->column.name.c_str());
+      public_ids.insert(column->column.name);
     }
-    columns.clear();
   }
 
   // Move the std::set of public_ids to the std::vector of _public_ids so that they

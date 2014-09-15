@@ -1115,19 +1115,23 @@ TEST_F(CacheRequestTest, GetAssocPublicIDsMainline)
   columns["public_id_gonzo"] = "";
   columns["public_id_miss piggy"] = "";
 
-  std::vector<cass::ColumnOrSuperColumn> slice;
-  make_slice(slice, columns);
+  std::vector<cass::ColumnOrSuperColumn> inner_slice;
+  make_slice(inner_slice, columns);
+  std::map<std::string, std::vector<cass::ColumnOrSuperColumn> > slice;
+  slice["kermit"] = inner_slice;
 
   ResultRecorder<Cache::GetAssociatedPublicIDs, std::vector<std::string>> rec;
   RecordingTransaction* trx = make_rec_trx(&rec);
   CassandraStore::Operation* op = _cache.create_GetAssociatedPublicIDs("kermit");
 
+  std::vector<std::string> impis = {"kermit"};
+
   EXPECT_CALL(_client,
-              get_slice(_,
-                        "kermit",
-                        ColumnPathForTable("impi"),
-                        ColumnsWithPrefix("public_id_"),
-                        _))
+              multiget_slice(_,
+                             impis,
+                             ColumnPathForTable("impi"),
+                             ColumnsWithPrefix("public_id_"),
+                             _))
     .WillOnce(SetArgReferee<0>(slice));
 
   EXPECT_CALL(*trx, on_success(_))
@@ -1147,34 +1151,30 @@ TEST_F(CacheRequestTest, GetAssocPublicIDsMainline)
 TEST_F(CacheRequestTest, GetAssocPublicIDsMultipleIDs)
 {
   std::map<std::string, std::string> columns;
+  std::map<std::string, std::string> columns2;
   columns["public_id_gonzo"] = "";
-  columns["public_id_miss piggy"] = "";
+  columns2["public_id_miss piggy"] = "";
 
-  std::vector<cass::ColumnOrSuperColumn> slice;
-  make_slice(slice, columns);
+  std::vector<cass::ColumnOrSuperColumn> inner_slice;
+  make_slice(inner_slice, columns);
+  std::map<std::string, std::vector<cass::ColumnOrSuperColumn> > slice;
+  slice["kermit"] = inner_slice;
 
-  std::vector<std::string> private_ids;
-  private_ids.push_back("kermit");
-  private_ids.push_back("miss piggy");
+  std::vector<cass::ColumnOrSuperColumn> inner_slice2;
+  make_slice(inner_slice2, columns2);
+  slice["miss_piggy"] = inner_slice2;
 
   ResultRecorder<Cache::GetAssociatedPublicIDs, std::vector<std::string>> rec;
   RecordingTransaction* trx = make_rec_trx(&rec);
-  CassandraStore::Operation* op = _cache.create_GetAssociatedPublicIDs(private_ids);
+  std::vector<std::string> impis = {"kermit", "miss piggy"};
+  CassandraStore::Operation* op = _cache.create_GetAssociatedPublicIDs(impis);
 
   EXPECT_CALL(_client,
-              get_slice(_,
-                        "kermit",
-                        ColumnPathForTable("impi"),
-                        ColumnsWithPrefix("public_id_"),
-                        _))
-    .WillOnce(SetArgReferee<0>(slice));
-
-  EXPECT_CALL(_client,
-              get_slice(_,
-              "miss piggy",
-              ColumnPathForTable("impi"),
-              ColumnsWithPrefix("public_id_"),
-              _))
+              multiget_slice(_,
+                             impis,
+                             ColumnPathForTable("impi"),
+                             ColumnsWithPrefix("public_id_"),
+                             _))
     .WillOnce(SetArgReferee<0>(slice));
 
   EXPECT_CALL(*trx, on_success(_))
@@ -1197,17 +1197,17 @@ TEST_F(CacheRequestTest, GetAssocPublicIDsNoResults)
   RecordingTransaction* trx = make_rec_trx(&rec);
   CassandraStore::Operation* op = _cache.create_GetAssociatedPublicIDs("kermit");
 
-  EXPECT_CALL(_client, get_slice(_, "kermit", _, _, _))
-    .WillOnce(SetArgReferee<0>(empty_slice));
+  std::vector<std::string> impis = {"kermit"};
+
+  EXPECT_CALL(_client, multiget_slice(_, impis, _, _, _))
+    .WillOnce(SetArgReferee<0>(empty_slice_multiget));
 
   // Expect on_success to fire, but results should be empty.
   EXPECT_CALL(*trx, on_success(_))
     .WillOnce(Invoke(trx, &RecordingTransaction::record_result));
   execute_trx(op, trx);
 
-  std::vector<std::string> expected_ids;
-
-  EXPECT_EQ(expected_ids, rec.result);
+  EXPECT_TRUE(rec.result.empty());
 }
 
 TEST_F(CacheRequestTest, GetAssociatedPrimaryPublicIDs)
