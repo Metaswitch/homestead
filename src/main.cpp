@@ -54,6 +54,8 @@
 #include "sproutconnection.h"
 #include "diameterresolver.h"
 #include "realmmanager.h"
+#include "alarm.h"
+#include "communicationmonitor.h"
 
 struct options
 {
@@ -364,6 +366,12 @@ void exception_handler(int sig)
 
 int main(int argc, char**argv)
 {
+  CommunicationMonitor hss_comm_monitor("homestead", "HOMESTEAD_HSS_COMM_ERROR_CLEAR", 
+                                                     "HOMESTEAD_HSS_COMM_ERROR_CRITICAL");
+
+  CommunicationMonitor cassandra_comm_monitor("homestead", "HOMESTEAD_CASSANDRA_COMM_ERROR_CLEAR", 
+                                                           "HOMESTEAD_CASSANDRA_COMM_ERROR_CRITICAL");
+
   // Set up our exception signal handler for asserts and segfaults.
   signal(SIGABRT, exception_handler);
   signal(SIGSEGV, exception_handler);
@@ -455,6 +463,11 @@ int main(int argc, char**argv)
             sas_write);
 
   StatisticsManager* stats_manager = new StatisticsManager();
+
+  // Start the alarm request agent
+  AlarmReqAgent::get_instance().start();
+  Alarm::clear_all("homestead");
+
   LoadMonitor* load_monitor = new LoadMonitor(100000, // Initial target latency (us).
                                               20,     // Maximum token bucket size.
                                               10.0,   // Initial token fill rate (per sec).
@@ -465,6 +478,7 @@ int main(int argc, char**argv)
   Cache* cache = Cache::get_instance();
   cache->initialize();
   cache->configure(options.cassandra, 9160, options.cache_threads);
+  cache->set_comm_monitor(&cassandra_comm_monitor);
   CassandraStore::ResultCode rc = cache->start();
 
   if (rc != CassandraStore::OK)
@@ -491,6 +505,7 @@ int main(int argc, char**argv)
   {
     diameter_stack->initialize();
     diameter_stack->configure(options.diameter_conf);
+    diameter_stack->set_comm_monitor(&hss_comm_monitor);
     dict = new Cx::Dictionary();
 
     rtr_config = new RegistrationTerminationTask::Config(cache, dict, sprout_conn, options.hss_reregistration_time);
@@ -597,6 +612,9 @@ int main(int argc, char**argv)
   LOG_STATUS("Start-up complete - wait for termination signal");
   sem_wait(&term_sem);
   LOG_STATUS("Termination signal received - terminating");
+
+  // Stop the alarm request agent
+  AlarmReqAgent::get_instance().stop();
 
   try
   {
