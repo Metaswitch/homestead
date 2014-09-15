@@ -17,12 +17,14 @@ TARGET_SOURCES := accesslogger.cpp \
                   cache.cpp \
                   cassandra_store.cpp \
                   counter.cpp \
+                  cpp_common_dcea.cpp \
                   cx.cpp \
                   diameterstack.cpp \
                   diameterresolver.cpp \
                   dnscachedresolver.cpp \
                   dnsparser.cpp \
                   handlers.cpp \
+                  homesteaddcea.cpp \
                   httpconnection.cpp \
                   httpresolver.cpp \
                   httpstack.cpp \
