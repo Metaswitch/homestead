@@ -34,10 +34,6 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
- extern "C" {
-#include "syslog_facade.h"
-}
-
 #include <getopt.h>
 #include <signal.h>
 #include <semaphore.h>
@@ -58,6 +54,7 @@
 #include "sproutconnection.h"
 #include "diameterresolver.h"
 #include "realmmanager.h"
+#include "homesteaddcea.h"
 
 struct options
 {
@@ -312,7 +309,7 @@ int init_options(int argc, char**argv, struct options& options)
         }
         else
         {
-	  syslog(SYSLOG_ERR, "Invalid --sas option, SAS disabled");
+	  CL_HOMESTEAD_INVALID_SAS_OPTION.log();
           LOG_WARNING("Invalid --sas option, SAS disabled\n");
         }
       }
@@ -330,11 +327,11 @@ int init_options(int argc, char**argv, struct options& options)
 
     case 'h':
       usage();
-      syslog(SYSLOG_NOTICE, "Help(h) option causes program to exit");
+      CL_HOMESTEAD_HELP_OPTION_EXIT.log();
       return -1;
 
     default:
-      syslog(SYSLOG_ERR, "Fatal - Unknown command line option %c.  Run with --help for options.", opt);
+      CL_HOMESTEAD_INVALID_OPTION_C.log(opt);
       fprintf(stdout, "Unknown option.  Run with --help for options.\n");
       return -1;
     }
@@ -360,7 +357,7 @@ void exception_handler(int sig)
 
   // Log the signal, along with a backtrace.
   const char* signamep = (sig >= SIGHUP and sig <= SIGSYS) ? signal_description[sig-1] : "Unknown";
-  syslog(SYSLOG_ERR, "Fatal - Homestead has exited or crashed with signal %s", signamep);
+  CL_HOMESTEAD_CRASH.log(signamep);
   closelog();
   LOG_BACKTRACE("Signal %d caught", sig);
 
@@ -408,7 +405,7 @@ int main(int argc, char**argv)
   options.diameter_timeout_ms = 200;
 
   openlog("homestead", SYSLOG_PID, SYSLOG_LOCAL6);
-  syslog(SYSLOG_NOTICE, "Homestead started");
+  CL_HOMESTEAD_STARTED.log();
   if (init_logging_options(argc, argv, options) != 0)
   {
     return 1;
@@ -482,7 +479,7 @@ int main(int argc, char**argv)
 
   if (rc != CassandraStore::OK)
   {
-    syslog(SYSLOG_ERR, "Fatal - Failed to initialize the cache for the CassandraStore - error code %d", rc);
+    CL_HOMESTEAD_CASSANDRA_CACHE_INIT_FAIL.log(rc);
     closelog();
     LOG_ERROR("Failed to initialize cache - rc %d", rc);
     exit(2);
@@ -522,7 +519,7 @@ int main(int argc, char**argv)
   }
   catch (Diameter::Stack::Exception& e)
   {
-    syslog(SYSLOG_ERR, "Fatal - Failed to initialize Diameter stack in function %s with error %d", e._func, e._rc);
+    CL_HOMESTEAD_DIAMETER_INIT_FAIL.log(e._func, e._rc);
     closelog();
     LOG_ERROR("Failed to initialize Diameter stack - function %s, rc %d", e._func, e._rc);
     exit(2);
@@ -588,7 +585,7 @@ int main(int argc, char**argv)
   }
   catch (HttpStack::Exception& e)
   {
-    syslog(SYSLOG_ERR, "Fatal - Failed to initialize HttpStack stack in function %s with error %d", e._func, e._rc);
+    CL_HOMESTEAD_HTTP_INIT_FAIL.log(e._func, e._rc);
     closelog();
     LOG_ERROR("Failed to initialize HttpStack stack - function %s, rc %d", e._func, e._rc);
     exit(2);
@@ -616,7 +613,7 @@ int main(int argc, char**argv)
   LOG_STATUS("Start-up complete - wait for termination signal");
   sem_wait(&term_sem);
   LOG_STATUS("Termination signal received - terminating");
-  syslog(SYSLOG_ERR, "Fatal - Termination signal received - terminating");
+  CL_HOMESTEAD_ENDED.log();
 
   try
   {
@@ -625,7 +622,7 @@ int main(int argc, char**argv)
   }
   catch (HttpStack::Exception& e)
   {
-    syslog(SYSLOG_ERR, "Failed to stop HttpStack stack in function %s with error %d", e._func, e._rc);
+    CL_HOMESTEAD_HTTP_STOP_FAIL.log(e._func, e._rc);
     LOG_ERROR("Failed to stop HttpStack stack - function %s, rc %d", e._func, e._rc);
   }
 
@@ -639,7 +636,7 @@ int main(int argc, char**argv)
   }
   catch (Diameter::Stack::Exception& e)
   {
-    syslog(SYSLOG_ERR, "Failed to stop Diameter stack in function %s with error  %d", e._func, e._rc);
+    CL_HOMESTEAD_DIAMETER_STOP_FAIL.log(e._func, e._rc);
     LOG_ERROR("Failed to stop Diameter stack - function %s, rc %d", e._func, e._rc);
   }
   delete dict; dict = NULL;
