@@ -4,4 +4,5 @@
 *.o
 /tags
 debian/copyright
-
+*.swp
+*~
