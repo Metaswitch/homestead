@@ -404,7 +404,7 @@ int main(int argc, char**argv)
   options.sas_system_name = "";
   options.diameter_timeout_ms = 200;
 
-  openlog("homestead", SYSLOG_PID, SYSLOG_LOCAL6);
+  openlog("homestead", PDLOG_PID, PDLOG_LOCAL6);
   CL_HOMESTEAD_STARTED.log();
   if (init_logging_options(argc, argv, options) != 0)
   {
