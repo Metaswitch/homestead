@@ -35,7 +35,7 @@
  */
 #include <string>
 #include "craft_dcea.h"
-// Chronos syslog identities
+// Homestead syslog identities
 /**********************************************************
 / log_id
 / severity
@@ -46,100 +46,100 @@
 **********************************************************/
 // Homestead syslog identities
 /*************************************************************/
-SysLog CL_HOMESTEAD_INVALID_SAS_OPTION
+PDLog CL_HOMESTEAD_INVALID_SAS_OPTION
 {
   CL_HOMESTEAD_ID + 1,
-  SYSLOG_ERR,
+  PDLOG_ERR,
   "Invalid --sas option, SAS disabled",
   "",
   "",
   ""
 };
-SysLog CL_HOMESTEAD_HELP_OPTION_EXIT
+PDLog CL_HOMESTEAD_HELP_OPTION_EXIT
 {
   CL_HOMESTEAD_ID + 2,
-  SYSLOG_ERR,
+  PDLOG_ERR,
   "Help(h) option causes program to exit",
   "",
   "",
   ""
 };
-SysLog1<char> CL_HOMESTEAD_INVALID_OPTION_C
+PDLog1<char> CL_HOMESTEAD_INVALID_OPTION_C
 {
   CL_HOMESTEAD_ID + 3,
-  SYSLOG_ERR,
+  PDLOG_ERR,
   "Fatal - Unknown command line option %c.  Run with --help for options.",
   "",
   "",
   ""
 };
-SysLog1<const char*> CL_HOMESTEAD_CRASH
+PDLog1<const char*> CL_HOMESTEAD_CRASH
 {
   CL_HOMESTEAD_ID + 4,
-  SYSLOG_ERR,
+  PDLOG_ERR,
   "Fatal - Homestead has exited or crashed with signal %s",
   "",
   "",
   ""
 };
-SysLog CL_HOMESTEAD_STARTED
+PDLog CL_HOMESTEAD_STARTED
 {
   CL_HOMESTEAD_ID + 5,
-  SYSLOG_NOTICE,
+  PDLOG_NOTICE,
   "Homestead started",
   "",
   "",
   ""
 };
-SysLog1<int> CL_HOMESTEAD_CASSANDRA_CACHE_INIT_FAIL
+PDLog1<int> CL_HOMESTEAD_CASSANDRA_CACHE_INIT_FAIL
 {
   CL_HOMESTEAD_ID + 6,
-  SYSLOG_ERR,
+  PDLOG_ERR,
   "Fatal - Failed to initialize the cache for the CassandraStore - error code %d",
   "",
   "",
   ""
 };
-SysLog2<const char*, int> CL_HOMESTEAD_DIAMETER_INIT_FAIL
+PDLog2<const char*, int> CL_HOMESTEAD_DIAMETER_INIT_FAIL
 {
   CL_HOMESTEAD_ID + 7,
-  SYSLOG_ERR,
+  PDLOG_ERR,
   "Fatal - Failed to initialize Diameter stack in function %s with error %d",
   "",
   "",
   ""
 };
-SysLog2<const char*, int> CL_HOMESTEAD_HTTP_INIT_FAIL
+PDLog2<const char*, int> CL_HOMESTEAD_HTTP_INIT_FAIL
 {
   CL_HOMESTEAD_ID + 8,
-  SYSLOG_ERR,
+  PDLOG_ERR,
   "Fatal - Failed to initialize HttpStack stack in function %s with error %d",
   "",
   "",
   ""
 };
-SysLog CL_HOMESTEAD_ENDED
+PDLog CL_HOMESTEAD_ENDED
 {
   CL_HOMESTEAD_ID + 9,
-  SYSLOG_ERR,
+  PDLOG_ERR,
   "Fatal - Termination signal received - terminating",
   "",
   "",
   ""
 };
-SysLog2<const char*, int> CL_HOMESTEAD_HTTP_STOP_FAIL
+PDLog2<const char*, int> CL_HOMESTEAD_HTTP_STOP_FAIL
 {
   CL_HOMESTEAD_ID + 10,
-  SYSLOG_ERR,
+  PDLOG_ERR,
   "Failed to stop HttpStack stack in function %s with error %d",
   "",
   "",
   ""
 };
-SysLog2<const char*, int> CL_HOMESTEAD_DIAMETER_STOP_FAIL
+PDLog2<const char*, int> CL_HOMESTEAD_DIAMETER_STOP_FAIL
 {
   CL_HOMESTEAD_ID + 11,
-  SYSLOG_ERR,
+  PDLOG_ERR,
   "Failed to stop Diameter stack in function %s with error %d",
   "",
   "",
