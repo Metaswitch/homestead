@@ -47,8 +47,8 @@ static DigestAuthVector mock_digest_av;
 class MockCache : public MockCassandraStore<Cache>
 {
 public:
-  MockCache() {};
-  virtual ~MockCache() {};
+  MockCache();
+  virtual ~MockCache();
 
   //
   // Methods that create cache request objects.

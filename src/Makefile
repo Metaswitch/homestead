@@ -54,7 +54,13 @@ TARGET_SOURCES_TEST := test_main.cpp \
                        mockfreediameter.cpp \
                        mock_sas.cpp \
                        realmmanager_test.cpp \
-                       diameterresolver_test.cpp
+                       diameterresolver_test.cpp \
+											 mockcache.cpp \
+											 mockstatisticsmanager.cpp \
+											 mockdiameterstack.cpp \
+											 mockhttpstack.cpp \
+											 mockhttpconnection.cpp \
+											 mockdiameterresolver.cpp
 
 TARGET_EXTRA_OBJS_TEST := gmock-all.o \
                           gtest-all.o

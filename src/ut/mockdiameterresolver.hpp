@@ -43,10 +43,8 @@
 class MockDiameterResolver : public DiameterResolver
 {
 public:
-  MockDiameterResolver() :
-    DiameterResolver(NULL, AF_INET)
-  {};
-  virtual ~MockDiameterResolver() {};
+  MockDiameterResolver();
+  virtual ~MockDiameterResolver();
 
   MOCK_METHOD5(resolve, void(const std::string&,
                              const std::string&,
