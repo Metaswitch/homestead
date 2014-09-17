@@ -43,10 +43,8 @@
 class MockHttpConnection : public HttpConnection
 {
 public:
-  MockHttpConnection(HttpResolver* resolver) :
-    HttpConnection("", false, resolver, SASEvent::HttpLogLevel::PROTOCOL)
-  {};
-  virtual ~MockHttpConnection() {};
+  MockHttpConnection(HttpResolver* resolver);
+  virtual ~MockHttpConnection();
 
   MOCK_METHOD3(send_delete, long(const std::string& path, SAS::TrailId trail, const std::string& body));
 };
