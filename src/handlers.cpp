@@ -1302,8 +1302,8 @@ void ImpuRegDataTask::put_in_cache()
     }
 
     CassandraStore::Transaction* tsx = new CacheTransaction;
-    CassandraStore::Operation* op = (CassandraStore::Operation*)put_reg_data;
-    _cache->do_async(op, tsx); put_reg_data = NULL;
+    CassandraStore::Operation*& op = (CassandraStore::Operation*&)put_reg_data;
+    _cache->do_async(op, tsx);
   }
 }
 
@@ -1882,8 +1882,8 @@ void PushProfileTask::update_reg_data()
       new CacheTransaction(this,
                            &PushProfileTask::update_reg_data_success,
                            &PushProfileTask::update_reg_data_failure);
-    CassandraStore::Operation* op = (CassandraStore::Operation*)put_reg_data;
-    _cfg->cache->do_async(op, tsx); put_reg_data = NULL;
+    CassandraStore::Operation*& op = (CassandraStore::Operation*&)put_reg_data;
+    _cfg->cache->do_async(op, tsx);
 
     SAS::report_event(event);
 
