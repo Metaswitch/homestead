@@ -92,10 +92,12 @@ public:
 class CacheInitializationTest : public ::testing::Test
 {
 public:
-  CacheInitializationTest()
+  CacheInitializationTest() :
+    _cm("homestead", "HOMESTEAD_CASSANDRA_COMM_ERROR_CLEAR", "HOMESTEAD_CASSANDRA_COMM_ERROR_CRITICAL")
   {
     _cache.initialize();
     _cache.configure("localhost", 1234, 1); // Start with one worker thread.
+    _cache.set_comm_monitor(&_cm);
   }
 
   virtual ~CacheInitializationTest()
@@ -106,6 +108,7 @@ public:
 
   TestCache _cache;
   MockCassandraClient _client;
+  CommunicationMonitor _cm;
 };
 
 
