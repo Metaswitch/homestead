@@ -1286,15 +1286,24 @@ void ImpuRegDataTask::put_in_cache()
     event.add_var_param(associated_private_ids_str);
     event.add_var_param(_charging_addrs.log_string());
     SAS::report_event(event);
-    CassandraStore::Operation* put_reg_data = _cache->create_PutRegData(public_ids,
-                                                                        _xml,
-                                                                        _new_state,
-                                                                        associated_private_ids,
-                                                                        _charging_addrs,
-                                                                        Cache::generate_timestamp(),
-                                                                        ttl);
+
+    Cache::PutRegData* put_reg_data = _cache->create_PutRegData(public_ids,
+                                                                Cache::generate_timestamp(),
+                                                                ttl);
+    put_reg_data->with_xml(_xml).with_charging_addrs(_charging_addrs);
+
+    if (_new_state != RegistrationState::UNCHANGED)
+    {
+      put_reg_data->with_reg_state(_new_state);
+    }
+    if (!associated_private_ids.empty())
+    {
+      put_reg_data->with_associated_impis(associated_private_ids);
+    }
+
     CassandraStore::Transaction* tsx = new CacheTransaction;
-    _cache->do_async(put_reg_data, tsx);
+    CassandraStore::Operation* op = (CassandraStore::Operation*)put_reg_data;
+    _cache->do_async(op, tsx); put_reg_data = NULL;
   }
 }
 
@@ -1833,45 +1842,51 @@ void PushProfileTask::update_reg_data()
     {
       _impus = XmlUtils::get_public_ids(_ims_subscription);
     }
-    RegistrationState state = RegistrationState::UNCHANGED;
+
+    // Create the cache request object and a SAS event simultaneously.
+    Cache::PutRegData* put_reg_data =
+      _cfg->cache->create_PutRegData(_impus,
+                                     Cache::generate_timestamp(),
+                                     (2 * _cfg->hss_reregistration_time));
     SAS::Event event(this->trail(), SASEvent::CACHE_PUT_REG_DATA, 0);
+
     std::string impus_str = boost::algorithm::join(_impus, ", ");
     event.add_var_param(impus_str);
+
     if (_ims_sub_present)
     {
       LOG_INFO("Updating IMS subscription from PPR");
+      put_reg_data->with_xml(_ims_subscription);
       event.add_var_param(_ims_subscription);
     }
     else
     {
       event.add_var_param("IMS subscription unchanged");
     }
-    event.add_static_param(state);
+
+    event.add_static_param(RegistrationState::UNCHANGED);
     event.add_var_param("");
+
     if (_charging_addrs_present)
     {
       LOG_INFO("Updating charging addresses from PPR");
       event.add_var_param(_charging_addrs.log_string());
+      put_reg_data->with_charging_addrs(_charging_addrs);
     }
     else
     {
       event.add_var_param("Charging addresses unchanged");
     }
-    SAS::report_event(event);
-    CassandraStore::Operation* put_reg_data =
-      _cfg->cache->create_PutRegData(_impus,
-                                     _ims_sub_present,
-                                     _ims_subscription,
-                                     state,
-                                     _charging_addrs_present,
-                                     _charging_addrs,
-                                     Cache::generate_timestamp(),
-                                     (2 * _cfg->hss_reregistration_time));
+
     CassandraStore::Transaction* tsx =
       new CacheTransaction(this,
                            &PushProfileTask::update_reg_data_success,
                            &PushProfileTask::update_reg_data_failure);
-    _cfg->cache->do_async(put_reg_data, tsx);
+    CassandraStore::Operation* op = (CassandraStore::Operation*)put_reg_data;
+    _cfg->cache->do_async(op, tsx); put_reg_data = NULL;
+
+    SAS::report_event(event);
+
   }
   else
   {

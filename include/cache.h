@@ -66,160 +66,66 @@ public:
   // Operations
   //
 
-  /// @class PutRegData write the IMS subscription XML for a public ID.
+  /// @class PutRegData write the registration data for some number of public IDs.
   class PutRegData : public CassandraStore::Operation
   {
   public:
-    /// Constructor that sets the registration data for a *single* public ID.
-    ///
-    /// @param public_id the public ID
-    /// @param update_xml Whether the subscription XML needs updating.
-    /// @param xml the subscription XML
-    /// @param reg_state The new registration state
-    /// @param impis A set of private IDs to associate with this public ID
-    /// @param update_charging_addrs Whether the charging addresses need updating.
-    /// @param charging_addrs The charging addresses for this public ID
+    /// Constructors. Stores off the public IDs that we're changing, the
+    /// timestamp, and the TTL. Then creates a blank PutRegData object.
     PutRegData(const std::string& public_id,
-               const bool update_xml,
-               const std::string& xml,
-               const RegistrationState reg_state,
-               const std::vector<std::string>& impis,
-               const bool update_charging_addrs,
-               const ChargingAddresses& charging_addrs,
+               const int64_t timestamp,
+               const int32_t ttl = 0);
+    PutRegData(const std::vector<std::string>& public_ids,
                const int64_t timestamp,
                const int32_t ttl = 0);
 
-    /// Constructor that sets the same IMS subscription XML for multiple public
-    /// IDs.
-    ///
-    /// @param public_ids a vector of public IDs to set the XML for
-    /// @param update_xml Whether the subscription XML needs updating.
-    /// @param xml the subscription XML
-    /// @param reg_state The new registration state
-    /// @param impis A set of private IDs to associate with these public IDs
-    /// @param update_charging_addrs Whether the charging addresses need updating.
-    /// @param charging_addrs The charging addresses for these public IDs
-    PutRegData(const std::vector<std::string>& public_ids,
-               const bool update_xml,
-               const std::string& xml,
-               const RegistrationState reg_state,
-               const std::vector<std::string>& impis,
-               const bool update_charging_addrs,
-               const ChargingAddresses& charging_addrs,
-               const int64_t timestamp,
-               const int32_t ttl = 0);
+    /// Methods for adding various bits of registration information to store for
+    /// the specified public IDs. These APIs conform to the fluent interface
+    /// pattern.
+
+    /// @param xml - The subscription XML.
+    /// @returns - A reference to this PutRegData object.
+    virtual PutRegData& with_xml(const std::string& xml);
+
+    /// @param reg_state - The new registration state.
+    /// @returns - A reference to this PutRegData object.
+    virtual PutRegData& with_reg_state(const RegistrationState reg_state);
+
+    /// @param impis - The associated IMPIs.
+    /// @returns - A reference to this PutRegData object.
+    virtual PutRegData& with_associated_impis(const std::vector<std::string>& impis);
+
+    /// @param charging_addrs - The charging addresses.
+    /// @returns - A reference to this PutRegData object.
+    virtual PutRegData& with_charging_addrs(const ChargingAddresses& charging_addrs);
 
     virtual ~PutRegData();
 
   protected:
     std::vector<std::string> _public_ids;
-    std::vector<std::string> _impis;
-    bool _update_xml;
-    std::string _xml;
-    RegistrationState _reg_state;
-    bool _update_charging_addrs;
-    ChargingAddresses _charging_addrs;
     int64_t _timestamp;
     int32_t _ttl;
+
+    std::map<std::string, std::string> _columns;
+    std::vector<CassandraStore::RowColumns> _to_put;
 
     bool perform(CassandraStore::ClientInterface* client, SAS::TrailId trail);
   };
 
   virtual PutRegData* create_PutRegData(const std::string& public_id,
-                                        const std::string& xml,
-                                        const RegistrationState reg_state,
-                                        const std::vector<std::string>& impis,
-                                        const ChargingAddresses& charging_addrs,
                                         const int64_t timestamp,
                                         const int32_t ttl = 0)
   {
     return new PutRegData(public_id,
-                          true,
-                          xml,
-                          reg_state,
-                          impis,
-                          true,
-                          charging_addrs,
                           timestamp,
                           ttl);
   }
 
   virtual PutRegData* create_PutRegData(const std::vector<std::string>& public_ids,
-                                        const std::string& xml,
-                                        const RegistrationState reg_state,
-                                        const std::vector<std::string>& impis,
-                                        const ChargingAddresses& charging_addrs,
                                         const int64_t timestamp,
                                         const int32_t ttl = 0)
   {
     return new PutRegData(public_ids,
-                          true,
-                          xml,
-                          reg_state,
-                          impis,
-                          true,
-                          charging_addrs,
-                          timestamp,
-                          ttl);
-  }
-
-  virtual PutRegData* create_PutRegData(const std::vector<std::string>& public_ids,
-                                        const std::string& xml,
-                                        const RegistrationState reg_state,
-                                        const ChargingAddresses& charging_addrs,
-                                        const int64_t timestamp,
-                                        const int32_t ttl = 0)
-  {
-    std::vector<std::string> no_impis;
-    return new PutRegData(public_ids,
-                          true,
-                          xml,
-                          reg_state,
-                          no_impis,
-                          true,
-                          charging_addrs,
-                          timestamp,
-                          ttl);
-  }
-
-  virtual PutRegData* create_PutRegData(const std::string& public_id,
-                                        const std::string& xml,
-                                        const RegistrationState reg_state,
-                                        const ChargingAddresses& charging_addrs,
-                                        const int64_t timestamp,
-                                        const int32_t ttl = 0)
-  {
-    std::vector<std::string> no_impis;
-    return new PutRegData(public_id,
-                          true,
-                          xml,
-                          reg_state,
-                          no_impis,
-                          true,
-                          charging_addrs,
-                          timestamp,
-                          ttl);
-  }
-
-  /// This create method is used by PPRs since not all the registration data
-  /// may need to be updated.
-  virtual PutRegData* create_PutRegData(const std::vector<std::string>& public_ids,
-                                        const bool update_xml,
-                                        const std::string& xml,
-                                        const RegistrationState reg_state,
-                                        const bool update_charging_addrs,
-                                        const ChargingAddresses& charging_addrs,
-                                        const int64_t timestamp,
-                                        const int32_t ttl = 0)
-  {
-    std::vector<std::string> no_impis;
-    return new PutRegData(public_ids,
-                          update_xml,
-                          xml,
-                          reg_state,
-                          no_impis,
-                          update_charging_addrs,
-                          charging_addrs,
                           timestamp,
                           ttl);
   }

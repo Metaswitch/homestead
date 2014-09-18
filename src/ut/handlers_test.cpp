@@ -71,6 +71,7 @@
 #include "sproutconnection.h"
 
 using ::testing::Return;
+using ::testing::ReturnRef;
 using ::testing::SetArgReferee;
 using ::testing::_;
 using ::testing::Invoke;
@@ -452,14 +453,19 @@ public:
       // Once we simulate the Diameter response, check that the
       // database is updated and a 200 OK is sent.
       MockCache::MockPutRegData mock_op3;
-      EXPECT_CALL(*_cache, create_PutRegData(IMPU_REG_SET,
-                                             IMPU_IMS_SUBSCRIPTION,
-                                             expected_new_state,
-                                             IMPI_IN_VECTOR,
-                                             _,
-                                             _,
-                                             7200))
+      EXPECT_CALL(*_cache, create_PutRegData(IMPU_REG_SET, _, 7200))
         .WillOnce(Return(&mock_op3));
+      EXPECT_CALL(mock_op3, with_xml(IMPU_IMS_SUBSCRIPTION))
+        .WillOnce(ReturnRef(mock_op3));
+      if (expected_new_state != RegistrationState::UNCHANGED)
+      {
+        EXPECT_CALL(mock_op3, with_reg_state(expected_new_state))
+          .WillOnce(ReturnRef(mock_op3));
+      }
+      EXPECT_CALL(mock_op3, with_associated_impis(IMPI_IN_VECTOR))
+        .WillOnce(ReturnRef(mock_op3));
+      EXPECT_CALL(mock_op3, with_charging_addrs(_))
+        .WillOnce(ReturnRef(mock_op3));
       _cache->EXPECT_DO_ASYNC(mock_op3);
 
       EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
@@ -668,19 +674,20 @@ public:
     if (expect_update)
     {
       // If we expect the subscriber's registration state to be updated,
-      // check that an appropriate database write is made.
+      // check that an appropriate database write is made. We should never
+      // set a TTL in the non-HSS case.
       MockCache::MockPutRegData mock_op2;
-      std::vector<std::string> no_associated_impis;
-
-      // We should never set a TTL in the non-HSS case
-      EXPECT_CALL(*_cache, create_PutRegData(IMPU_REG_SET,
-                                             IMPU_IMS_SUBSCRIPTION,
-                                             expected_new_state,
-                                             no_associated_impis,
-                                             _,
-                                             _,
-                                             0))
+      EXPECT_CALL(*_cache, create_PutRegData(IMPU_REG_SET, _, 0))
         .WillOnce(Return(&mock_op2));
+      EXPECT_CALL(mock_op2, with_xml(IMPU_IMS_SUBSCRIPTION))
+        .WillOnce(ReturnRef(mock_op2));
+      if (expected_new_state != RegistrationState::UNCHANGED)
+      {
+        EXPECT_CALL(mock_op2, with_reg_state(expected_new_state))
+          .WillOnce(ReturnRef(mock_op2));
+      }
+      EXPECT_CALL(mock_op2, with_charging_addrs(_))
+        .WillOnce(ReturnRef(mock_op2));
       _cache->EXPECT_DO_ASYNC(mock_op2);
 
       EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
@@ -3338,9 +3345,12 @@ TEST_F(HandlersTest, PushProfile)
   // Once the task's run function is called, we expect to try and update
   // the IMS subscription the charging addresses in the cache.
   MockCache::MockPutRegData mock_op;
-  std::vector<std::string> impus{IMPU};
-  EXPECT_CALL(*_cache, create_PutRegData(impus, true, IMS_SUBSCRIPTION, _, true, _, _, 7200))
+  EXPECT_CALL(*_cache, create_PutRegData(IMPU_IN_VECTOR, _, 7200))
     .WillOnce(Return(&mock_op));
+  EXPECT_CALL(mock_op, with_xml(IMS_SUBSCRIPTION))
+    .WillOnce(ReturnRef(mock_op));
+  EXPECT_CALL(mock_op, with_charging_addrs(_))
+    .WillOnce(ReturnRef(mock_op));
   _cache->EXPECT_DO_ASYNC(mock_op);
 
   task->run();
@@ -3408,8 +3418,10 @@ TEST_F(HandlersTest, PushProfileChargingAddrs)
   // Next we expect to try and update the charging addresses (but not the IMS
   // subscription) in the cache.
   MockCache::MockPutRegData mock_op2;
-  EXPECT_CALL(*_cache, create_PutRegData(IMPUS, false, _, _, true, _, _, 7200))
+  EXPECT_CALL(*_cache, create_PutRegData(IMPUS, _, 7200))
     .WillOnce(Return(&mock_op2));
+  EXPECT_CALL(mock_op2, with_charging_addrs(_))
+    .WillOnce(ReturnRef(mock_op2));
   _cache->EXPECT_DO_ASYNC(mock_op2);
 
   t->on_success(&mock_op);
@@ -3573,9 +3585,10 @@ TEST_F(HandlersTest, PushProfileIMSSub)
   // Once the task's run function is called, we expect to try and update
   // the IMS Subscription (but not the charging addresses) in the cache.
   MockCache::MockPutRegData mock_op;
-  std::vector<std::string> impus{IMPU};
-  EXPECT_CALL(*_cache, create_PutRegData(impus, true, IMS_SUBSCRIPTION, _, false, _, _, 7200))
+  EXPECT_CALL(*_cache, create_PutRegData(IMPU_IN_VECTOR, _, 7200))
     .WillOnce(Return(&mock_op));
+  EXPECT_CALL(mock_op, with_xml(IMS_SUBSCRIPTION))
+    .WillOnce(ReturnRef(mock_op));
   _cache->EXPECT_DO_ASYNC(mock_op);
 
   task->run();
@@ -3625,9 +3638,10 @@ TEST_F(HandlersTest, PushProfileCacheFailure)
   // Once the task's run function is called, we expect to try and update
   // the IMS Subscription in the cache.
   MockCache::MockPutRegData mock_op;
-  std::vector<std::string> impus{IMPU};
-  EXPECT_CALL(*_cache, create_PutRegData(impus, true, IMS_SUBSCRIPTION, _, false, _, _, 7200))
+  EXPECT_CALL(*_cache, create_PutRegData(IMPU_IN_VECTOR, _, 7200))
     .WillOnce(Return(&mock_op));
+  EXPECT_CALL(mock_op, with_xml(IMS_SUBSCRIPTION))
+    .WillOnce(ReturnRef(mock_op));
   _cache->EXPECT_DO_ASYNC(mock_op);
 
   task->run();
@@ -3951,9 +3965,16 @@ TEST_F(HandlerStatsTest, IMSSubscriptionReregHSS)
                                  NO_CHARGING_ADDRESSES);
 
   MockCache::MockPutRegData mock_op2;
-  std::vector<std::string> impus{IMPU};
-  EXPECT_CALL(*_cache, create_PutRegData(impus, IMS_SUBSCRIPTION, _, _, _, _, 3600))
+  EXPECT_CALL(*_cache, create_PutRegData(IMPU_IN_VECTOR, _, 3600))
     .WillOnce(Return(&mock_op2));
+  EXPECT_CALL(mock_op2, with_xml(IMS_SUBSCRIPTION))
+    .WillOnce(ReturnRef(mock_op2));
+  EXPECT_CALL(mock_op2, with_reg_state(_))
+    .WillOnce(ReturnRef(mock_op2));
+  EXPECT_CALL(mock_op2, with_associated_impis(_))
+    .WillOnce(ReturnRef(mock_op2));
+  EXPECT_CALL(mock_op2, with_charging_addrs(_))
+    .WillOnce(ReturnRef(mock_op2));
   _cache->EXPECT_DO_ASYNC(mock_op2);
 
   // Expect the stats to get updated.

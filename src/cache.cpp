@@ -88,138 +88,117 @@ Cache::~Cache() {}
 
 Cache::PutRegData::
 PutRegData(const std::string& public_id,
-           const bool update_xml,
-           const std::string& xml,
-           const RegistrationState reg_state,
-           const std::vector<std::string>& impis,
-           const bool update_charging_addrs,
-           const ChargingAddresses& charging_addrs,
            const int64_t timestamp,
            const int32_t ttl):
   CassandraStore::Operation(),
   _public_ids(1, public_id),
-  _impis(impis),
-  _update_xml(update_xml),
-  _xml(xml),
-  _reg_state(reg_state),
-  _update_charging_addrs(update_charging_addrs),
-  _charging_addrs(charging_addrs),
   _timestamp(timestamp),
   _ttl(ttl)
 {}
 
 Cache::PutRegData::
 PutRegData(const std::vector<std::string>& public_ids,
-           const bool update_xml,
-           const std::string& xml,
-           const RegistrationState reg_state,
-           const std::vector<std::string>& impis,
-           const bool update_charging_addrs,
-           const ChargingAddresses& charging_addrs,
            const int64_t timestamp,
            const int32_t ttl):
   CassandraStore::Operation(),
   _public_ids(public_ids),
-  _impis(impis),
-  _update_xml(update_xml),
-  _xml(xml),
-  _reg_state(reg_state),
-  _update_charging_addrs(update_charging_addrs),
-  _charging_addrs(charging_addrs),
   _timestamp(timestamp),
   _ttl(ttl)
 {}
-
 
 Cache::PutRegData::
 ~PutRegData()
 {}
 
-
-bool Cache::PutRegData::perform(CassandraStore::ClientInterface* client,
-                                SAS::TrailId trail)
+Cache::PutRegData& Cache::PutRegData::with_xml(const std::string& xml)
 {
-  std::vector<CassandraStore::RowColumns> to_put;
-  std::map<std::string, std::string> columns;
-  if (_update_xml)
-  {
-    columns[IMS_SUB_XML_COLUMN_NAME] = _xml;
-  }
+  _columns[IMS_SUB_XML_COLUMN_NAME] = xml;
+  return *this;
+}
 
-  if (_reg_state == RegistrationState::REGISTERED)
+Cache::PutRegData& Cache::PutRegData::with_reg_state(const RegistrationState reg_state)
+{
+  if (reg_state == RegistrationState::REGISTERED)
   {
-    columns[REG_STATE_COLUMN_NAME] = CassandraStore::BOOLEAN_TRUE;
+    _columns[REG_STATE_COLUMN_NAME] = CassandraStore::BOOLEAN_TRUE;
   }
-  else if (_reg_state == RegistrationState::UNREGISTERED)
+  else if (reg_state == RegistrationState::UNREGISTERED)
   {
-    columns[REG_STATE_COLUMN_NAME] = CassandraStore::BOOLEAN_FALSE;
+    _columns[REG_STATE_COLUMN_NAME] = CassandraStore::BOOLEAN_FALSE;
   }
   else
   {
-    if (_reg_state != RegistrationState::UNCHANGED)
-    {
-      // LCOV_EXCL_START - invalid case not hit in UT
-      LOG_ERROR("Invalid registration state %d", _reg_state);
-      // LCOV_EXCL_STOP
-    }
+    // LCOV_EXCL_START - invalid case not hit in UT
+    LOG_ERROR("Unexpected registration state %d", reg_state);
+    // LCOV_EXCL_STOP
   }
+  return *this;
+}
 
-  for (std::vector<std::string>::iterator impi = _impis.begin();
-       impi != _impis.end();
+Cache::PutRegData& Cache::PutRegData::with_associated_impis(const std::vector<std::string>& impis)
+{
+  for (std::vector<std::string>::const_iterator impi = impis.begin();
+       impi != impis.end();
        impi++)
   {
     std::string column_name = IMPI_COLUMN_PREFIX + *impi;
-    columns[column_name] = "";
+    _columns[column_name] = "";
 
     std::map<std::string, std::string> impi_columns;
     std::vector<std::string>::iterator default_public_id = _public_ids.begin();
     impi_columns[IMPI_MAPPING_PREFIX + *default_public_id] = "";
-    to_put.push_back(CassandraStore::RowColumns(IMPI_MAPPING, *impi, impi_columns));
+    _to_put.push_back(CassandraStore::RowColumns(IMPI_MAPPING, *impi, impi_columns));
   }
+  return *this;
+}
 
-  if (_update_charging_addrs)
+Cache::PutRegData& Cache::PutRegData::with_charging_addrs(const ChargingAddresses& charging_addrs)
+{
+  if (charging_addrs.ccfs.empty())
   {
-    if (_charging_addrs.ccfs.empty())
-    {
-      columns[PRIMARY_CCF_COLUMN_NAME] = "";
-      columns[SECONDARY_CCF_COLUMN_NAME] = "";
-    }
-    else if (_charging_addrs.ccfs.size() == 1)
-    {
-      columns[PRIMARY_CCF_COLUMN_NAME] = _charging_addrs.ccfs[0];
-      columns[SECONDARY_CCF_COLUMN_NAME] = "";
-    }
-    else
-    {
-      columns[PRIMARY_CCF_COLUMN_NAME] = _charging_addrs.ccfs[0];
-      columns[SECONDARY_CCF_COLUMN_NAME] = _charging_addrs.ccfs[1];
-    }
-
-    if (_charging_addrs.ecfs.empty())
-    {
-      columns[PRIMARY_ECF_COLUMN_NAME] = "";
-      columns[SECONDARY_ECF_COLUMN_NAME] = "";
-    }
-    else if (_charging_addrs.ecfs.size() == 1)
-    {
-      columns[PRIMARY_ECF_COLUMN_NAME] = _charging_addrs.ecfs[0];
-      columns[SECONDARY_ECF_COLUMN_NAME] = "";
-    }
-    else
-    {
-      columns[PRIMARY_ECF_COLUMN_NAME] = _charging_addrs.ecfs[0];
-      columns[SECONDARY_ECF_COLUMN_NAME] = _charging_addrs.ecfs[1];
-    }
+    _columns[PRIMARY_CCF_COLUMN_NAME] = "";
+    _columns[SECONDARY_CCF_COLUMN_NAME] = "";
+  }
+  else if (charging_addrs.ccfs.size() == 1)
+  {
+    _columns[PRIMARY_CCF_COLUMN_NAME] = charging_addrs.ccfs[0];
+    _columns[SECONDARY_CCF_COLUMN_NAME] = "";
+  }
+  else
+  {
+    _columns[PRIMARY_CCF_COLUMN_NAME] = charging_addrs.ccfs[0];
+    _columns[SECONDARY_CCF_COLUMN_NAME] = charging_addrs.ccfs[1];
   }
 
+  if (charging_addrs.ecfs.empty())
+  {
+    _columns[PRIMARY_ECF_COLUMN_NAME] = "";
+    _columns[SECONDARY_ECF_COLUMN_NAME] = "";
+  }
+  else if (charging_addrs.ecfs.size() == 1)
+  {
+    _columns[PRIMARY_ECF_COLUMN_NAME] = charging_addrs.ecfs[0];
+    _columns[SECONDARY_ECF_COLUMN_NAME] = "";
+  }
+  else
+  {
+    _columns[PRIMARY_ECF_COLUMN_NAME] = charging_addrs.ecfs[0];
+    _columns[SECONDARY_ECF_COLUMN_NAME] = charging_addrs.ecfs[1];
+  }
+  return *this;
+}
+
+bool Cache::PutRegData::perform(CassandraStore::ClientInterface* client,
+                                SAS::TrailId trail)
+{
   for (std::vector<std::string>::iterator row = _public_ids.begin();
        row != _public_ids.end();
        row++)
   {
-    to_put.push_back(CassandraStore::RowColumns(IMPU, *row, columns));
+    _to_put.push_back(CassandraStore::RowColumns(IMPU, *row, _columns));
   }
 
-  put_columns(client, to_put, _timestamp, _ttl);
+  put_columns(client, _to_put, _timestamp, _ttl);
 
   return true;
 }
