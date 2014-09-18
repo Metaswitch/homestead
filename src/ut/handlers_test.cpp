@@ -686,8 +686,6 @@ public:
         EXPECT_CALL(mock_op2, with_reg_state(expected_new_state))
           .WillOnce(ReturnRef(mock_op2));
       }
-      EXPECT_CALL(mock_op2, with_charging_addrs(_))
-        .WillOnce(ReturnRef(mock_op2));
       _cache->EXPECT_DO_ASYNC(mock_op2);
 
       EXPECT_CALL(*_httpstack, send_reply(_, 200, _));

@@ -1290,15 +1290,22 @@ void ImpuRegDataTask::put_in_cache()
     Cache::PutRegData* put_reg_data = _cache->create_PutRegData(public_ids,
                                                                 Cache::generate_timestamp(),
                                                                 ttl);
-    put_reg_data->with_xml(_xml).with_charging_addrs(_charging_addrs);
+    put_reg_data->with_xml(_xml);
 
     if (_new_state != RegistrationState::UNCHANGED)
     {
       put_reg_data->with_reg_state(_new_state);
     }
+
     if (!associated_private_ids.empty())
     {
       put_reg_data->with_associated_impis(associated_private_ids);
+    }
+
+    // Don't touch the charging addresses if there is no HSS.
+    if (_cfg->hss_configured)
+    {
+      put_reg_data->with_charging_addrs(_charging_addrs);
     }
 
     CassandraStore::Transaction* tsx = new CacheTransaction;
@@ -1807,9 +1814,15 @@ void PushProfileTask::on_get_impus_success(CassandraStore::Operation* op)
     SAS::Event event(this->trail(), SASEvent::CACHE_GET_ASSOC_IMPU_SUCCESS, 0);
     event.add_var_param(_impus[0]);
     SAS::report_event(event);
-    std::string impus_str = boost::algorithm::join(_impus, ", ");
-    LOG_DEBUG("Found cached public IDs %s for private ID %s",
-              impus_str.c_str(), _impi.c_str());
+    if (Log::enabled(Log::DEBUG_LEVEL))
+    {
+      // LCOV_EXCL_START - clearly we only go through this code when debug logging
+      // is turned on.
+      std::string impus_str = boost::algorithm::join(_impus, ", ");
+      LOG_DEBUG("Found cached public IDs %s for private ID %s",
+                impus_str.c_str(), _impi.c_str());
+      // LCOV_EXCL_STOP
+    }
     update_reg_data();
   }
   else

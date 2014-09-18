@@ -8,7 +8,10 @@ CREATE TABLE impu (public_id text PRIMARY KEY, ims_subscription_xml text, is_reg
 fi
 
 echo "USE homestead_cache;
-ALTER TABLE impu ADD primary_ccf text, secondary_ccf text, primary_ecf text, secondary_ecf text;" | cqlsh -2
+ALTER TABLE impu ADD primary_ccf text;
+ALTER TABLE impu ADD secondary_ccf text;
+ALTER TABLE impu ADD primary_ecf text;
+ALTER TABLE impu ADD secondary_ecf text;" | cqlsh -2
 
 if [[ ! -e /var/lib/cassandra/data/homestead_cache/impi_mapping ]];
 then
