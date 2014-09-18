@@ -53,32 +53,14 @@ public:
   //
   // Methods that create cache request objects.
   //
-  MOCK_METHOD5(create_PutIMSSubscription,
-               PutIMSSubscription*(const std::string& public_id,
-                                   const std::string& xml,
-                                   const RegistrationState reg_state,
-                                   const int64_t timestamp,
-                                   const int32_t ttl));
-  MOCK_METHOD5(create_PutIMSSubscription,
-               PutIMSSubscription*(const std::vector<std::string>& public_ids,
-                                   const std::string& xml,
-                                   const RegistrationState reg_state,
-                                   const int64_t timestamp,
-                                   const int32_t ttl));
-  MOCK_METHOD6(create_PutIMSSubscription,
-               PutIMSSubscription*(const std::string& public_id,
-                                   const std::string& xml,
-                                   const RegistrationState reg_state,
-                                   const std::vector<std::string>& impis,
-                                   const int64_t timestamp,
-                                   const int32_t ttl));
-  MOCK_METHOD6(create_PutIMSSubscription,
-               PutIMSSubscription*(const std::vector<std::string>& public_ids,
-                                   const std::string& xml,
-                                   const RegistrationState reg_state,
-                                   const std::vector<std::string>& impis,
-                                   const int64_t timestamp,
-                                   const int32_t ttl));
+  MOCK_METHOD3(create_PutRegData,
+               PutRegData*(const std::string& public_id,
+                           const int64_t timestamp,
+                           const int32_t ttl));
+  MOCK_METHOD3(create_PutRegData,
+               PutRegData*(const std::vector<std::string>& public_ids,
+                           const int64_t timestamp,
+                           const int32_t ttl));
   MOCK_METHOD4(create_PutAssociatedPrivateID,
                PutAssociatedPrivateID*(const std::vector<std::string>& impus,
                                        const std::string& impi,
@@ -94,8 +76,8 @@ public:
                                const DigestAuthVector& auth_vector,
                                const int64_t timestamp,
                                const int32_t ttl));
-  MOCK_METHOD1(create_GetIMSSubscription,
-               GetIMSSubscription*(const std::string& public_id));
+  MOCK_METHOD1(create_GetRegData,
+               GetRegData*(const std::string& public_id));
   MOCK_METHOD1(create_GetAssociatedPublicIDs,
                GetAssociatedPublicIDs*(const std::string& private_id));
   MOCK_METHOD1(create_GetAssociatedPublicIDs,
@@ -142,9 +124,9 @@ public:
   //
   // To handle receiving a request:
   //
-  // -  The Test creates a MockGetIMSSubscription object.
+  // -  The Test creates a MockGetRegData object.
   //
-  // -  The test sets up MockCache to expect create_GetIMSSubscription().
+  // -  The test sets up MockCache to expect create_GetRegData().
   //    This checks the parameters and returns the mock object.
   //
   // -  The test sets up MockCache to expect send() with the mock request passed
@@ -161,10 +143,15 @@ public:
   // These classes just implement a default constructor.  This make the mocking
   // code and the UTs easier to write.
   //
-  class MockPutIMSSubscription : public PutIMSSubscription, public MockOperationMixin
+  class MockPutRegData : public PutRegData, public MockOperationMixin
   {
-    MockPutIMSSubscription() : PutIMSSubscription("", "", RegistrationState::REGISTERED, {}, 0, 0) {}
-    virtual ~MockPutIMSSubscription() {}
+    MockPutRegData() : PutRegData("", 0, 0) {}
+    virtual ~MockPutRegData() {}
+
+    MOCK_METHOD1(with_xml, PutRegData&(const std::string& xml));
+    MOCK_METHOD1(with_reg_state, PutRegData&(const RegistrationState reg_state));
+    MOCK_METHOD1(with_associated_impis, PutRegData&(const std::vector<std::string>& impis));
+    MOCK_METHOD1(with_charging_addrs, PutRegData&(const ChargingAddresses& charging_addrs));
   };
 
   class MockPutAssociatedPrivateID : public PutAssociatedPrivateID, public MockOperationMixin
@@ -185,14 +172,15 @@ public:
     virtual ~MockPutAuthVector() {}
   };
 
-  class MockGetIMSSubscription : public GetIMSSubscription, public MockOperationMixin
+  class MockGetRegData : public GetRegData, public MockOperationMixin
   {
-    MockGetIMSSubscription() : GetIMSSubscription("") {}
-    virtual ~MockGetIMSSubscription() {}
+    MockGetRegData() : GetRegData("") {}
+    virtual ~MockGetRegData() {}
 
     MOCK_METHOD2(get_xml, void(std::string& xml, int& ttl));
     MOCK_METHOD2(get_registration_state, void(RegistrationState& state, int& ttl));
     MOCK_METHOD1(get_associated_impis, void(std::vector<std::string>& associated_impis));
+    MOCK_METHOD1(get_charging_addrs, void(ChargingAddresses& charging_addrs));
   };
 
   class MockGetAssociatedPublicIDs : public GetAssociatedPublicIDs, public MockOperationMixin

@@ -40,6 +40,7 @@
 #include "diameterstack.h"
 #include "authvector.h"
 #include "servercapabilities.h"
+#include "charging_addresses.h"
 
 namespace Cx
 {
@@ -89,6 +90,10 @@ public:
   const Diameter::Dictionary::AVP REASON_CODE;
   const Diameter::Dictionary::AVP IDENTITY_WITH_EMERGENCY_REGISTRATION;
   const Diameter::Dictionary::AVP CHARGING_INFORMATION;
+  const Diameter::Dictionary::AVP PRIMARY_CHARGING_COLLECTION_FUNCTION_NAME;
+  const Diameter::Dictionary::AVP SECONDARY_CHARGING_COLLECTION_FUNCTION_NAME;
+  const Diameter::Dictionary::AVP PRIMARY_EVENT_CHARGING_FUNCTION_NAME;
+  const Diameter::Dictionary::AVP SECONDARY_EVENT_CHARGING_FUNCTION_NAME;
 };
 
 class UserAuthorizationRequest : public Diameter::Message
@@ -291,13 +296,16 @@ public:
   ServerAssignmentAnswer(const Dictionary* dict,
                          Diameter::Stack* stack,
                          const int32_t& result_code,
-                         const std::string& ims_subscription);
+                         const std::string& ims_subscription,
+                         const ChargingAddresses& charging_addrs);
   inline ServerAssignmentAnswer(Diameter::Message& msg) : Diameter::Message(msg) {};
 
   inline bool user_data(std::string& str) const
   {
     return get_str_from_avp(((Cx::Dictionary*)dict())->USER_DATA, str);
   }
+
+  void charging_addrs(ChargingAddresses& charging_addrs) const;
 };
 
 class RegistrationTerminationRequest : public Diameter::Message
@@ -335,7 +343,9 @@ class PushProfileRequest : public Diameter::Message
 public:
   PushProfileRequest(const Dictionary* dict,
                      Diameter::Stack* stack,
+                     const std::string& impi,
                      const std::string& ims_subscription,
+                     const ChargingAddresses& charging_addrs,
                      const int32_t& auth_session_state);
   inline PushProfileRequest(Diameter::Message& msg) : Diameter::Message(msg) {};
 
@@ -343,6 +353,8 @@ public:
   {
     return get_str_from_avp(((Cx::Dictionary*)dict())->USER_DATA, str);
   }
+
+  bool charging_addrs(ChargingAddresses& charging_addrs) const;
 };
 
 class PushProfileAnswer : public Diameter::Message

@@ -41,12 +41,20 @@
 #include "rapidxml/rapidxml.hpp"
 #include "rapidxml/rapidxml_print.hpp"
 
+const char* CCF = "CCF";
+const char* ECF = "ECF";
+const char* PRIORITY = "priority";
+const char* PRIORITY_1 = "1";
+const char* PRIORITY_2 = "2";
+
 namespace XmlUtils
 {
 
 // Builds a ClearwaterRegData XML document for passing to Sprout,
 // based on the given registration state and User-Data XML from the HSS.
-std::string build_ClearwaterRegData_xml(RegistrationState state, std::string xml)
+std::string build_ClearwaterRegData_xml(RegistrationState state,
+                                        std::string xml,
+                                        const ChargingAddresses& charging_addrs)
 {
   rapidxml::xml_document<> doc;
 
@@ -99,6 +107,48 @@ std::string build_ClearwaterRegData_xml(RegistrationState state, std::string xml
     {
       root->append_node(is);
     }
+  }
+
+  if (!charging_addrs.empty())
+  {
+    rapidxml::xml_node<>* cfs = doc.allocate_node(rapidxml::node_type::node_element, "ChargingAddresses");
+    if (!charging_addrs.ccfs.empty())
+    {
+      rapidxml::xml_node<>* pccfn = doc.allocate_node(rapidxml::node_type::node_element,
+                                                      CCF,
+                                                      charging_addrs.ccfs[0].c_str());
+      rapidxml::xml_attribute<>* pccf = doc.allocate_attribute(PRIORITY, PRIORITY_1);
+      pccfn->append_attribute(pccf);
+      cfs->append_node(pccfn);
+    }
+    if (charging_addrs.ccfs.size() > 1)
+    {
+      rapidxml::xml_node<>* sccfn = doc.allocate_node(rapidxml::node_type::node_element,
+                                                      CCF,
+                                                      charging_addrs.ccfs[1].c_str());
+      rapidxml::xml_attribute<>* sccf = doc.allocate_attribute(PRIORITY, PRIORITY_2);
+      sccfn->append_attribute(sccf);
+      cfs->append_node(sccfn);
+    }
+    if (!charging_addrs.ecfs.empty())
+    {
+      rapidxml::xml_node<>* pecfn = doc.allocate_node(rapidxml::node_type::node_element,
+                                                      ECF,
+                                                      charging_addrs.ecfs[0].c_str());
+      rapidxml::xml_attribute<>* pecf = doc.allocate_attribute(PRIORITY, PRIORITY_1);
+      pecfn->append_attribute(pecf);
+      cfs->append_node(pecfn);
+    }
+    if (charging_addrs.ecfs.size() > 1)
+    {
+      rapidxml::xml_node<>* secfn = doc.allocate_node(rapidxml::node_type::node_element,
+                                                      ECF,
+                                                      charging_addrs.ecfs[1].c_str());
+      rapidxml::xml_attribute<>* secf = doc.allocate_attribute(PRIORITY, PRIORITY_2);
+      secfn->append_attribute(secf);
+      cfs->append_node(secfn);
+    }
+    root->append_node(cfs);
   }
 
   doc.append_node(root);

@@ -68,6 +68,15 @@ using namespace CassTestUtils;
 // Test constants.
 const std::vector<std::string> IMPIS = {"somebody@example.com"};
 const std::vector<std::string> EMPTY_IMPIS;
+const std::deque<std::string> NO_CFS = {};
+const std::deque<std::string> CCF = {"ccf"};
+const std::deque<std::string> CCFS = {"ccf1", "ccf2"};
+const std::deque<std::string> ECF = {"ecf"};
+const std::deque<std::string> ECFS = {"ecf1", "ecf2"};
+const ChargingAddresses NO_CHARGING_ADDRS(NO_CFS, NO_CFS);
+const ChargingAddresses FULL_CHARGING_ADDRS(CCFS, ECFS);
+const ChargingAddresses CCFS_CHARGING_ADDRS(CCFS, ECF);
+const ChargingAddresses ECFS_CHARGING_ADDRS(CCF, ECFS);
 
 // The class under test.
 //
@@ -234,17 +243,24 @@ TEST_F(CacheInitializationTest, UnknownException)
 }
 
 
-TEST_F(CacheRequestTest, PutIMSSubscriptionMainline)
+TEST_F(CacheRequestTest, PutRegDataMainline)
 {
   TestTransaction *trx = make_trx();
-  CassandraStore::Operation* op =
-    _cache.create_PutIMSSubscription("kermit", "<xml>", RegistrationState::REGISTERED, IMPIS, 1000, 300);
+  Cache::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", 1000, 300);
+  put_reg_data->with_xml("<xml>")
+               .with_reg_state(RegistrationState::REGISTERED)
+               .with_associated_impis(IMPIS)
+               .with_charging_addrs(FULL_CHARGING_ADDRS);
 
   std::vector<CassandraStore::RowColumns> expected;
 
   std::map<std::string, std::string> impu_columns;
   impu_columns["ims_subscription_xml"] = "<xml>";
   impu_columns["is_registered"] = "\x01";
+  impu_columns["primary_ccf"] = "ccf1";
+  impu_columns["secondary_ccf"] = "ccf2";
+  impu_columns["primary_ecf"] = "ecf1";
+  impu_columns["secondary_ecf"] = "ecf2";
   impu_columns["associated_impi__somebody@example.com"] = "";
 
   std::map<std::string, std::string> impi_columns;
@@ -257,20 +273,27 @@ TEST_F(CacheRequestTest, PutIMSSubscriptionMainline)
               batch_mutate(MutationMap(expected), _));
   EXPECT_CALL(*trx, on_success(_));
 
-  execute_trx(op, trx);
+  execute_trx((CassandraStore::Operation*)put_reg_data, trx);
 }
 
-TEST_F(CacheRequestTest, PutIMSSubscriptionUnregistered)
+TEST_F(CacheRequestTest, PutRegDataUnregistered)
 {
   TestTransaction *trx = make_trx();
-  CassandraStore::Operation* op =
-    _cache.create_PutIMSSubscription("kermit", "<xml>", RegistrationState::UNREGISTERED, IMPIS, 1000, 300);
+  Cache::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", 1000, 300);
+  put_reg_data->with_xml("<xml>")
+               .with_reg_state(RegistrationState::UNREGISTERED)
+               .with_associated_impis(IMPIS)
+               .with_charging_addrs(CCFS_CHARGING_ADDRS);
 
   std::vector<CassandraStore::RowColumns> expected;
 
   std::map<std::string, std::string> columns;
   columns["ims_subscription_xml"] = "<xml>";
   columns["is_registered"] = std::string("\x00", 1);
+  columns["primary_ccf"] = "ccf1";
+  columns["secondary_ccf"] = "ccf2";
+  columns["primary_ecf"] = "ecf";
+  columns["secondary_ecf"] = "";
   columns["associated_impi__somebody@example.com"] = "";
 
   std::map<std::string, std::string> impi_columns;
@@ -283,38 +306,27 @@ TEST_F(CacheRequestTest, PutIMSSubscriptionUnregistered)
               batch_mutate(MutationMap(expected), _));
   EXPECT_CALL(*trx, on_success(_));
 
-  execute_trx(op, trx);
+  execute_trx((CassandraStore::Operation*)put_reg_data, trx);
 }
-
-TEST_F(CacheRequestTest, PutIMSSubscriptionUnchanged)
-{
-  TestTransaction *trx = make_trx();
-  CassandraStore::Operation* op =
-    _cache.create_PutIMSSubscription("kermit", "<xml>", RegistrationState::UNCHANGED, EMPTY_IMPIS, 1000, 300);
-
-  std::map<std::string, std::string> columns;
-  columns["ims_subscription_xml"] = "<xml>";
-
-  EXPECT_CALL(_client,
-              batch_mutate(
-                MutationMap("impu", "kermit", columns, 1000, 300), _));
-  EXPECT_CALL(*trx, on_success(_));
-
-  execute_trx(op, trx);
-}
-
 
 TEST_F(CacheRequestTest, NoTTLOnPut)
 {
   TestTransaction *trx = make_trx();
-  CassandraStore::Operation* op =
-    _cache.create_PutIMSSubscription("kermit", "<xml>", RegistrationState::REGISTERED, IMPIS, 1000);
+  Cache::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", 1000);
+  put_reg_data->with_xml("<xml>")
+               .with_reg_state(RegistrationState::REGISTERED)
+               .with_associated_impis(IMPIS)
+               .with_charging_addrs(ECFS_CHARGING_ADDRS);
 
   std::vector<CassandraStore::RowColumns> expected;
 
   std::map<std::string, std::string> columns;
   columns["ims_subscription_xml"] = "<xml>";
   columns["is_registered"] = "\x01";
+  columns["primary_ccf"] = "ccf";
+  columns["secondary_ccf"] = "";
+  columns["primary_ecf"] = "ecf1";
+  columns["secondary_ecf"] = "ecf2";
   columns["associated_impi__somebody@example.com"] = "";
 
   std::map<std::string, std::string> impi_columns;
@@ -327,11 +339,10 @@ TEST_F(CacheRequestTest, NoTTLOnPut)
               batch_mutate(MutationMap(expected), _));
   EXPECT_CALL(*trx, on_success(_));
 
-  execute_trx(op, trx);
+  execute_trx((CassandraStore::Operation*)put_reg_data, trx);
 }
 
-
-TEST_F(CacheRequestTest, PutIMSSubMultipleIDs)
+TEST_F(CacheRequestTest, PutRegDataMultipleIDs)
 {
   std::vector<std::string> ids;
   ids.push_back("kermit");
@@ -340,12 +351,19 @@ TEST_F(CacheRequestTest, PutIMSSubMultipleIDs)
   std::vector<CassandraStore::RowColumns> expected;
 
   TestTransaction *trx = make_trx();
-  CassandraStore::Operation* op =
-    _cache.create_PutIMSSubscription(ids, "<xml>", RegistrationState::REGISTERED, IMPIS, 1000);
+  Cache::PutRegData* put_reg_data = _cache.create_PutRegData(ids, 1000);
+  put_reg_data->with_xml("<xml>")
+               .with_reg_state(RegistrationState::REGISTERED)
+               .with_associated_impis(IMPIS)
+               .with_charging_addrs(NO_CHARGING_ADDRS);
 
   std::map<std::string, std::string> columns;
   columns["ims_subscription_xml"] = "<xml>";
   columns["is_registered"] = "\x01";
+  columns["primary_ccf"] = "";
+  columns["secondary_ccf"] = "";
+  columns["primary_ecf"] = "";
+  columns["secondary_ecf"] = "";
   columns["associated_impi__somebody@example.com"] = "";
 
   std::map<std::string, std::string> impi_columns;
@@ -359,9 +377,61 @@ TEST_F(CacheRequestTest, PutIMSSubMultipleIDs)
               batch_mutate(MutationMap(expected), _));
   EXPECT_CALL(*trx, on_success(_));
 
-  execute_trx(op, trx);
+  execute_trx((CassandraStore::Operation*)put_reg_data, trx);
 }
 
+TEST_F(CacheRequestTest, PutRegDataNoXml)
+{
+  std::vector<std::string> ids;
+  ids.push_back("kermit");
+  ids.push_back("miss piggy");
+
+  std::vector<CassandraStore::RowColumns> expected;
+
+  TestTransaction *trx = make_trx();
+  Cache::PutRegData* put_reg_data = _cache.create_PutRegData(ids, 1000);
+  put_reg_data->with_charging_addrs(FULL_CHARGING_ADDRS);
+
+  std::map<std::string, std::string> columns;
+  columns["primary_ccf"] = "ccf1";
+  columns["secondary_ccf"] = "ccf2";
+  columns["primary_ecf"] = "ecf1";
+  columns["secondary_ecf"] = "ecf2";
+
+  expected.push_back(CassandraStore::RowColumns("impu", "kermit", columns));
+  expected.push_back(CassandraStore::RowColumns("impu", "miss piggy", columns));
+
+  EXPECT_CALL(_client,
+              batch_mutate(MutationMap(expected), _));
+  EXPECT_CALL(*trx, on_success(_));
+
+  execute_trx((CassandraStore::Operation*)put_reg_data, trx);
+}
+
+TEST_F(CacheRequestTest, PutRegDataNoChargingAddresses)
+{
+  std::vector<std::string> ids;
+  ids.push_back("kermit");
+  ids.push_back("miss piggy");
+
+  std::vector<CassandraStore::RowColumns> expected;
+
+  TestTransaction *trx = make_trx();
+  Cache::PutRegData* put_reg_data = _cache.create_PutRegData(ids, 1000);
+  put_reg_data->with_xml("<xml>");
+
+  std::map<std::string, std::string> columns;
+  columns["ims_subscription_xml"] = "<xml>";
+
+  expected.push_back(CassandraStore::RowColumns("impu", "kermit", columns));
+  expected.push_back(CassandraStore::RowColumns("impu", "miss piggy", columns));
+
+  EXPECT_CALL(_client,
+              batch_mutate(MutationMap(expected), _));
+  EXPECT_CALL(*trx, on_success(_));
+
+  execute_trx((CassandraStore::Operation*)put_reg_data, trx);
+}
 // TODO move this up.
 MATCHER_P(OperationHasResult, expected_rc, "")
 {
@@ -372,8 +442,8 @@ MATCHER_P(OperationHasResult, expected_rc, "")
 TEST_F(CacheRequestTest, PutTransportEx)
 {
   TestTransaction *trx = make_trx();
-  CassandraStore::Operation* op =
-    _cache.create_PutIMSSubscription("kermit", "<xml>", RegistrationState::REGISTERED, IMPIS, 1000);
+  Cache::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", 1000);
+  put_reg_data->with_xml("<xml>");
 
   apache::thrift::transport::TTransportException te;
   EXPECT_CALL(_cache, get_client()).Times(2).WillRepeatedly(Return(&_client));
@@ -381,14 +451,14 @@ TEST_F(CacheRequestTest, PutTransportEx)
   EXPECT_CALL(_client, batch_mutate(_, _)).Times(2).WillRepeatedly(Throw(te));
 
   EXPECT_CALL(*trx, on_failure(OperationHasResult(CassandraStore::CONNECTION_ERROR)));
-  execute_trx(op, trx);
+  execute_trx((CassandraStore::Operation*)put_reg_data, trx);
 }
 
 TEST_F(CacheRequestTest, PutTransportGetClientEx)
 {
   TestTransaction *trx = make_trx();
-  CassandraStore::Operation* op =
-    _cache.create_PutIMSSubscription("kermit", "<xml>", RegistrationState::REGISTERED, IMPIS, 1000);
+  Cache::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", 1000);
+  put_reg_data->with_xml("<xml>");
 
   apache::thrift::transport::TTransportException te;
   EXPECT_CALL(_cache, get_client()).Times(2).WillOnce(Return(&_client)).WillOnce(Throw(te));
@@ -396,75 +466,75 @@ TEST_F(CacheRequestTest, PutTransportGetClientEx)
   EXPECT_CALL(_client, batch_mutate(_, _)).Times(1).WillOnce(Throw(te));
 
   EXPECT_CALL(*trx, on_failure(OperationHasResult(CassandraStore::CONNECTION_ERROR)));
-  execute_trx(op, trx);
+  execute_trx((CassandraStore::Operation*)put_reg_data, trx);
 }
 
 TEST_F(CacheRequestTest, PutInvalidRequestException)
 {
   TestTransaction *trx = make_trx();
-  CassandraStore::Operation* op =
-    _cache.create_PutIMSSubscription("kermit", "<xml>", RegistrationState::REGISTERED, IMPIS, 1000);
+  Cache::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", 1000);
+  put_reg_data->with_xml("<xml>");
 
   cass::InvalidRequestException ire;
   EXPECT_CALL(_client, batch_mutate(_, _)).WillOnce(Throw(ire));
 
   EXPECT_CALL(*trx, on_failure(OperationHasResult(CassandraStore::INVALID_REQUEST)));
-  execute_trx(op, trx);
+  execute_trx((CassandraStore::Operation*)put_reg_data, trx);
 }
 
 
 TEST_F(CacheRequestTest, PutNotFoundException)
 {
   TestTransaction *trx = make_trx();
-  CassandraStore::Operation* op =
-    _cache.create_PutIMSSubscription("kermit", "<xml>", RegistrationState::REGISTERED, IMPIS, 1000);
+  Cache::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", 1000);
+  put_reg_data->with_xml("<xml>");
 
   cass::NotFoundException nfe;
   EXPECT_CALL(_client, batch_mutate(_, _)).WillOnce(Throw(nfe));
 
   EXPECT_CALL(*trx, on_failure(OperationHasResult(CassandraStore::NOT_FOUND)));
-  execute_trx(op, trx);
+  execute_trx((CassandraStore::Operation*)put_reg_data, trx);
 }
 
 
 TEST_F(CacheRequestTest, PutNoResultsException)
 {
   TestTransaction *trx = make_trx();
-  CassandraStore::Operation* op =
-    _cache.create_PutIMSSubscription("kermit", "<xml>", RegistrationState::REGISTERED, IMPIS, 1000);
+  Cache::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", 1000);
+  put_reg_data->with_xml("<xml>");
 
   CassandraStore::RowNotFoundException rnfe("muppets", "kermit");
   EXPECT_CALL(_client, batch_mutate(_, _)).WillOnce(Throw(rnfe));
 
   EXPECT_CALL(*trx, on_failure(OperationHasResult(CassandraStore::NOT_FOUND)));
-  execute_trx(op, trx);
+  execute_trx((CassandraStore::Operation*)put_reg_data, trx);
 }
 
 
 TEST_F(CacheRequestTest, PutUnknownException)
 {
   TestTransaction *trx = make_trx();
-  CassandraStore::Operation* op =
-    _cache.create_PutIMSSubscription("kermit", "<xml>", RegistrationState::REGISTERED, IMPIS, 1000);
+  Cache::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", 1000);
+  put_reg_data->with_xml("<xml>");
 
   std::string ex("Made up exception");
   EXPECT_CALL(_client, batch_mutate(_, _)).WillOnce(Throw(ex));
 
   EXPECT_CALL(*trx, on_failure(OperationHasResult(CassandraStore::UNKNOWN_ERROR)));
-  execute_trx(op, trx);
+  execute_trx((CassandraStore::Operation*)put_reg_data, trx);
 }
 
 
 TEST_F(CacheRequestTest, PutsHaveConsistencyLevelOne)
 {
   TestTransaction *trx = make_trx();
-  CassandraStore::Operation* op =
-    _cache.create_PutIMSSubscription("kermit", "<xml>", RegistrationState::REGISTERED, IMPIS, 1000);
+  Cache::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", 1000);
+  put_reg_data->with_xml("<xml>");
 
   EXPECT_CALL(_client, batch_mutate(_, cass::ConsistencyLevel::ONE));
   EXPECT_CALL(*trx, on_success(_));
 
-  execute_trx(op, trx);
+  execute_trx((CassandraStore::Operation*)put_reg_data, trx);
 }
 
 
@@ -678,19 +748,23 @@ TEST_F(CacheRequestTest, DeletesHaveConsistencyLevelOne)
   execute_trx(op, trx);
 }
 
-TEST_F(CacheRequestTest, GetIMSSubscriptionMainline)
+TEST_F(CacheRequestTest, GetRegDataMainline)
 {
   std::map<std::string, std::string> columns;
   columns["ims_subscription_xml"] = "<howdy>";
   columns["is_registered"] = "\x01";
+  columns["primary_ccf"] = "ccf1";
+  columns["secondary_ccf"] = "ccf2";
+  columns["primary_ecf"] = "ecf1";
+  columns["secondary_ecf"] = "ecf2";
   columns["associated_impi__somebody@example.com"] = "";
 
   std::vector<cass::ColumnOrSuperColumn> slice;
   make_slice(slice, columns);
 
-  ResultRecorder<Cache::GetIMSSubscription, Cache::GetIMSSubscription::Result> rec;
+  ResultRecorder<Cache::GetRegData, Cache::GetRegData::Result> rec;
   RecordingTransaction* trx = make_rec_trx(&rec);
-  CassandraStore::Operation* op = _cache.create_GetIMSSubscription("kermit");
+  CassandraStore::Operation* op = _cache.create_GetRegData("kermit");
 
   EXPECT_CALL(_client, get_slice(_,
                                  "kermit",
@@ -706,9 +780,11 @@ TEST_F(CacheRequestTest, GetIMSSubscriptionMainline)
   EXPECT_EQ(RegistrationState::REGISTERED, rec.result.state);
   EXPECT_EQ("<howdy>", rec.result.xml);
   EXPECT_EQ(IMPIS, rec.result.impis);
+  EXPECT_EQ(CCFS, rec.result.charging_addrs.ccfs);
+  EXPECT_EQ(ECFS, rec.result.charging_addrs.ecfs);
 }
 
-TEST_F(CacheRequestTest, GetIMSSubscriptionTTL)
+TEST_F(CacheRequestTest, GetRegDataTTL)
 {
   std::map<std::string, std::string> columns;
   columns["is_registered"] = "\x01";
@@ -716,9 +792,9 @@ TEST_F(CacheRequestTest, GetIMSSubscriptionTTL)
   std::vector<cass::ColumnOrSuperColumn> slice;
   make_slice(slice, columns);
 
-  ResultRecorder<Cache::GetIMSSubscription, Cache::GetIMSSubscription::Result> rec;
+  ResultRecorder<Cache::GetRegData, Cache::GetRegData::Result> rec;
   RecordingTransaction* trx = make_rec_trx(&rec);
-  CassandraStore::Operation* op = _cache.create_GetIMSSubscription("kermit");
+  CassandraStore::Operation* op = _cache.create_GetRegData("kermit");
 
   EXPECT_CALL(_client, get_slice(_,
                                  "kermit",
@@ -736,7 +812,7 @@ TEST_F(CacheRequestTest, GetIMSSubscriptionTTL)
   EXPECT_EQ(EMPTY_IMPIS, rec.result.impis);
 }
 
-TEST_F(CacheRequestTest, GetIMSSubscriptionUnregistered)
+TEST_F(CacheRequestTest, GetRegDataUnregistered)
 {
   std::map<std::string, std::string> columns;
   columns["ims_subscription_xml"] = "<howdy>";
@@ -747,9 +823,9 @@ TEST_F(CacheRequestTest, GetIMSSubscriptionUnregistered)
   // Test with a TTL of 3600
   make_slice(slice, columns, 3600);
 
-  ResultRecorder<Cache::GetIMSSubscription, Cache::GetIMSSubscription::Result> rec;
+  ResultRecorder<Cache::GetRegData, Cache::GetRegData::Result> rec;
   RecordingTransaction* trx = make_rec_trx(&rec);
-  CassandraStore::Operation* op = _cache.create_GetIMSSubscription("kermit");
+  CassandraStore::Operation* op = _cache.create_GetRegData("kermit");
 
   EXPECT_CALL(_client, get_slice(_,
                                  "kermit",
@@ -770,7 +846,7 @@ TEST_F(CacheRequestTest, GetIMSSubscriptionUnregistered)
 // If we have User-Data XML, but no explicit registration state, that should
 // still be treated as unregistered state.
 
-TEST_F(CacheRequestTest, GetIMSSubscriptionNoRegState)
+TEST_F(CacheRequestTest, GetRegDataNoRegState)
 {
   std::vector<std::string> requested_columns;
   requested_columns.push_back("ims_subscription_xml");
@@ -784,9 +860,9 @@ TEST_F(CacheRequestTest, GetIMSSubscriptionNoRegState)
   std::vector<cass::ColumnOrSuperColumn> slice;
   make_slice(slice, columns);
 
-  ResultRecorder<Cache::GetIMSSubscription, Cache::GetIMSSubscription::Result> rec;
+  ResultRecorder<Cache::GetRegData, Cache::GetRegData::Result> rec;
   RecordingTransaction* trx = make_rec_trx(&rec);
-  CassandraStore::Operation* op = _cache.create_GetIMSSubscription("kermit");
+  CassandraStore::Operation* op = _cache.create_GetRegData("kermit");
 
   EXPECT_CALL(_client, get_slice(_,
                                  "kermit",
@@ -807,7 +883,7 @@ TEST_F(CacheRequestTest, GetIMSSubscriptionNoRegState)
 
 // Invalid registration state is treated as NOT_REGISTERED
 
-TEST_F(CacheRequestTest, GetIMSSubscriptionInvalidRegState)
+TEST_F(CacheRequestTest, GetRegDataInvalidRegState)
 {
   std::map<std::string, std::string> columns;
   columns["ims_subscription_xml"] = "";
@@ -816,9 +892,9 @@ TEST_F(CacheRequestTest, GetIMSSubscriptionInvalidRegState)
   std::vector<cass::ColumnOrSuperColumn> slice;
   make_slice(slice, columns);
 
-  ResultRecorder<Cache::GetIMSSubscription, Cache::GetIMSSubscription::Result> rec;
+  ResultRecorder<Cache::GetRegData, Cache::GetRegData::Result> rec;
   RecordingTransaction* trx = make_rec_trx(&rec);
-  CassandraStore::Operation* op = _cache.create_GetIMSSubscription("kermit");
+  CassandraStore::Operation* op = _cache.create_GetRegData("kermit");
 
   EXPECT_CALL(_client, get_slice(_,
                                  "kermit",
@@ -837,11 +913,11 @@ TEST_F(CacheRequestTest, GetIMSSubscriptionInvalidRegState)
 }
 
 
-TEST_F(CacheRequestTest, GetIMSSubscriptionNotFound)
+TEST_F(CacheRequestTest, GetRegDataNotFound)
 {
   CassandraStore::Operation* op =
-    _cache.create_GetIMSSubscription("kermit");
-  ResultRecorder<Cache::GetIMSSubscription, Cache::GetIMSSubscription::Result > rec;
+    _cache.create_GetRegData("kermit");
+  ResultRecorder<Cache::GetRegData, Cache::GetRegData::Result > rec;
   RecordingTransaction* trx = make_rec_trx(&rec);
 
   EXPECT_CALL(_client, get_slice(_, "kermit", _, _, _))
@@ -1027,19 +1103,23 @@ TEST_F(CacheRequestTest, GetAssocPublicIDsMainline)
   columns["public_id_gonzo"] = "";
   columns["public_id_miss piggy"] = "";
 
-  std::vector<cass::ColumnOrSuperColumn> slice;
-  make_slice(slice, columns);
+  std::vector<cass::ColumnOrSuperColumn> inner_slice;
+  make_slice(inner_slice, columns);
+  std::map<std::string, std::vector<cass::ColumnOrSuperColumn> > slice;
+  slice["kermit"] = inner_slice;
 
   ResultRecorder<Cache::GetAssociatedPublicIDs, std::vector<std::string>> rec;
   RecordingTransaction* trx = make_rec_trx(&rec);
   CassandraStore::Operation* op = _cache.create_GetAssociatedPublicIDs("kermit");
 
+  std::vector<std::string> impis = {"kermit"};
+
   EXPECT_CALL(_client,
-              get_slice(_,
-                        "kermit",
-                        ColumnPathForTable("impi"),
-                        ColumnsWithPrefix("public_id_"),
-                        _))
+              multiget_slice(_,
+                             impis,
+                             ColumnPathForTable("impi"),
+                             ColumnsWithPrefix("public_id_"),
+                             _))
     .WillOnce(SetArgReferee<0>(slice));
 
   EXPECT_CALL(*trx, on_success(_))
@@ -1059,34 +1139,30 @@ TEST_F(CacheRequestTest, GetAssocPublicIDsMainline)
 TEST_F(CacheRequestTest, GetAssocPublicIDsMultipleIDs)
 {
   std::map<std::string, std::string> columns;
+  std::map<std::string, std::string> columns2;
   columns["public_id_gonzo"] = "";
-  columns["public_id_miss piggy"] = "";
+  columns2["public_id_miss piggy"] = "";
 
-  std::vector<cass::ColumnOrSuperColumn> slice;
-  make_slice(slice, columns);
+  std::vector<cass::ColumnOrSuperColumn> inner_slice;
+  make_slice(inner_slice, columns);
+  std::map<std::string, std::vector<cass::ColumnOrSuperColumn> > slice;
+  slice["kermit"] = inner_slice;
 
-  std::vector<std::string> private_ids;
-  private_ids.push_back("kermit");
-  private_ids.push_back("miss piggy");
+  std::vector<cass::ColumnOrSuperColumn> inner_slice2;
+  make_slice(inner_slice2, columns2);
+  slice["miss_piggy"] = inner_slice2;
 
   ResultRecorder<Cache::GetAssociatedPublicIDs, std::vector<std::string>> rec;
   RecordingTransaction* trx = make_rec_trx(&rec);
-  CassandraStore::Operation* op = _cache.create_GetAssociatedPublicIDs(private_ids);
+  std::vector<std::string> impis = {"kermit", "miss piggy"};
+  CassandraStore::Operation* op = _cache.create_GetAssociatedPublicIDs(impis);
 
   EXPECT_CALL(_client,
-              get_slice(_,
-                        "kermit",
-                        ColumnPathForTable("impi"),
-                        ColumnsWithPrefix("public_id_"),
-                        _))
-    .WillOnce(SetArgReferee<0>(slice));
-
-  EXPECT_CALL(_client,
-              get_slice(_,
-              "miss piggy",
-              ColumnPathForTable("impi"),
-              ColumnsWithPrefix("public_id_"),
-              _))
+              multiget_slice(_,
+                             impis,
+                             ColumnPathForTable("impi"),
+                             ColumnsWithPrefix("public_id_"),
+                             _))
     .WillOnce(SetArgReferee<0>(slice));
 
   EXPECT_CALL(*trx, on_success(_))
@@ -1109,17 +1185,17 @@ TEST_F(CacheRequestTest, GetAssocPublicIDsNoResults)
   RecordingTransaction* trx = make_rec_trx(&rec);
   CassandraStore::Operation* op = _cache.create_GetAssociatedPublicIDs("kermit");
 
-  EXPECT_CALL(_client, get_slice(_, "kermit", _, _, _))
-    .WillOnce(SetArgReferee<0>(empty_slice));
+  std::vector<std::string> impis = {"kermit"};
+
+  EXPECT_CALL(_client, multiget_slice(_, impis, _, _, _))
+    .WillOnce(SetArgReferee<0>(empty_slice_multiget));
 
   // Expect on_success to fire, but results should be empty.
   EXPECT_CALL(*trx, on_success(_))
     .WillOnce(Invoke(trx, &RecordingTransaction::record_result));
   execute_trx(op, trx);
 
-  std::vector<std::string> expected_ids;
-
-  EXPECT_EQ(expected_ids, rec.result);
+  EXPECT_TRUE(rec.result.empty());
 }
 
 TEST_F(CacheRequestTest, GetAssociatedPrimaryPublicIDs)
@@ -1234,9 +1310,9 @@ TEST_F(CacheRequestTest, HaGetMainline)
   std::vector<cass::ColumnOrSuperColumn> slice;
   make_slice(slice, columns);
 
-  ResultRecorder<Cache::GetIMSSubscription, Cache::GetIMSSubscription::Result> rec;
+  ResultRecorder<Cache::GetRegData, Cache::GetRegData::Result> rec;
   RecordingTransaction* trx = make_rec_trx(&rec);
-  CassandraStore::Operation* op = _cache.create_GetIMSSubscription("kermit");
+  CassandraStore::Operation* op = _cache.create_GetRegData("kermit");
 
   cass::NotFoundException nfe;
   EXPECT_CALL(_client, get_slice(_,
@@ -1271,9 +1347,9 @@ TEST_F(CacheRequestTest, HaGet2ndReadNotFoundException)
   std::vector<cass::ColumnOrSuperColumn> slice;
   make_slice(slice, columns);
 
-  ResultRecorder<Cache::GetIMSSubscription, std::pair<RegistrationState, std::string> > rec;
+  ResultRecorder<Cache::GetRegData, std::pair<RegistrationState, std::string> > rec;
   RecordingTransaction* trx = make_rec_trx(&rec);
-  CassandraStore::Operation* op = _cache.create_GetIMSSubscription("kermit");
+  CassandraStore::Operation* op = _cache.create_GetRegData("kermit");
 
   cass::NotFoundException nfe;
   EXPECT_CALL(_client, get_slice(_, _, _, _,
@@ -1299,9 +1375,9 @@ TEST_F(CacheRequestTest, HaGet2ndReadUnavailableException)
   std::vector<cass::ColumnOrSuperColumn> slice;
   make_slice(slice, columns);
 
-  ResultRecorder<Cache::GetIMSSubscription, std::pair<RegistrationState, std::string> > rec;
+  ResultRecorder<Cache::GetRegData, std::pair<RegistrationState, std::string> > rec;
   RecordingTransaction* trx = make_rec_trx(&rec);
-  CassandraStore::Operation* op = _cache.create_GetIMSSubscription("kermit");
+  CassandraStore::Operation* op = _cache.create_GetRegData("kermit");
 
   cass::NotFoundException nfe;
   EXPECT_CALL(_client, get_slice(_, _, _, _,
@@ -1342,8 +1418,8 @@ ACTION_P2(CheckLatency, trx, ms) { trx->check_latency(ms * 1000); }
 TEST_F(CacheLatencyTest, PutRecordsLatency)
 {
   TestTransaction *trx = make_trx();
-  CassandraStore::Operation* op =
-    _cache.create_PutIMSSubscription("kermit", "<xml>", RegistrationState::REGISTERED, IMPIS, 1000, 300);
+  Cache::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", 1000);
+  put_reg_data->with_xml("<xml>");
 
   std::map<std::string, std::string> columns;
   columns["ims_subscription_xml"] = "<xml>";
@@ -1351,7 +1427,7 @@ TEST_F(CacheLatencyTest, PutRecordsLatency)
   EXPECT_CALL(_client, batch_mutate(_, _)).WillOnce(AdvanceTimeMs(12));
   EXPECT_CALL(*trx, on_success(_)).WillOnce(CheckLatency(trx, 12));
 
-  execute_trx(op, trx);
+  execute_trx((CassandraStore::Operation*)put_reg_data, trx);
 }
 
 
@@ -1380,9 +1456,9 @@ TEST_F(CacheLatencyTest, GetRecordsLatency)
   std::vector<cass::ColumnOrSuperColumn> slice;
   make_slice(slice, columns);
 
-  ResultRecorder<Cache::GetIMSSubscription, std::pair<RegistrationState, std::string> > rec;
+  ResultRecorder<Cache::GetRegData, std::pair<RegistrationState, std::string> > rec;
   RecordingTransaction* trx = make_rec_trx(&rec);
-  CassandraStore::Operation* op = _cache.create_GetIMSSubscription("kermit");
+  CassandraStore::Operation* op = _cache.create_GetRegData("kermit");
 
   EXPECT_CALL(_client, get_slice(_, _, _, _, _))
     .WillOnce(DoAll(SetArgReferee<0>(slice),
@@ -1399,15 +1475,15 @@ TEST_F(CacheLatencyTest, GetRecordsLatency)
 TEST_F(CacheLatencyTest, ErrorRecordsLatency)
 {
   TestTransaction *trx = make_trx();
-  CassandraStore::Operation* op =
-    _cache.create_PutIMSSubscription("kermit", "<xml>", RegistrationState::REGISTERED, IMPIS, 1000, 300);
+  Cache::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", 1000);
+  put_reg_data->with_xml("<xml>");
 
   cass::NotFoundException nfe;
   EXPECT_CALL(_client, batch_mutate(_, _))
     .WillOnce(DoAll(AdvanceTimeMs(12), Throw(nfe)));
   EXPECT_CALL(*trx, on_failure(_)).WillOnce(CheckLatency(trx, 12));
 
-  execute_trx(op, trx);
+  execute_trx((CassandraStore::Operation*)put_reg_data, trx);
 }
 
 TEST_F(CacheRequestTest, DissociateImplicitRegistrationSetFromImpi)

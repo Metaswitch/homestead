@@ -78,6 +78,11 @@ public:
   static const ServerCapabilities CAPABILITIES;
   static const ServerCapabilities NO_CAPABILITIES;
   static const ServerCapabilities CAPABILITIES_WITH_SERVER_NAME;
+  static const std::deque<std::string> NO_CFS;
+  static const std::deque<std::string> CCFS;
+  static const std::deque<std::string> ECFS;
+  static const ChargingAddresses NO_CHARGING_ADDRESSES;
+  static const ChargingAddresses FULL_CHARGING_ADDRESSES;
 
   static Diameter::Stack* _real_stack;
   static MockDiameterStack* _mock_stack;
@@ -204,6 +209,11 @@ const std::vector<int32_t> no_capabilities = {};
 const ServerCapabilities CxTest::CAPABILITIES(mandatory_capabilities, optional_capabilities, EMPTY_STRING);
 const ServerCapabilities CxTest::NO_CAPABILITIES(no_capabilities, no_capabilities, EMPTY_STRING);
 const ServerCapabilities CxTest::CAPABILITIES_WITH_SERVER_NAME(no_capabilities, no_capabilities, SERVER_NAME_IN_CAPAB);
+const std::deque<std::string> CxTest::NO_CFS = {};
+const std::deque<std::string> CxTest::ECFS = {"ecf1", "ecf"};
+const std::deque<std::string> CxTest::CCFS = {"ccf1", "ccf2"};
+const ChargingAddresses CxTest::NO_CHARGING_ADDRESSES(NO_CFS, NO_CFS);
+const ChargingAddresses CxTest::FULL_CHARGING_ADDRESSES(CCFS, ECFS);
 
 Diameter::Stack* CxTest::_real_stack = NULL;
 MockDiameterStack* CxTest::_mock_stack = NULL;
@@ -355,15 +365,37 @@ TEST_F(CxTest, SARNoImpiTest)
 
 TEST_F(CxTest, SAATest)
 {
+  ChargingAddresses charging_addrs;
   Cx::ServerAssignmentAnswer saa(_cx_dict,
                                  _mock_stack,
                                  RESULT_CODE_SUCCESS,
-                                 IMS_SUBSCRIPTION);
+                                 IMS_SUBSCRIPTION,
+                                 FULL_CHARGING_ADDRESSES);
   launder_message(saa);
   EXPECT_TRUE(saa.result_code(test_i32));
   EXPECT_EQ(RESULT_CODE_SUCCESS, test_i32);
   EXPECT_TRUE(saa.user_data(test_str));
   EXPECT_EQ(IMS_SUBSCRIPTION, test_str);
+  saa.charging_addrs(charging_addrs);
+  EXPECT_EQ(CCFS, charging_addrs.ccfs);
+  EXPECT_EQ(ECFS, charging_addrs.ecfs);
+}
+
+TEST_F(CxTest, SAATestNoChargingAddresses)
+{
+  ChargingAddresses charging_addrs;
+  Cx::ServerAssignmentAnswer saa(_cx_dict,
+                                 _mock_stack,
+                                 RESULT_CODE_SUCCESS,
+                                 IMS_SUBSCRIPTION,
+                                 NO_CHARGING_ADDRESSES);
+  launder_message(saa);
+  EXPECT_TRUE(saa.result_code(test_i32));
+  EXPECT_EQ(RESULT_CODE_SUCCESS, test_i32);
+  EXPECT_TRUE(saa.user_data(test_str));
+  EXPECT_EQ(IMS_SUBSCRIPTION, test_str);
+  saa.charging_addrs(charging_addrs);
+  EXPECT_TRUE(charging_addrs.empty());
 }
 
 //
@@ -790,15 +822,22 @@ TEST_F(CxTest, RTTestNoIMPUsNoAssocatedIdentities)
 
 TEST_F(CxTest, PPTest)
 {
+  ChargingAddresses charging_addrs;
   Cx::PushProfileRequest ppr(_cx_dict,
                              _mock_stack,
+                             IMPI,
                              IMS_SUBSCRIPTION,
+                             FULL_CHARGING_ADDRESSES,
                              AUTH_SESSION_STATE);
   launder_message(ppr);
+  EXPECT_EQ(IMPI, ppr.impi());
   EXPECT_TRUE(ppr.user_data(test_str));
   EXPECT_EQ(IMS_SUBSCRIPTION, test_str);
   EXPECT_TRUE(ppr.get_i32_from_avp(_cx_dict->AUTH_SESSION_STATE, test_i32));
   EXPECT_EQ(AUTH_SESSION_STATE, test_i32);
+  EXPECT_TRUE(ppr.charging_addrs(charging_addrs));
+  EXPECT_EQ(CCFS, charging_addrs.ccfs);
+  EXPECT_EQ(ECFS, charging_addrs.ecfs);
 
   Cx::PushProfileAnswer ppa(ppr,
                             _cx_dict,
@@ -810,4 +849,23 @@ TEST_F(CxTest, PPTest)
   EXPECT_EQ(RESULT_CODE_SUCCESS, test_i32);
   EXPECT_TRUE(ppa.get_i32_from_avp(_cx_dict->AUTH_SESSION_STATE, test_i32));
   EXPECT_EQ(AUTH_SESSION_STATE, test_i32);
+}
+
+TEST_F(CxTest, PPTestNoChargingAddresses)
+{
+  ChargingAddresses charging_addrs;
+  Cx::PushProfileRequest ppr(_cx_dict,
+                             _mock_stack,
+                             IMPI,
+                             IMS_SUBSCRIPTION,
+                             NO_CHARGING_ADDRESSES,
+                             AUTH_SESSION_STATE);
+  launder_message(ppr);
+  EXPECT_FALSE(ppr.charging_addrs(charging_addrs));
+
+  Cx::PushProfileAnswer ppa(ppr,
+                            _cx_dict,
+                            DIAMETER_REQ_SUCCESS,
+                            AUTH_SESSION_STATE);
+  launder_message(ppa);
 }

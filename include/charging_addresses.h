@@ -1,5 +1,6 @@
 /**
- * @file xmlutils.h class for XML utilities
+ * @file charging_addresses.h A class containing a subscriber's charging
+ * addresses.
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2013  Metaswitch Networks Ltd
@@ -34,21 +35,65 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#ifndef XMLUTILS_H__
-#define XMLUTILS_H__
+#ifndef CHARGING_ADDRESSES_H__
+#define CHARGING_ADDRESSES_H__
 
 #include <string>
-#include <vector>
-#include "reg_state.h"
-#include "charging_addresses.h"
+#include <deque>
 
-namespace XmlUtils
+/// An object containing a subscriber's charging addresses.
+class ChargingAddresses
 {
-  std::vector<std::string> get_public_ids(const std::string& user_data);
-  std::string get_private_id(const std::string& user_data);
-  std::string build_ClearwaterRegData_xml(RegistrationState state,
-                                          std::string user_data,
-                                          const ChargingAddresses& charging_addrs);
-}
+public:
+  /// Default constructor.
+  inline ChargingAddresses() {}
+
+  /// Constructor which takes CCFs and ECFs.
+  inline ChargingAddresses(std::deque<std::string> ccfs,
+                           std::deque<std::string> ecfs) : ccfs(ccfs), ecfs(ecfs) {}
+
+
+  /// Double ended queues of collect charging function addresses and event
+  /// charging function addresses. These are stored in priority order, and
+  /// they are stored in the format given by the provisioning server
+  /// (normally the HSS).
+  std::deque<std::string> ccfs;
+  std::deque<std::string> ecfs;
+
+  /// Helper function to determine whether we have any charging addresses.
+  inline bool empty() const { return (ccfs.empty()) && (ecfs.empty()); }
+
+  /// Convert the charging functions into a string to display in logs
+  std::string log_string()
+  {
+    std::string log_str;
+
+    if (!ccfs.empty())
+    {
+      log_str.append("Primary CCF: ").append(ccfs[0]);
+
+      if (ccfs.size() > 1)
+      {
+        log_str.append(", Secondary CCF: ").append(ccfs[1]);
+      }
+    }
+    if (!ecfs.empty())
+    {
+      if (!ccfs.empty())
+      {
+        log_str.append(", ");
+      }
+
+      log_str.append("Primary ECF: ").append(ecfs[0]);
+
+      if (ecfs.size() > 1)
+      {
+        log_str.append(", Secondary ECF: ").append(ecfs[1]);
+      }
+    }
+
+    return log_str;
+  }
+};
 
 #endif

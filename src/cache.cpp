@@ -52,6 +52,10 @@ const static std::string IMPU = "impu";
 // Column names in the IMPU column family.
 const static std::string IMS_SUB_XML_COLUMN_NAME = "ims_subscription_xml";
 const static std::string REG_STATE_COLUMN_NAME = "is_registered";
+const static std::string PRIMARY_CCF_COLUMN_NAME = "primary_ccf";
+const static std::string SECONDARY_CCF_COLUMN_NAME = "secondary_ccf";
+const static std::string PRIMARY_ECF_COLUMN_NAME = "primary_ecf";
+const static std::string SECONDARY_ECF_COLUMN_NAME = "secondary_ecf";
 const static std::string IMPI_COLUMN_PREFIX = "associated_impi__";
 const static std::string IMPI_MAPPING_PREFIX = "associated_primary_impu__";
 
@@ -79,93 +83,122 @@ Cache::~Cache() {}
 
 
 //
-// PutIMSSubscription methods.
+// PutRegData methods.
 //
 
-Cache::PutIMSSubscription::
-PutIMSSubscription(const std::string& public_id,
-                   const std::string& xml,
-                   const RegistrationState reg_state,
-                   const std::vector<std::string>& impis,
-                   const int64_t timestamp,
-                   const int32_t ttl):
+Cache::PutRegData::
+PutRegData(const std::string& public_id,
+           const int64_t timestamp,
+           const int32_t ttl):
   CassandraStore::Operation(),
   _public_ids(1, public_id),
-  _impis(impis),
-  _xml(xml),
-  _reg_state(reg_state),
   _timestamp(timestamp),
   _ttl(ttl)
 {}
 
-Cache::PutIMSSubscription::
-PutIMSSubscription(const std::vector<std::string>& public_ids,
-                   const std::string& xml,
-                   const RegistrationState reg_state,
-                   const std::vector<std::string>& impis,
-                   const int64_t timestamp,
-                   const int32_t ttl):
+Cache::PutRegData::
+PutRegData(const std::vector<std::string>& public_ids,
+           const int64_t timestamp,
+           const int32_t ttl):
   CassandraStore::Operation(),
   _public_ids(public_ids),
-  _impis(impis),
-  _xml(xml),
-  _reg_state(reg_state),
   _timestamp(timestamp),
   _ttl(ttl)
 {}
 
-
-Cache::PutIMSSubscription::
-~PutIMSSubscription()
+Cache::PutRegData::
+~PutRegData()
 {}
 
-
-bool Cache::PutIMSSubscription::perform(CassandraStore::ClientInterface* client,
-                                        SAS::TrailId trail)
+Cache::PutRegData& Cache::PutRegData::with_xml(const std::string& xml)
 {
-  std::vector<CassandraStore::RowColumns> to_put;
-  std::map<std::string, std::string> columns;
-  columns[IMS_SUB_XML_COLUMN_NAME] = _xml;
+  _columns[IMS_SUB_XML_COLUMN_NAME] = xml;
+  return *this;
+}
 
-  if (_reg_state == RegistrationState::REGISTERED)
+Cache::PutRegData& Cache::PutRegData::with_reg_state(const RegistrationState reg_state)
+{
+  if (reg_state == RegistrationState::REGISTERED)
   {
-    columns[REG_STATE_COLUMN_NAME] = CassandraStore::BOOLEAN_TRUE;
+    _columns[REG_STATE_COLUMN_NAME] = CassandraStore::BOOLEAN_TRUE;
   }
-  else if (_reg_state == RegistrationState::UNREGISTERED)
+  else if (reg_state == RegistrationState::UNREGISTERED)
   {
-    columns[REG_STATE_COLUMN_NAME] = CassandraStore::BOOLEAN_FALSE;
+    _columns[REG_STATE_COLUMN_NAME] = CassandraStore::BOOLEAN_FALSE;
   }
   else
   {
-    if (_reg_state != RegistrationState::UNCHANGED)
-    {
-      // LCOV_EXCL_START - invalid case not hit in UT
-      LOG_ERROR("Invalid registration state %d", _reg_state);
-      // LCOV_EXCL_STOP
-    }
+    // LCOV_EXCL_START - invalid case not hit in UT
+    LOG_ERROR("Unexpected registration state %d", reg_state);
+    // LCOV_EXCL_STOP
   }
+  return *this;
+}
 
-  for (std::vector<std::string>::iterator impi = _impis.begin();
-       impi != _impis.end();
+Cache::PutRegData& Cache::PutRegData::with_associated_impis(const std::vector<std::string>& impis)
+{
+  for (std::vector<std::string>::const_iterator impi = impis.begin();
+       impi != impis.end();
        impi++)
   {
     std::string column_name = IMPI_COLUMN_PREFIX + *impi;
-    columns[column_name] = "";
+    _columns[column_name] = "";
 
     std::map<std::string, std::string> impi_columns;
     std::vector<std::string>::iterator default_public_id = _public_ids.begin();
     impi_columns[IMPI_MAPPING_PREFIX + *default_public_id] = "";
-    to_put.push_back(CassandraStore::RowColumns(IMPI_MAPPING, *impi, impi_columns));
+    _to_put.push_back(CassandraStore::RowColumns(IMPI_MAPPING, *impi, impi_columns));
+  }
+  return *this;
+}
+
+Cache::PutRegData& Cache::PutRegData::with_charging_addrs(const ChargingAddresses& charging_addrs)
+{
+  if (charging_addrs.ccfs.empty())
+  {
+    _columns[PRIMARY_CCF_COLUMN_NAME] = "";
+    _columns[SECONDARY_CCF_COLUMN_NAME] = "";
+  }
+  else if (charging_addrs.ccfs.size() == 1)
+  {
+    _columns[PRIMARY_CCF_COLUMN_NAME] = charging_addrs.ccfs[0];
+    _columns[SECONDARY_CCF_COLUMN_NAME] = "";
+  }
+  else
+  {
+    _columns[PRIMARY_CCF_COLUMN_NAME] = charging_addrs.ccfs[0];
+    _columns[SECONDARY_CCF_COLUMN_NAME] = charging_addrs.ccfs[1];
   }
 
+  if (charging_addrs.ecfs.empty())
+  {
+    _columns[PRIMARY_ECF_COLUMN_NAME] = "";
+    _columns[SECONDARY_ECF_COLUMN_NAME] = "";
+  }
+  else if (charging_addrs.ecfs.size() == 1)
+  {
+    _columns[PRIMARY_ECF_COLUMN_NAME] = charging_addrs.ecfs[0];
+    _columns[SECONDARY_ECF_COLUMN_NAME] = "";
+  }
+  else
+  {
+    _columns[PRIMARY_ECF_COLUMN_NAME] = charging_addrs.ecfs[0];
+    _columns[SECONDARY_ECF_COLUMN_NAME] = charging_addrs.ecfs[1];
+  }
+  return *this;
+}
+
+bool Cache::PutRegData::perform(CassandraStore::ClientInterface* client,
+                                SAS::TrailId trail)
+{
   for (std::vector<std::string>::iterator row = _public_ids.begin();
        row != _public_ids.end();
        row++)
   {
-    to_put.push_back(CassandraStore::RowColumns(IMPU, *row, columns));
+    _to_put.push_back(CassandraStore::RowColumns(IMPU, *row, _columns));
   }
 
-  put_columns(client, to_put, _timestamp, _ttl);
+  put_columns(client, _to_put, _timestamp, _ttl);
 
   return true;
 }
@@ -289,28 +322,29 @@ bool Cache::PutAuthVector::perform(CassandraStore::ClientInterface* client,
 
 
 //
-// GetIMSSubscription methods
+// GetRegData methods
 //
 
-Cache::GetIMSSubscription::
-GetIMSSubscription(const std::string& public_id) :
+Cache::GetRegData::
+GetRegData(const std::string& public_id) :
   CassandraStore::Operation(),
   _public_id(public_id),
   _xml(),
   _reg_state(RegistrationState::NOT_REGISTERED),
   _xml_ttl(0),
   _reg_state_ttl(0),
-  _impis()
+  _impis(),
+  _charging_addrs()
 {}
 
 
-Cache::GetIMSSubscription::
-~GetIMSSubscription()
+Cache::GetRegData::
+~GetRegData()
 {}
 
 
-bool Cache::GetIMSSubscription::perform(CassandraStore::ClientInterface* client,
-                                        SAS::TrailId trail)
+bool Cache::GetRegData::perform(CassandraStore::ClientInterface* client,
+                                SAS::TrailId trail)
 {
   int64_t now = generate_timestamp();
   LOG_DEBUG("Issuing get for key %s", _public_id.c_str());
@@ -370,6 +404,30 @@ bool Cache::GetIMSSubscription::perform(CassandraStore::ClientInterface* client,
         std::string impi = it->column.name.substr(IMPI_COLUMN_PREFIX.length());
         _impis.push_back(impi);
       }
+      else if ((it->column.name == PRIMARY_CCF_COLUMN_NAME) && (it->column.value != ""))
+      {
+        _charging_addrs.ccfs.push_front(it->column.value);
+        LOG_DEBUG("Retrived primary_ccf column with value %s",
+                  it->column.value.c_str());
+      }
+      else if ((it->column.name == SECONDARY_CCF_COLUMN_NAME) && (it->column.value != ""))
+      {
+        _charging_addrs.ccfs.push_back(it->column.value);
+        LOG_DEBUG("Retrived secondary_ccf column with value %s",
+                  it->column.value.c_str());
+      }
+      else if ((it->column.name == PRIMARY_ECF_COLUMN_NAME) && (it->column.value != ""))
+      {
+        _charging_addrs.ecfs.push_front(it->column.value);
+        LOG_DEBUG("Retrived primary_ecf column with value %s",
+                  it->column.value.c_str());
+      }
+      else if ((it->column.name == SECONDARY_ECF_COLUMN_NAME) && (it->column.value != ""))
+      {
+        _charging_addrs.ecfs.push_back(it->column.value);
+        LOG_DEBUG("Retrived secondary_ecf column with value %s",
+                  it->column.value.c_str());
+      }
     }
 
     // If we're storing user data for this subscriber (i.e. there is
@@ -393,19 +451,32 @@ bool Cache::GetIMSSubscription::perform(CassandraStore::ClientInterface* client,
   return true;
 }
 
-void Cache::GetIMSSubscription::get_xml(std::string& xml, int32_t& ttl)
+void Cache::GetRegData::get_xml(std::string& xml, int32_t& ttl)
 {
   xml = _xml;
   ttl = _xml_ttl;
 }
 
-void Cache::GetIMSSubscription::get_associated_impis(std::vector<std::string>& associated_impis)
+void Cache::GetRegData::get_associated_impis(std::vector<std::string>& associated_impis)
 {
   associated_impis = _impis;
 }
 
 
-void Cache::GetIMSSubscription::get_result(std::pair<RegistrationState, std::string>& result)
+void Cache::GetRegData::get_registration_state(RegistrationState& reg_state, int32_t& ttl)
+{
+  reg_state = _reg_state;
+  ttl = _reg_state_ttl;
+}
+
+
+void Cache::GetRegData::get_charging_addrs(ChargingAddresses& charging_addrs)
+{
+  charging_addrs = _charging_addrs;
+}
+
+
+void Cache::GetRegData::get_result(std::pair<RegistrationState, std::string>& result)
 {
   RegistrationState state;
   int32_t reg_ttl;
@@ -418,21 +489,17 @@ void Cache::GetIMSSubscription::get_result(std::pair<RegistrationState, std::str
   result.second = xml;
 }
 
-void Cache::GetIMSSubscription::get_result(Cache::GetIMSSubscription::Result& result)
+
+void Cache::GetRegData::get_result(Cache::GetRegData::Result& result)
 {
   int32_t unused_ttl;
 
   get_registration_state(result.state, unused_ttl);
   get_xml(result.xml, unused_ttl);
   get_associated_impis(result.impis);
+  get_charging_addrs(result.charging_addrs);
 }
 
-
-void Cache::GetIMSSubscription::get_registration_state(RegistrationState& reg_state, int32_t& ttl)
-{
-  reg_state = _reg_state;
-  ttl = _reg_state_ttl;
-}
 
 //
 // GetAssociatedPublicIDs methods
@@ -462,38 +529,39 @@ Cache::GetAssociatedPublicIDs::
 bool Cache::GetAssociatedPublicIDs::perform(CassandraStore::ClientInterface* client,
                                             SAS::TrailId trail)
 {
-  std::vector<ColumnOrSuperColumn> columns;
+  std::map<std::string, std::vector<ColumnOrSuperColumn> > columns;
   std::set<std::string> public_ids;
 
-  for (std::vector<std::string>::iterator it = _private_ids.begin();
-       it != _private_ids.end();
-       ++it)
+  LOG_DEBUG("Looking for public IDs for private ID %s and %d others",
+            _private_ids.front().c_str(),
+            _private_ids.size());
+  try
   {
-    LOG_DEBUG("Looking for public IDs for private ID %s", it->c_str());
-    try
-    {
-      ha_get_columns_with_prefix(client,
-                                 IMPI,
-                                 *it,
-                                 ASSOC_PUBLIC_ID_COLUMN_PREFIX,
-                                 columns);
-    }
-    catch(CassandraStore::RowNotFoundException& rnfe)
-    {
-      LOG_INFO("Couldn't find any public IDs for private ID %s", (*it).c_str());
-    }
+    ha_multiget_columns_with_prefix(client,
+                                    IMPI,
+                                    _private_ids,
+                                    ASSOC_PUBLIC_ID_COLUMN_PREFIX,
+                                    columns);
+  }
+  catch(CassandraStore::RowNotFoundException& rnfe)
+  {
+    LOG_INFO("Couldn't find any public IDs");
+  }
 
-    // Convert the query results from a vector of columns to a vector containing
-    // the column names. The public_id prefix has already been stripped, so this
-    // is just a list of public IDs and can be passed directly to on_success.
-    for(std::vector<ColumnOrSuperColumn>::const_iterator column_it = columns.begin();
-        column_it != columns.end();
-        ++column_it)
+  // Convert the query results from a vector of columns to a vector containing
+  // the column names. The public_id prefix has already been stripped, so this
+  // is just a list of public IDs and can be passed directly to on_success.
+  for(std::map<std::string, std::vector<ColumnOrSuperColumn> >::const_iterator key_it = columns.begin();
+      key_it != columns.end();
+      ++key_it)
+  {
+    for(std::vector<ColumnOrSuperColumn>::const_iterator column = key_it->second.begin();
+        column != key_it->second.end();
+        ++column)
     {
-      LOG_DEBUG("Found associated public ID %s", column_it->column.name.c_str());
-      public_ids.insert(column_it->column.name);
+      LOG_DEBUG("Found associated public ID %s", column->column.name.c_str());
+      public_ids.insert(column->column.name);
     }
-    columns.clear();
   }
 
   // Move the std::set of public_ids to the std::vector of _public_ids so that they

@@ -1,5 +1,5 @@
 /**
- * @file httpstack_test.cpp UT for HttpStack module.
+ * @file xmlutils_test.cpp UT for XML utils.
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2013  Metaswitch Networks Ltd
@@ -40,7 +40,7 @@
 #include "xmlutils.h"
 #include "reg_state.h"
 
-/// Fixture for HttpStackTest.
+/// Fixture for XmlUtilsTest.
 class XmlUtilsTest : public testing::Test
 {
 public:
@@ -55,26 +55,38 @@ public:
 
 TEST_F(XmlUtilsTest, SimpleMainline)
 {
-  std::string result = XmlUtils::build_ClearwaterRegData_xml(RegistrationState::REGISTERED, "<?xml?><IMSSubscription>test</IMSSubscription>");
-  ASSERT_EQ("<ClearwaterRegData>\n\t<RegistrationState>REGISTERED</RegistrationState>\n\t<IMSSubscription>test</IMSSubscription>\n</ClearwaterRegData>\n\n", result);
+  ChargingAddresses charging_addresses({"ccf"}, {"ecf1", "ecf2"});
+  std::string result = XmlUtils::build_ClearwaterRegData_xml(RegistrationState::REGISTERED,
+                                                             "<?xml?><IMSSubscription>test</IMSSubscription>",
+                                                             charging_addresses);
+  ASSERT_EQ("<ClearwaterRegData>\n\t<RegistrationState>REGISTERED</RegistrationState>\n\t<IMSSubscription>test</IMSSubscription>\n\t<ChargingAddresses>\n\t\t<CCF priority=\"1\">ccf</CCF>\n\t\t<ECF priority=\"1\">ecf1</ECF>\n\t\t<ECF priority=\"2\">ecf2</ECF>\n\t</ChargingAddresses>\n</ClearwaterRegData>\n\n", result);
 }
 
 TEST_F(XmlUtilsTest, Unregistered)
 {
-  std::string result = XmlUtils::build_ClearwaterRegData_xml(RegistrationState::UNREGISTERED, "<?xml?><IMSSubscription>test</IMSSubscription>");
+  ChargingAddresses charging_addresses;
+  std::string result = XmlUtils::build_ClearwaterRegData_xml(RegistrationState::UNREGISTERED,
+                                                             "<?xml?><IMSSubscription>test</IMSSubscription>",
+                                                             charging_addresses);
   ASSERT_EQ("<ClearwaterRegData>\n\t<RegistrationState>UNREGISTERED</RegistrationState>\n\t<IMSSubscription>test</IMSSubscription>\n</ClearwaterRegData>\n\n", result);
 }
 
 TEST_F(XmlUtilsTest, InvalidRegState)
 {
-  std::string result = XmlUtils::build_ClearwaterRegData_xml(RegistrationState::UNCHANGED, "<?xml?><IMSSubscription>test</IMSSubscription>");
+  ChargingAddresses charging_addresses;
+  std::string result = XmlUtils::build_ClearwaterRegData_xml(RegistrationState::UNCHANGED,
+                                                             "<?xml?><IMSSubscription>test</IMSSubscription>",
+                                                             charging_addresses);
   ASSERT_EQ("<ClearwaterRegData>\n\t<RegistrationState>NOT_REGISTERED</RegistrationState>\n\t<IMSSubscription>test</IMSSubscription>\n</ClearwaterRegData>\n\n", result);
 }
 
-TEST_F(XmlUtilsTest, InvalidXml)
+TEST_F(XmlUtilsTest, InvalidIMSSub)
 {
-  std::string result = XmlUtils::build_ClearwaterRegData_xml(RegistrationState::REGISTERED, "<?xml?><IMSSubscriptiontest</IMSSubscription>");
-  ASSERT_EQ("<ClearwaterRegData>\n\t<RegistrationState>REGISTERED</RegistrationState>\n</ClearwaterRegData>\n\n", result);
+  ChargingAddresses charging_addresses({"ccf1", "ccf2"}, {"ecf1", "ecf2"});
+  std::string result = XmlUtils::build_ClearwaterRegData_xml(RegistrationState::REGISTERED,
+                                                             "<?xml?><IMSSubscriptiontest</IMSSubscription>",
+                                                             charging_addresses);
+  ASSERT_EQ("<ClearwaterRegData>\n\t<RegistrationState>REGISTERED</RegistrationState>\n\t<ChargingAddresses>\n\t\t<CCF priority=\"1\">ccf1</CCF>\n\t\t<CCF priority=\"2\">ccf2</CCF>\n\t\t<ECF priority=\"1\">ecf1</ECF>\n\t\t<ECF priority=\"2\">ecf2</ECF>\n\t</ChargingAddresses>\n</ClearwaterRegData>\n\n", result);
 }
 
 TEST_F(XmlUtilsTest, GetIds)

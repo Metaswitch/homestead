@@ -872,15 +872,15 @@ void ImpuRegDataTask::run()
   // need to return the iFCs to Sprout.
 
   LOG_DEBUG ("Try to find IMS Subscription information in the cache");
-  SAS::Event event(this->trail(), SASEvent::CACHE_GET_IMS_SUB, 0);
+  SAS::Event event(this->trail(), SASEvent::CACHE_GET_REG_DATA, 0);
   event.add_var_param(_impu);
   SAS::report_event(event);
-  CassandraStore::Operation* get_ims_sub = _cache->create_GetIMSSubscription(_impu);
+  CassandraStore::Operation* get_reg_data = _cache->create_GetRegData(_impu);
   CassandraStore::Transaction* tsx =
     new CacheTransaction(this,
-                         &ImpuRegDataTask::on_get_ims_subscription_success,
-                         &ImpuRegDataTask::on_get_ims_subscription_failure);
-  _cache->do_async(get_ims_sub, tsx);
+                         &ImpuRegDataTask::on_get_reg_data_success,
+                         &ImpuRegDataTask::on_get_reg_data_failure);
+  _cache->do_async(get_reg_data, tsx);
 }
 
 std::string regstate_to_str(RegistrationState state)
@@ -898,26 +898,29 @@ std::string regstate_to_str(RegistrationState state)
   }
 }
 
-void ImpuRegDataTask::on_get_ims_subscription_success(CassandraStore::Operation* op)
+void ImpuRegDataTask::on_get_reg_data_success(CassandraStore::Operation* op)
 {
   LOG_DEBUG("Got IMS subscription from cache");
-  Cache::GetIMSSubscription* get_ims_sub = (Cache::GetIMSSubscription*)op;
+  Cache::GetRegData* get_reg_data = (Cache::GetRegData*)op;
   RegistrationState old_state;
   std::vector<std::string> associated_impis;
   int32_t ttl = 0;
-  get_ims_sub->get_xml(_xml, ttl);
-  get_ims_sub->get_registration_state(old_state, ttl);
-  get_ims_sub->get_associated_impis(associated_impis);
+  get_reg_data->get_xml(_xml, ttl);
+  get_reg_data->get_registration_state(old_state, ttl);
+  get_reg_data->get_associated_impis(associated_impis);
+  get_reg_data->get_charging_addrs(_charging_addrs);
   bool new_binding = false;
-  LOG_DEBUG("TTL for this database record is %d, IMS Subscription XML is %s, and registration state is %s",
+  LOG_DEBUG("TTL for this database record is %d, IMS Subscription XML is %s, registration state is %s, and the charging addresses are %s",
             ttl,
             _xml.empty() ? "empty" : "not empty",
-            regstate_to_str(old_state).c_str());
-  SAS::Event event(this->trail(), SASEvent::CACHE_GET_IMS_SUB_SUCCESS, 0);
+            regstate_to_str(old_state).c_str(),
+            _charging_addrs.empty() ? "empty" : _charging_addrs.log_string().c_str());
+  SAS::Event event(this->trail(), SASEvent::CACHE_GET_REG_DATA_SUCCESS, 0);
   event.add_var_param(_xml);
   event.add_static_param(old_state);
   std::string associated_impis_str = boost::algorithm::join(associated_impis, ", ");
   event.add_var_param(associated_impis_str);
+  event.add_var_param(_charging_addrs.log_string());
   SAS::report_event(event);
 
   // By default, we should remain in the existing state.
@@ -1175,13 +1178,15 @@ void ImpuRegDataTask::on_get_ims_subscription_success(CassandraStore::Operation*
 void ImpuRegDataTask::send_reply()
 {
   LOG_DEBUG("Building 200 OK response to send (body was %s)", _req.body().c_str());
-  _req.add_content(XmlUtils::build_ClearwaterRegData_xml(_new_state, _xml));
+  _req.add_content(XmlUtils::build_ClearwaterRegData_xml(_new_state,
+                                                         _xml,
+                                                         _charging_addrs));
   send_http_reply(200);
 }
 
-void ImpuRegDataTask::on_get_ims_subscription_failure(CassandraStore::Operation* op,
-                                                      CassandraStore::ResultCode error,
-                                                      std::string& text)
+void ImpuRegDataTask::on_get_reg_data_failure(CassandraStore::Operation* op,
+                                              CassandraStore::ResultCode error,
+                                              std::string& text)
 {
   LOG_DEBUG("IMS subscription cache query failed: %u, %s", error, text.c_str());
   SAS::Event event(this->trail(), SASEvent::NO_REG_DATA_CACHE, 0);
@@ -1272,23 +1277,40 @@ void ImpuRegDataTask::put_in_cache()
       associated_private_ids = get_associated_private_ids();
     }
 
-    SAS::Event event(this->trail(), SASEvent::CACHE_PUT_IMS_SUB, 0);
+    SAS::Event event(this->trail(), SASEvent::CACHE_PUT_REG_DATA, 0);
     std::string public_ids_str = boost::algorithm::join(public_ids, ", ");
     event.add_var_param(public_ids_str);
     event.add_var_param(_xml);
     event.add_static_param(_new_state);
     std::string associated_private_ids_str = boost::algorithm::join(associated_private_ids, ", ");
     event.add_var_param(associated_private_ids_str);
+    event.add_var_param(_charging_addrs.log_string());
     SAS::report_event(event);
-    CassandraStore::Operation* put_ims_sub =
-      _cache->create_PutIMSSubscription(public_ids,
-                                        _xml,
-                                        _new_state,
-                                        associated_private_ids,
-                                        Cache::generate_timestamp(),
-                                        ttl);
+
+    Cache::PutRegData* put_reg_data = _cache->create_PutRegData(public_ids,
+                                                                Cache::generate_timestamp(),
+                                                                ttl);
+    put_reg_data->with_xml(_xml);
+
+    if (_new_state != RegistrationState::UNCHANGED)
+    {
+      put_reg_data->with_reg_state(_new_state);
+    }
+
+    if (!associated_private_ids.empty())
+    {
+      put_reg_data->with_associated_impis(associated_private_ids);
+    }
+
+    // Don't touch the charging addresses if there is no HSS.
+    if (_cfg->hss_configured)
+    {
+      put_reg_data->with_charging_addrs(_charging_addrs);
+    }
+
     CassandraStore::Transaction* tsx = new CacheTransaction;
-    _cache->do_async(put_ims_sub, tsx);
+    CassandraStore::Operation*& op = (CassandraStore::Operation*&)put_reg_data;
+    _cache->do_async(op, tsx);
   }
 }
 
@@ -1336,6 +1358,9 @@ void ImpuRegDataTask::on_sar_response(Diameter::Message& rsp)
   switch (result_code)
   {
     case 2001:
+      // Get the charging addresses.
+      saa.charging_addrs(_charging_addrs);
+
       // If we expect this request to assign the user to us (i.e. it
       // isn't triggered by a deregistration or a failure) we should
       // cache the User-Data.
@@ -1391,12 +1416,12 @@ void ImpuIMSSubscriptionTask::run()
   }
 
   LOG_DEBUG("Try to find IMS Subscription information in the cache");
-  CassandraStore::Operation* get_ims_sub = _cache->create_GetIMSSubscription(_impu);
+  CassandraStore::Operation* get_reg_data = _cache->create_GetRegData(_impu);
   CassandraStore::Transaction* tsx =
     new CacheTransaction(this,
-                         &ImpuRegDataTask::on_get_ims_subscription_success,
-                         &ImpuRegDataTask::on_get_ims_subscription_failure);
-  _cache->do_async(get_ims_sub, tsx);
+                         &ImpuRegDataTask::on_get_reg_data_success,
+                         &ImpuRegDataTask::on_get_reg_data_failure);
+  _cache->do_async(get_reg_data, tsx);
 }
 
 void ImpuIMSSubscriptionTask::send_reply()
@@ -1506,8 +1531,8 @@ void RegistrationTerminationTask::get_assoc_primary_public_ids_success(Cassandra
 }
 
 void RegistrationTerminationTask::get_assoc_primary_public_ids_failure(CassandraStore::Operation* op,
-                                                                          CassandraStore::ResultCode error,
-                                                                          std::string& text)
+                                                                       CassandraStore::ResultCode error,
+                                                                       std::string& text)
 {
   LOG_DEBUG("Failed to get associated default public identities");
   SAS::Event event(this->trail(), SASEvent::DEREG_SUCCESS, 0);
@@ -1518,7 +1543,7 @@ void RegistrationTerminationTask::get_assoc_primary_public_ids_failure(Cassandra
 
 void RegistrationTerminationTask::get_registration_sets()
 {
-  // This function issues a GetIMSSubscription cache request for a public identity
+  // This function issues a GetRegData cache request for a public identity
   // on the list of IMPUs and then removes that public identity from the list. It
   // should get called again after the cache response by the callback functions.
   // Once there are no public identities remaining, it deletes the registrations.
@@ -1527,15 +1552,15 @@ void RegistrationTerminationTask::get_registration_sets()
     std::string impu = _impus.back();
     _impus.pop_back();
     LOG_DEBUG("Finding registration set for public identity %s", impu.c_str());
-    SAS::Event event(this->trail(), SASEvent::CACHE_GET_IMS_SUB, 0);
+    SAS::Event event(this->trail(), SASEvent::CACHE_GET_REG_DATA, 0);
     event.add_var_param(impu);
     SAS::report_event(event);
-    CassandraStore::Operation* get_ims_sub = _cfg->cache->create_GetIMSSubscription(impu);
+    CassandraStore::Operation* get_reg_data = _cfg->cache->create_GetRegData(impu);
     CassandraStore::Transaction* tsx =
       new CacheTransaction(this,
                            &RegistrationTerminationTask::get_registration_set_success,
                            &RegistrationTerminationTask::get_registration_set_failure);
-    _cfg->cache->do_async(get_ims_sub, tsx);
+    _cfg->cache->do_async(get_reg_data, tsx);
   }
   else if (_registration_sets.empty())
   {
@@ -1560,11 +1585,11 @@ void RegistrationTerminationTask::get_registration_sets()
 
 void RegistrationTerminationTask::get_registration_set_success(CassandraStore::Operation* op)
 {
-  Cache::GetIMSSubscription* get_ims_sub_result = (Cache::GetIMSSubscription*)op;
+  Cache::GetRegData* get_reg_data_result = (Cache::GetRegData*)op;
   std::string ims_sub;
   int32_t temp;
-  get_ims_sub_result->get_xml(ims_sub, temp);
-  SAS::Event event(this->trail(), SASEvent::CACHE_GET_IMS_SUB_SUCCESS, 0);
+  get_reg_data_result->get_xml(ims_sub, temp);
+  SAS::Event event(this->trail(), SASEvent::CACHE_GET_REG_DATA_SUCCESS, 0);
   event.add_var_param(ims_sub);
   SAS::report_event(event);
 
@@ -1579,12 +1604,12 @@ void RegistrationTerminationTask::get_registration_set_success(CassandraStore::O
   if ((_deregistration_reason == SERVER_CHANGE) ||
       (_deregistration_reason == NEW_SERVER_ASSIGNED))
   {
-    // GetIMSSubscription also returns a list of associated private
+    // GetRegData also returns a list of associated private
     // identities. Save these off.
     std::vector<std::string> associated_impis;
-    get_ims_sub_result->get_associated_impis(associated_impis);
+    get_reg_data_result->get_associated_impis(associated_impis);
     std::string associated_impis_str = boost::algorithm::join(associated_impis, ", ");
-    LOG_DEBUG("GetIMSSubscription returned associated identites: %s",
+    LOG_DEBUG("GetRegData returned associated identites: %s",
               associated_impis_str.c_str());
     _impis.insert(_impis.end(),
                   associated_impis.begin(),
@@ -1752,34 +1777,129 @@ void RegistrationTerminationTask::send_rta(const std::string result_code)
 void PushProfileTask::run()
 {
   // Received a Push Profile Request. We may need to update an IMS
-  // subscription in the cache.
-  std::string ims_subscription;
-  _ppr.user_data(ims_subscription);
+  // subscription or charging address information in the cache.
+  _ims_sub_present = _ppr.user_data(_ims_subscription);
+  _charging_addrs_present = _ppr.charging_addrs(_charging_addrs);
 
-  // If we have an IMS subscription, update the IMPU table for each
-  // public ID. Otherwise just reply to the HSS.
-  if (!ims_subscription.empty())
+  // If we have charging addresses but no IMS subscription, we need
+  // to lookup which public IDs need updating based on the private ID
+  // specified in the PPR.
+  if ((_charging_addrs_present) && (!_ims_sub_present))
   {
-    LOG_INFO("Updating IMS subscription from PPR");
-    std::vector<std::string> impus = XmlUtils::get_public_ids(ims_subscription);
-    RegistrationState state = RegistrationState::UNCHANGED;
-    SAS::Event event(this->trail(), SASEvent::CACHE_PUT_IMS_SUB, 0);
-    std::string impus_str = boost::algorithm::join(impus, ", ");
-    event.add_var_param(impus_str);
-    event.add_var_param(ims_subscription);
-    event.add_static_param(state);
+    _impi = _ppr.impi();
+    LOG_DEBUG("Querying cache to find public IDs associated with %s", _impi.c_str());
+    SAS::Event event(this->trail(), SASEvent::CACHE_GET_ASSOC_IMPU, 0);
+    event.add_var_param(_impi);
     SAS::report_event(event);
-    CassandraStore::Operation* put_ims_subscription =
-      _cfg->cache->create_PutIMSSubscription(impus,
-                                             ims_subscription,
-                                             state,
-                                             Cache::generate_timestamp(),
-                                             (2 * _cfg->hss_reregistration_time));
+    CassandraStore::Operation* get_public_ids =
+      _cfg->cache->create_GetAssociatedPublicIDs(_impi);
     CassandraStore::Transaction* tsx =
       new CacheTransaction(this,
-                           &PushProfileTask::update_ims_subscription_success,
-                           &PushProfileTask::update_ims_subscription_failure);
-    _cfg->cache->do_async(put_ims_subscription, tsx);
+                           &PushProfileTask::on_get_impus_success,
+                           &PushProfileTask::on_get_impus_failure);
+    _cfg->cache->do_async(get_public_ids, tsx);
+  }
+  else
+  {
+    update_reg_data();
+  }
+}
+
+void PushProfileTask::on_get_impus_success(CassandraStore::Operation* op)
+{
+  Cache::GetAssociatedPublicIDs* get_public_ids = (Cache::GetAssociatedPublicIDs*)op;
+  get_public_ids->get_result(_impus);
+  if (!_impus.empty())
+  {
+    SAS::Event event(this->trail(), SASEvent::CACHE_GET_ASSOC_IMPU_SUCCESS, 0);
+    event.add_var_param(_impus[0]);
+    SAS::report_event(event);
+    if (Log::enabled(Log::DEBUG_LEVEL))
+    {
+      // LCOV_EXCL_START - clearly we only go through this code when debug logging
+      // is turned on.
+      std::string impus_str = boost::algorithm::join(_impus, ", ");
+      LOG_DEBUG("Found cached public IDs %s for private ID %s",
+                impus_str.c_str(), _impi.c_str());
+      // LCOV_EXCL_STOP
+    }
+    update_reg_data();
+  }
+  else
+  {
+    LOG_INFO("No cached public IDs found for private ID %s - failed to update charging addresses",
+             _impi.c_str());
+    SAS::Event event(this->trail(), SASEvent::CACHE_GET_ASSOC_IMPU_FAIL, 0);
+    SAS::report_event(event);
+    send_ppa(DIAMETER_REQ_FAILURE);
+  }
+}
+
+void PushProfileTask::on_get_impus_failure(CassandraStore::Operation* op,
+                                           CassandraStore::ResultCode error,
+                                           std::string& text)
+{
+  SAS::Event event(this->trail(), SASEvent::CACHE_GET_ASSOC_IMPU_FAIL, 0);
+  SAS::report_event(event);
+  LOG_DEBUG("Cache query failed with rc %d", error);
+  send_ppa(DIAMETER_REQ_FAILURE);
+}
+
+void PushProfileTask::update_reg_data()
+{
+  if ((_ims_sub_present) || (_charging_addrs_present))
+  {
+    // If we don't have any public IDs yet, we need to get them
+    // out of the IMS subscription.
+    if (_impus.empty())
+    {
+      _impus = XmlUtils::get_public_ids(_ims_subscription);
+    }
+
+    // Create the cache request object and a SAS event simultaneously.
+    Cache::PutRegData* put_reg_data =
+      _cfg->cache->create_PutRegData(_impus,
+                                     Cache::generate_timestamp(),
+                                     (2 * _cfg->hss_reregistration_time));
+    SAS::Event event(this->trail(), SASEvent::CACHE_PUT_REG_DATA, 0);
+
+    std::string impus_str = boost::algorithm::join(_impus, ", ");
+    event.add_var_param(impus_str);
+
+    if (_ims_sub_present)
+    {
+      LOG_INFO("Updating IMS subscription from PPR");
+      put_reg_data->with_xml(_ims_subscription);
+      event.add_var_param(_ims_subscription);
+    }
+    else
+    {
+      event.add_var_param("IMS subscription unchanged");
+    }
+
+    event.add_static_param(RegistrationState::UNCHANGED);
+    event.add_var_param("");
+
+    if (_charging_addrs_present)
+    {
+      LOG_INFO("Updating charging addresses from PPR");
+      event.add_var_param(_charging_addrs.log_string());
+      put_reg_data->with_charging_addrs(_charging_addrs);
+    }
+    else
+    {
+      event.add_var_param("Charging addresses unchanged");
+    }
+
+    CassandraStore::Transaction* tsx =
+      new CacheTransaction(this,
+                           &PushProfileTask::update_reg_data_success,
+                           &PushProfileTask::update_reg_data_failure);
+    CassandraStore::Operation*& op = (CassandraStore::Operation*&)put_reg_data;
+    _cfg->cache->do_async(op, tsx);
+
+    SAS::report_event(event);
+
   }
   else
   {
@@ -1787,18 +1907,18 @@ void PushProfileTask::run()
   }
 }
 
-void PushProfileTask::update_ims_subscription_success(CassandraStore::Operation* op)
+void PushProfileTask::update_reg_data_success(CassandraStore::Operation* op)
 {
-  SAS::Event event(this->trail(), SASEvent::UPDATED_IMS_SUBS, 0);
+  SAS::Event event(this->trail(), SASEvent::UPDATED_REG_DATA, 0);
   SAS::report_event(event);
   send_ppa(DIAMETER_REQ_SUCCESS);
 }
 
-void PushProfileTask::update_ims_subscription_failure(CassandraStore::Operation* op,
-                                                         CassandraStore::ResultCode error,
-                                                         std::string& text)
+void PushProfileTask::update_reg_data_failure(CassandraStore::Operation* op,
+                                              CassandraStore::ResultCode error,
+                                              std::string& text)
 {
-  LOG_DEBUG("Failed to update IMS subscription - report failure to HSS");
+  LOG_DEBUG("Failed to update registration data - report failure to HSS");
   send_ppa(DIAMETER_REQ_FAILURE);
 }
 
