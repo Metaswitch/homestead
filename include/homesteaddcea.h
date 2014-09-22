@@ -65,7 +65,7 @@ static const PDLog CL_HOMESTEAD_HELP_OPTION_EXIT
   PDLogBase::CL_HOMESTEAD_ID + 2,
   PDLOG_ERR,
   "Help(h) option causes program to exit",
-  "Homestead wa sstarted with the Help(h) option.",
+  "Homestead was started with the Help(h) option.",
   "Homestead will exit.",
    1,
   "The Help option is not normally used."
@@ -77,9 +77,8 @@ static const PDLog1<char> CL_HOMESTEAD_INVALID_OPTION_C
   "Fatal - Unknown command line option %c.  Run with --help for options.",
   "There was an invalid command line option in /etc/clearwater/config",
   "Homestead will exit",
-  2,
-  "Correct the /etc/clearwater/config file.",
-  "Fatal - Unknown command line option %c.  Run with --help for options."
+  1,
+  "Correct the /etc/clearwater/config file."
 );
 static const PDLog1<const char*> CL_HOMESTEAD_CRASH
 (
@@ -167,7 +166,7 @@ static const PDLog2<const char*, int> CL_HOMESTEAD_DIAMETER_STOP_FAIL
   PDLogBase::CL_HOMESTEAD_ID + 11,
   PDLOG_ERR,
   "Failed to stop Diameter stack in function %s with error %d",
-  "the Diameter interface encountered an error when shutting down the Diameter interface.",
+  "The Diameter interface encountered an error when shutting down the Diameter interface.",
   "Not critical as Homestead is exiting anyway.",
    1,
   "Report this issue."
