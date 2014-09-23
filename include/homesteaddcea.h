@@ -57,8 +57,8 @@ static const PDLog CL_HOMESTEAD_INVALID_SAS_OPTION
    "The interface to the SAS is not specified.",
    "No call traces will appear in the sas",
    2,
-   "Set the fully qualified sas hostname for the sas_server=<host> option.",
-   "Example: sas_server=sas-1.os3.richlab.datcon.co.uk.  The Sprout application must be restarted to take effect."
+   "Set the fully qualified sas hostname for the sas_server=<hostname>.<zone> option.",
+   "Consult the Clearwater Core Installation document."
 );
 static const PDLog CL_HOMESTEAD_HELP_OPTION_EXIT
 (
@@ -87,9 +87,8 @@ static const PDLog1<const char*> CL_HOMESTEAD_CRASH
   "Fatal - Homestead has exited or crashed with signal %s",
   "Homestead has encountered a fatal software error or has been terminated",
   "The Homestead application will restart.",
-   3,
+   2,
    "This error can occur if Homestead has been terminated by operator command.",
-   "Check the craft log to see if Monit has reported a ralf timeout.  This would be reported as a 'poll_ralf' failed.  Monit will restart ralf for this case.",
    "Actual crashes such as abort, segment trap, bus error trap, should be reported as a problem. "
 );
 static const PDLog CL_HOMESTEAD_STARTED
@@ -123,7 +122,7 @@ static const PDLog2<const char*, int> CL_HOMESTEAD_DIAMETER_INIT_FAIL
   "Homestead will exit",
    3,
   "(1).  Check the configuration for the hss in/etc/clearwater/config.",
-  "Example: hs_hostname=homestead.os3.richlab.datcon.co.uk:8888",
+  "Consult the Clearwater Core Installation document."
   "(2).  Check the connectivity to the hss using Wireshark."
 );
 static const PDLog2<const char*, int> CL_HOMESTEAD_HTTP_INIT_FAIL
@@ -134,8 +133,7 @@ static const PDLog2<const char*, int> CL_HOMESTEAD_HTTP_INIT_FAIL
   "The HTTP interfaces could not be initialized.",
   "This affects the handling of impu and impi requests from Sprout.  Call processing will not work.",
    3,
-  "(1). Check the hs_hostname setting in /etc/clearwater/config for correctness.",
-  "Example: hs_hostname=homestead.os3.richlab.datcon.co.uk:8888",
+  "(1). Check the hs_realm setting in /etc/clearwater/config for correctness.",
   "(2). Restart Homestead to see if the problem clears.",
   "(3). Report the issue if the problem cannot be resolved."
 );
@@ -148,7 +146,7 @@ static const PDLog CL_HOMESTEAD_ENDED
   "Homestead will exit.",
    3,
   "(1). For a command initiated stop the monit log will indicate a stop on user request",
-  "For a restart the monit log will indicate a timeout",
+  "Consult the Clearwater Core Installation document."
   "(2).  Report the issue if there was a timeout. "
 );
 static const PDLog2<const char*, int> CL_HOMESTEAD_HTTP_STOP_FAIL
