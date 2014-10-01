@@ -54,7 +54,7 @@
 #include "sproutconnection.h"
 #include "diameterresolver.h"
 #include "realmmanager.h"
-#include "homesteaddcea.h"
+#include "homestead_ent_definitions.h"
 
 struct options
 {
@@ -136,42 +136,6 @@ enum OptionTypes
   SAS_CONFIG,
   DIAMETER_TIMEOUT_MS
 };
-
-static const char* signal_description[] =
-  {
-    "Hangup", // 1
-    "Terminal Interrupt",
-    "Terminal Quit",
-    "Illegal Instruction",
-    "Trace/Breakpoint",
-    "Process Abort",
-    "Bus Error",
-    "Arithmetic Error",
-    "Kill",
-    "USR1", // 10
-    "Segment Trap",
-    "USR2",
-    "PIPE",
-    "Alarm",
-    "Termination",
-    "Stack Fault",
-    "CHLD",
-    "CONT",
-    "Stop",
-    "Terminal stop", // 20
-    "TTIN",
-    "TTOU",
-    "URG",
-    "XCPU",
-    "XFSZ",
-    "VTALRM",
-    "PROF",
-    "WINCH",
-    "POLL",
-    "LOST",
-    "Power", // 30
-    "System"
-  };
 
 int init_options(int argc, char**argv, struct options& options)
 {
@@ -316,7 +280,6 @@ int init_options(int argc, char**argv, struct options& options)
 
     case 'h':
       usage();
-      CL_HOMESTEAD_HELP_OPTION_EXIT.log();
       return -1;
 
     default:
@@ -345,7 +308,7 @@ void exception_handler(int sig)
   signal(SIGSEGV, SIG_DFL);
 
   // Log the signal, along with a backtrace.
-  const char* signamep = (sig >= SIGHUP and sig <= SIGSYS) ? signal_description[sig-1] : "Unknown";
+  const char* signamep = (sig >= SIGHUP and sig <= SIGSYS) ? signalnames[sig-1] : "Unknown";
   CL_HOMESTEAD_CRASH.log(signamep);
   closelog();
   LOG_BACKTRACE("Signal %d caught", sig);
