@@ -407,8 +407,8 @@ int main(int argc, char**argv)
   CL_HOMESTEAD_STARTED.log();
   if (init_logging_options(argc, argv, options) != 0)
   {
-    return 1;
     closelog();
+    return 1;
   }
 
   Log::setLoggingLevel(options.log_level);
