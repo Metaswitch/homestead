@@ -331,7 +331,7 @@ int init_options(int argc, char**argv, struct options& options)
 
     default:
       CL_HOMESTEAD_INVALID_OPTION_C.log(opt);
-      fprintf(stdout, "Unknown option.  Run with --help for options.\n");
+      LOG_ERROR("Unknown option. Run with --help for options.\n");
       return -1;
     }
   }
