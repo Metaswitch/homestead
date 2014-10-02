@@ -46,6 +46,7 @@
 #include "rapidxml/rapidxml.hpp"
 #include "boost/algorithm/string/join.hpp"
 
+const std::string SIP_URI_PRE = "sip:";
 
 Diameter::Stack* HssCacheTask::_diameter_stack = NULL;
 std::string HssCacheTask::_dest_realm;
@@ -1271,6 +1272,34 @@ void ImpuRegDataTask::put_in_cache()
       LOG_DEBUG("Public ID %s", i->c_str());
     }
 
+    // If we're caching an IMS subscription from the HSS we should check
+    // the IRS contains a SIP URI and throw an error log if it doesn't.
+    // We continue as normal even if it doesn't.
+    if (_cfg->hss_configured)
+    {
+      bool found_sip_uri = false;
+
+      for (std::vector<std::string>::iterator it = public_ids.begin();
+           (it != public_ids.end()) && (!found_sip_uri);
+           ++it)
+      {
+        if ((*it).compare(0, SIP_URI_PRE.length(), SIP_URI_PRE) == 0)
+        {
+          found_sip_uri = true;
+        }
+      }
+
+      if (!found_sip_uri)
+      {
+        // LCOV_EXCL_START - This is essentially tested in the PPR UTs
+        LOG_ERROR("No SIP URI in Implicit Registration Set");
+        SAS::Event event(this->trail(), SASEvent::NO_SIP_URI_IN_IRS, 0);
+        event.add_var_param(_xml);
+        SAS::report_event(event);
+        // LCOV_EXCL_STOP
+      }
+    }
+
     std::vector<std::string> associated_private_ids;
     if (_cfg->hss_configured)
     {
@@ -1598,7 +1627,7 @@ void RegistrationTerminationTask::get_registration_set_success(CassandraStore::O
   std::vector<std::string> public_ids = XmlUtils::get_public_ids(ims_sub);
   if (!public_ids.empty())
   {
-    _registration_sets.push_back(XmlUtils::get_public_ids(ims_sub));
+    _registration_sets.push_back(public_ids);
   }
 
   if ((_deregistration_reason == SERVER_CHANGE) ||
@@ -1854,6 +1883,28 @@ void PushProfileTask::update_reg_data()
     if (_impus.empty())
     {
       _impus = XmlUtils::get_public_ids(_ims_subscription);
+
+      // We should check the IRS contains a SIP URI and throw an error log if
+      // it doesn't. We continue as normal even if it doesn't.
+      bool found_sip_uri = false;
+
+      for (std::vector<std::string>::iterator it = _impus.begin();
+           (it != _impus.end()) && (!found_sip_uri);
+           ++it)
+      {
+        if ((*it).compare(0, SIP_URI_PRE.length(), SIP_URI_PRE) == 0)
+        {
+          found_sip_uri = true;
+        }
+      }
+
+      if (!found_sip_uri)
+      {
+        LOG_ERROR("No SIP URI in Implicit Registration Set");
+        SAS::Event event(this->trail(), SASEvent::NO_SIP_URI_IN_IRS, 0);
+        event.add_var_param(_ims_subscription);
+        SAS::report_event(event);
+      }
     }
 
     // Create the cache request object and a SAS event simultaneously.

@@ -57,6 +57,7 @@
 #define GTEST_HAS_POSIX_RE 0
 #include "test_utils.hpp"
 #include "test_interposer.hpp"
+#include "fakelogger.h"
 #include <curl/curl.h>
 
 #include "httpstack_utils.h"
@@ -134,6 +135,10 @@ public:
   static const std::deque<std::string> ECFS;
   static const ChargingAddresses NO_CHARGING_ADDRESSES;
   static const ChargingAddresses FULL_CHARGING_ADDRESSES;
+  static const std::string TEL_URI;
+  static const std::string TEL_URI2;
+  static const std::string TEL_URIS_IMS_SUBSCRIPTION;
+  static std::vector<std::string> TEL_URIS_IN_VECTOR;
 
   static Diameter::Stack* _real_stack;
   static MockDiameterStack* _mock_stack;
@@ -1151,6 +1156,10 @@ const std::deque<std::string> HandlersTest::ECFS = {"ecf1", "ecf"};
 const std::deque<std::string> HandlersTest::CCFS = {"ccf1", "ccf2"};
 const ChargingAddresses HandlersTest::NO_CHARGING_ADDRESSES(NO_CFS, NO_CFS);
 const ChargingAddresses HandlersTest::FULL_CHARGING_ADDRESSES(CCFS, ECFS);
+const std::string HandlersTest::TEL_URI = "tel:123";
+const std::string HandlersTest::TEL_URI2 = "tel:321";
+const std::string HandlersTest::TEL_URIS_IMS_SUBSCRIPTION = "<?xml version=\"1.0\"?><IMSSubscription><PrivateID>" + IMPI + "</PrivateID><ServiceProfile><PublicIdentity><Identity>" + TEL_URI + "</Identity></PublicIdentity><PublicIdentity><Identity>" + TEL_URI2 + "</Identity></PublicIdentity></ServiceProfile></IMSSubscription>";
+std::vector<std::string> HandlersTest::TEL_URIS_IN_VECTOR = {TEL_URI, TEL_URI2};
 
 const std::string HandlersTest::HTTP_PATH_REG_TRUE = "/registrations?send-notifications=true";
 const std::string HandlersTest::HTTP_PATH_REG_FALSE = "/registrations?send-notifications=false";
@@ -3607,6 +3616,63 @@ TEST_F(HandlersTest, PushProfileIMSSub)
   EXPECT_TRUE(ppa.result_code(test_i32));
   EXPECT_EQ(DIAMETER_SUCCESS, test_i32);
   EXPECT_EQ(AUTH_SESSION_STATE, ppa.auth_session_state());
+}
+
+TEST_F(HandlersTest, PushProfileIMSSubNoSIPURI)
+{
+  CapturingTestLogger log;
+
+  // Build a PPR and create a Push Profile Task with this message. This PPR
+  // contains an IMS subscription with no SIP URIs.
+  Cx::PushProfileRequest ppr(_cx_dict,
+                             _mock_stack,
+                             IMPI,
+                             TEL_URIS_IMS_SUBSCRIPTION,
+                             NO_CHARGING_ADDRESSES,
+                             AUTH_SESSION_STATE);
+
+  // The free_on_delete flag controls whether we want to free the underlying
+  // fd_msg structure when we delete this PPR. We don't, since this will be
+  // freed when the answer is freed later in the test. If we leave this flag set
+  // then the request will be freed twice.
+  ppr._free_on_delete = false;
+
+  PushProfileTask::Config cfg(_cache, _cx_dict, 0, 3600);
+  PushProfileTask* task = new PushProfileTask(_cx_dict, &ppr._fd_msg, &cfg, FAKE_TRAIL_ID);
+
+  // We have to make sure the message is pointing at the mock stack.
+  task->_msg._stack = _mock_stack;
+  task->_ppr._stack = _mock_stack;
+
+  // Once the task's run function is called, we expect to try and update
+  // the IMS Subscription (but not the charging addresses) in the cache.
+  MockCache::MockPutRegData mock_op;
+  EXPECT_CALL(*_cache, create_PutRegData(TEL_URIS_IN_VECTOR, _, 7200))
+    .WillOnce(Return(&mock_op));
+  EXPECT_CALL(mock_op, with_xml(TEL_URIS_IMS_SUBSCRIPTION))
+    .WillOnce(ReturnRef(mock_op));
+  _cache->EXPECT_DO_ASYNC(mock_op);
+
+  task->run();
+
+  CassandraStore::Transaction* t = mock_op.get_trx();
+  ASSERT_FALSE(t == NULL);
+
+  // Finally we expect a PPA.
+  EXPECT_CALL(*_mock_stack, send(_))
+    .Times(1)
+    .WillOnce(WithArgs<0>(Invoke(store_msg)));
+
+  t->on_success(&mock_op);
+
+  // Turn the caught Diameter msg structure into a PPA and confirm it's contents.
+  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
+  Cx::PushProfileAnswer ppa(msg);
+  EXPECT_TRUE(ppa.result_code(test_i32));
+  EXPECT_EQ(DIAMETER_SUCCESS, test_i32);
+  EXPECT_EQ(AUTH_SESSION_STATE, ppa.auth_session_state());
+
+  EXPECT_TRUE(log.contains("No SIP URI in Implicit Registration Set"));
 }
 
 TEST_F(HandlersTest, PushProfileCacheFailure)
