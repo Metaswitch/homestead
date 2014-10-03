@@ -3667,11 +3667,8 @@ TEST_F(HandlersTest, PushProfileIMSSubNoSIPURI)
 
   // Turn the caught Diameter msg structure into a PPA and confirm it's contents.
   Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
-  Cx::PushProfileAnswer ppa(msg);
-  EXPECT_TRUE(ppa.result_code(test_i32));
-  EXPECT_EQ(DIAMETER_SUCCESS, test_i32);
-  EXPECT_EQ(AUTH_SESSION_STATE, ppa.auth_session_state());
 
+  // Check for the log indicating there were no SIP URIs in the IRS.
   EXPECT_TRUE(log.contains("No SIP URI in Implicit Registration Set"));
 }
 
