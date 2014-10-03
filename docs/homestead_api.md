@@ -49,7 +49,7 @@ Response:
 
 ## IMPU - persistent registration state
 
-This URL controls registration state that persists for the whole duration of a registration - such as the fact that the user is registered, or the XML User-Data retrieved from the HSS. (This is in contrast to registration state which may change from one REGISTER message to the next, such as bindings, which are stored in Sprout's memcached store).
+This URL controls registration state that persists for the whole duration of a registration - such as the fact that the user is registered, or the XML User-Data or list of charging addresses retrieved from the HSS. (This is in contrast to registration state which may change from one REGISTER message to the next, such as bindings, which are stored in Sprout's memcached store).
 
 `GET /impu/<public ID>/reg-data` will return the subscriber's current registration state; as a GET request, this is guaranteed not to change any state. The body of the response is in the format:
 
@@ -57,10 +57,15 @@ This URL controls registration state that persists for the whole duration of a r
 <ClearwaterRegData>
     <RegistrationState>REGISTERED</RegistrationState>
     <IMSSubscription>...</IMSSubscription>
+    <ChargingAddresses>
+          <CCF priority="1">...</CCF>
+          <CCF priority="2">...</CCF>
+          <ECF priority="1">...</ECF>
+    </ChargingAddresses>
 </ClearwaterRegData>
 ```
 
-RegistrationState may take the values REGISTERED, UNREGISTERED or NOT_REGISTERED (following the IMS terminology, where an unregistered user is one where an S-CSCF is assigned to provide unregistered service and storing User-Data, and a user who is not assigned to an S-CSCF is not registered). The IMSSubscription XML is as defined in 3GPP TS 29.228.
+RegistrationState may take the values REGISTERED, UNREGISTERED or NOT_REGISTERED (following the IMS terminology, where an unregistered user is one where an S-CSCF is assigned to provide unregistered service and storing User-Data, and a user who is not assigned to an S-CSCF is not registered). The IMSSubscription XML is as defined in 3GPP TS 29.228. The ChargingAddresses each have a priority attribute, and are in the form they are returned from the HSS.
 
 Changes to registration state can be done by:
 
