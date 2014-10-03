@@ -3665,7 +3665,7 @@ TEST_F(HandlersTest, PushProfileIMSSubNoSIPURI)
 
   t->on_success(&mock_op);
 
-  // Turn the caught Diameter msg structure into a PPA and confirm it's contents.
+  // Turn the caught Diameter msg structure so it gets deleted properly.
   Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
 
   // Check for the log indicating there were no SIP URIs in the IRS.
