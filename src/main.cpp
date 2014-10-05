@@ -83,6 +83,7 @@ struct options
   std::string sas_server;
   std::string sas_system_name;
   int diameter_timeout_ms;
+  int target_latency_us;
 };
 
 void usage(void)
@@ -92,6 +93,8 @@ void usage(void)
        " -l, --localhost <hostname> Specify the local hostname or IP address."
        " -r, --home-domain <name>   Specify the SIP home domain."
        " -c, --diameter-conf <file> File name for Diameter configuration\n"
+       " -T, --target-latency-us <usecs>\n"
+       "                            Target latency above which throttling applies (default: 100000)\n"
        " -H, --http <address>       Set HTTP bind address (default: 0.0.0.0)\n"
        " -t, --http-threads N       Number of HTTP threads (default: 1)\n"
        " -u, --cache-threads N      Number of cache threads (default: 10)\n"
@@ -143,6 +146,7 @@ int init_options(int argc, char**argv, struct options& options)
     {"localhost",               required_argument, NULL, 'l'},
     {"home-domain",             required_argument, NULL, 'r'},
     {"diameter-conf",           required_argument, NULL, 'c'},
+    {"target-latency-us",       required_argument, NULL, 'T'},
     {"http",                    required_argument, NULL, 'H'},
     {"http-threads",            required_argument, NULL, 't'},
     {"cache-threads",           required_argument, NULL, 'u'},
@@ -168,7 +172,7 @@ int init_options(int argc, char**argv, struct options& options)
 
   int opt;
   int long_opt_ind;
-  while ((opt = getopt_long(argc, argv, "l:r:c:H:t:u:S:D:d:p:s:i:I:a:F:L:h", long_opt, &long_opt_ind)) != -1)
+  while ((opt = getopt_long(argc, argv, "l:r:c:H:t:u:S:D:d:p:s:i:I:a:F:L:h:T", long_opt, &long_opt_ind)) != -1)
   {
     switch (opt)
     {
@@ -182,6 +186,15 @@ int init_options(int argc, char**argv, struct options& options)
 
     case 'c':
       options.diameter_conf = std::string(optarg);
+      break;
+
+    case 'T':
+      options.target_latency_us = atoi(optarg);
+      if (options.target_latency_us <= 0)
+      {
+        fprintf(stdout, "Invalid --target-latency option %s\n", optarg);
+        return -1;
+      }
       break;
 
     case 'H':
@@ -349,6 +362,7 @@ int main(int argc, char**argv)
   options.sas_server = "0.0.0.0";
   options.sas_system_name = "";
   options.diameter_timeout_ms = 200;
+  options.target_latency_us = 100000;
 
   if (init_options(argc, argv, options) != 0)
   {
@@ -393,10 +407,16 @@ int main(int argc, char**argv)
             sas_write);
 
   StatisticsManager* stats_manager = new StatisticsManager();
-  LoadMonitor* load_monitor = new LoadMonitor(100000, // Initial target latency (us).
-                                              20,     // Maximum token bucket size.
-                                              10.0,   // Initial token fill rate (per sec).
-                                              10.0);  // Minimum token fill rate (per sec).
+
+  // Calculate initial and minimium fill rates (in secs) based on target latency
+  float fill_rate = 1000000.0 / (float)options.target_latency_us;
+  LOG_STATUS("Initial and min fill rates %f, target latency (usecs) %d", fill_rate, options.target_latency_us);
+
+  LoadMonitor* load_monitor = new LoadMonitor(options.target_latency_us, // Initial target latency (us).
+                                              20,                        // Maximum token bucket size.
+                                              fill_rate,                 // Initial token fill rate (per sec).
+                                              fill_rate);                // Minimum token fill rate (per sec).
+
   DnsCachedResolver* dns_resolver = new DnsCachedResolver("127.0.0.1");
   HttpResolver* http_resolver = new HttpResolver(dns_resolver, af);
 
