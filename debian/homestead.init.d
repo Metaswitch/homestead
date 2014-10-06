@@ -121,7 +121,12 @@ get_settings()
         [ "$hss_mar_lowercase_unknown" != "Y" ] || scheme_unknown_arg="--scheme-unknown unknown"
 
         [ -z "$diameter_timeout_ms" ] || diameter_timeout_ms_arg="--diameter-timeout-ms $diameter_timeout_ms"
-        [ ! -z "$snmp_ip" ] && alarms_enabled_arg="--alarms-enabled"
+
+        # Enable SNMP alarms if informsink(s) are configured
+        if [ ! -z "$snmp_ip" ]
+        then
+          alarms_enabled_arg="--alarms-enabled"
+        fi
 }
 
 #

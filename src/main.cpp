@@ -482,7 +482,9 @@ int main(int argc, char**argv)
 
   if (options.alarms_enabled)
   {
-    // Create Homesteads's alarm objects
+    // Create Homesteads's alarm objects. Note that the alarm identifier strings must match those
+    // in the alarm definition JSON file exactly.
+
     hss_comm_monitor = new CommunicationMonitor("homestead", "HOMESTEAD_HSS_COMM_ERROR_CLEAR", 
                                                              "HOMESTEAD_HSS_COMM_ERROR_CRITICAL");
 

@@ -48,13 +48,13 @@ check program poll_homestead with path "/usr/share/clearwater/bin/poll_homestead
 
 
 # Monitor the service's PID file and check its memory usage. Issue an alarm for
-# any restart, and clear upon qualified recovery.
+# any restart, clear after the process has run for 30s.
 
 check process homestead pidfile /var/run/homestead.pid
 
-  start program   = "/bin/bash -c '/usr/share/clearwater/bin/issue_alarm.py monit HOMESTEAD_PROC_FAIL_CRITICAL && /etc/init.d/homestead start'"
-  stop program    = "/bin/bash -c '/usr/share/clearwater/bin/issue_alarm.py monit HOMESTEAD_PROC_FAIL_CRITICAL && /etc/init.d/homestead stop'"
-  restart program = "/bin/bash -c '/usr/share/clearwater/bin/issue_alarm.py monit HOMESTEAD_PROC_FAIL_CRITICAL && /etc/init.d/homestead abort-restart'"
+  start program   = "/bin/bash -c '/usr/share/clearwater/bin/issue_alarm.py monit HOMESTEAD_PROC_FAIL_CRITICAL; /etc/init.d/homestead start'"
+  stop program    = "/bin/bash -c '/usr/share/clearwater/bin/issue_alarm.py monit HOMESTEAD_PROC_FAIL_CRITICAL; /etc/init.d/homestead stop'"
+  restart program = "/bin/bash -c '/usr/share/clearwater/bin/issue_alarm.py monit HOMESTEAD_PROC_FAIL_CRITICAL; /etc/init.d/homestead abort-restart'"
 
   if memory is greater than 80% for 3 cycles
      then restart
@@ -71,4 +71,4 @@ EOF
 chmod 0644 /etc/monit/conf.d/homestead.monit
 
 # Force monit to reload its configuration
-service monit reload
+reload clearwater-monit

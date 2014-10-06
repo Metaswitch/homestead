@@ -6,7 +6,7 @@
       "index" : 1500,
       "severity" : "CLEARED",
       "cause" : "SOFTWARE_ERROR",
-      "description" : "homestead: Process failure cleared",
+      "description" : "Homestead: Process failure cleared",
       "details" : "The Homestead process has been restored to normal operation."
     },
 
@@ -15,7 +15,7 @@
       "index" : 1500,
       "severity" : "CRITICAL",
       "cause" : "SOFTWARE_ERROR",
-      "description" : "homestead: Process failure",
+      "description" : "Homestead: Process failure",
       "details" : "Monit has detected that the Homestead process has failed. A restart will automatically be attempted. If this alarm does not clear, the Homestead process may have been stopped or an unrecoverable failure may have occurred."
     },
 
@@ -25,7 +25,7 @@
       "index" : 1501,
       "severity" : "CLEARED",
       "cause" : "UNDERLAYING_RESOURCE_UNAVAILABLE",
-      "description" : "homestead: Cassandra communication error cleared",
+      "description" : "Homestead: Cassandra communication error cleared",
       "details" : "Homestead communication to the local Cassandra has been restored."
     },
 
@@ -34,7 +34,7 @@
       "index" : 1501,
       "severity" : "CRITICAL",
       "cause" : "UNDERLAYING_RESOURCE_UNAVAILABLE",
-      "description" : "homestead: Cassandra communication error",
+      "description" : "Homestead: Cassandra communication error",
       "details" : "Homestead is unable to contact the local Cassandra. It will periodically attempt to reconnect. If this alarm does not clear, ensure that the local Cassandra is configured correctly then restart it."
     },
 
@@ -44,7 +44,7 @@
       "index" : 1502,
       "severity" : "CLEARED",
       "cause" : "UNDERLAYING_RESOURCE_UNAVAILABLE",
-      "description" : "homestead: HSS communication error cleared",
+      "description" : "Homestead: HSS communication error cleared",
       "details" : "Homestead communication to at least one HSS has been restored."
     },
 
@@ -53,8 +53,8 @@
       "index" : 1502,
       "severity" : "CRITICAL",
       "cause" : "UNDERLAYING_RESOURCE_UNAVAILABLE",
-      "description" : "homestead: HSS communication error",
-      "details" : "Homestead is unable to contact any HSSs. It will periodically attempt to reconnect. If this alarm does not clear, ensure that at least one HSS is operationsl and that network connectivity exists between it and Homestead."
+      "description" : "Homestead: HSS communication error",
+      "details" : "Homestead is unable to contact any HSSs. It will periodically attempt to reconnect. If this alarm does not clear, ensure that at least one HSS is operational and that network connectivity exists between it and Homestead."
     }
 
   ]
