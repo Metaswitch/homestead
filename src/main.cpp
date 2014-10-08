@@ -234,7 +234,7 @@ int init_options(int argc, char**argv, struct options& options)
       options.target_latency_us = atoi(optarg);
       if (options.target_latency_us <= 0)
       {
-        LOG_ERROR("Invalid --target-latency-us option %s", optarg);
+        fprintf(stdout, "Invalid --target-latency-us option %s\n", optarg);
         return -1;
       }
       break;
