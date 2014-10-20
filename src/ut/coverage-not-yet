@@ -22,3 +22,7 @@ modules/cpp-common/test_utils/mock_cassandra_store.h
 
 # The cassandra store is jointly tested in the homestead and memento
 modules/cpp-common/src/cassandra_store.cpp
+
+# The Alarm classes and CommunicationMonitor are tested in Sprout
+modules/cpp-common/src/alarm.cpp
+modules/cpp-common/src/communicationmonitor.cpp

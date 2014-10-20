@@ -496,8 +496,7 @@ int main(int argc, char**argv)
 
   Cache* cache = Cache::get_instance();
   cache->initialize();
-  cache->configure(options.cassandra, 9160, options.cache_threads);
-  cache->set_comm_monitor(cassandra_comm_monitor);
+  cache->configure(options.cassandra, 9160, options.cache_threads, 0, cassandra_comm_monitor);
   CassandraStore::ResultCode rc = cache->start();
 
   if (rc != CassandraStore::OK)
@@ -509,7 +508,8 @@ int main(int argc, char**argv)
   HttpConnection* http = new HttpConnection(options.sprout_http_name,
                                             false,
                                             http_resolver,
-                                            SASEvent::HttpLogLevel::PROTOCOL);
+                                            SASEvent::HttpLogLevel::PROTOCOL,
+                                            NULL);
   SproutConnection* sprout_conn = new SproutConnection(http);
 
   RegistrationTerminationTask::Config* rtr_config = NULL;
@@ -523,8 +523,7 @@ int main(int argc, char**argv)
   try
   {
     diameter_stack->initialize();
-    diameter_stack->configure(options.diameter_conf);
-    diameter_stack->set_comm_monitor(hss_comm_monitor);
+    diameter_stack->configure(options.diameter_conf, hss_comm_monitor);
     dict = new Cx::Dictionary();
 
     rtr_config = new RegistrationTerminationTask::Config(cache, dict, sprout_conn, options.hss_reregistration_time);
