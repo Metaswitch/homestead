@@ -1,4 +1,18 @@
 #! /bin/bash
+
+netstat -na | grep -q ":7199[^0-9]"
+while [ $? -ne 0 ]; do
+    sleep 1
+    printf "."
+    netstat -na | grep -q ":7199[^0-9]"
+done
+netstat -na | grep "LISTEN" | awk '{ print $4 }' | grep -q ":9160\$"
+while [ $? -ne 0 ]; do
+    sleep 1
+    printf "+"
+    netstat -na | grep "LISTEN" | awk '{ print $4 }' | grep -q ":9160\$"
+done
+
 if [[ ! -e /var/lib/cassandra/data/homestead_cache ]];
 then
     echo "CREATE KEYSPACE homestead_cache WITH strategy_class = 'SimpleStrategy' AND strategy_options:replication_factor = 2;
