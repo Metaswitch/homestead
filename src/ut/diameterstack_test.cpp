@@ -90,7 +90,7 @@ public:
   {
     _stack = Diameter::Stack::get_instance();
     _stack->initialize();
-    _stack->configure(UT_DIR + "/diameterstack.conf", &_cm);
+    _stack->configure(UT_DIR + "/diameterstack.conf");
     _stack->start();
 
     _dict = new Cx::Dictionary();
@@ -140,7 +140,6 @@ private:
   Diameter::Stack* _stack;
   Cx::Dictionary* _dict;
   MockFreeDiameter _mock_fd;
-  MockCommunicationMonitor _cm;
 };
 
 

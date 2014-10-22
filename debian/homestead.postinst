@@ -93,9 +93,6 @@ case "$1" in
 
         /usr/share/clearwater/cassandra-schemas/homestead_cache.sh
 
-        # Trigger snmpd restart to load Homestead alarm-defs
-        initctl emit --no-wait snmpd-config-change
-
         # Restart homestead.  Always do this by terminating homestead so monit will
         # restart it more-or-less immediately.  (monit restart seems to have
         # significant lag.)

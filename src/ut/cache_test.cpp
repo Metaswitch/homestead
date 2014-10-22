@@ -63,6 +63,7 @@ using ::testing::AllOf;
 using ::testing::DoAll;
 using ::testing::Gt;
 using ::testing::Lt;
+using ::testing::NiceMock;
 
 using namespace CassTestUtils;
 
@@ -107,7 +108,7 @@ public:
 
   TestCache _cache;
   MockCassandraClient _client;
-  MockCommunicationMonitor _cm;
+  NiceMock<MockCommunicationMonitor> _cm;
 };
 
 
