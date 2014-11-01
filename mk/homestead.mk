@@ -4,13 +4,13 @@ HOMESTEAD_DIR := ${ROOT}/src
 HOMESTEAD_TEST_DIR := ${ROOT}/tests
 
 homestead:
-	make -C ${HOMESTEAD_DIR}
+	${MAKE} -C ${HOMESTEAD_DIR}
 
 homestead_test:
-	make -C ${HOMESTEAD_DIR} test
+	${MAKE} -C ${HOMESTEAD_DIR} test
 
 homestead_clean:
-	make -C ${HOMESTEAD_DIR} clean
+	${MAKE} -C ${HOMESTEAD_DIR} clean
 
 homestead_distclean: homestead_clean
 
