@@ -476,15 +476,15 @@ int main(int argc, char**argv)
     // Create Homesteads's alarm objects. Note that the alarm identifier strings must match those
     // in the alarm definition JSON file exactly.
 
-    hss_comm_monitor = new CommunicationMonitor("homestead", AlarmDef::HOMESTEAD_HSS_COMM_ERROR, 
-                                                             AlarmDef::CRITICAL);
+    hss_comm_monitor = new CommunicationMonitor(new Alarm("homestead", AlarmDef::HOMESTEAD_HSS_COMM_ERROR, 
+                                                                       AlarmDef::CRITICAL));
 
-    cassandra_comm_monitor = new CommunicationMonitor("homestead", AlarmDef::HOMESTEAD_CASSANDRA_COMM_ERROR, 
-                                                                   AlarmDef::CRITICAL);
+    cassandra_comm_monitor = new CommunicationMonitor(new Alarm("homestead", AlarmDef::HOMESTEAD_CASSANDRA_COMM_ERROR, 
+                                                                             AlarmDef::CRITICAL));
 
     // Start the alarm request agent
     AlarmReqAgent::get_instance().start();
-    Alarm::clear_all("homestead");
+    AlarmState::clear_all("homestead");
   }
 
   LoadMonitor* load_monitor = new LoadMonitor(100000, // Initial target latency (us).
