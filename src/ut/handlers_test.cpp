@@ -897,7 +897,7 @@ public:
       .WillOnce(Return(http_ret_code));
 
     // Expect to receive a diameter message.
-    EXPECT_CALL(*_mock_stack, send(_))
+    EXPECT_CALL(*_mock_stack, send(_, FAKE_TRAIL_ID))
       .Times(1)
       .WillOnce(WithArgs<0>(Invoke(store_msg)));
 
@@ -1034,7 +1034,7 @@ public:
       .WillOnce(Return(HTTP_OK));
 
     // Expect to receive a diameter message.
-    EXPECT_CALL(*_mock_stack, send(_))
+    EXPECT_CALL(*_mock_stack, send(_, FAKE_TRAIL_ID))
       .Times(1)
       .WillOnce(WithArgs<0>(Invoke(store_msg)));
 
@@ -3106,7 +3106,7 @@ TEST_F(HandlersTest, RegistrationTerminationNoRegSets)
     .WillRepeatedly(DoAll(SetArgReferee<0>(""), SetArgReferee<1>(0)));
 
   // Expect to receive a diameter message.
-  EXPECT_CALL(*_mock_stack, send(_))
+  EXPECT_CALL(*_mock_stack, send(_, FAKE_TRAIL_ID))
     .Times(1)
     .WillOnce(WithArgs<0>(Invoke(store_msg)));
 
@@ -3157,7 +3157,7 @@ TEST_F(HandlersTest, RegistrationTerminationRegSetsCacheFailure)
   ASSERT_FALSE(t == NULL);
 
   // Expect to receive a diameter message.
-  EXPECT_CALL(*_mock_stack, send(_))
+  EXPECT_CALL(*_mock_stack, send(_, FAKE_TRAIL_ID))
     .Times(1)
     .WillOnce(WithArgs<0>(Invoke(store_msg)));
 
@@ -3213,7 +3213,7 @@ TEST_F(HandlersTest, RegistrationTerminationNoAssocIMPUs)
     .WillRepeatedly(SetArgReferee<0>(EMPTY_VECTOR));
 
   // Expect to receive a diameter message.
-  EXPECT_CALL(*_mock_stack, send(_))
+  EXPECT_CALL(*_mock_stack, send(_, FAKE_TRAIL_ID))
     .Times(1)
     .WillOnce(WithArgs<0>(Invoke(store_msg)));
 
@@ -3265,7 +3265,7 @@ TEST_F(HandlersTest, RegistrationTerminationAssocIMPUsCacheFailure)
   ASSERT_FALSE(t == NULL);
 
   // Expect to receive a diameter message.
-  EXPECT_CALL(*_mock_stack, send(_))
+  EXPECT_CALL(*_mock_stack, send(_, FAKE_TRAIL_ID))
     .Times(1)
     .WillOnce(WithArgs<0>(Invoke(store_msg)));
 
@@ -3305,7 +3305,7 @@ TEST_F(HandlersTest, RegistrationTerminationInvalidDeregReason)
   task->_rtr._stack = _mock_stack;
 
   // We expect to receive a diameter message.
-  EXPECT_CALL(*_mock_stack, send(_))
+  EXPECT_CALL(*_mock_stack, send(_, FAKE_TRAIL_ID))
     .Times(1)
     .WillOnce(WithArgs<0>(Invoke(store_msg)));
 
@@ -3366,7 +3366,7 @@ TEST_F(HandlersTest, PushProfile)
   ASSERT_FALSE(t == NULL);
 
   // Finally we expect a PPA.
-  EXPECT_CALL(*_mock_stack, send(_))
+  EXPECT_CALL(*_mock_stack, send(_, FAKE_TRAIL_ID))
     .Times(1)
     .WillOnce(WithArgs<0>(Invoke(store_msg)));
 
@@ -3437,7 +3437,7 @@ TEST_F(HandlersTest, PushProfileChargingAddrs)
   ASSERT_FALSE(t == NULL);
 
   // Finally we expect a PPA.
-  EXPECT_CALL(*_mock_stack, send(_))
+  EXPECT_CALL(*_mock_stack, send(_, FAKE_TRAIL_ID))
     .Times(1)
     .WillOnce(WithArgs<0>(Invoke(store_msg)));
 
@@ -3496,7 +3496,7 @@ TEST_F(HandlersTest, PushProfileNoPublicIDs)
     .WillRepeatedly(SetArgReferee<0>(EMPTY_VECTOR));
 
   // Finally we expect a PPA.
-  EXPECT_CALL(*_mock_stack, send(_))
+  EXPECT_CALL(*_mock_stack, send(_, FAKE_TRAIL_ID))
     .Times(1)
     .WillOnce(WithArgs<0>(Invoke(store_msg)));
 
@@ -3552,7 +3552,7 @@ TEST_F(HandlersTest, PushProfileLookupPublicIDsFail)
   mock_op._cass_status = CassandraStore::INVALID_REQUEST;
   mock_op._cass_error_text = "error";
 
-  EXPECT_CALL(*_mock_stack, send(_))
+  EXPECT_CALL(*_mock_stack, send(_, FAKE_TRAIL_ID))
     .Times(1)
     .WillOnce(WithArgs<0>(Invoke(store_msg)));
 
@@ -3604,7 +3604,7 @@ TEST_F(HandlersTest, PushProfileIMSSub)
   ASSERT_FALSE(t == NULL);
 
   // Finally we expect a PPA.
-  EXPECT_CALL(*_mock_stack, send(_))
+  EXPECT_CALL(*_mock_stack, send(_, FAKE_TRAIL_ID))
     .Times(1)
     .WillOnce(WithArgs<0>(Invoke(store_msg)));
 
@@ -3659,7 +3659,7 @@ TEST_F(HandlersTest, PushProfileIMSSubNoSIPURI)
   ASSERT_FALSE(t == NULL);
 
   // Finally we expect a PPA.
-  EXPECT_CALL(*_mock_stack, send(_))
+  EXPECT_CALL(*_mock_stack, send(_, FAKE_TRAIL_ID))
     .Times(1)
     .WillOnce(WithArgs<0>(Invoke(store_msg)));
 
@@ -3709,7 +3709,7 @@ TEST_F(HandlersTest, PushProfileCacheFailure)
 
   CassandraStore::Transaction* t = mock_op.get_trx();
   ASSERT_FALSE(t == NULL);
-  EXPECT_CALL(*_mock_stack, send(_))
+  EXPECT_CALL(*_mock_stack, send(_, FAKE_TRAIL_ID))
     .Times(1)
     .WillOnce(WithArgs<0>(Invoke(store_msg)));
 
@@ -3751,7 +3751,7 @@ TEST_F(HandlersTest, PushProfileNoIMSSubNoChargingAddrs)
 
   // Once the task's run function is called, we just expect a PPA to be sent
   // since there was nothing to do on this PPR.
-  EXPECT_CALL(*_mock_stack, send(_))
+  EXPECT_CALL(*_mock_stack, send(_, FAKE_TRAIL_ID))
     .Times(1)
     .WillOnce(WithArgs<0>(Invoke(store_msg)));
 
