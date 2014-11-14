@@ -110,6 +110,9 @@ public:
     EXPECT_CALL(_mock_fd, fd_msg_bufferize(_, _, _))
       .WillRepeatedly(DoAll(WithArgs<1, 2>(Invoke(create_dummy_diameter_buffer)),
                             Return(0)));
+
+    EXPECT_CALL(_mock_fd, fd_hook_get_pmd(_, _))
+      .WillRepeatedly(Return(&_mock_per_msg_data));
   }
 
   virtual ~DiameterRequestTest()
@@ -139,6 +142,7 @@ private:
   Diameter::Stack* _stack;
   Cx::Dictionary* _dict;
   MockFreeDiameter _mock_fd;
+  fd_hook_permsgdata _mock_per_msg_data;
 };
 
 

@@ -43,12 +43,14 @@ typedef int (*fd_msg_send_timeout_t)( struct msg ** pmsg, void (*anscb)(void *, 
 typedef int (*fd_msg_hdr_t)( struct msg *msg, struct msg_hdr ** pdata );
 typedef int (*fd_msg_new_t)( struct dict_object * model, int flags, struct msg ** msg );
 typedef int (*fd_msg_bufferize_t)( struct msg * msg, uint8_t ** buffer, size_t * len );
+typedef struct fd_hook_permsgdata * (*fd_hook_get_pmd_t)(struct fd_hook_data_hdl *data_hdl, struct msg * msg);
 
 static fd_msg_send_t real_fd_msg_send;
 static fd_msg_send_timeout_t real_fd_msg_send_timeout;
 static fd_msg_hdr_t real_fd_msg_hdr;
 static fd_msg_new_t real_fd_msg_new;
 static fd_msg_bufferize_t real_fd_msg_bufferize;
+static fd_hook_get_pmd_t real_fd_hook_get_pmd;
 
 void mock_free_diameter(MockFreeDiameter* mock)
 {
@@ -142,5 +144,26 @@ int fd_msg_bufferize( struct msg * msg, uint8_t ** buffer, size_t * len )
   else
   {
     return real_fd_msg_bufferize(msg, buffer, len);
+  }
+}
+
+struct fd_hook_permsgdata * fd_hook_get_pmd(struct fd_hook_data_hdl *data_hdl, struct msg * msg)
+{
+  if (real_fd_hook_get_pmd == NULL)
+  {
+    real_fd_hook_get_pmd = (fd_hook_get_pmd_t)dlsym(RTLD_NEXT, "fd_hook_get_pmd");
+  }
+
+  printf("In mock fd_hook_get_pmd\n");
+
+  if (_mock != NULL)
+  {
+    printf("Calling mock version\n");
+    return _mock->fd_hook_get_pmd(data_hdl, msg);
+  }
+  else
+  {
+    printf("Calling real version\n");
+    return real_fd_hook_get_pmd(data_hdl, msg);
   }
 }

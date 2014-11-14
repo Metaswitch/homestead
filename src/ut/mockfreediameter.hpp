@@ -51,6 +51,7 @@ public:
   MOCK_METHOD2(fd_msg_hdr, int( struct msg *msg, struct msg_hdr ** pdata ));
   MOCK_METHOD3(fd_msg_new, int( struct dict_object * model, int flags, struct msg ** msg ));
   MOCK_METHOD3(fd_msg_bufferize, int( struct msg * msg, uint8_t ** buffer, size_t * len ));
+  MOCK_METHOD2(fd_hook_get_pmd, struct fd_hook_permsgdata * (struct fd_hook_data_hdl *data_hdl, struct msg * msg));
 
   struct msg_hdr hdr;
 
