@@ -42,6 +42,7 @@
 #include "test_utils.hpp"
 #include "test_interposer.hpp"
 #include "mockfreediameter.hpp"
+#include "mockcommunicationmonitor.h"
 
 #include "diameterstack.h"
 #include "cx.h"
@@ -146,6 +147,39 @@ private:
 };
 
 
+class DiameterRequestCommMonMockTest : public ::testing::Test
+{
+public:
+  DiameterRequestCommMonMockTest()
+  {
+    _stack = Diameter::Stack::get_instance();
+    _stack->initialize();
+    _stack->configure(UT_DIR + "/diameterstack.conf", &_cm);
+    _stack->start();
+
+    _dict = new Cx::Dictionary();
+  }
+
+  virtual ~DiameterRequestCommMonMockTest()
+  {
+    delete _dict; _dict = NULL;
+
+    _stack->stop();
+    _stack->wait_stopped();
+  }
+
+  DiameterTestTransaction* make_trx()
+  {
+    return new DiameterTestTransaction(_dict);
+  }
+
+private:
+  Diameter::Stack* _stack;
+  Cx::Dictionary* _dict;
+  MockCommunicationMonitor _cm;
+};
+
+
 TEST(DiameterStackTest, SimpleMainline)
 {
   Diameter::Stack* stack = Diameter::Stack::get_instance();
@@ -204,4 +238,36 @@ TEST_F(DiameterRequestTest, TimedoutRequestTimesLatency)
                                     0,
                                     &fd_rsp);
   trx = NULL;
+}
+
+
+TEST_F(DiameterRequestCommMonMockTest, ResponseOk)
+{
+  DiameterTestTransaction *trx = make_trx();
+
+  Diameter::Message rsp(_dict, _dict->MULTIMEDIA_AUTH_ANSWER, _stack);
+  rsp.revoke_ownership();
+  rsp.set_result_code("DIAMETER_SUCCESS");
+
+  struct msg* fd_rsp = rsp.fd_msg();
+
+  EXPECT_CALL(*trx, on_response(_));
+  EXPECT_CALL(_cm, inform_success(_));
+  Diameter::Transaction::on_response(trx, &fd_rsp); trx = NULL;
+}
+
+
+TEST_F(DiameterRequestCommMonMockTest, ResponseError)
+{
+  DiameterTestTransaction *trx = make_trx();
+
+  Diameter::Message rsp(_dict, _dict->MULTIMEDIA_AUTH_ANSWER, _stack);
+  rsp.revoke_ownership();
+  rsp.set_result_code("DIAMETER_UNABLE_TO_DELIVER");
+
+  struct msg* fd_rsp = rsp.fd_msg();
+
+  EXPECT_CALL(*trx, on_response(_));
+  EXPECT_CALL(_cm, inform_failure(_));
+  Diameter::Transaction::on_response(trx, &fd_rsp); trx = NULL;
 }

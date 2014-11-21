@@ -121,6 +121,12 @@ get_settings()
         [ "$hss_mar_lowercase_unknown" != "Y" ] || scheme_unknown_arg="--scheme-unknown unknown"
 
         [ -z "$diameter_timeout_ms" ] || diameter_timeout_ms_arg="--diameter-timeout-ms $diameter_timeout_ms"
+
+        # Enable SNMP alarms if informsink(s) are configured
+        if [ ! -z "$snmp_ip" ]
+        then
+          alarms_enabled_arg="--alarms-enabled"
+        fi
 }
 
 #
@@ -157,6 +163,7 @@ do_start()
                      --sprout-http-name $sprout_http_name
                      $scheme_unknown_arg
                      $diameter_timeout_ms_arg
+                     $alarms_enabled_arg
                      -a $log_directory
                      -F $log_directory
                      -L $log_level
