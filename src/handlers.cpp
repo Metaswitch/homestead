@@ -846,10 +846,10 @@ void ImpuRegDataTask::run()
 
   if (method == htp_method_PUT)
   {
-    _type = request_type_from_body(_req.body());
+    _type = request_type_from_body(_req.get_rx_body());
     if (_type == RequestType::UNKNOWN)
     {
-      LOG_ERROR("HTTP request contains invalid value %s for type", _req.body().c_str());
+      LOG_ERROR("HTTP request contains invalid value %s for type", _req.get_rx_body().c_str());
       SAS::Event event(this->trail(), SASEvent::INVALID_REG_TYPE, 0);
       SAS::report_event(event);
       send_http_reply(400);
@@ -1178,7 +1178,7 @@ void ImpuRegDataTask::on_get_reg_data_success(CassandraStore::Operation* op)
 
 void ImpuRegDataTask::send_reply()
 {
-  LOG_DEBUG("Building 200 OK response to send (body was %s)", _req.body().c_str());
+  LOG_DEBUG("Building 200 OK response to send (body was %s)", _req.get_rx_body().c_str());
   _req.add_content(XmlUtils::build_ClearwaterRegData_xml(_new_state,
                                                          _xml,
                                                          _charging_addrs));
