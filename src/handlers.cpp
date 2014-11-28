@@ -846,10 +846,10 @@ void ImpuRegDataTask::run()
 
   if (method == htp_method_PUT)
   {
-    _type = request_type_from_body(_req.body());
+    _type = request_type_from_body(_req.get_rx_body());
     if (_type == RequestType::UNKNOWN)
     {
-      LOG_ERROR("HTTP request contains invalid value %s for type", _req.body().c_str());
+      LOG_ERROR("HTTP request contains invalid value %s for type", _req.get_rx_body().c_str());
       SAS::Event event(this->trail(), SASEvent::INVALID_REG_TYPE, 0);
       SAS::report_event(event);
       send_http_reply(400);
@@ -917,7 +917,7 @@ void ImpuRegDataTask::on_get_reg_data_success(CassandraStore::Operation* op)
             regstate_to_str(old_state).c_str(),
             _charging_addrs.empty() ? "empty" : _charging_addrs.log_string().c_str());
   SAS::Event event(this->trail(), SASEvent::CACHE_GET_REG_DATA_SUCCESS, 0);
-  event.add_var_param(_xml);
+  event.add_compressed_param(_xml, &SASEvent::PROFILE_SERVICE_PROFILE);
   event.add_static_param(old_state);
   std::string associated_impis_str = boost::algorithm::join(associated_impis, ", ");
   event.add_var_param(associated_impis_str);
@@ -1178,7 +1178,7 @@ void ImpuRegDataTask::on_get_reg_data_success(CassandraStore::Operation* op)
 
 void ImpuRegDataTask::send_reply()
 {
-  LOG_DEBUG("Building 200 OK response to send (body was %s)", _req.body().c_str());
+  LOG_DEBUG("Building 200 OK response to send (body was %s)", _req.get_rx_body().c_str());
   _req.add_content(XmlUtils::build_ClearwaterRegData_xml(_new_state,
                                                          _xml,
                                                          _charging_addrs));
@@ -1294,7 +1294,7 @@ void ImpuRegDataTask::put_in_cache()
         // LCOV_EXCL_START - This is essentially tested in the PPR UTs
         LOG_ERROR("No SIP URI in Implicit Registration Set");
         SAS::Event event(this->trail(), SASEvent::NO_SIP_URI_IN_IRS, 0);
-        event.add_var_param(_xml);
+        event.add_compressed_param(_xml, &SASEvent::PROFILE_SERVICE_PROFILE);
         SAS::report_event(event);
         // LCOV_EXCL_STOP
       }
@@ -1309,7 +1309,7 @@ void ImpuRegDataTask::put_in_cache()
     SAS::Event event(this->trail(), SASEvent::CACHE_PUT_REG_DATA, 0);
     std::string public_ids_str = boost::algorithm::join(public_ids, ", ");
     event.add_var_param(public_ids_str);
-    event.add_var_param(_xml);
+    event.add_compressed_param(_xml, &SASEvent::PROFILE_SERVICE_PROFILE);
     event.add_static_param(_new_state);
     std::string associated_private_ids_str = boost::algorithm::join(associated_private_ids, ", ");
     event.add_var_param(associated_private_ids_str);
@@ -1619,7 +1619,7 @@ void RegistrationTerminationTask::get_registration_set_success(CassandraStore::O
   int32_t temp;
   get_reg_data_result->get_xml(ims_sub, temp);
   SAS::Event event(this->trail(), SASEvent::CACHE_GET_REG_DATA_SUCCESS, 0);
-  event.add_var_param(ims_sub);
+  event.add_compressed_param(ims_sub, &SASEvent::PROFILE_SERVICE_PROFILE);
   SAS::report_event(event);
 
   // Add the list of public identities in the IMS subscription to
@@ -1902,7 +1902,7 @@ void PushProfileTask::update_reg_data()
       {
         LOG_ERROR("No SIP URI in Implicit Registration Set");
         SAS::Event event(this->trail(), SASEvent::NO_SIP_URI_IN_IRS, 0);
-        event.add_var_param(_ims_subscription);
+        event.add_compressed_param(_ims_subscription, &SASEvent::PROFILE_SERVICE_PROFILE);
         SAS::report_event(event);
       }
     }
@@ -1921,11 +1921,11 @@ void PushProfileTask::update_reg_data()
     {
       LOG_INFO("Updating IMS subscription from PPR");
       put_reg_data->with_xml(_ims_subscription);
-      event.add_var_param(_ims_subscription);
+      event.add_compressed_param(_ims_subscription, &SASEvent::PROFILE_SERVICE_PROFILE);
     }
     else
     {
-      event.add_var_param("IMS subscription unchanged");
+      event.add_compressed_param("IMS subscription unchanged", &SASEvent::PROFILE_SERVICE_PROFILE);
     }
 
     event.add_static_param(RegistrationState::UNCHANGED);

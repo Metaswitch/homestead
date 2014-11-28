@@ -54,6 +54,8 @@
 #include "sproutconnection.h"
 #include "diameterresolver.h"
 #include "realmmanager.h"
+#include "alarm.h"
+#include "communicationmonitor.h"
 
 struct options
 {
@@ -84,6 +86,7 @@ struct options
   std::string sas_system_name;
   int diameter_timeout_ms;
   int target_latency_us;
+  bool alarms_enabled;
 };
 
 // Enum for option types not assigned short-forms
@@ -93,7 +96,8 @@ enum OptionTypes
   SCHEME_DIGEST,
   SCHEME_AKA,
   SAS_CONFIG,
-  DIAMETER_TIMEOUT_MS
+  DIAMETER_TIMEOUT_MS,
+  ALARMS_ENABLED
 };
 
 const static struct option long_opt[] =
@@ -119,6 +123,7 @@ const static struct option long_opt[] =
   {"access-log",              required_argument, NULL, 'a'},
   {"sas",                     required_argument, NULL, SAS_CONFIG},
   {"diameter-timeout-ms",     required_argument, NULL, DIAMETER_TIMEOUT_MS},
+  {"alarms-enabled",          no_argument,       NULL, ALARMS_ENABLED},
   {"log-file",                required_argument, NULL, 'F'},
   {"log-level",               required_argument, NULL, 'L'},
   {"help",                    no_argument,       NULL, 'h'},
@@ -163,6 +168,7 @@ void usage(void)
        "                            system name to identify this system to SAS.  If this option isn't\n"
        "                            specified SAS is disabled\n"
        "     --diameter-timeout-ms  Length of time (in ms) before timing out a Diameter request to the HSS\n"
+       "     --alarms-enabled       Whether SNMP alarms are enabled (default: false)\n"
        " -F, --log-file <directory>\n"
        "                            Log to file in specified directory\n"
        " -L, --log-level N          Set log level to N (default: 4)\n"
@@ -331,6 +337,11 @@ int init_options(int argc, char**argv, struct options& options)
       options.diameter_timeout_ms = atoi(optarg);
       break;
 
+    case ALARMS_ENABLED:
+      LOG_INFO("SNMP alarms are enabled");
+      options.alarms_enabled = true;
+      break;
+
     case 'F':
     case 'L':
       // Ignore F and L - these are handled by init_logging_options
@@ -377,6 +388,9 @@ void exception_handler(int sig)
 
 int main(int argc, char**argv)
 {
+  CommunicationMonitor* hss_comm_monitor = NULL;
+  CommunicationMonitor* cassandra_comm_monitor = NULL;
+
   // Set up our exception signal handler for asserts and segfaults.
   signal(SIGABRT, exception_handler);
   signal(SIGSEGV, exception_handler);
@@ -410,6 +424,7 @@ int main(int argc, char**argv)
   options.sas_system_name = "";
   options.diameter_timeout_ms = 200;
   options.target_latency_us = 100000;
+  options.alarms_enabled = false;
 
   if (init_logging_options(argc, argv, options) != 0)
   {
@@ -475,12 +490,28 @@ int main(int argc, char**argv)
                                               10.0,                      // Initial token fill rate (per sec).
                                               10.0);                     // Minimum token fill rate (per sec).
 
+  if (options.alarms_enabled)
+  {
+    // Create Homesteads's alarm objects. Note that the alarm identifier strings must match those
+    // in the alarm definition JSON file exactly.
+
+    hss_comm_monitor = new CommunicationMonitor(new Alarm("homestead", AlarmDef::HOMESTEAD_HSS_COMM_ERROR,
+                                                                       AlarmDef::CRITICAL));
+
+    cassandra_comm_monitor = new CommunicationMonitor(new Alarm("homestead", AlarmDef::HOMESTEAD_CASSANDRA_COMM_ERROR,
+                                                                             AlarmDef::CRITICAL));
+
+    // Start the alarm request agent
+    AlarmReqAgent::get_instance().start();
+    AlarmState::clear_all("homestead");
+  }
+
   DnsCachedResolver* dns_resolver = new DnsCachedResolver("127.0.0.1");
   HttpResolver* http_resolver = new HttpResolver(dns_resolver, af);
 
   Cache* cache = Cache::get_instance();
   cache->initialize();
-  cache->configure(options.cassandra, 9160, options.cache_threads);
+  cache->configure(options.cassandra, 9160, options.cache_threads, 0, cassandra_comm_monitor);
   CassandraStore::ResultCode rc = cache->start();
 
   if (rc != CassandraStore::OK)
@@ -492,7 +523,8 @@ int main(int argc, char**argv)
   HttpConnection* http = new HttpConnection(options.sprout_http_name,
                                             false,
                                             http_resolver,
-                                            SASEvent::HttpLogLevel::PROTOCOL);
+                                            SASEvent::HttpLogLevel::PROTOCOL,
+                                            NULL);
   SproutConnection* sprout_conn = new SproutConnection(http);
 
   RegistrationTerminationTask::Config* rtr_config = NULL;
@@ -506,7 +538,7 @@ int main(int argc, char**argv)
   try
   {
     diameter_stack->initialize();
-    diameter_stack->configure(options.diameter_conf);
+    diameter_stack->configure(options.diameter_conf, hss_comm_monitor);
     dict = new Cx::Dictionary();
 
     rtr_config = new RegistrationTerminationTask::Config(cache, dict, sprout_conn, options.hss_reregistration_time);
@@ -661,6 +693,16 @@ int main(int argc, char**argv)
   delete load_monitor; load_monitor = NULL;
 
   SAS::term();
+
+  if (options.alarms_enabled)
+  {
+    // Stop the alarm request agent
+    AlarmReqAgent::get_instance().stop();
+
+    // Delete Homestead's alarm objects
+    delete hss_comm_monitor;
+    delete cassandra_comm_monitor;
+  }
 
   signal(SIGTERM, SIG_DFL);
   sem_destroy(&term_sem);

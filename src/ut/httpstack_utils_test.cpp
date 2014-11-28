@@ -425,7 +425,7 @@ TEST_F(HandlerUtilsTest, SpawningHandler)
 }
 
 
-TEST_F(HandlerUtilsTest, ChronosLogging)
+TEST_F(HandlerUtilsTest, DISABLED_ChronosLogging)
 {
   // Check that the chronos SAS logger logs events with the correct event ID.
   mock_sas_collect_messages(true);
