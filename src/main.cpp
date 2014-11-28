@@ -485,11 +485,6 @@ int main(int argc, char**argv)
 
   StatisticsManager* stats_manager = new StatisticsManager();
 
-  LoadMonitor* load_monitor = new LoadMonitor(options.target_latency_us, // Initial target latency (us).
-                                              20,                        // Maximum token bucket size.
-                                              10.0,                      // Initial token fill rate (per sec).
-                                              10.0);                     // Minimum token fill rate (per sec).
-
   if (options.alarms_enabled)
   {
     // Create Homesteads's alarm objects. Note that the alarm identifier strings must match those
@@ -506,6 +501,10 @@ int main(int argc, char**argv)
     AlarmState::clear_all("homestead");
   }
 
+  LoadMonitor* load_monitor = new LoadMonitor(options.target_latency_us, // Initial target latency (us).
+                                              20,                        // Maximum token bucket size.
+                                              10.0,                      // Initial token fill rate (per sec).
+                                              10.0);                     // Minimum token fill rate (per sec).
   DnsCachedResolver* dns_resolver = new DnsCachedResolver("127.0.0.1");
   HttpResolver* http_resolver = new HttpResolver(dns_resolver, af);
 
