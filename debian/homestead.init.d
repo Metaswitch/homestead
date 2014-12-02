@@ -84,6 +84,7 @@ get_settings()
         sas_server=0.0.0.0
         hss_hostname=0.0.0.0
         scscf=5054
+        target_latency_us=100000
         . /etc/clearwater/config
 
         # Set up defaults for user settings then pull in any overrides.
@@ -152,6 +153,7 @@ do_start()
         DAEMON_ARGS="--localhost $local_ip
                      --home-domain $home_domain
                      --diameter-conf /var/lib/homestead/homestead.conf
+                     --target-latency-us $target_latency_us
                      --http $local_ip
                      --http-threads $num_http_threads
                      $dest_realm
@@ -300,9 +302,9 @@ case "$1" in
         esac
         ;;
   abort)
-	log_daemon_msg "Aborting $DESC" "$NAME"
-	do_abort
-	;;
+       log_daemon_msg "Aborting $DESC" "$NAME"
+       do_abort
+       ;;
   abort-restart)
         log_daemon_msg "Abort-Restarting $DESC" "$NAME"
         do_abort

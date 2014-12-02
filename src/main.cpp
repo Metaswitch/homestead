@@ -85,6 +85,7 @@ struct options
   std::string sas_server;
   std::string sas_system_name;
   int diameter_timeout_ms;
+  int target_latency_us;
   bool alarms_enabled;
 };
 
@@ -104,6 +105,7 @@ const static struct option long_opt[] =
   {"localhost",               required_argument, NULL, 'l'},
   {"home-domain",             required_argument, NULL, 'r'},
   {"diameter-conf",           required_argument, NULL, 'c'},
+  {"target-latency-us",       required_argument, NULL, 'Y'},
   {"http",                    required_argument, NULL, 'H'},
   {"http-threads",            required_argument, NULL, 't'},
   {"cache-threads",           required_argument, NULL, 'u'},
@@ -128,7 +130,7 @@ const static struct option long_opt[] =
   {NULL,                      0,                 NULL, 0},
 };
 
-static std::string options_description = "l:r:c:H:t:u:S:D:d:p:s:i:I:a:F:L:h";
+static std::string options_description = "l:r:c:H:t:u:S:D:d:p:s:i:I:a:F:L:h:Y";
 
 void usage(void)
 {
@@ -137,6 +139,8 @@ void usage(void)
        " -l, --localhost <hostname> Specify the local hostname or IP address."
        " -r, --home-domain <name>   Specify the SIP home domain."
        " -c, --diameter-conf <file> File name for Diameter configuration\n"
+       " -Y, --target-latency-us <usecs>\n"
+       "                            Target latency above which throttling applies (default: 100000)\n"
        " -H, --http <address>       Set HTTP bind address (default: 0.0.0.0)\n"
        " -t, --http-threads N       Number of HTTP threads (default: 1)\n"
        " -u, --cache-threads N      Number of cache threads (default: 10)\n"
@@ -223,6 +227,15 @@ int init_options(int argc, char**argv, struct options& options)
     case 'c':
       LOG_INFO("Diameter configuration file: %s", optarg);
       options.diameter_conf = std::string(optarg);
+      break;
+
+    case 'Y':
+      options.target_latency_us = atoi(optarg);
+      if (options.target_latency_us <= 0)
+      {
+        fprintf(stdout, "Invalid --target-latency-us option %s\n", optarg);
+        return -1;
+      }
       break;
 
     case 'H':
@@ -410,6 +423,7 @@ int main(int argc, char**argv)
   options.sas_server = "0.0.0.0";
   options.sas_system_name = "";
   options.diameter_timeout_ms = 200;
+  options.target_latency_us = 100000;
   options.alarms_enabled = false;
 
   if (init_logging_options(argc, argv, options) != 0)
@@ -476,10 +490,10 @@ int main(int argc, char**argv)
     // Create Homesteads's alarm objects. Note that the alarm identifier strings must match those
     // in the alarm definition JSON file exactly.
 
-    hss_comm_monitor = new CommunicationMonitor(new Alarm("homestead", AlarmDef::HOMESTEAD_HSS_COMM_ERROR, 
+    hss_comm_monitor = new CommunicationMonitor(new Alarm("homestead", AlarmDef::HOMESTEAD_HSS_COMM_ERROR,
                                                                        AlarmDef::CRITICAL));
 
-    cassandra_comm_monitor = new CommunicationMonitor(new Alarm("homestead", AlarmDef::HOMESTEAD_CASSANDRA_COMM_ERROR, 
+    cassandra_comm_monitor = new CommunicationMonitor(new Alarm("homestead", AlarmDef::HOMESTEAD_CASSANDRA_COMM_ERROR,
                                                                              AlarmDef::CRITICAL));
 
     // Start the alarm request agent
@@ -487,10 +501,10 @@ int main(int argc, char**argv)
     AlarmState::clear_all("homestead");
   }
 
-  LoadMonitor* load_monitor = new LoadMonitor(100000, // Initial target latency (us).
-                                              20,     // Maximum token bucket size.
-                                              10.0,   // Initial token fill rate (per sec).
-                                              10.0);  // Minimum token fill rate (per sec).
+  LoadMonitor* load_monitor = new LoadMonitor(options.target_latency_us, // Initial target latency (us).
+                                              20,                        // Maximum token bucket size.
+                                              10.0,                      // Initial token fill rate (per sec).
+                                              10.0);                     // Minimum token fill rate (per sec).
   DnsCachedResolver* dns_resolver = new DnsCachedResolver("127.0.0.1");
   HttpResolver* http_resolver = new HttpResolver(dns_resolver, af);
 
