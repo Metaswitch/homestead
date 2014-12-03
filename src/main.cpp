@@ -54,6 +54,7 @@
 #include "sproutconnection.h"
 #include "diameterresolver.h"
 #include "realmmanager.h"
+#include "homestead_ent_definitions.h"
 #include "alarm.h"
 #include "communicationmonitor.h"
 
@@ -327,6 +328,7 @@ int init_options(int argc, char**argv, struct options& options)
         }
         else
         {
+	  CL_HOMESTEAD_INVALID_SAS_OPTION.log();
           LOG_WARNING("Invalid --sas option, SAS disabled\n");
         }
       }
@@ -352,7 +354,8 @@ int init_options(int argc, char**argv, struct options& options)
       return -1;
 
     default:
-      LOG_ERROR("Unknown option.  Run with --help for options.\n");
+      CL_HOMESTEAD_INVALID_OPTION_C.log(opt);
+      LOG_ERROR("Unknown option. Run with --help for options.\n");
       return -1;
     }
   }
@@ -376,6 +379,9 @@ void exception_handler(int sig)
   signal(SIGSEGV, SIG_DFL);
 
   // Log the signal, along with a backtrace.
+  const char* signamep = (sig >= SIGHUP and sig <= SIGSYS) ? signalnames[sig-1] : "Unknown";
+  CL_HOMESTEAD_CRASH.log(signamep);
+  closelog();
   LOG_BACKTRACE("Signal %d caught", sig);
 
   // Ensure the log files are complete - the core file created by abort() below
@@ -426,8 +432,11 @@ int main(int argc, char**argv)
   options.target_latency_us = 100000;
   options.alarms_enabled = false;
 
+  openlog("homestead", PDLOG_PID, PDLOG_LOCAL6);
+  CL_HOMESTEAD_STARTED.log();
   if (init_logging_options(argc, argv, options) != 0)
   {
+    closelog();
     return 1;
   }
 
@@ -515,6 +524,8 @@ int main(int argc, char**argv)
 
   if (rc != CassandraStore::OK)
   {
+    CL_HOMESTEAD_CASSANDRA_CACHE_INIT_FAIL.log(rc);
+    closelog();
     LOG_ERROR("Failed to initialize cache - rc %d", rc);
     exit(2);
   }
@@ -554,6 +565,8 @@ int main(int argc, char**argv)
   }
   catch (Diameter::Stack::Exception& e)
   {
+    CL_HOMESTEAD_DIAMETER_INIT_FAIL.log(e._func, e._rc);
+    closelog();
     LOG_ERROR("Failed to initialize Diameter stack - function %s, rc %d", e._func, e._rc);
     exit(2);
   }
@@ -618,6 +631,8 @@ int main(int argc, char**argv)
   }
   catch (HttpStack::Exception& e)
   {
+    CL_HOMESTEAD_HTTP_INIT_FAIL.log(e._func, e._rc);
+    closelog();
     LOG_ERROR("Failed to initialize HttpStack stack - function %s, rc %d", e._func, e._rc);
     exit(2);
   }
@@ -644,6 +659,7 @@ int main(int argc, char**argv)
   LOG_STATUS("Start-up complete - wait for termination signal");
   sem_wait(&term_sem);
   LOG_STATUS("Termination signal received - terminating");
+  CL_HOMESTEAD_ENDED.log();
 
   try
   {
@@ -652,6 +668,7 @@ int main(int argc, char**argv)
   }
   catch (HttpStack::Exception& e)
   {
+    CL_HOMESTEAD_HTTP_STOP_FAIL.log(e._func, e._rc);
     LOG_ERROR("Failed to stop HttpStack stack - function %s, rc %d", e._func, e._rc);
   }
 
@@ -665,6 +682,7 @@ int main(int argc, char**argv)
   }
   catch (Diameter::Stack::Exception& e)
   {
+    CL_HOMESTEAD_DIAMETER_STOP_FAIL.log(e._func, e._rc);
     LOG_ERROR("Failed to stop Diameter stack - function %s, rc %d", e._func, e._rc);
   }
   delete dict; dict = NULL;
@@ -692,6 +710,7 @@ int main(int argc, char**argv)
   delete load_monitor; load_monitor = NULL;
 
   SAS::term();
+  closelog();
 
   if (options.alarms_enabled)
   {
