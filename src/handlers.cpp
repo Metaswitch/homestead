@@ -1178,11 +1178,19 @@ void ImpuRegDataTask::on_get_reg_data_success(CassandraStore::Operation* op)
 
 void ImpuRegDataTask::send_reply()
 {
-  LOG_DEBUG("Building 200 OK response to send (body was %s)", _req.get_rx_body().c_str());
-  _req.add_content(XmlUtils::build_ClearwaterRegData_xml(_new_state,
-                                                         _xml,
-                                                         _charging_addrs));
-  send_http_reply(200);
+  std::string xml_str;
+  int rc = XmlUtils::build_ClearwaterRegData_xml(_new_state,
+                                                 _xml,
+                                                 _charging_addrs,
+                                                 xml_str);
+
+  if (rc == 200)
+  {
+    _req.add_content(xml_str);
+  }
+
+  LOG_DEBUG("Sending %d response (body was %s)", rc, _req.get_rx_body().c_str());
+  send_http_reply(rc);
 }
 
 void ImpuRegDataTask::on_get_reg_data_failure(CassandraStore::Operation* op,
