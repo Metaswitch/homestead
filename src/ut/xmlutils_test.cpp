@@ -95,7 +95,7 @@ TEST_F(XmlUtilsTest, InvalidIMSSubscription)
   ChargingAddresses charging_addresses;
   std::string result;
   int rc = XmlUtils::build_ClearwaterRegData_xml(RegistrationState::REGISTERED,
-                                                 "<?xml?><IMSSubscriptionwrong>test></IMSSubscriptionwrong>",
+                                                 "<?xml?><IMSSubscriptionwrong>test</IMSSubscriptionwrong>",
                                                  charging_addresses,
                                                  result);
   ASSERT_EQ(500, rc);
