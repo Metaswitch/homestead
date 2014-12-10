@@ -59,6 +59,7 @@ static const PDLog CL_HOMESTEAD_INVALID_SAS_OPTION
   "Set the fully qualified SAS hostname for the sas_server=<hostname>.<zone> option. "
   "Consult the Installation document."
 );
+
 // Removed Help option log
 static const PDLog1<char> CL_HOMESTEAD_INVALID_OPTION_C
 (
