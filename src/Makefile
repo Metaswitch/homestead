@@ -34,7 +34,6 @@ TARGET_SOURCES := accesslogger.cpp \
                   log.cpp \
                   realmmanager.cpp \
                   saslogger.cpp \
-                  signalnames.cpp \
                   sproutconnection.cpp \
                   statistic.cpp \
                   statisticsmanager.cpp \
