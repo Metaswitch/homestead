@@ -381,7 +381,6 @@ void exception_handler(int sig)
   // Log the signal, along with a backtrace.
   CL_HOMESTEAD_CRASH.log(strsignal(sig));
   closelog();
-  closelog();
   LOG_BACKTRACE("Signal %d caught", sig);
 
   // Ensure the log files are complete - the core file created by abort() below
