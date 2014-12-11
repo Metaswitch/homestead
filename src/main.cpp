@@ -511,7 +511,15 @@ int main(int argc, char**argv)
   Cache* cache = Cache::get_instance();
   cache->initialize();
   cache->configure(options.cassandra, 9160, options.cache_threads, 0, cassandra_comm_monitor);
-  CassandraStore::ResultCode rc = cache->start();
+
+  // Test the connection to Cassandra before starting the store.
+  CassandraStore::ResultCode rc = cache->connection_test();
+
+  if (rc == CassandraStore::OK)
+  {
+    // Cassandra connection is good, so start the store.
+    rc = cache->start();
+  }
 
   if (rc != CassandraStore::OK)
   {
