@@ -62,6 +62,7 @@ struct options
   std::string local_host;
   std::string home_domain;
   std::string diameter_conf;
+  std::string dns_server;
   std::string http_address;
   unsigned short http_port;
   int http_threads;
@@ -97,7 +98,8 @@ enum OptionTypes
   SCHEME_AKA,
   SAS_CONFIG,
   DIAMETER_TIMEOUT_MS,
-  ALARMS_ENABLED
+  ALARMS_ENABLED,
+  DNS_SERVER
 };
 
 const static struct option long_opt[] =
@@ -106,6 +108,7 @@ const static struct option long_opt[] =
   {"home-domain",             required_argument, NULL, 'r'},
   {"diameter-conf",           required_argument, NULL, 'c'},
   {"target-latency-us",       required_argument, NULL, 'Y'},
+  {"dns-server",              required_argument, NULL, DNS_SERVER},
   {"http",                    required_argument, NULL, 'H'},
   {"http-threads",            required_argument, NULL, 't'},
   {"cache-threads",           required_argument, NULL, 'u'},
@@ -342,6 +345,11 @@ int init_options(int argc, char**argv, struct options& options)
       options.alarms_enabled = true;
       break;
 
+    case DNS_SERVER:
+      LOG_INFO("DNS server set to: %s", optarg);
+      options.dns_server = std::string(optarg);
+      break;
+
     case 'F':
     case 'L':
       // Ignore F and L - these are handled by init_logging_options
@@ -402,6 +410,7 @@ int main(int argc, char**argv)
   options.local_host = "127.0.0.1";
   options.home_domain = "dest-realm.unknown";
   options.diameter_conf = "homestead.conf";
+  options.dns_server = "127.0.0.1";
   options.http_address = "0.0.0.0";
   options.http_port = 8888;
   options.http_threads = 1;
@@ -505,7 +514,7 @@ int main(int argc, char**argv)
                                               20,                        // Maximum token bucket size.
                                               10.0,                      // Initial token fill rate (per sec).
                                               10.0);                     // Minimum token fill rate (per sec).
-  DnsCachedResolver* dns_resolver = new DnsCachedResolver("127.0.0.1");
+  DnsCachedResolver* dns_resolver = new DnsCachedResolver(options.dns_server);
   HttpResolver* http_resolver = new HttpResolver(dns_resolver, af);
 
   Cache* cache = Cache::get_instance();
