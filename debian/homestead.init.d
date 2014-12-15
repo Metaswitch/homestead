@@ -80,20 +80,22 @@ log_directory=/var/log/$NAME
 #
 get_settings()
 {
-        # Set up defaults and then pull in the settings for this node.
+        # Set up defaults and then pull in any overrides.
         sas_server=0.0.0.0
         hss_hostname=0.0.0.0
         dns_server=127.0.0.1
         scscf=5054
         target_latency_us=100000
-        . /etc/clearwater/config
 
-        # Set up defaults for user settings then pull in any overrides.
         num_http_threads=$(($(grep processor /proc/cpuinfo | wc -l) * 50))
-        log_level=2
         impu_cache_ttl=0
         hss_reregistration_time=1800
+        max_peers=2
+        . /etc/clearwater/config
 
+        log_level=2
+
+        # Derive server_name and sprout_http_name from other settings
         if [ -n "$scscf_uri" ]
         then
           server_name=$scscf_uri
@@ -102,7 +104,8 @@ get_settings()
         fi
 
         sprout_http_name=$(python /usr/share/clearwater/bin/bracket_ipv6_address.py $sprout_hostname):9888
-        max_peers=2
+
+        # Pull in user_settings as a final level of overrides
         [ -r /etc/clearwater/user_settings ] && . /etc/clearwater/user_settings
 
         # Work out which features are enabled.
