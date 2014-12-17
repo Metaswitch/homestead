@@ -1188,6 +1188,12 @@ void ImpuRegDataTask::send_reply()
   {
     _req.add_content(xml_str);
   }
+  else
+  {
+    SAS::Event event(this->trail(), SASEvent::REG_DATA_HSS_INVALID, 0);
+    event.add_compressed_param(_xml, &SASEvent::PROFILE_SERVICE_PROFILE);
+    SAS::report_event(event);
+  }
 
   LOG_DEBUG("Sending %d response (body was %s)", rc, _req.get_rx_body().c_str());
   send_http_reply(rc);

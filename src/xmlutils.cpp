@@ -73,7 +73,7 @@ int build_ClearwaterRegData_xml(RegistrationState state,
   {
     if (state != RegistrationState::NOT_REGISTERED)
     {
-      LOG_ERROR("Invalid registration state %d", state);
+      LOG_DEBUG("Invalid registration state %d", state);
     }
     regtype = "NOT_REGISTERED";
   }
@@ -104,14 +104,14 @@ int build_ClearwaterRegData_xml(RegistrationState state,
       }
       else
       {
-        LOG_ERROR("Missing IMS Subscription in XML");
+        LOG_DEBUG("Missing IMS Subscription in XML");
         prev_doc.clear();
         return 500;
       }
     }
     catch (rapidxml::parse_error err)
     {
-      LOG_ERROR("Parse error in IMS Subscription document: %s\n\n%s", err.what(), xml.c_str());
+      LOG_DEBUG("Parse error in IMS Subscription document: %s\n\n%s", err.what(), xml.c_str());
       prev_doc.clear();
       return 500;
     }
@@ -188,7 +188,7 @@ std::vector<std::string> get_public_ids(const std::string& user_data)
   }
   catch (rapidxml::parse_error err)
   {
-    LOG_ERROR("Parse error in IMS Subscription document: %s\n\n%s", err.what(), user_data.c_str());
+    LOG_DEBUG("Parse error in IMS Subscription document: %s\n\n%s", err.what(), user_data.c_str());
     doc.clear();
   }
 
