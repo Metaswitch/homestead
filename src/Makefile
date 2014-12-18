@@ -121,10 +121,12 @@ LDFLAGS += -lthrift \
            -levent \
            -lcares \
            -lboost_regex \
+           -lboost_system \
            -lboost_date_time \
            -lpthread \
            -lcurl \
-           -lc
+           -lc \
+           -lboost_filesystem
 
 # Only use the real SAS library in the production build.
 LDFLAGS_BUILD += -lsas
