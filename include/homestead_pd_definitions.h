@@ -104,9 +104,9 @@ static const PDLog1<int> CL_HOMESTEAD_CASSANDRA_CACHE_INIT_FAIL
   "Fatal - Failed to initialize the cache for the CassandraStore - "
   "error code %d.",
   "The memory cache used to access Cassandra could not be initialized.",
-  "Homestead will exit.",
+  "Homestead will exit and be restarted.",
   "(1). Check to see if Cassandra is running.  Start if not "
-  "(2). Try restarting Homestead to see if the problem clears. "
+  "(2). See if the restart on Homestead clears the problem. "
   "(3). Try reinstalling Homestead and starting Homestead to see if "
   "the problem clears. "
 );
@@ -120,7 +120,7 @@ static const PDLog2<const char*, int> CL_HOMESTEAD_DIAMETER_INIT_FAIL
   "error while running.",
   "The application will exit and restart until the problem is fixed.",
   "(1). Check the configuration for the Diameter destination hosts. "
-  "(2). Check the connectivity to the to the Diameter host using Wireshark."
+  "(2). Check the connectivity to the Diameter host using Wireshark."
 );
 
 static const PDLog2<const char*, int> CL_HOMESTEAD_HTTP_INIT_FAIL
