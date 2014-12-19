@@ -84,8 +84,7 @@ static const PDLog1<const char*> CL_HOMESTEAD_CRASH
   "Homestead has encountered a fatal software error or has been terminated.",
   "The application will exit and restart.",
   "This error can occur if Homestead has been terminated by operator command. "
-  "Actual crashes such as segment trap or bus error trap, should be "
-  "reported. "
+  "Check your installation and configuration for other types of crashes."
 );
 
 static const PDLog CL_HOMESTEAD_STARTED
