@@ -118,6 +118,7 @@ public:
   static std::vector<std::string> IMPU_REG_SET;
   static std::vector<std::string> IMPU3_REG_SET;
   static const std::string IMPU_IMS_SUBSCRIPTION;
+  static const std::string IMPU_IMS_SUBSCRIPTION_INVALID;
   static const std::string IMPU3_IMS_SUBSCRIPTION;
   static const std::string SCHEME_UNKNOWN;
   static const std::string SCHEME_DIGEST;
@@ -1130,6 +1131,7 @@ std::vector<std::string> HandlersTest::ASSOCIATED_IDENTITY1_IN_VECTOR = {ASSOCIA
 std::vector<std::string> HandlersTest::IMPU_REG_SET = {IMPU, IMPU4};
 std::vector<std::string> HandlersTest::IMPU3_REG_SET = {IMPU3, IMPU2};
 const std::string HandlersTest::IMPU_IMS_SUBSCRIPTION = "<?xml version=\"1.0\"?><IMSSubscription><PrivateID>" + IMPI + "</PrivateID><ServiceProfile><PublicIdentity><Identity>" + IMPU + "</Identity></PublicIdentity><PublicIdentity><Identity>" + IMPU4 + "</Identity></PublicIdentity></ServiceProfile></IMSSubscription>";
+const std::string HandlersTest::IMPU_IMS_SUBSCRIPTION_INVALID = "<?xml version=\"1.0\"?><IMSSubscriptio></IMSSubscriptio>";
 const std::string HandlersTest::IMPU3_IMS_SUBSCRIPTION = "<?xml version=\"1.0\"?><IMSSubscription><PrivateID>" + IMPI + "</PrivateID><ServiceProfile><PublicIdentity><Identity>" + IMPU3 + "</Identity></PublicIdentity><PublicIdentity><Identity>" + IMPU2 + "</Identity></PublicIdentity></ServiceProfile></IMSSubscription>";
 std::vector<std::string> HandlersTest::EMPTY_VECTOR = {};
 const std::string HandlersTest::DEREG_BODY_PAIRINGS = "{\"registrations\":[{\"primary-impu\":\"" + IMPU3 + "\",\"impi\":\"" + IMPI +
@@ -2151,6 +2153,33 @@ TEST_F(HandlersTest, IMSSubscriptionHSSInvalidDereg)
 TEST_F(HandlersTest, IMSSubscriptionReg)
 {
   reg_data_template_no_hss("reg", true, RegistrationState::UNREGISTERED, 3600, REGDATA_RESULT, true, RegistrationState::REGISTERED);
+}
+
+TEST_F(HandlersTest, IMSSubscriptionRegInvalidXML)
+{
+  MockHttpStack::Request req(_httpstack,
+                             "/impu/" + IMPU + "/reg-data",
+                             "",
+                             "",
+                             "{\"reqtype\": \"reg\"}",
+                             htp_method_PUT);
+
+  ImpuRegDataTask::Config cfg(false, 3600);
+  ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
+
+  MockCache::MockGetRegData mock_op;
+  EXPECT_CALL(*_cache, create_GetRegData(IMPU)).WillOnce(Return(&mock_op));
+  _cache->EXPECT_DO_ASYNC(mock_op);
+  task->run();
+
+  CassandraStore::Transaction* t = mock_op.get_trx();
+  ASSERT_FALSE(t == NULL);
+  EXPECT_CALL(mock_op, get_xml(_,_)).WillRepeatedly(DoAll(SetArgReferee<0>(IMPU_IMS_SUBSCRIPTION_INVALID), SetArgReferee<1>(3600)));
+  EXPECT_CALL(mock_op, get_registration_state(_,_)).WillRepeatedly(DoAll(SetArgReferee<0>(RegistrationState::UNREGISTERED), SetArgReferee<1>(3600)));
+  EXPECT_CALL(mock_op, get_associated_impis(_));
+  EXPECT_CALL(mock_op, get_charging_addrs(_)).WillRepeatedly(SetArgReferee<0>(NO_CHARGING_ADDRESSES));
+  EXPECT_CALL(*_httpstack, send_reply(_, 500, _));
+  t->on_success(&mock_op);
 }
 
 TEST_F(HandlersTest, IMSSubscriptionRereg)

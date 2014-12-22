@@ -161,7 +161,7 @@ public:
     int rc;
     rc = clock_gettime(CLOCK_REALTIME, &ts);
     ASSERT_EQ(0, rc);
-    ts.tv_sec += 1;
+    ts.tv_sec += 2;
     rc = sem_timedwait(&_sem, &ts);
     ASSERT_EQ(0, rc);
   }
@@ -208,7 +208,9 @@ TEST_F(CacheInitializationTest, Mainline)
   EXPECT_CALL(_cache, get_client()).Times(1).WillOnce(Return(&_client));
   EXPECT_CALL(_cache, release_client()).Times(1);
 
-  CassandraStore::ResultCode rc = _cache.start();
+  CassandraStore::ResultCode rc = _cache.connection_test();
+  EXPECT_EQ(CassandraStore::OK, rc);
+  rc = _cache.start();
   EXPECT_EQ(CassandraStore::OK, rc);
 }
 
@@ -219,7 +221,7 @@ TEST_F(CacheInitializationTest, TransportException)
   EXPECT_CALL(_cache, get_client()).Times(1).WillOnce(Throw(te));
   EXPECT_CALL(_cache, release_client()).Times(0);
 
-  CassandraStore::ResultCode rc = _cache.start();
+  CassandraStore::ResultCode rc = _cache.connection_test();
   EXPECT_EQ(CassandraStore::CONNECTION_ERROR, rc);
 }
 
@@ -230,7 +232,7 @@ TEST_F(CacheInitializationTest, NotFoundException)
   EXPECT_CALL(_cache, get_client()).Times(1).WillOnce(Throw(nfe));
   EXPECT_CALL(_cache, release_client()).Times(0);
 
-  CassandraStore::ResultCode rc = _cache.start();
+  CassandraStore::ResultCode rc = _cache.connection_test();
   EXPECT_EQ(CassandraStore::NOT_FOUND, rc);
 }
 
@@ -241,7 +243,7 @@ TEST_F(CacheInitializationTest, UnknownException)
   EXPECT_CALL(_cache, get_client()).Times(1).WillOnce(Throw(rnfe));
   EXPECT_CALL(_cache, release_client()).Times(0);
 
-  CassandraStore::ResultCode rc = _cache.start();
+  CassandraStore::ResultCode rc = _cache.connection_test();
   EXPECT_EQ(CassandraStore::UNKNOWN_ERROR, rc);
 }
 
@@ -471,7 +473,7 @@ TEST_F(CacheRequestTest, PutTransportGetClientEx)
 
   apache::thrift::transport::TTransportException te;
   EXPECT_CALL(_cache, get_client()).Times(2).WillOnce(Return(&_client)).WillOnce(Throw(te));
-  EXPECT_CALL(_cache, release_client()).Times(1);
+  EXPECT_CALL(_cache, release_client()).Times(2);
   EXPECT_CALL(_client, batch_mutate(_, _)).Times(1).WillOnce(Throw(te));
 
   EXPECT_CALL(*trx, on_failure(OperationHasResult(CassandraStore::CONNECTION_ERROR)));

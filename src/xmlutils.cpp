@@ -52,9 +52,10 @@ namespace XmlUtils
 
 // Builds a ClearwaterRegData XML document for passing to Sprout,
 // based on the given registration state and User-Data XML from the HSS.
-std::string build_ClearwaterRegData_xml(RegistrationState state,
-                                        std::string xml,
-                                        const ChargingAddresses& charging_addrs)
+int build_ClearwaterRegData_xml(RegistrationState state,
+                                std::string xml,
+                                const ChargingAddresses& charging_addrs,
+                                std::string& xml_str)
 {
   rapidxml::xml_document<> doc;
 
@@ -72,7 +73,7 @@ std::string build_ClearwaterRegData_xml(RegistrationState state,
   {
     if (state != RegistrationState::NOT_REGISTERED)
     {
-      LOG_ERROR("Invalid registration state %d", state);
+      LOG_DEBUG("Invalid registration state %d", state);
     }
     regtype = "NOT_REGISTERED";
   }
@@ -96,13 +97,25 @@ std::string build_ClearwaterRegData_xml(RegistrationState state,
     try
     {
       prev_doc.parse<rapidxml::parse_strip_xml_namespaces>(user_data_str);
-      is = doc.clone_node(prev_doc.first_node("IMSSubscription"));
+  
+      if (prev_doc.first_node("IMSSubscription"))
+      {      
+        is = doc.clone_node(prev_doc.first_node("IMSSubscription"));
+      }
+      else
+      {
+        LOG_DEBUG("Missing IMS Subscription in XML");
+        prev_doc.clear();
+        return 500;
+      }
     }
     catch (rapidxml::parse_error err)
     {
-      LOG_ERROR("Parse error in IMS Subscription document: %s\n\n%s", err.what(), xml.c_str());
+      LOG_DEBUG("Parse error in IMS Subscription document: %s\n\n%s", err.what(), xml.c_str());
       prev_doc.clear();
+      return 500;
     }
+
     if (is != NULL)
     {
       root->append_node(is);
@@ -152,9 +165,8 @@ std::string build_ClearwaterRegData_xml(RegistrationState state,
   }
 
   doc.append_node(root);
-  std::string out;
-  rapidxml::print(std::back_inserter(out), doc, 0);
-  return out;
+  rapidxml::print(std::back_inserter(xml_str), doc, 0);
+  return 200;
 }
 
 // Parses the given User-Data XML to retrieve a list of all the public IDs.
@@ -176,7 +188,7 @@ std::vector<std::string> get_public_ids(const std::string& user_data)
   }
   catch (rapidxml::parse_error err)
   {
-    LOG_ERROR("Parse error in IMS Subscription document: %s\n\n%s", err.what(), user_data.c_str());
+    LOG_DEBUG("Parse error in IMS Subscription document: %s\n\n%s", err.what(), user_data.c_str());
     doc.clear();
   }
 

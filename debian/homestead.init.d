@@ -83,6 +83,7 @@ get_settings()
         # Set up defaults and then pull in the settings for this node.
         sas_server=0.0.0.0
         hss_hostname=0.0.0.0
+        dns_server=127.0.0.1
         scscf=5054
         target_latency_us=100000
         . /etc/clearwater/config
@@ -122,6 +123,7 @@ get_settings()
         [ "$hss_mar_lowercase_unknown" != "Y" ] || scheme_unknown_arg="--scheme-unknown unknown"
 
         [ -z "$diameter_timeout_ms" ] || diameter_timeout_ms_arg="--diameter-timeout-ms $diameter_timeout_ms"
+        [ -z "$signaling_namespace" ] || namespace_prefix="ip netns exec $signaling_namespace"
 
         # Enable SNMP alarms if informsink(s) are configured
         if [ ! -z "$snmp_ip" ]
@@ -154,6 +156,7 @@ do_start()
                      --home-domain $home_domain
                      --diameter-conf /var/lib/homestead/homestead.conf
                      --target-latency-us $target_latency_us
+                     --dns-server $dns_server
                      --http $local_ip
                      --http-threads $num_http_threads
                      $dest_realm
@@ -171,7 +174,7 @@ do_start()
                      -L $log_level
                      --sas $sas_server,$NAME@$public_hostname"
 
-        start-stop-daemon --start --quiet --background --make-pidfile --pidfile $PIDFILE --exec $DAEMON --chuid $NAME --chdir $HOME -- $DAEMON_ARGS \
+        $namespace_prefix start-stop-daemon --start --quiet --background --make-pidfile --pidfile $PIDFILE --exec $DAEMON --chuid $NAME --chdir $HOME -- $DAEMON_ARGS \
                 || return 2
         # Add code here, if necessary, that waits for the process to be ready
         # to handle requests from services started subsequently which depend
