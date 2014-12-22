@@ -444,6 +444,7 @@ int main(int argc, char**argv)
   boost::filesystem::path p = argv[0];
   openlog(p.filename().c_str(), PDLOG_PID, PDLOG_LOCAL6);
   CL_HOMESTEAD_STARTED.log();
+
   if (init_logging_options(argc, argv, options) != 0)
   {
     closelog();
@@ -451,6 +452,7 @@ int main(int argc, char**argv)
   }
 
   Log::setLoggingLevel(options.log_level);
+
   if ((options.log_to_file) && (options.log_directory != ""))
   {
     // Work out the program name from argv[0], stripping anything before the final slash.

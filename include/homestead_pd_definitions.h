@@ -83,8 +83,8 @@ static const PDLog1<const char*> CL_HOMESTEAD_CRASH
   "Fatal - Homestead has exited or crashed with signal %s.",
   "Homestead has encountered a fatal software error or has been terminated.",
   "The application will exit and restart until the problem is fixed.",
-  "This error can occur if Homestead has been terminated by operator command. "
-  "Check your installation and configuration for other types of crashes."
+  "Ensure that Homestead has been installed correctly and that it "
+  "has valid configuration."
 );
 
 static const PDLog CL_HOMESTEAD_STARTED
@@ -105,7 +105,7 @@ static const PDLog1<int> CL_HOMESTEAD_CASSANDRA_CACHE_INIT_FAIL
   "error code %d.",
   "The memory cache used to access Cassandra could not be initialized.",
   "The application will exit and restart until the problem is fixed.",
-  "(1). Check to see if Cassandra is running.  Start if not "
+  "(1). Check to see if Cassandra is running reliably. "
   "(2). See if the restart on Homestead clears the problem. "
   "(3). Try reinstalling Homestead and starting Homestead to see if "
   "the problem clears. "
