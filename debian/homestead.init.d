@@ -117,12 +117,12 @@ get_settings()
         # Set the destination realm correctly
         if [ ! -z $hss_realm ]
         then
-          dest_realm="--dest-realm $hss_realm"
+          dest_realm="--dest-realm=$hss_realm"
         fi
 
-        [ "$hss_mar_lowercase_unknown" != "Y" ] || scheme_unknown_arg="--scheme-unknown unknown"
+        [ "$hss_mar_lowercase_unknown" != "Y" ] || scheme_unknown_arg="--scheme-unknown=unknown"
 
-        [ -z "$diameter_timeout_ms" ] || diameter_timeout_ms_arg="--diameter-timeout-ms $diameter_timeout_ms"
+        [ -z "$diameter_timeout_ms" ] || diameter_timeout_ms_arg="--diameter-timeout-ms=$diameter_timeout_ms"
         [ -z "$signaling_namespace" ] || namespace_prefix="ip netns exec $signaling_namespace"
 
         # Enable SNMP alarms if informsink(s) are configured
@@ -152,27 +152,27 @@ do_start()
         # enable gdb to dump a parent homestead process's stack
         echo 0 > /proc/sys/kernel/yama/ptrace_scope
         get_settings
-        DAEMON_ARGS="--localhost $local_ip
-                     --home-domain $home_domain
-                     --diameter-conf /var/lib/homestead/homestead.conf
-                     --target-latency-us $target_latency_us
-                     --dns-server $dns_server
-                     --http $local_ip
-                     --http-threads $num_http_threads
+        DAEMON_ARGS="--localhost=$local_ip
+                     --home-domain=$home_domain
+                     --diameter-conf=/var/lib/homestead/homestead.conf
+                     --target-latency-us=$target_latency_us
+                     --dns-server=$dns_server
+                     --http=$local_ip
+                     --http-threads=$num_http_threads
                      $dest_realm
-                     --dest-host $hss_hostname
-                     --max-peers $max_peers
-                     --server-name $server_name
-                     --impu-cache-ttl $impu_cache_ttl
-                     --hss-reregistration-time $hss_reregistration_time
-                     --sprout-http-name $sprout_http_name
+                     --dest-host=$hss_hostname
+                     --max-peers=$max_peers
+                     --server-name=$server_name
+                     --impu-cache-ttl=$impu_cache_ttl
+                     --hss-reregistration-time=$hss_reregistration_time
+                     --sprout-http-name=$sprout_http_name
                      $scheme_unknown_arg
                      $diameter_timeout_ms_arg
                      $alarms_enabled_arg
-                     -a $log_directory
-                     -F $log_directory
-                     -L $log_level
-                     --sas $sas_server,$NAME@$public_hostname"
+                     -access-log=$log_directory
+                     --log-file=$log_directory
+                     --log-level$log_level
+                     --sas=$sas_server,$NAME@$public_hostname"
 
         $namespace_prefix start-stop-daemon --start --quiet --background --make-pidfile --pidfile $PIDFILE --exec $DAEMON --chuid $NAME --chdir $HOME -- $DAEMON_ARGS \
                 || return 2
