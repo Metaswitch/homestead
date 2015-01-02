@@ -80,20 +80,22 @@ log_directory=/var/log/$NAME
 #
 get_settings()
 {
-        # Set up defaults and then pull in the settings for this node.
+        # Set up defaults and then pull in any overrides.
         sas_server=0.0.0.0
         hss_hostname=0.0.0.0
         dns_server=127.0.0.1
         scscf=5054
         target_latency_us=100000
-        . /etc/clearwater/config
 
-        # Set up defaults for user settings then pull in any overrides.
-        num_http_threads=$(($(grep processor /proc/cpuinfo | wc -l) * 50))
-        log_level=2
         impu_cache_ttl=0
         hss_reregistration_time=1800
+        max_peers=2
+        . /etc/clearwater/config
 
+        log_level=2
+        num_http_threads=$(($(grep processor /proc/cpuinfo | wc -l) * 50))
+
+        # Derive server_name and sprout_http_name from other settings
         if [ -n "$scscf_uri" ]
         then
           server_name=$scscf_uri
@@ -102,7 +104,8 @@ get_settings()
         fi
 
         sprout_http_name=$(python /usr/share/clearwater/bin/bracket_ipv6_address.py $sprout_hostname):9888
-        max_peers=2
+
+        # Pull in user_settings as a final level of overrides
         [ -r /etc/clearwater/user_settings ] && . /etc/clearwater/user_settings
 
         # Work out which features are enabled.
@@ -117,12 +120,12 @@ get_settings()
         # Set the destination realm correctly
         if [ ! -z $hss_realm ]
         then
-          dest_realm="--dest-realm $hss_realm"
+          dest_realm="--dest-realm=$hss_realm"
         fi
 
-        [ "$hss_mar_lowercase_unknown" != "Y" ] || scheme_unknown_arg="--scheme-unknown unknown"
+        [ "$hss_mar_lowercase_unknown" != "Y" ] || scheme_unknown_arg="--scheme-unknown=unknown"
 
-        [ -z "$diameter_timeout_ms" ] || diameter_timeout_ms_arg="--diameter-timeout-ms $diameter_timeout_ms"
+        [ -z "$diameter_timeout_ms" ] || diameter_timeout_ms_arg="--diameter-timeout-ms=$diameter_timeout_ms"
         [ -z "$signaling_namespace" ] || namespace_prefix="ip netns exec $signaling_namespace"
 
         # Enable SNMP alarms if informsink(s) are configured
@@ -152,27 +155,27 @@ do_start()
         # enable gdb to dump a parent homestead process's stack
         echo 0 > /proc/sys/kernel/yama/ptrace_scope
         get_settings
-        DAEMON_ARGS="--localhost $local_ip
-                     --home-domain $home_domain
-                     --diameter-conf /var/lib/homestead/homestead.conf
-                     --target-latency-us $target_latency_us
-                     --dns-server $dns_server
-                     --http $local_ip
-                     --http-threads $num_http_threads
+        DAEMON_ARGS="--localhost=$local_ip
+                     --home-domain=$home_domain
+                     --diameter-conf=/var/lib/homestead/homestead.conf
+                     --target-latency-us=$target_latency_us
+                     --dns-server=$dns_server
+                     --http=$local_ip
+                     --http-threads=$num_http_threads
                      $dest_realm
-                     --dest-host $hss_hostname
-                     --max-peers $max_peers
-                     --server-name $server_name
-                     --impu-cache-ttl $impu_cache_ttl
-                     --hss-reregistration-time $hss_reregistration_time
-                     --sprout-http-name $sprout_http_name
+                     --dest-host=$hss_hostname
+                     --max-peers=$max_peers
+                     --server-name=$server_name
+                     --impu-cache-ttl=$impu_cache_ttl
+                     --hss-reregistration-time=$hss_reregistration_time
+                     --sprout-http-name=$sprout_http_name
                      $scheme_unknown_arg
                      $diameter_timeout_ms_arg
                      $alarms_enabled_arg
-                     -a $log_directory
-                     -F $log_directory
-                     -L $log_level
-                     --sas $sas_server,$NAME@$public_hostname"
+                     --access-log=$log_directory
+                     --log-file=$log_directory
+                     --log-level=$log_level
+                     --sas=$sas_server,$NAME@$public_hostname"
 
         $namespace_prefix start-stop-daemon --start --quiet --background --make-pidfile --pidfile $PIDFILE --exec $DAEMON --chuid $NAME --chdir $HOME -- $DAEMON_ARGS \
                 || return 2
