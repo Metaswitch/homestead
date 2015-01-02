@@ -172,9 +172,9 @@ do_start()
                      $scheme_unknown_arg
                      $diameter_timeout_ms_arg
                      $alarms_enabled_arg
-                     -access-log=$log_directory
+                     --access-log=$log_directory
                      --log-file=$log_directory
-                     --log-level$log_level
+                     --log-level=$log_level
                      --sas=$sas_server,$NAME@$public_hostname"
 
         $namespace_prefix start-stop-daemon --start --quiet --background --make-pidfile --pidfile $PIDFILE --exec $DAEMON --chuid $NAME --chdir $HOME -- $DAEMON_ARGS \
