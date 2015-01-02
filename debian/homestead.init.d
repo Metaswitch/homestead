@@ -87,13 +87,13 @@ get_settings()
         scscf=5054
         target_latency_us=100000
 
-        num_http_threads=$(($(grep processor /proc/cpuinfo | wc -l) * 50))
         impu_cache_ttl=0
         hss_reregistration_time=1800
         max_peers=2
         . /etc/clearwater/config
 
         log_level=2
+        num_http_threads=$(($(grep processor /proc/cpuinfo | wc -l) * 50))
 
         # Derive server_name and sprout_http_name from other settings
         if [ -n "$scscf_uri" ]
