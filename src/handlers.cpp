@@ -497,7 +497,7 @@ void ImpiRegistrationStatusTask::run()
   }
   else
   {
-    LOG_DEBUG("No HSS configured - fake response for server %s", _server_name.c_str());
+    LOG_DEBUG("No HSS configured - fake response if subscriber exists");
     SAS::Event event(this->trail(), SASEvent::ICSCF_NO_HSS, 0);
     SAS::report_event(event);
     rapidjson::StringBuffer sb;
@@ -600,12 +600,12 @@ void ImpiRegistrationStatusTask::sas_log_hss_failure(int32_t result_code)
 
 void ImpuLocationInfoTask::run()
 {
+  const std::string prefix = "/impu/";
+  std::string path = _req.path();
+  _impu = path.substr(prefix.length(), path.find_first_of("/", prefix.length()) - prefix.length());
+
   if (_cfg->hss_configured)
   {
-    const std::string prefix = "/impu/";
-    std::string path = _req.path();
-
-    _impu = path.substr(prefix.length(), path.find_first_of("/", prefix.length()) - prefix.length());
     _originating = _req.param("originating");
     _authorization_type = _req.param("auth-type");
     LOG_DEBUG("Parsed HTTP request: public ID %s, originating %s, authorization type %s",
@@ -627,20 +627,10 @@ void ImpuLocationInfoTask::run()
   }
   else
   {
-    LOG_DEBUG("No HSS configured - fake response for server %s", _server_name.c_str());
+    LOG_DEBUG("No HSS configured - fake up response if subscriber exists");
     SAS::Event event(this->trail(), SASEvent::ICSCF_NO_HSS, 0);
     SAS::report_event(event);
-    rapidjson::StringBuffer sb;
-    rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
-    writer.StartObject();
-    writer.String(JSON_RC.c_str());
-    writer.Int(DIAMETER_SUCCESS);
-    writer.String(JSON_SCSCF.c_str());
-    writer.String(_server_name.c_str());
-    writer.EndObject();
-    _req.add_content(sb.GetString());
-    send_http_reply(200);
-    delete this;
+    query_cache_reg_data();
   }
 }
 
@@ -715,6 +705,62 @@ void ImpuLocationInfoTask::sas_log_hss_failure(int32_t result_code)
 {
   SAS::Event event(this->trail(), SASEvent::LOC_INFO_HSS_FAIL, 0);
   SAS::report_event(event);
+}
+
+void ImpuLocationInfoTask::query_cache_reg_data()
+{
+  LOG_DEBUG("Querying cache for registration data for %s", _impu.c_str());
+  SAS::Event event(this->trail(), SASEvent::CACHE_GET_REG_DATA, 0);
+  event.add_var_param(_impu);
+  SAS::report_event(event);
+  CassandraStore::Operation* get_reg_data = _cache->create_GetRegData(_impu);
+  CassandraStore::Transaction* tsx =
+    new CacheTransaction(this,
+                         &ImpuLocationInfoTask::on_get_reg_data_success,
+                         &ImpuLocationInfoTask::on_get_reg_data_failure);
+  _cache->do_async(get_reg_data, tsx);
+}
+
+void ImpuLocationInfoTask::on_get_reg_data_success(CassandraStore::Operation* op)
+{
+  SAS::Event event(this->trail(), SASEvent::CACHE_GET_REG_DATA_SUCCESS, 0);
+  SAS::report_event(event);
+
+  // GetRegData returns success even if no entry was found, but the XML will be blank in this case.
+  std::string xml;
+  int32_t ttl;
+  ((Cache::GetRegData*)op)->get_xml(xml, ttl);
+  if (!xml.empty())
+  {
+    LOG_DEBUG("Got IMS subscription XML from cache - fake response for server %s", _server_name.c_str());
+    rapidjson::StringBuffer sb;
+    rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
+    writer.StartObject();
+    writer.String(JSON_RC.c_str());
+    writer.Int(DIAMETER_SUCCESS);
+    writer.String(JSON_SCSCF.c_str());
+    writer.String(_server_name.c_str());
+    writer.EndObject();
+    _req.add_content(sb.GetString());
+    send_http_reply(200);
+  }
+  else
+  {
+    LOG_DEBUG("No IMS subscription XML found for public ID %s - reject", _impu.c_str());
+    send_http_reply(404);
+  }
+  delete this;
+}
+
+void ImpuLocationInfoTask::on_get_reg_data_failure(CassandraStore::Operation* op,
+                                                   CassandraStore::ResultCode error,
+                                                   std::string& text)
+{
+  LOG_DEBUG("IMS subscription cache query failed: %u, %s", error, text.c_str());
+  SAS::Event event(this->trail(), SASEvent::NO_REG_DATA_CACHE, 0);
+  SAS::report_event(event);
+  send_http_reply(HTTP_GATEWAY_TIMEOUT);
+  delete this;
 }
 
 //

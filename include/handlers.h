@@ -408,8 +408,14 @@ public:
   void run();
   void on_lir_response(Diameter::Message& rsp);
   void sas_log_hss_failure(int32_t result_code);
+  void query_cache_reg_data();
+  void on_get_reg_data_success(CassandraStore::Operation* op);
+  void on_get_reg_data_failure(CassandraStore::Operation* op,
+                               CassandraStore::ResultCode error,
+                               std::string& text);
 
   typedef HssCacheTask::DiameterTransaction<ImpuLocationInfoTask> DiameterTransaction;
+  typedef HssCacheTask::CacheTransaction<ImpuLocationInfoTask> CacheTransaction;
 
 private:
   const Config* _cfg;

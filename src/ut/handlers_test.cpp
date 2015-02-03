@@ -3017,12 +3017,76 @@ TEST_F(HandlersTest, LocationInfoNoHSS)
   ImpuLocationInfoTask::Config cfg(false);
   ImpuLocationInfoTask* task = new ImpuLocationInfoTask(req, &cfg, FAKE_TRAIL_ID);
 
-  // Once the task's run function is called, expect a successful HTTP response.
-  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
+  // Once the task's run function is called, we expect a cache request for
+  // the registration state of the public identity.
+  MockCache::MockGetRegData mock_op;
+  EXPECT_CALL(*_cache, create_GetRegData(IMPU))
+    .WillOnce(Return(&mock_op));
+  _cache->EXPECT_DO_ASYNC(mock_op);
   task->run();
+
+  // The cache indicates success, so expect a 200 OK over HTTP.
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
+  CassandraStore::Transaction* t = mock_op.get_trx();
+  ASSERT_FALSE(t == NULL);
+  t->on_success(&mock_op);
 
   // Build the expected JSON response and check it's correct.
   EXPECT_EQ(build_icscf_json(DIAMETER_SUCCESS, DEFAULT_SERVER_NAME, NO_CAPABILITIES), req.content());
+}
+
+TEST_F(HandlersTest, LocationInfoNoHSSNoSubscriber)
+{
+  // Test Location Info task when no HSS is configured.
+  MockHttpStack::Request req(_httpstack,
+                             "/impu/" + IMPU + "/",
+                             "location",
+                             "");
+  ImpuLocationInfoTask::Config cfg(false);
+  ImpuLocationInfoTask* task = new ImpuLocationInfoTask(req, &cfg, FAKE_TRAIL_ID);
+
+  // Once the task's run function is called, we expect a cache request for
+  // the registration state of the public identity.
+  MockCache::MockGetRegData mock_op;
+  EXPECT_CALL(*_cache, create_GetRegData(IMPU))
+    .WillOnce(Return(&mock_op));
+  _cache->EXPECT_DO_ASYNC(mock_op);
+  task->run();
+
+  // The cache indicates not found, so expect a 404 Not Found over HTTP.
+  EXPECT_CALL(*_httpstack, send_reply(_, 404, _));
+  CassandraStore::Transaction* t = mock_op.get_trx();
+  ASSERT_FALSE(t == NULL);
+  mock_op._cass_status = CassandraStore::NOT_FOUND;
+  mock_op._cass_error_text = "not found";
+  t->on_failure(&mock_op);
+}
+
+TEST_F(HandlersTest, LocationInfoNoHSSTimeout)
+{
+  // Test Location Info task when no HSS is configured.
+  MockHttpStack::Request req(_httpstack,
+                             "/impu/" + IMPU + "/",
+                             "location",
+                             "");
+  ImpuLocationInfoTask::Config cfg(false);
+  ImpuLocationInfoTask* task = new ImpuLocationInfoTask(req, &cfg, FAKE_TRAIL_ID);
+
+  // Once the task's run function is called, we expect a cache request for
+  // the registration state of the public identity.
+  MockCache::MockGetRegData mock_op;
+  EXPECT_CALL(*_cache, create_GetRegData(IMPU))
+    .WillOnce(Return(&mock_op));
+  _cache->EXPECT_DO_ASYNC(mock_op);
+  task->run();
+
+  // The cache indicates connection error, so expect a 504 Gateway Timeout over HTTP.
+  EXPECT_CALL(*_httpstack, send_reply(_, 504, _));
+  CassandraStore::Transaction* t = mock_op.get_trx();
+  ASSERT_FALSE(t == NULL);
+  mock_op._cass_status = CassandraStore::CONNECTION_ERROR;
+  mock_op._cass_error_text = "connection error";
+  t->on_failure(&mock_op);
 }
 
 //

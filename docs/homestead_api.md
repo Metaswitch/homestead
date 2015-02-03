@@ -36,7 +36,7 @@ The URL takes two optional query parameters. The visited-network parameter is us
 
 Response:
 
-* 200 if the user is authorized, returned as JSON. The response will contain the HSS result code, and either the name of a server capable of handling the user, or a list of capabilities that will allow the interrogating server to pick a serving server for the user. This list of capabilities can be empty.
+* 200 if the user is authorized, returned as JSON. If using an HSS, the response will contain the HSS result code, and either the name of a server capable of handling the user, or a list of capabilities that will allow the interrogating server to pick a serving server for the user. This list of capabilities can be empty. If not using an HSS, Homestead returns a hard-coded positive response (without checking whether the subscriber exists).
 
 `{ "result-code": "2001", "scscf": "<server-name>" }`
 
@@ -44,7 +44,7 @@ Response:
 
 `{ "result-code": "2001", "mandatory-capabilties": [], "optional-capabilities": [] }`
 * 403 if the user cannot be authorized.
-* 404 if the user cannot be found.
+* 404 if the user cannot be found on the HSS.
 * 500 if the HSS is overloaded.
 
 ## IMPU - persistent registration state
@@ -107,5 +107,5 @@ Response:
 
 `{ "result-code": "2001", "mandatory-capabilties": [], "optional-capabilities": [] }`
 
-* 404 if the user cannot be found.
+* 404 if the user cannot be found (either a 5001 error from the HSS, or having no HSS configured and no record of the user).
 * 500 if the HSS is overloaded.
