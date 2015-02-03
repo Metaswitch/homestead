@@ -111,7 +111,7 @@ get_settings()
         # Work out which features are enabled.
         if [ -d /etc/clearwater/features.d ]
         then
-          for file in $(find /etc/clearwater/features.d -type f)
+          for file in $(find /etc/clearwater/features.d -type f \! -name '*.dpkg-*')
           do
             [ -r $file ] && . $file
           done
