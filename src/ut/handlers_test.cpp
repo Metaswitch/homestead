@@ -80,6 +80,7 @@ using ::testing::WithArgs;
 using ::testing::NiceMock;
 using ::testing::StrictMock;
 using ::testing::Mock;
+using ::testing::AtLeast;
 
 const SAS::TrailId FAKE_TRAIL_ID = 0x12345678;
 
@@ -386,11 +387,11 @@ public:
     // Have the cache return the values passed in for this test.
     CassandraStore::Transaction* t = mock_op.get_trx();
     ASSERT_FALSE(t == NULL);
-    EXPECT_CALL(mock_op, get_xml(_, _))
+    EXPECT_CALL(mock_op, get_xml(_, _)).Times(AtLeast(1))
       .WillRepeatedly(DoAll(SetArgReferee<0>(IMPU_IMS_SUBSCRIPTION), SetArgReferee<1>(db_ttl)));
-    EXPECT_CALL(mock_op, get_registration_state(_, _))
+    EXPECT_CALL(mock_op, get_registration_state(_, _)).Times(AtLeast(1))
       .WillRepeatedly(DoAll(SetArgReferee<0>(db_regstate), SetArgReferee<1>(db_ttl)));
-    EXPECT_CALL(mock_op, get_charging_addrs(_))
+    EXPECT_CALL(mock_op, get_charging_addrs(_)).Times(AtLeast(1))
       .WillRepeatedly(SetArgReferee<0>(NO_CHARGING_ADDRESSES));
 
     // If we have the new_binding flag set, return a list of associated IMPIs
@@ -401,7 +402,7 @@ public:
     {
       associated_identities.push_back(IMPI);
     }
-    EXPECT_CALL(mock_op, get_associated_impis(_))
+    EXPECT_CALL(mock_op, get_associated_impis(_)).Times(AtLeast(1))
       .WillRepeatedly(SetArgReferee<0>(associated_identities));
 
     // If this is a new binding, we expect to put the new associated
@@ -537,13 +538,13 @@ public:
     // Have the cache return the values passed in for this test.
     CassandraStore::Transaction* t = mock_op.get_trx();
     ASSERT_FALSE(t == NULL);
-    EXPECT_CALL(mock_op, get_xml(_, _))
+    EXPECT_CALL(mock_op, get_xml(_, _)).Times(AtLeast(1))
       .WillRepeatedly(DoAll(SetArgReferee<0>(IMPU_IMS_SUBSCRIPTION), SetArgReferee<1>(db_ttl)));
-    EXPECT_CALL(mock_op, get_registration_state(_, _))
+    EXPECT_CALL(mock_op, get_registration_state(_, _)).Times(AtLeast(1))
       .WillRepeatedly(DoAll(SetArgReferee<0>(db_regstate), SetArgReferee<1>(db_ttl)));
-    EXPECT_CALL(mock_op, get_associated_impis(_))
+    EXPECT_CALL(mock_op, get_associated_impis(_)).Times(AtLeast(1))
       .WillRepeatedly(SetArgReferee<0>(IMPI_IN_VECTOR));
-    EXPECT_CALL(mock_op, get_charging_addrs(_))
+    EXPECT_CALL(mock_op, get_charging_addrs(_)).Times(AtLeast(1))
       .WillRepeatedly(SetArgReferee<0>(NO_CHARGING_ADDRESSES));
 
     // No SAR was generated, so there shouldn't be any effect on the
@@ -583,13 +584,13 @@ public:
 
     CassandraStore::Transaction* t = mock_op.get_trx();
     ASSERT_FALSE(t == NULL);
-    EXPECT_CALL(mock_op, get_xml(_, _))
+    EXPECT_CALL(mock_op, get_xml(_, _)).Times(AtLeast(1))
       .WillRepeatedly(DoAll(SetArgReferee<0>(IMPU_IMS_SUBSCRIPTION), SetArgReferee<1>(db_ttl)));
-    EXPECT_CALL(mock_op, get_registration_state(_, _))
+    EXPECT_CALL(mock_op, get_registration_state(_, _)).Times(AtLeast(1))
       .WillRepeatedly(DoAll(SetArgReferee<0>(db_regstate), SetArgReferee<1>(db_ttl)));
-    EXPECT_CALL(mock_op, get_associated_impis(_))
+    EXPECT_CALL(mock_op, get_associated_impis(_)).Times(AtLeast(1))
       .WillRepeatedly(SetArgReferee<0>(IMPI_IN_VECTOR));
-    EXPECT_CALL(mock_op, get_charging_addrs(_))
+    EXPECT_CALL(mock_op, get_charging_addrs(_)).Times(AtLeast(1))
       .WillRepeatedly(SetArgReferee<0>(NO_CHARGING_ADDRESSES));
 
     if (hss_configured)
@@ -669,12 +670,12 @@ public:
     // Have the cache return the values passed in for this test.
     CassandraStore::Transaction* t = mock_op.get_trx();
     ASSERT_FALSE(t == NULL);
-    EXPECT_CALL(mock_op, get_xml(_, _))
+    EXPECT_CALL(mock_op, get_xml(_, _)).Times(AtLeast(1))
       .WillRepeatedly(DoAll(SetArgReferee<0>(IMPU_IMS_SUBSCRIPTION), SetArgReferee<1>(db_ttl)));
-    EXPECT_CALL(mock_op, get_registration_state(_, _))
+    EXPECT_CALL(mock_op, get_registration_state(_, _)).Times(AtLeast(1))
       .WillRepeatedly(DoAll(SetArgReferee<0>(db_regstate), SetArgReferee<1>(db_ttl)));
-    EXPECT_CALL(mock_op, get_associated_impis(_));
-    EXPECT_CALL(mock_op, get_charging_addrs(_))
+    EXPECT_CALL(mock_op, get_associated_impis(_)).Times(AtLeast(1));
+    EXPECT_CALL(mock_op, get_charging_addrs(_)).Times(AtLeast(1))
       .WillRepeatedly(SetArgReferee<0>(NO_CHARGING_ADDRESSES));
 
     if (expect_update)
@@ -730,15 +731,15 @@ public:
 
     CassandraStore::Transaction* t = mock_op.get_trx();
     ASSERT_FALSE(t == NULL);
-    EXPECT_CALL(mock_op, get_xml(_, _))
+    EXPECT_CALL(mock_op, get_xml(_, _)).Times(AtLeast(1))
       .WillRepeatedly(SetArgReferee<0>(IMS_SUBSCRIPTION));
-    EXPECT_CALL(mock_op, get_associated_impis(_))
+    EXPECT_CALL(mock_op, get_associated_impis(_)).Times(AtLeast(1))
       .WillRepeatedly(SetArgReferee<0>(IMPI_IN_VECTOR));
-    EXPECT_CALL(mock_op, get_charging_addrs(_))
+    EXPECT_CALL(mock_op, get_charging_addrs(_)).Times(AtLeast(1))
       .WillRepeatedly(SetArgReferee<0>(NO_CHARGING_ADDRESSES));
 
     // Ensure that the database returns NOT_REGISTERED.
-    EXPECT_CALL(mock_op, get_registration_state(_, _))
+    EXPECT_CALL(mock_op, get_registration_state(_, _)).Times(AtLeast(1))
       .WillRepeatedly(SetArgReferee<0>(RegistrationState::NOT_REGISTERED));
 
     // A 400 error should be sent as a result.
@@ -874,8 +875,14 @@ public:
     // The cache successfully returns the correct IMS subscription.
     CassandraStore::Transaction* t = mock_op.get_trx();
     ASSERT_FALSE(t == NULL);
-    EXPECT_CALL(mock_op, get_xml(_, _))
+    EXPECT_CALL(mock_op, get_xml(_, _)).Times(AtLeast(1))
       .WillRepeatedly(DoAll(SetArgReferee<0>(IMPU3_IMS_SUBSCRIPTION), SetArgReferee<1>(0)));
+    EXPECT_CALL(mock_op, get_registration_state(_, _)).Times(AtLeast(1))
+      .WillRepeatedly(SetArgReferee<0>(RegistrationState::NOT_REGISTERED));
+    EXPECT_CALL(mock_op, get_associated_impis(_)).Times(AtLeast(1))
+      .WillRepeatedly(SetArgReferee<0>(IMPI_IN_VECTOR));
+    EXPECT_CALL(mock_op, get_charging_addrs(_)).Times(AtLeast(1))
+      .WillRepeatedly(SetArgReferee<0>(NO_CHARGING_ADDRESSES));
 
     // Expect another cache request for the IMS subscription of the next
     // public identity in IMPUS.
@@ -889,8 +896,14 @@ public:
     // The cache successfully returns the correct IMS subscription.
     t = mock_op2.get_trx();
     ASSERT_FALSE(t == NULL);
-    EXPECT_CALL(mock_op2, get_xml(_, _))
+    EXPECT_CALL(mock_op2, get_xml(_, _)).Times(AtLeast(1))
       .WillRepeatedly(DoAll(SetArgReferee<0>(IMPU_IMS_SUBSCRIPTION), SetArgReferee<1>(0)));
+    EXPECT_CALL(mock_op2, get_registration_state(_, _)).Times(AtLeast(1))
+      .WillRepeatedly(SetArgReferee<0>(RegistrationState::NOT_REGISTERED));
+    EXPECT_CALL(mock_op2, get_associated_impis(_)).Times(AtLeast(1))
+      .WillRepeatedly(SetArgReferee<0>(IMPI_IN_VECTOR));
+    EXPECT_CALL(mock_op2, get_charging_addrs(_)).Times(AtLeast(1))
+      .WillRepeatedly(SetArgReferee<0>(NO_CHARGING_ADDRESSES));
 
     // Expect a delete to be sent to Sprout.
     EXPECT_CALL(*_mock_http_conn, send_delete(http_path, _, body))
@@ -993,17 +1006,14 @@ public:
     // The cache successfully returns the correct IMS subscription.
     t = mock_op2.get_trx();
     ASSERT_FALSE(t == NULL);
-    EXPECT_CALL(mock_op2, get_xml(_, _))
+    EXPECT_CALL(mock_op2, get_xml(_, _)).Times(AtLeast(1))
       .WillRepeatedly(DoAll(SetArgReferee<0>(IMPU_IMS_SUBSCRIPTION), SetArgReferee<1>(0)));
-
-    // Sometimes we're interested in the associated identities returned by
-    // this cache request.
-    if ((dereg_reason == SERVER_CHANGE) ||
-        (dereg_reason == NEW_SERVER_ASSIGNED))
-    {
-      EXPECT_CALL(mock_op2, get_associated_impis(_))
-        .WillRepeatedly(SetArgReferee<0>(ASSOCIATED_IDENTITIES));
-    }
+    EXPECT_CALL(mock_op2, get_registration_state(_, _)).Times(AtLeast(1))
+      .WillRepeatedly(SetArgReferee<0>(RegistrationState::NOT_REGISTERED));
+    EXPECT_CALL(mock_op2, get_associated_impis(_)).Times(AtLeast(1))
+      .WillRepeatedly(SetArgReferee<0>(ASSOCIATED_IDENTITIES));
+    EXPECT_CALL(mock_op2, get_charging_addrs(_)).Times(AtLeast(1))
+      .WillRepeatedly(SetArgReferee<0>(NO_CHARGING_ADDRESSES));
 
     // Expect another cache request for the IMS subscription of the next
     // public identity in IMPUS.
@@ -1017,17 +1027,14 @@ public:
     // The cache successfully returns the correct IMS subscription.
     t = mock_op3.get_trx();
     ASSERT_FALSE(t == NULL);
-    EXPECT_CALL(mock_op3, get_xml(_, _))
+    EXPECT_CALL(mock_op3, get_xml(_, _)).Times(AtLeast(1))
       .WillRepeatedly(DoAll(SetArgReferee<0>(IMPU3_IMS_SUBSCRIPTION), SetArgReferee<1>(0)));
-
-    // Sometimes we're interested in the associated identities returned by
-    // this cache request.
-    if ((dereg_reason == SERVER_CHANGE) ||
-        (dereg_reason == NEW_SERVER_ASSIGNED))
-    {
-      EXPECT_CALL(mock_op3, get_associated_impis(_))
-        .WillRepeatedly(SetArgReferee<0>(ASSOCIATED_IDENTITIES));
-    }
+    EXPECT_CALL(mock_op3, get_registration_state(_, _)).Times(AtLeast(1))
+      .WillRepeatedly(SetArgReferee<0>(RegistrationState::NOT_REGISTERED));
+    EXPECT_CALL(mock_op3, get_associated_impis(_))
+      .WillRepeatedly(SetArgReferee<0>(ASSOCIATED_IDENTITIES));
+    EXPECT_CALL(mock_op3, get_charging_addrs(_)).Times(AtLeast(1))
+      .WillRepeatedly(SetArgReferee<0>(NO_CHARGING_ADDRESSES));
 
     // Expect a delete to be sent to Sprout.
     EXPECT_CALL(*_mock_http_conn, send_delete(http_path, _, body))
@@ -2174,10 +2181,10 @@ TEST_F(HandlersTest, IMSSubscriptionRegInvalidXML)
 
   CassandraStore::Transaction* t = mock_op.get_trx();
   ASSERT_FALSE(t == NULL);
-  EXPECT_CALL(mock_op, get_xml(_,_)).WillRepeatedly(DoAll(SetArgReferee<0>(IMPU_IMS_SUBSCRIPTION_INVALID), SetArgReferee<1>(3600)));
-  EXPECT_CALL(mock_op, get_registration_state(_,_)).WillRepeatedly(DoAll(SetArgReferee<0>(RegistrationState::UNREGISTERED), SetArgReferee<1>(3600)));
-  EXPECT_CALL(mock_op, get_associated_impis(_));
-  EXPECT_CALL(mock_op, get_charging_addrs(_)).WillRepeatedly(SetArgReferee<0>(NO_CHARGING_ADDRESSES));
+  EXPECT_CALL(mock_op, get_xml(_,_)).Times(AtLeast(1)).WillRepeatedly(DoAll(SetArgReferee<0>(IMPU_IMS_SUBSCRIPTION_INVALID), SetArgReferee<1>(3600)));
+  EXPECT_CALL(mock_op, get_registration_state(_,_)).Times(AtLeast(1)).WillRepeatedly(DoAll(SetArgReferee<0>(RegistrationState::UNREGISTERED), SetArgReferee<1>(3600)));
+  EXPECT_CALL(mock_op, get_associated_impis(_)).Times(AtLeast(1));
+  EXPECT_CALL(mock_op, get_charging_addrs(_)).Times(AtLeast(1)).WillRepeatedly(SetArgReferee<0>(NO_CHARGING_ADDRESSES));
   EXPECT_CALL(*_httpstack, send_reply(_, 500, _));
   t->on_success(&mock_op);
 }
@@ -2227,12 +2234,12 @@ TEST_F(HandlersTest, IMSSubscriptionNoHSSUnknown)
 
   CassandraStore::Transaction* t = mock_op.get_trx();
   ASSERT_FALSE(t == NULL);
-  EXPECT_CALL(mock_op, get_xml(_, _))
+  EXPECT_CALL(mock_op, get_xml(_, _)).Times(AtLeast(1))
     .WillRepeatedly(SetArgReferee<0>(""));
-  EXPECT_CALL(mock_op, get_registration_state(_, _))
+  EXPECT_CALL(mock_op, get_registration_state(_, _)).Times(AtLeast(1))
     .WillRepeatedly(SetArgReferee<0>(RegistrationState::NOT_REGISTERED));
-  EXPECT_CALL(mock_op, get_associated_impis(_));
-  EXPECT_CALL(mock_op, get_charging_addrs(_))
+  EXPECT_CALL(mock_op, get_associated_impis(_)).Times(AtLeast(1));
+  EXPECT_CALL(mock_op, get_charging_addrs(_)).Times(AtLeast(1))
     .WillRepeatedly(SetArgReferee<0>(NO_CHARGING_ADDRESSES));
   EXPECT_CALL(*_httpstack, send_reply(_, 404, _));
   t->on_success(&mock_op);
@@ -2263,12 +2270,12 @@ TEST_F(HandlersTest, IMSSubscriptionNoHSSUnknownCall)
 
   CassandraStore::Transaction* t = mock_op.get_trx();
   ASSERT_FALSE(t == NULL);
-  EXPECT_CALL(mock_op, get_xml(_, _))
+  EXPECT_CALL(mock_op, get_xml(_, _)).Times(AtLeast(1))
     .WillRepeatedly(SetArgReferee<0>(""));
-  EXPECT_CALL(mock_op, get_registration_state(_, _))
+  EXPECT_CALL(mock_op, get_registration_state(_, _)).Times(AtLeast(1))
     .WillRepeatedly(SetArgReferee<0>(RegistrationState::NOT_REGISTERED));
-  EXPECT_CALL(mock_op, get_associated_impis(_));
-  EXPECT_CALL(mock_op, get_charging_addrs(_))
+  EXPECT_CALL(mock_op, get_associated_impis(_)).Times(AtLeast(1));
+  EXPECT_CALL(mock_op, get_charging_addrs(_)).Times(AtLeast(1))
     .WillRepeatedly(SetArgReferee<0>(NO_CHARGING_ADDRESSES));
   EXPECT_CALL(*_httpstack, send_reply(_, 404, _));
   t->on_success(&mock_op);
@@ -2299,12 +2306,12 @@ TEST_F(HandlersTest, LegacyIMSSubscriptionNoHSS)
 
   CassandraStore::Transaction* t = mock_op.get_trx();
   ASSERT_FALSE(t == NULL);
-  EXPECT_CALL(mock_op, get_xml(_, _))
+  EXPECT_CALL(mock_op, get_xml(_, _)).Times(AtLeast(1))
     .WillRepeatedly(SetArgReferee<0>(IMS_SUBSCRIPTION));
-  EXPECT_CALL(mock_op, get_registration_state(_, _))
+  EXPECT_CALL(mock_op, get_registration_state(_, _)).Times(AtLeast(1))
     .WillRepeatedly(SetArgReferee<0>(RegistrationState::REGISTERED));
-  EXPECT_CALL(mock_op, get_associated_impis(_));
-  EXPECT_CALL(mock_op, get_charging_addrs(_))
+  EXPECT_CALL(mock_op, get_associated_impis(_)).Times(AtLeast(1));
+  EXPECT_CALL(mock_op, get_charging_addrs(_)).Times(AtLeast(1))
     .WillRepeatedly(SetArgReferee<0>(NO_CHARGING_ADDRESSES));
   EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
   t->on_success(&mock_op);
@@ -2333,13 +2340,13 @@ TEST_F(HandlersTest, LegacyIMSSubscriptionNoHSS_NotFound)
 
   CassandraStore::Transaction* t = mock_op.get_trx();
   ASSERT_FALSE(t == NULL);
-  EXPECT_CALL(mock_op, get_xml(_, _))
+  EXPECT_CALL(mock_op, get_xml(_, _)).Times(AtLeast(1))
     .WillRepeatedly(SetArgReferee<0>(""));
-  EXPECT_CALL(mock_op, get_registration_state(_, _))
+  EXPECT_CALL(mock_op, get_registration_state(_, _)).Times(AtLeast(1))
     .WillRepeatedly(SetArgReferee<0>(RegistrationState::NOT_REGISTERED));
   EXPECT_CALL(*_httpstack, send_reply(_, 404, _));
-  EXPECT_CALL(mock_op, get_associated_impis(_));
-  EXPECT_CALL(mock_op, get_charging_addrs(_))
+  EXPECT_CALL(mock_op, get_associated_impis(_)).Times(AtLeast(1));
+  EXPECT_CALL(mock_op, get_charging_addrs(_)).Times(AtLeast(1))
     .WillRepeatedly(SetArgReferee<0>(NO_CHARGING_ADDRESSES));
   t->on_success(&mock_op);
 
@@ -2368,12 +2375,12 @@ TEST_F(HandlersTest, LegacyIMSSubscriptionNoHSS_Unregistered)
 
   CassandraStore::Transaction* t = mock_op.get_trx();
   ASSERT_FALSE(t == NULL);
-  EXPECT_CALL(mock_op, get_xml(_, _))
+  EXPECT_CALL(mock_op, get_xml(_, _)).Times(AtLeast(1))
     .WillRepeatedly(SetArgReferee<0>(IMS_SUBSCRIPTION));
-  EXPECT_CALL(mock_op, get_registration_state(_, _))
+  EXPECT_CALL(mock_op, get_registration_state(_, _)).Times(AtLeast(1))
     .WillRepeatedly(SetArgReferee<0>(RegistrationState::UNREGISTERED));
-  EXPECT_CALL(mock_op, get_associated_impis(_));
-  EXPECT_CALL(mock_op, get_charging_addrs(_))
+  EXPECT_CALL(mock_op, get_associated_impis(_)).Times(AtLeast(1));
+  EXPECT_CALL(mock_op, get_charging_addrs(_)).Times(AtLeast(1))
     .WillRepeatedly(SetArgReferee<0>(NO_CHARGING_ADDRESSES));
   EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
   t->on_success(&mock_op);
@@ -2407,12 +2414,12 @@ TEST_F(HandlersTest, IMSSubscriptionGet)
 
   CassandraStore::Transaction* t = mock_op.get_trx();
   ASSERT_FALSE(t == NULL);
-  EXPECT_CALL(mock_op, get_xml(_, _))
+  EXPECT_CALL(mock_op, get_xml(_, _)).Times(AtLeast(1))
     .WillRepeatedly(SetArgReferee<0>(IMPU_IMS_SUBSCRIPTION));
-  EXPECT_CALL(mock_op, get_registration_state(_, _))
+  EXPECT_CALL(mock_op, get_registration_state(_, _)).Times(AtLeast(1))
     .WillRepeatedly(SetArgReferee<0>(RegistrationState::REGISTERED));
-  EXPECT_CALL(mock_op, get_associated_impis(_));
-  EXPECT_CALL(mock_op, get_charging_addrs(_))
+  EXPECT_CALL(mock_op, get_associated_impis(_)).Times(AtLeast(1));
+  EXPECT_CALL(mock_op, get_charging_addrs(_)).Times(AtLeast(1))
     .WillRepeatedly(SetArgReferee<0>(NO_CHARGING_ADDRESSES));
 
   // HTTP response is sent straight back - no state is changed.
@@ -2480,13 +2487,13 @@ TEST_F(HandlersTest, IMSSubscriptionUserUnknownDereg)
 
   CassandraStore::Transaction* t = mock_op.get_trx();
   ASSERT_FALSE(t == NULL);
-  EXPECT_CALL(mock_op, get_xml(_, _))
+  EXPECT_CALL(mock_op, get_xml(_, _)).Times(AtLeast(1))
     .WillRepeatedly(SetArgReferee<0>(IMPU_IMS_SUBSCRIPTION));
-  EXPECT_CALL(mock_op, get_registration_state(_, _))
+  EXPECT_CALL(mock_op, get_registration_state(_, _)).Times(AtLeast(1))
     .WillRepeatedly(SetArgReferee<0>(RegistrationState::REGISTERED));
-  EXPECT_CALL(mock_op, get_associated_impis(_))
+  EXPECT_CALL(mock_op, get_associated_impis(_)).Times(AtLeast(1))
     .WillRepeatedly(SetArgReferee<0>(ASSOCIATED_IDENTITY1_IN_VECTOR));
-  EXPECT_CALL(mock_op, get_charging_addrs(_))
+  EXPECT_CALL(mock_op, get_charging_addrs(_)).Times(AtLeast(1))
     .WillRepeatedly(SetArgReferee<0>(NO_CHARGING_ADDRESSES));
 
   MockCache::MockDeletePublicIDs mock_op2;
@@ -2542,13 +2549,13 @@ TEST_F(HandlersTest, IMSSubscriptionOtherErrorCallReg)
 
   CassandraStore::Transaction* t = mock_op.get_trx();
   ASSERT_FALSE(t == NULL);
-  EXPECT_CALL(mock_op, get_xml(_, _))
+  EXPECT_CALL(mock_op, get_xml(_, _)).Times(AtLeast(1))
     .WillRepeatedly(SetArgReferee<0>(IMPU_IMS_SUBSCRIPTION));
-  EXPECT_CALL(mock_op, get_registration_state(_, _))
+  EXPECT_CALL(mock_op, get_registration_state(_, _)).Times(AtLeast(1))
     .WillRepeatedly(SetArgReferee<0>(RegistrationState::NOT_REGISTERED));
-  EXPECT_CALL(mock_op, get_associated_impis(_))
+  EXPECT_CALL(mock_op, get_associated_impis(_)).Times(AtLeast(1))
     .WillRepeatedly(SetArgReferee<0>(IMPI_IN_VECTOR));
-  EXPECT_CALL(mock_op, get_charging_addrs(_))
+  EXPECT_CALL(mock_op, get_charging_addrs(_)).Times(AtLeast(1))
     .WillRepeatedly(SetArgReferee<0>(NO_CHARGING_ADDRESSES));
 
   EXPECT_CALL(*_mock_stack, send(_, _, 200))
@@ -3022,6 +3029,14 @@ TEST_F(HandlersTest, LocationInfoNoHSS)
   MockCache::MockGetRegData mock_op;
   EXPECT_CALL(*_cache, create_GetRegData(IMPU))
     .WillOnce(Return(&mock_op));
+  EXPECT_CALL(mock_op, get_xml(_, _)).Times(AtLeast(1))
+    .WillRepeatedly(SetArgReferee<0>(IMPU_IMS_SUBSCRIPTION));
+  EXPECT_CALL(mock_op, get_registration_state(_, _)).Times(AtLeast(1))
+    .WillRepeatedly(SetArgReferee<0>(RegistrationState::NOT_REGISTERED));
+  EXPECT_CALL(mock_op, get_associated_impis(_)).Times(AtLeast(1))
+    .WillRepeatedly(SetArgReferee<0>(IMPI_IN_VECTOR));
+  EXPECT_CALL(mock_op, get_charging_addrs(_)).Times(AtLeast(1))
+    .WillRepeatedly(SetArgReferee<0>(NO_CHARGING_ADDRESSES));
   _cache->EXPECT_DO_ASYNC(mock_op);
   task->run();
 
@@ -3050,6 +3065,14 @@ TEST_F(HandlersTest, LocationInfoNoHSSNoSubscriber)
   MockCache::MockGetRegData mock_op;
   EXPECT_CALL(*_cache, create_GetRegData(IMPU))
     .WillOnce(Return(&mock_op));
+  EXPECT_CALL(mock_op, get_xml(_, _)).Times(AtLeast(1))
+    .WillRepeatedly(SetArgReferee<0>(""));
+  EXPECT_CALL(mock_op, get_registration_state(_, _)).Times(AtLeast(1))
+    .WillRepeatedly(SetArgReferee<0>(RegistrationState::NOT_REGISTERED));
+  EXPECT_CALL(mock_op, get_associated_impis(_)).Times(AtLeast(1))
+    .WillRepeatedly(SetArgReferee<0>(IMPI_IN_VECTOR));
+  EXPECT_CALL(mock_op, get_charging_addrs(_)).Times(AtLeast(1))
+    .WillRepeatedly(SetArgReferee<0>(NO_CHARGING_ADDRESSES));
   _cache->EXPECT_DO_ASYNC(mock_op);
   task->run();
 
@@ -3057,9 +3080,7 @@ TEST_F(HandlersTest, LocationInfoNoHSSNoSubscriber)
   EXPECT_CALL(*_httpstack, send_reply(_, 404, _));
   CassandraStore::Transaction* t = mock_op.get_trx();
   ASSERT_FALSE(t == NULL);
-  mock_op._cass_status = CassandraStore::NOT_FOUND;
-  mock_op._cass_error_text = "not found";
-  t->on_failure(&mock_op);
+  t->on_success(&mock_op);
 }
 
 TEST_F(HandlersTest, LocationInfoNoHSSTimeout)
@@ -3179,8 +3200,14 @@ TEST_F(HandlersTest, RegistrationTerminationNoRegSets)
   // information.
   CassandraStore::Transaction* t = mock_op.get_trx();
   ASSERT_FALSE(t == NULL);
-  EXPECT_CALL(mock_op, get_xml(_, _))
+  EXPECT_CALL(mock_op, get_xml(_, _)).Times(AtLeast(1))
     .WillRepeatedly(DoAll(SetArgReferee<0>(""), SetArgReferee<1>(0)));
+  EXPECT_CALL(mock_op, get_registration_state(_, _)).Times(AtLeast(1))
+    .WillRepeatedly(SetArgReferee<0>(RegistrationState::NOT_REGISTERED));
+  EXPECT_CALL(mock_op, get_associated_impis(_)).Times(AtLeast(1))
+    .WillRepeatedly(SetArgReferee<0>(IMPI_IN_VECTOR));
+  EXPECT_CALL(mock_op, get_charging_addrs(_)).Times(AtLeast(1))
+    .WillRepeatedly(SetArgReferee<0>(NO_CHARGING_ADDRESSES));
 
   // Expect another cache request for the IMS subscription of the next
   // public identity in IMPUS.
@@ -3195,8 +3222,14 @@ TEST_F(HandlersTest, RegistrationTerminationNoRegSets)
   // information.
   t = mock_op2.get_trx();
   ASSERT_FALSE(t == NULL);
-  EXPECT_CALL(mock_op2, get_xml(_, _))
+  EXPECT_CALL(mock_op2, get_xml(_, _)).Times(AtLeast(1))
     .WillRepeatedly(DoAll(SetArgReferee<0>(""), SetArgReferee<1>(0)));
+  EXPECT_CALL(mock_op2, get_registration_state(_, _)).Times(AtLeast(1))
+    .WillRepeatedly(SetArgReferee<0>(RegistrationState::NOT_REGISTERED));
+  EXPECT_CALL(mock_op2, get_associated_impis(_)).Times(AtLeast(1))
+    .WillRepeatedly(SetArgReferee<0>(IMPI_IN_VECTOR));
+  EXPECT_CALL(mock_op2, get_charging_addrs(_)).Times(AtLeast(1))
+    .WillRepeatedly(SetArgReferee<0>(NO_CHARGING_ADDRESSES));
 
   // Expect to receive a diameter message.
   EXPECT_CALL(*_mock_stack, send(_, FAKE_TRAIL_ID))
@@ -4080,12 +4113,12 @@ TEST_F(HandlerStatsTest, IMSSubscriptionReregHSS)
   // Check the cache get latency is recorded.
   CassandraStore::Transaction* t = mock_op.get_trx();
   ASSERT_FALSE(t == NULL);
-  EXPECT_CALL(mock_op, get_xml(_, _))
+  EXPECT_CALL(mock_op, get_xml(_, _)).Times(AtLeast(1))
     .WillRepeatedly(DoAll(SetArgReferee<0>(""), SetArgReferee<1>(0)));
-  EXPECT_CALL(mock_op, get_registration_state(_, _))
+  EXPECT_CALL(mock_op, get_registration_state(_, _)).Times(AtLeast(1))
     .WillRepeatedly(DoAll(SetArgReferee<0>(RegistrationState::NOT_REGISTERED), SetArgReferee<1>(0)));
-  EXPECT_CALL(mock_op, get_associated_impis(_));
-  EXPECT_CALL(mock_op, get_charging_addrs(_))
+  EXPECT_CALL(mock_op, get_associated_impis(_)).Times(AtLeast(1));
+  EXPECT_CALL(mock_op, get_charging_addrs(_)).Times(AtLeast(1))
     .WillRepeatedly(SetArgReferee<0>(NO_CHARGING_ADDRESSES));
 
   t->start_timer();
