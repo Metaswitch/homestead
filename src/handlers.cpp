@@ -100,6 +100,30 @@ void HssCacheTask::on_diameter_timeout()
   delete this;
 }
 
+// Common SAS log function
+
+static void sas_log_get_reg_data_success(Cache::GetRegData* get_reg_data, SAS::TrailId trail)
+{
+  std::string xml;
+  int32_t ttl;
+  RegistrationState state;
+  std::vector<std::string> associated_impis;
+  ChargingAddresses charging_addrs;
+
+  get_reg_data->get_xml(xml, ttl);
+  get_reg_data->get_registration_state(state, ttl);
+  get_reg_data->get_associated_impis(associated_impis);
+  get_reg_data->get_charging_addrs(charging_addrs);
+
+  SAS::Event event(trail, SASEvent::CACHE_GET_REG_DATA_SUCCESS, 0);
+  event.add_compressed_param(xml, &SASEvent::PROFILE_SERVICE_PROFILE);
+  event.add_static_param(state);
+  std::string associated_impis_str = boost::algorithm::join(associated_impis, ", ");
+  event.add_var_param(associated_impis_str);
+  event.add_var_param(charging_addrs.log_string());
+  SAS::report_event(event);
+}
+
 // General IMPI handling.
 
 void ImpiTask::run()
@@ -120,7 +144,7 @@ void ImpiTask::run()
   }
   else
   {
-    send_http_reply(404);
+    send_http_reply(HTTP_NOT_FOUND);
     delete this;
   }
 }
@@ -162,7 +186,7 @@ void ImpiTask::on_get_av_failure(CassandraStore::Operation* op,
   if (error == CassandraStore::NOT_FOUND)
   {
     LOG_DEBUG("No cached av found for private ID %s, public ID %s - reject", _impi.c_str(), _impu.c_str());
-    send_http_reply(404);
+    send_http_reply(HTTP_NOT_FOUND);
   }
   else
   {
@@ -183,7 +207,7 @@ void ImpiTask::get_av()
       LOG_INFO("Public ID unknown and requested scheme AKA - reject");
       SAS::Event event(this->trail(), SASEvent::NO_IMPU_AKA, 0);
       SAS::report_event(event);
-      send_http_reply(404);
+      send_http_reply(HTTP_NOT_FOUND);
       delete this;
     }
     else
@@ -232,7 +256,7 @@ void ImpiTask::on_get_impu_success(CassandraStore::Operation* op)
     LOG_INFO("No cached public ID found for private ID %s - reject", _impi.c_str());
     SAS::Event event(this->trail(), SASEvent::CACHE_GET_ASSOC_IMPU_FAIL, 0);
     SAS::report_event(event);
-    send_http_reply(404);
+    send_http_reply(HTTP_NOT_FOUND);
     delete this;
   }
 }
@@ -244,7 +268,7 @@ void ImpiTask::on_get_impu_failure(CassandraStore::Operation* op, CassandraStore
   if (error == CassandraStore::NOT_FOUND)
   {
     LOG_DEBUG("No cached public ID found for private ID %s - reject", _impi.c_str());
-    send_http_reply(404);
+    send_http_reply(HTTP_NOT_FOUND);
   }
   else
   {
@@ -307,7 +331,7 @@ void ImpiTask::on_mar_response(Diameter::Message& rsp)
       }
       else
       {
-        send_http_reply(404);
+        send_http_reply(HTTP_NOT_FOUND);
       }
     }
     break;
@@ -316,14 +340,14 @@ void ImpiTask::on_mar_response(Diameter::Message& rsp)
       LOG_INFO("Multimedia-Auth answer with result code %d - reject", result_code);
       SAS::Event event(this->trail(), SASEvent::NO_AV_HSS, 0);
       SAS::report_event(event);
-      send_http_reply(404);
+      send_http_reply(HTTP_NOT_FOUND);
     }
     break;
     default:
       LOG_INFO("Multimedia-Auth answer with result code %d - reject", result_code);
       SAS::Event event(this->trail(), SASEvent::NO_AV_HSS, 0);
       SAS::report_event(event);
-      send_http_reply(500);
+      send_http_reply(HTTP_SERVER_ERROR);
       break;
   }
 
@@ -356,14 +380,14 @@ void ImpiDigestTask::send_reply(const DigestAuthVector& av)
   writer.String(av.ha1.c_str());
   writer.EndObject();
   _req.add_content(sb.GetString());
-  send_http_reply(200);
+  send_http_reply(HTTP_OK);
 }
 
 void ImpiDigestTask::send_reply(const AKAAuthVector& av)
 {
   // It is an error to request AKA authentication through the digest URL.
   LOG_INFO("Digest requested but AKA received - reject");
-  send_http_reply(404);
+  send_http_reply(HTTP_NOT_FOUND);
 }
 
 //
@@ -429,7 +453,7 @@ void ImpiAvTask::send_reply(const DigestAuthVector& av)
   writer.EndObject();
 
   _req.add_content(sb.GetString());
-  send_http_reply(200);
+  send_http_reply(HTTP_OK);
 }
 
 void ImpiAvTask::send_reply(const AKAAuthVector& av)
@@ -456,7 +480,7 @@ void ImpiAvTask::send_reply(const AKAAuthVector& av)
   writer.EndObject();
 
   _req.add_content(sb.GetString());
-  send_http_reply(200);
+  send_http_reply(HTTP_OK);
 }
 
 //
@@ -497,7 +521,7 @@ void ImpiRegistrationStatusTask::run()
   }
   else
   {
-    LOG_DEBUG("No HSS configured - fake response for server %s", _server_name.c_str());
+    LOG_DEBUG("No HSS configured - fake response if subscriber exists");
     SAS::Event event(this->trail(), SASEvent::ICSCF_NO_HSS, 0);
     SAS::report_event(event);
     rapidjson::StringBuffer sb;
@@ -509,7 +533,7 @@ void ImpiRegistrationStatusTask::run()
     writer.String(_server_name.c_str());
     writer.EndObject();
     _req.add_content(sb.GetString());
-    send_http_reply(200);
+    send_http_reply(HTTP_OK);
     delete this;
   }
 }
@@ -556,21 +580,21 @@ void ImpiRegistrationStatusTask::on_uar_response(Diameter::Message& rsp)
     }
     writer.EndObject();
     _req.add_content(sb.GetString());
-    send_http_reply(200);
+    send_http_reply(HTTP_OK);
   }
   else if ((experimental_result_code == DIAMETER_ERROR_USER_UNKNOWN) ||
            (experimental_result_code == DIAMETER_ERROR_IDENTITIES_DONT_MATCH))
   {
     LOG_INFO("User unknown or public/private ID conflict - reject");
     sas_log_hss_failure(experimental_result_code);
-    send_http_reply(404);
+    send_http_reply(HTTP_NOT_FOUND);
   }
   else if ((result_code == DIAMETER_AUTHORIZATION_REJECTED) ||
            (experimental_result_code == DIAMETER_ERROR_ROAMING_NOT_ALLOWED))
   {
     LOG_INFO("Authorization rejected due to roaming not allowed - reject");
     sas_log_hss_failure(result_code ? result_code : experimental_result_code);
-    send_http_reply(403);
+    send_http_reply(HTTP_FORBIDDEN);
   }
   else if (result_code == DIAMETER_TOO_BUSY)
   {
@@ -583,7 +607,7 @@ void ImpiRegistrationStatusTask::on_uar_response(Diameter::Message& rsp)
     LOG_INFO("User-Authorization answer with result %d/%d - reject",
              result_code, experimental_result_code);
     sas_log_hss_failure(result_code ? result_code : experimental_result_code);
-    send_http_reply(500);
+    send_http_reply(HTTP_SERVER_ERROR);
   }
   delete this;
 }
@@ -600,12 +624,12 @@ void ImpiRegistrationStatusTask::sas_log_hss_failure(int32_t result_code)
 
 void ImpuLocationInfoTask::run()
 {
+  const std::string prefix = "/impu/";
+  std::string path = _req.path();
+  _impu = path.substr(prefix.length(), path.find_first_of("/", prefix.length()) - prefix.length());
+
   if (_cfg->hss_configured)
   {
-    const std::string prefix = "/impu/";
-    std::string path = _req.path();
-
-    _impu = path.substr(prefix.length(), path.find_first_of("/", prefix.length()) - prefix.length());
     _originating = _req.param("originating");
     _authorization_type = _req.param("auth-type");
     LOG_DEBUG("Parsed HTTP request: public ID %s, originating %s, authorization type %s",
@@ -627,20 +651,10 @@ void ImpuLocationInfoTask::run()
   }
   else
   {
-    LOG_DEBUG("No HSS configured - fake response for server %s", _server_name.c_str());
+    LOG_DEBUG("No HSS configured - fake up response if subscriber exists");
     SAS::Event event(this->trail(), SASEvent::ICSCF_NO_HSS, 0);
     SAS::report_event(event);
-    rapidjson::StringBuffer sb;
-    rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
-    writer.StartObject();
-    writer.String(JSON_RC.c_str());
-    writer.Int(DIAMETER_SUCCESS);
-    writer.String(JSON_SCSCF.c_str());
-    writer.String(_server_name.c_str());
-    writer.EndObject();
-    _req.add_content(sb.GetString());
-    send_http_reply(200);
-    delete this;
+    query_cache_reg_data();
   }
 }
 
@@ -686,14 +700,14 @@ void ImpuLocationInfoTask::on_lir_response(Diameter::Message& rsp)
     }
     writer.EndObject();
     _req.add_content(sb.GetString());
-    send_http_reply(200);
+    send_http_reply(HTTP_OK);
   }
   else if ((experimental_result_code == DIAMETER_ERROR_USER_UNKNOWN) ||
            (experimental_result_code == DIAMETER_ERROR_IDENTITY_NOT_REGISTERED))
   {
     LOG_INFO("User unknown or public/private ID conflict - reject");
     sas_log_hss_failure(experimental_result_code);
-    send_http_reply(404);
+    send_http_reply(HTTP_NOT_FOUND);
   }
   else if (result_code == DIAMETER_TOO_BUSY)
   {
@@ -706,7 +720,7 @@ void ImpuLocationInfoTask::on_lir_response(Diameter::Message& rsp)
     LOG_INFO("Location-Info answer with result %d/%d - reject",
              result_code, experimental_result_code);
     sas_log_hss_failure(result_code ? result_code : experimental_result_code);
-    send_http_reply(500);
+    send_http_reply(HTTP_SERVER_ERROR);
   }
   delete this;
 }
@@ -715,6 +729,61 @@ void ImpuLocationInfoTask::sas_log_hss_failure(int32_t result_code)
 {
   SAS::Event event(this->trail(), SASEvent::LOC_INFO_HSS_FAIL, 0);
   SAS::report_event(event);
+}
+
+void ImpuLocationInfoTask::query_cache_reg_data()
+{
+  LOG_DEBUG("Querying cache for registration data for %s", _impu.c_str());
+  SAS::Event event(this->trail(), SASEvent::CACHE_GET_REG_DATA, 0);
+  event.add_var_param(_impu);
+  SAS::report_event(event);
+  CassandraStore::Operation* get_reg_data = _cache->create_GetRegData(_impu);
+  CassandraStore::Transaction* tsx =
+    new CacheTransaction(this,
+                         &ImpuLocationInfoTask::on_get_reg_data_success,
+                         &ImpuLocationInfoTask::on_get_reg_data_failure);
+  _cache->do_async(get_reg_data, tsx);
+}
+
+void ImpuLocationInfoTask::on_get_reg_data_success(CassandraStore::Operation* op)
+{
+  sas_log_get_reg_data_success((Cache::GetRegData*)op, trail());
+
+  // GetRegData returns success even if no entry was found, but the XML will be blank in this case.
+  std::string xml;
+  int32_t ttl;
+  ((Cache::GetRegData*)op)->get_xml(xml, ttl);
+  if (!xml.empty())
+  {
+    LOG_DEBUG("Got IMS subscription XML from cache - fake response for server %s", _server_name.c_str());
+    rapidjson::StringBuffer sb;
+    rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
+    writer.StartObject();
+    writer.String(JSON_RC.c_str());
+    writer.Int(DIAMETER_SUCCESS);
+    writer.String(JSON_SCSCF.c_str());
+    writer.String(_server_name.c_str());
+    writer.EndObject();
+    _req.add_content(sb.GetString());
+    send_http_reply(HTTP_OK);
+  }
+  else
+  {
+    LOG_DEBUG("No IMS subscription XML found for public ID %s - reject", _impu.c_str());
+    send_http_reply(HTTP_NOT_FOUND);
+  }
+  delete this;
+}
+
+void ImpuLocationInfoTask::on_get_reg_data_failure(CassandraStore::Operation* op,
+                                                   CassandraStore::ResultCode error,
+                                                   std::string& text)
+{
+  LOG_DEBUG("IMS subscription cache query failed: %u, %s", error, text.c_str());
+  SAS::Event event(this->trail(), SASEvent::NO_REG_DATA_CACHE, 0);
+  SAS::report_event(event);
+  send_http_reply(HTTP_GATEWAY_TIMEOUT);
+  delete this;
 }
 
 //
@@ -852,7 +921,7 @@ void ImpuRegDataTask::run()
       LOG_ERROR("HTTP request contains invalid value %s for type", _req.get_rx_body().c_str());
       SAS::Event event(this->trail(), SASEvent::INVALID_REG_TYPE, 0);
       SAS::report_event(event);
-      send_http_reply(400);
+      send_http_reply(HTTP_BAD_RESULT);
       delete this;
       return;
     }
@@ -863,7 +932,7 @@ void ImpuRegDataTask::run()
   }
   else
   {
-    send_http_reply(405);
+    send_http_reply(HTTP_BADMETHOD);
     delete this;
     return;
   }
@@ -903,6 +972,8 @@ void ImpuRegDataTask::on_get_reg_data_success(CassandraStore::Operation* op)
 {
   LOG_DEBUG("Got IMS subscription from cache");
   Cache::GetRegData* get_reg_data = (Cache::GetRegData*)op;
+  sas_log_get_reg_data_success(get_reg_data, trail());
+
   RegistrationState old_state;
   std::vector<std::string> associated_impis;
   int32_t ttl = 0;
@@ -916,13 +987,6 @@ void ImpuRegDataTask::on_get_reg_data_success(CassandraStore::Operation* op)
             _xml.empty() ? "empty" : "not empty",
             regstate_to_str(old_state).c_str(),
             _charging_addrs.empty() ? "empty" : _charging_addrs.log_string().c_str());
-  SAS::Event event(this->trail(), SASEvent::CACHE_GET_REG_DATA_SUCCESS, 0);
-  event.add_compressed_param(_xml, &SASEvent::PROFILE_SERVICE_PROFILE);
-  event.add_static_param(old_state);
-  std::string associated_impis_str = boost::algorithm::join(associated_impis, ", ");
-  event.add_var_param(associated_impis_str);
-  event.add_var_param(_charging_addrs.log_string());
-  SAS::report_event(event);
 
   // By default, we should remain in the existing state.
   _new_state = old_state;
@@ -1054,7 +1118,7 @@ void ImpuRegDataTask::on_get_reg_data_success(CassandraStore::Operation* op)
         LOG_DEBUG("Rejecting deregistration for user who was not registered");
         SAS::Event event(this->trail(), SASEvent::SUB_NOT_REG, 0);
         SAS::report_event(event);
-        send_http_reply(400);
+        send_http_reply(HTTP_BAD_RESULT);
         delete this;
         return;
       }
@@ -1111,7 +1175,7 @@ void ImpuRegDataTask::on_get_reg_data_success(CassandraStore::Operation* op)
         LOG_DEBUG("Unrecognised subscriber");
         SAS::Event event(this->trail(), SASEvent::NO_SUB_CACHE, 0);
         SAS::report_event(event);
-        send_http_reply(404);
+        send_http_reply(HTTP_NOT_FOUND);
         break;
       }
     }
@@ -1125,7 +1189,7 @@ void ImpuRegDataTask::on_get_reg_data_success(CassandraStore::Operation* op)
       {
         // We don't know anything about this subscriber so reject
         // the request.
-        send_http_reply(404);
+        send_http_reply(HTTP_NOT_FOUND);
       }
       else
       {
@@ -1154,7 +1218,7 @@ void ImpuRegDataTask::on_get_reg_data_success(CassandraStore::Operation* op)
         // - this is useful for preventing loops, where we try and
         // continually deregister a user
         LOG_DEBUG("Rejecting deregistration for user who was not registered");
-        send_http_reply(400);
+        send_http_reply(HTTP_BAD_RESULT);
       }
     }
     else if (is_auth_failure_request(_type))
@@ -1184,7 +1248,7 @@ void ImpuRegDataTask::send_reply()
                                                  _charging_addrs,
                                                  xml_str);
 
-  if (rc == 200)
+  if (rc == HTTP_OK)
   {
     _req.add_content(xml_str);
   }
@@ -1209,7 +1273,7 @@ void ImpuRegDataTask::on_get_reg_data_failure(CassandraStore::Operation* op,
   if (error == CassandraStore::NOT_FOUND)
   {
     LOG_DEBUG("No IMS subscription found for public ID %s - reject", _impu.c_str());
-    send_http_reply(404);
+    send_http_reply(HTTP_NOT_FOUND);
   }
   else
   {
@@ -1420,14 +1484,14 @@ void ImpuRegDataTask::on_sar_response(Diameter::Message& rsp)
       LOG_INFO("Server-Assignment answer with result code %d - reject", result_code);
       SAS::Event event(this->trail(), SASEvent::REG_DATA_HSS_FAIL, 0);
       SAS::report_event(event);
-      send_http_reply(404);
+      send_http_reply(HTTP_NOT_FOUND);
     }
     break;
     default:
       LOG_INFO("Server-Assignment answer with result code %d - reject", result_code);
       SAS::Event event(this->trail(), SASEvent::REG_DATA_HSS_FAIL, 0);
       SAS::report_event(event);
-      send_http_reply(500);
+      send_http_reply(HTTP_SERVER_ERROR);
       break;
   }
   delete this;
@@ -1473,12 +1537,12 @@ void ImpuIMSSubscriptionTask::send_reply()
   {
     LOG_DEBUG("Building 200 OK response to send");
     _req.add_content(_xml);
-    send_http_reply(200);
+    send_http_reply(HTTP_OK);
   }
   else
   {
     LOG_DEBUG("No XML User-Data available, returning 404");
-    send_http_reply(404);
+    send_http_reply(HTTP_NOT_FOUND);
   }
 }
 
@@ -1629,12 +1693,10 @@ void RegistrationTerminationTask::get_registration_sets()
 void RegistrationTerminationTask::get_registration_set_success(CassandraStore::Operation* op)
 {
   Cache::GetRegData* get_reg_data_result = (Cache::GetRegData*)op;
+  sas_log_get_reg_data_success(get_reg_data_result, trail());
   std::string ims_sub;
   int32_t temp;
   get_reg_data_result->get_xml(ims_sub, temp);
-  SAS::Event event(this->trail(), SASEvent::CACHE_GET_REG_DATA_SUCCESS, 0);
-  event.add_compressed_param(ims_sub, &SASEvent::PROFILE_SERVICE_PROFILE);
-  SAS::report_event(event);
 
   // Add the list of public identities in the IMS subscription to
   // the list of registration sets..
