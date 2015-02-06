@@ -1,11 +1,9 @@
-#! /bin/bash
+#!/bin/bash
 
 keyspace=$(basename $0|sed -e 's#^\(.*\)[.]sh$#\1#')
 . /etc/clearwater/config
-if [ ! -z $signaling_namespace ]
-then
-    if [ $EUID -ne 0 ]
-    then
+if [ ! -z $signaling_namespace ]; then
+    if [ $EUID -ne 0 ]; then
         echo "When using multiple networks, schema creation must be run as root"
         exit 2
     fi
@@ -60,8 +58,7 @@ echo "USE ${keyspace};
       ALTER TABLE impu ADD primary_ecf text;
       ALTER TABLE impu ADD secondary_ecf text;" | $namespace_prefix cqlsh -2
 
-if [[ ! -e /var/lib/cassandra/data/${keyspace}/impi_mapping ]];
-then
+if [[ ! -e /var/lib/cassandra/data/${keyspace}/impi_mapping ]]; then
     echo "USE ${keyspace};
       CREATE TABLE impi_mapping (private_id text PRIMARY KEY, unused text) WITH read_repair_chance = 1.0;" | $namespace_prefix cqlsh -2
 fi
