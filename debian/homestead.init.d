@@ -85,7 +85,6 @@ get_settings()
         hss_hostname=0.0.0.0
         dns_server=127.0.0.1
         scscf=5054
-        target_latency_us=100000
 
         impu_cache_ttl=0
         hss_reregistration_time=1800
@@ -127,6 +126,10 @@ get_settings()
 
         [ -z "$diameter_timeout_ms" ] || diameter_timeout_ms_arg="--diameter-timeout-ms=$diameter_timeout_ms"
         [ -z "$signaling_namespace" ] || namespace_prefix="ip netns exec $signaling_namespace"
+        [ -z "$target_latency_us" ] || target_latency_us_arg="--target-latency-us=$target_latency_us"
+        [ -z "$max_tokens" ] || max_tokens_arg="--max-tokens=$max_tokens"
+        [ -z "$init_token_rate" ] || init_token_rate_arg="--init-token-rate=$init_token_rate"
+        [ -z "$min_token_rate" ] || min_token_rate_arg="--min-token-rate=$min_token_rate"
 
         # Enable SNMP alarms if informsink(s) are configured
         if [ ! -z "$snmp_ip" ]
@@ -158,7 +161,6 @@ do_start()
         DAEMON_ARGS="--localhost=$local_ip
                      --home-domain=$home_domain
                      --diameter-conf=/var/lib/homestead/homestead.conf
-                     --target-latency-us=$target_latency_us
                      --dns-server=$dns_server
                      --http=$local_ip
                      --http-threads=$num_http_threads
@@ -172,6 +174,10 @@ do_start()
                      $scheme_unknown_arg
                      $diameter_timeout_ms_arg
                      $alarms_enabled_arg
+                     $target_latency_us_arg
+                     $max_tokens_arg
+                     $init_token_rate_arg
+                     $min_token_rate_arg
                      --access-log=$log_directory
                      --log-file=$log_directory
                      --log-level=$log_level
