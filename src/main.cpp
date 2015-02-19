@@ -90,6 +90,9 @@ struct options
   int diameter_timeout_ms;
   int target_latency_us;
   bool alarms_enabled;
+  int max_tokens;
+  float init_token_rate;
+  float min_token_rate;
 };
 
 // Enum for option types not assigned short-forms
@@ -101,7 +104,11 @@ enum OptionTypes
   SAS_CONFIG,
   DIAMETER_TIMEOUT_MS,
   ALARMS_ENABLED,
-  DNS_SERVER
+  DNS_SERVER,
+  TARGET_LATENCY_US,
+  MAX_TOKENS,
+  INIT_TOKEN_RATE,
+  MIN_TOKEN_RATE
 };
 
 const static struct option long_opt[] =
@@ -109,7 +116,6 @@ const static struct option long_opt[] =
   {"localhost",               required_argument, NULL, 'l'},
   {"home-domain",             required_argument, NULL, 'r'},
   {"diameter-conf",           required_argument, NULL, 'c'},
-  {"target-latency-us",       required_argument, NULL, 'Y'},
   {"dns-server",              required_argument, NULL, DNS_SERVER},
   {"http",                    required_argument, NULL, 'H'},
   {"http-threads",            required_argument, NULL, 't'},
@@ -132,10 +138,14 @@ const static struct option long_opt[] =
   {"log-file",                required_argument, NULL, 'F'},
   {"log-level",               required_argument, NULL, 'L'},
   {"help",                    no_argument,       NULL, 'h'},
+  {"target-latency-us",       required_argument, NULL, TARGET_LATENCY_US},
+  {"max-tokens",              required_argument, NULL, MAX_TOKENS},
+  {"init-token-rate",         required_argument, NULL, INIT_TOKEN_RATE},
+  {"min-token-rate",          required_argument, NULL, MIN_TOKEN_RATE},
   {NULL,                      0,                 NULL, 0},
 };
 
-static std::string options_description = "l:r:c:H:t:u:S:D:d:p:s:i:I:a:F:L:h:Y";
+static std::string options_description = "l:r:c:H:t:u:S:D:d:p:s:i:I:a:F:L:h";
 
 void usage(void)
 {
@@ -144,8 +154,6 @@ void usage(void)
        " -l, --localhost <hostname> Specify the local hostname or IP address."
        " -r, --home-domain <name>   Specify the SIP home domain."
        " -c, --diameter-conf <file> File name for Diameter configuration\n"
-       " -Y, --target-latency-us <usecs>\n"
-       "                            Target latency above which throttling applies (default: 100000)\n"
        " -H, --http <address>       Set HTTP bind address (default: 0.0.0.0)\n"
        " -t, --http-threads N       Number of HTTP threads (default: 1)\n"
        " -u, --cache-threads N      Number of cache threads (default: 10)\n"
@@ -174,6 +182,14 @@ void usage(void)
        "                            specified SAS is disabled\n"
        "     --diameter-timeout-ms  Length of time (in ms) before timing out a Diameter request to the HSS\n"
        "     --alarms-enabled       Whether SNMP alarms are enabled (default: false)\n"
+       "     --target-latency-us <usecs>\n"
+       "                            Target latency above which throttling applies (default: 100000)\n"
+       "     --max-tokens N         Maximum number of tokens allowed in the token bucket (used by\n"
+       "                            the throttling code (default: 20))\n"
+       "     --init-token-rate N    Initial token refill rate of tokens in the token bucket (used by\n"
+       "                            the throttling code (default: 100.0))\n"
+       "     --min-token-rate N     Minimum token refill rate of tokens in the token bucket (used by\n"
+       "                            the throttling code (default: 10.0))\n"
        " -F, --log-file <directory>\n"
        "                            Log to file in specified directory\n"
        " -L, --log-level N          Set log level to N (default: 4)\n"
@@ -232,15 +248,6 @@ int init_options(int argc, char**argv, struct options& options)
     case 'c':
       LOG_INFO("Diameter configuration file: %s", optarg);
       options.diameter_conf = std::string(optarg);
-      break;
-
-    case 'Y':
-      options.target_latency_us = atoi(optarg);
-      if (options.target_latency_us <= 0)
-      {
-        fprintf(stdout, "Invalid --target-latency-us option %s\n", optarg);
-        return -1;
-      }
       break;
 
     case 'H':
@@ -353,6 +360,42 @@ int init_options(int argc, char**argv, struct options& options)
       options.dns_server = std::string(optarg);
       break;
 
+    case TARGET_LATENCY_US:
+      options.target_latency_us = atoi(optarg);
+      if (options.target_latency_us <= 0)
+      {
+        LOG_ERROR("Invalid --target-latency-us option %s", optarg);
+        return -1;
+      }
+      break;
+
+    case MAX_TOKENS:
+      options.max_tokens = atoi(optarg);
+      if (options.max_tokens <= 0)
+      {
+        LOG_ERROR("Invalid --max-tokens option %s", optarg);
+        return -1;
+      }
+      break;
+
+    case INIT_TOKEN_RATE:
+      options.init_token_rate = atoi(optarg);
+      if (options.init_token_rate <= 0)
+      {
+        LOG_ERROR("Invalid --init-token-rate option %s", optarg);
+        return -1;
+      }
+      break;
+
+    case MIN_TOKEN_RATE:
+      options.min_token_rate = atoi(optarg);
+      if (options.min_token_rate <= 0)
+      {
+        LOG_ERROR("Invalid --min-token-rate option %s", optarg);
+        return -1;
+      }
+      break;
+
     case 'F':
     case 'L':
       // Ignore F and L - these are handled by init_logging_options
@@ -438,8 +481,11 @@ int main(int argc, char**argv)
   options.sas_server = "0.0.0.0";
   options.sas_system_name = "";
   options.diameter_timeout_ms = 200;
-  options.target_latency_us = 100000;
   options.alarms_enabled = false;
+  options.target_latency_us = 100000;
+  options.max_tokens = 20;
+  options.init_token_rate = 100.0;
+  options.min_token_rate = 10.0;
 
   boost::filesystem::path p = argv[0];
   openlog(p.filename().c_str(), PDLOG_PID, PDLOG_LOCAL6);
@@ -523,10 +569,10 @@ int main(int argc, char**argv)
     AlarmState::clear_all("homestead");
   }
 
-  LoadMonitor* load_monitor = new LoadMonitor(options.target_latency_us, // Initial target latency (us).
-                                              20,                        // Maximum token bucket size.
-                                              10.0,                      // Initial token fill rate (per sec).
-                                              10.0);                     // Minimum token fill rate (per sec).
+  LoadMonitor* load_monitor = new LoadMonitor(options.target_latency_us,
+                                              options.max_tokens,
+                                              options.init_token_rate,
+                                              options.min_token_rate);
   DnsCachedResolver* dns_resolver = new DnsCachedResolver(options.dns_server);
   HttpResolver* http_resolver = new HttpResolver(dns_resolver, af);
 
