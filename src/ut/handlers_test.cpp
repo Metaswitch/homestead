@@ -70,6 +70,7 @@
 #include "handlers.h"
 #include "mockstatisticsmanager.hpp"
 #include "sproutconnection.h"
+#include "mock_health_checker.hpp"
 
 using ::testing::Return;
 using ::testing::ReturnRef;
@@ -182,7 +183,7 @@ public:
     _mock_resolver = new FakeHttpResolver("1.2.3.4");
     _mock_http_conn = new MockHttpConnection(_mock_resolver);
     _sprout_conn = new SproutConnection(_mock_http_conn);
-
+    
     _stats = new StrictMock<MockStatisticsManager>;
     _nice_stats = new NiceMock<MockStatisticsManager>;
 
@@ -193,7 +194,7 @@ public:
                                      _cx_dict);
     HssCacheTask::configure_cache(_cache);
     HssCacheTask::configure_stats(_nice_stats);
-
+    
     cwtest_completely_control_time();
   }
 
@@ -1181,6 +1182,7 @@ MockCache* HandlersTest::_cache = NULL;
 MockHttpStack* HandlersTest::_httpstack = NULL;
 MockHttpConnection* HandlersTest::_mock_http_conn = NULL;
 SproutConnection* HandlersTest::_sprout_conn = NULL;
+
 NiceMock<MockStatisticsManager>* HandlersTest::_nice_stats = NULL;
 StrictMock<MockStatisticsManager>* HandlersTest::_stats = NULL;
 struct msg* HandlersTest::_caught_fd_msg = NULL;
@@ -2679,6 +2681,39 @@ TEST_F(HandlersTest, RegistrationStatusHSSTimeout)
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
 }
 
+// This test checks that if the /impi/X/registration-status endpoint
+// returns a non-200 response, the health checker is not triggered.
+TEST_F(HandlersTest, RegistrationStatusHSSTimeoutFailsHealthCheck)
+{
+  MockHealthChecker* hc = new MockHealthChecker();
+  HssCacheTask::configure_health_checker(hc);
+
+  // Inject the appropriate HTTP request.
+  MockHttpStack::Request req(_httpstack,
+                             "/impi/" + IMPI + "/",
+                             "registration-status",
+                             "?impu=" + IMPU);
+  ImpiRegistrationStatusTask::Config cfg(true);
+  ImpiRegistrationStatusTask* task = new ImpiRegistrationStatusTask(req, &cfg, FAKE_TRAIL_ID);
+  EXPECT_CALL(*_mock_stack, send(_, _, 200))
+    .Times(1)
+    .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
+  task->run();
+  ASSERT_FALSE(_caught_diam_tsx == NULL);
+
+  // Expect a 504 response once we notify the task about the timeout
+  // error. This should not trigger the health-checker.
+  EXPECT_CALL(*_httpstack, send_reply(_, 504, _));
+  EXPECT_CALL(*hc, health_check_passed()).Times(0);
+  _caught_diam_tsx->on_timeout();
+
+  // Tidy up.
+  HssCacheTask::configure_health_checker(NULL);
+  delete hc; hc = NULL;
+  fd_msg_free(_caught_fd_msg); _caught_fd_msg = NULL;
+  delete _caught_diam_tsx; _caught_diam_tsx = NULL;
+}
+
 TEST_F(HandlersTest, RegistrationStatus)
 {
   // This test tests a mainline Registration Status task case. Build the HTTP request
@@ -2728,6 +2763,50 @@ TEST_F(HandlersTest, RegistrationStatus)
   // Build the expected JSON response and check it's correct.
   EXPECT_EQ(build_icscf_json(DIAMETER_SUCCESS, SERVER_NAME, CAPABILITIES), req.content());
 }
+
+// 200 OK responses to the /impi/X/registration-status URL should
+// trigger the health-checker. Test that this happens.
+TEST_F(HandlersTest, RegistrationStatusPassesHealthCheck)
+{
+  MockHealthChecker* hc = new MockHealthChecker();
+  HssCacheTask::configure_health_checker(hc);
+
+  // Set up a request into the right URL.
+  MockHttpStack::Request req(_httpstack,
+                             "/impi/" + IMPI + "/",
+                             "registration-status",
+                             "?impu=" + IMPU);
+
+  ImpiRegistrationStatusTask::Config cfg(true);
+  ImpiRegistrationStatusTask* task = new ImpiRegistrationStatusTask(req, &cfg, FAKE_TRAIL_ID);
+
+  // Mock out a UAA response in order to triger a 200 OK return code.
+  EXPECT_CALL(*_mock_stack, send(_, _, 200))
+    .Times(1)
+    .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
+  task->run();
+  ASSERT_FALSE(_caught_diam_tsx == NULL);
+  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
+  Cx::UserAuthorizationRequest uar(msg);
+  Cx::UserAuthorizationAnswer uaa(_cx_dict,
+                                  _mock_stack,
+                                  DIAMETER_SUCCESS,
+                                  0,
+                                  SERVER_NAME,
+                                  CAPABILITIES);
+
+  // Expect that when we get a 200, the health-checker is notified.
+  EXPECT_CALL(*hc, health_check_passed()).Times(1);
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
+  _caught_diam_tsx->on_response(uaa);
+
+  // Tear down the test.
+  _caught_fd_msg = NULL;
+  delete _caught_diam_tsx; _caught_diam_tsx = NULL;
+  HssCacheTask::configure_health_checker(NULL);
+  delete hc; hc = NULL;
+}
+
 
 TEST_F(HandlersTest, RegistrationStatusOptParamsSubseqRegCapabs)
 {
@@ -2884,6 +2963,33 @@ TEST_F(HandlersTest, RegistrationStatusNoHSS)
 
   // Build the expected JSON response and check it's correct.
   EXPECT_EQ(build_icscf_json(DIAMETER_SUCCESS, DEFAULT_SERVER_NAME, NO_CAPABILITIES), req.content());
+}
+
+// 200 OK responses to the /impi/X/registration-status URL should
+// trigger the health-checker. Test that this happens even when there
+// is no HSS.
+TEST_F(HandlersTest, RegistrationStatusNoHSSPassesHealthCheck)
+{
+  MockHealthChecker* hc = new MockHealthChecker();
+  HssCacheTask::configure_health_checker(hc);
+  
+  // Set up a request to the right URL.
+  MockHttpStack::Request req(_httpstack,
+                             "/impi/" + IMPI + "/",
+                             "registration-status",
+                             "?impu=sip:impu@example.com");
+  ImpiRegistrationStatusTask::Config cfg(false);
+  ImpiRegistrationStatusTask* task = new ImpiRegistrationStatusTask(req, &cfg, FAKE_TRAIL_ID);
+
+  // Once the task's run function is called, expect a successful HTTP
+  // response and a call to the health-checker.
+  EXPECT_CALL(*hc, health_check_passed()).Times(1);
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
+  task->run();
+
+  // Teardown.
+  HssCacheTask::configure_health_checker(NULL);
+  delete hc; hc = NULL;
 }
 
 //
