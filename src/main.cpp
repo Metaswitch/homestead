@@ -639,7 +639,12 @@ int main(int argc, char**argv)
   }
 
   HealthChecker* hc = new HealthChecker();
-
+  pthread_t health_check_thread;
+  pthread_create(&health_check_thread,
+                 NULL,
+                 &HealthChecker::static_main_thread_function,
+                 (void*)hc);
+  
   HttpStack* http_stack = HttpStack::get_instance();
   HssCacheTask::configure_diameter(diameter_stack,
                                    options.dest_realm.empty() ? options.home_domain : options.dest_realm,
@@ -761,6 +766,8 @@ int main(int argc, char**argv)
   delete ppr_task; ppr_task = NULL;
   delete rtr_task; rtr_task = NULL;
 
+  hc->terminate();
+  pthread_join(health_check_thread, NULL);
   delete hc; hc = NULL;
   
   delete sprout_conn; sprout_conn = NULL;
