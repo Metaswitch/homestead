@@ -542,7 +542,6 @@ void ImpiRegistrationStatusTask::run()
     writer.EndObject();
     _req.add_content(sb.GetString());
     send_http_reply(HTTP_OK);
-    printf("Value of _health_checker is %p\n", _health_checker);
     if (_health_checker)
     {
       _health_checker->health_check_passed();
@@ -594,7 +593,6 @@ void ImpiRegistrationStatusTask::on_uar_response(Diameter::Message& rsp)
     writer.EndObject();
     _req.add_content(sb.GetString());
     send_http_reply(HTTP_OK);
-    printf("Value of _health_checker is %p\n", _health_checker);
     if (_health_checker)
     {
       _health_checker->health_check_passed();
