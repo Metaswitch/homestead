@@ -590,6 +590,11 @@ int main(int argc, char**argv)
   // Create an exception handler. The exception handler doesn't need
   // to quiesce the process before killing it.
   HealthChecker* hc = new HealthChecker();
+  pthread_t health_check_thread;
+  pthread_create(&health_check_thread,
+                 NULL,
+                 &HealthChecker::static_main_thread_function,
+                 (void*)hc);
   exception_handler = new ExceptionHandler(options.exception_max_ttl,
                                            false,
                                            hc);
@@ -784,7 +789,7 @@ int main(int argc, char**argv)
   delete rtr_config; rtr_config = NULL;
   delete ppr_task; ppr_task = NULL;
   delete rtr_task; rtr_task = NULL;
-  
+
   delete sprout_conn; sprout_conn = NULL;
 
   if (!options.dest_realm.empty())
@@ -801,8 +806,12 @@ int main(int argc, char**argv)
   }
 
   delete stats_manager; stats_manager = NULL;
+
+  hc->terminate();
+  pthread_join(health_check_thread, NULL);
   delete hc; hc = NULL;
   delete exception_handler; exception_handler = NULL;
+
   delete load_monitor; load_monitor = NULL;
 
   SAS::term();
