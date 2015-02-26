@@ -58,6 +58,7 @@
 #include "homestead_pd_definitions.h"
 #include "alarm.h"
 #include "communicationmonitor.h"
+#include "exception_handler.h"
 
 struct options
 {
@@ -93,6 +94,7 @@ struct options
   int max_tokens;
   float init_token_rate;
   float min_token_rate;
+  int exception_max_ttl;
 };
 
 // Enum for option types not assigned short-forms
@@ -108,7 +110,8 @@ enum OptionTypes
   TARGET_LATENCY_US,
   MAX_TOKENS,
   INIT_TOKEN_RATE,
-  MIN_TOKEN_RATE
+  MIN_TOKEN_RATE,
+  EXCEPTION_MAX_TTL
 };
 
 const static struct option long_opt[] =
@@ -142,6 +145,7 @@ const static struct option long_opt[] =
   {"max-tokens",              required_argument, NULL, MAX_TOKENS},
   {"init-token-rate",         required_argument, NULL, INIT_TOKEN_RATE},
   {"min-token-rate",          required_argument, NULL, MIN_TOKEN_RATE},
+  {"exception-max-ttl",       required_argument, NULL, EXCEPTION_MAX_TTL},
   {NULL,                      0,                 NULL, 0},
 };
 
@@ -190,6 +194,9 @@ void usage(void)
        "                            the throttling code (default: 100.0))\n"
        "     --min-token-rate N     Minimum token refill rate of tokens in the token bucket (used by\n"
        "                            the throttling code (default: 10.0))\n"
+       " --exception-max-ttl <secs>\n"
+       "                            The maximum time before the process exits if it hits an exception.\n"
+       "                            The actual time is randomised.\n"
        " -F, --log-file <directory>\n"
        "                            Log to file in specified directory\n"
        " -L, --log-level N          Set log level to N (default: 4)\n"
@@ -396,6 +403,12 @@ int init_options(int argc, char**argv, struct options& options)
       }
       break;
 
+    case EXCEPTION_MAX_TTL:
+      options.exception_max_ttl = atoi(optarg);
+      LOG_INFO("Max TTL after an exception set to %d",
+      options.exception_max_ttl);
+       break;
+
     case 'F':
     case 'L':
       // Ignore F and L - these are handled by init_logging_options
@@ -424,11 +437,11 @@ void terminate_handler(int sig)
 }
 
 // Signal handler that simply dumps the stack and then crashes out.
-void exception_handler(int sig)
+void signal_handler(int sig)
 {
   // Reset the signal handlers so that another exception will cause a crash.
   signal(SIGABRT, SIG_DFL);
-  signal(SIGSEGV, SIG_DFL);
+  signal(SIGSEGV, signal_handler);
 
   // Log the signal, along with a backtrace.
   CL_HOMESTEAD_CRASH.log(strsignal(sig));
@@ -449,8 +462,8 @@ int main(int argc, char**argv)
   CommunicationMonitor* cassandra_comm_monitor = NULL;
 
   // Set up our exception signal handler for asserts and segfaults.
-  signal(SIGABRT, exception_handler);
-  signal(SIGSEGV, exception_handler);
+  signal(SIGABRT, signal_handler);
+  signal(SIGSEGV, signal_handler);
 
   sem_init(&term_sem, 0, 0);
   signal(SIGTERM, terminate_handler);
@@ -569,6 +582,13 @@ int main(int argc, char**argv)
     AlarmState::clear_all("homestead");
   }
 
+  // Create an exception handler. The exception handler doesn't need
+  // to quiesce the process before killing it.
+  HealthChecker* hc = new HealthChecker();
+  ExceptionHandler* exception_handler = new ExceptionHandler(options.exception_max_ttl,
+                                                             false,
+                                                             hc);
+
   LoadMonitor* load_monitor = new LoadMonitor(options.target_latency_us,
                                               options.max_tokens,
                                               options.init_token_rate,
@@ -615,7 +635,7 @@ int main(int argc, char**argv)
   try
   {
     diameter_stack->initialize();
-    diameter_stack->configure(options.diameter_conf, hss_comm_monitor);
+    diameter_stack->configure(options.diameter_conf, exception_handler, hss_comm_monitor);
     dict = new Cx::Dictionary();
 
     rtr_config = new RegistrationTerminationTask::Config(cache, dict, sprout_conn, options.hss_reregistration_time);
@@ -637,8 +657,6 @@ int main(int argc, char**argv)
     LOG_ERROR("Failed to initialize Diameter stack - function %s, rc %d", e._func, e._rc);
     exit(2);
   }
-
-  HealthChecker* hc = new HealthChecker();
 
   HttpStack* http_stack = HttpStack::get_instance();
   HssCacheTask::configure_diameter(diameter_stack,
@@ -680,6 +698,7 @@ int main(int argc, char**argv)
     http_stack->configure(options.http_address,
                           options.http_port,
                           options.http_threads,
+                          exception_handler,
                           access_logger,
                           load_monitor,
                           stats_manager);
@@ -779,6 +798,7 @@ int main(int argc, char**argv)
   }
 
   delete stats_manager; stats_manager = NULL;
+  delete exception_handler; exception_handler = NULL;
   delete load_monitor; load_monitor = NULL;
 
   SAS::term();
