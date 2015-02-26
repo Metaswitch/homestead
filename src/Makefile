@@ -25,6 +25,7 @@ TARGET_SOURCES := accesslogger.cpp \
                   dnscachedresolver.cpp \
                   dnsparser.cpp \
                   handlers.cpp \
+                  health_checker.cpp \
                   httpconnection.cpp \
                   httpresolver.cpp \
                   httpstack.cpp \

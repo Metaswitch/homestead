@@ -3,6 +3,8 @@ modules/cpp-common/src/baseresolver.cpp
 modules/cpp-common/src/diameterstack.cpp
 modules/cpp-common/src/dnscachedresolver.cpp
 modules/cpp-common/src/dnsparser.cpp
+# HealthChecker is tested fully in Sprout
+modules/cpp-common/src/health_checker.cpp
 modules/cpp-common/src/httpstack.cpp
 modules/cpp-common/src/httpconnection.cpp
 modules/cpp-common/src/log.cpp

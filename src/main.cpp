@@ -638,6 +638,13 @@ int main(int argc, char**argv)
     exit(2);
   }
 
+  HealthChecker* hc = new HealthChecker();
+  pthread_t health_check_thread;
+  pthread_create(&health_check_thread,
+                 NULL,
+                 &HealthChecker::static_main_thread_function,
+                 (void*)hc);
+  
   HttpStack* http_stack = HttpStack::get_instance();
   HssCacheTask::configure_diameter(diameter_stack,
                                    options.dest_realm.empty() ? options.home_domain : options.dest_realm,
@@ -645,6 +652,7 @@ int main(int argc, char**argv)
                                    options.server_name,
                                    dict);
   HssCacheTask::configure_cache(cache);
+  HssCacheTask::configure_health_checker(hc);
   HssCacheTask::configure_stats(stats_manager);
 
   // We should only query the cache for AV information if there is no HSS.  If there is an HSS, we
@@ -758,6 +766,10 @@ int main(int argc, char**argv)
   delete ppr_task; ppr_task = NULL;
   delete rtr_task; rtr_task = NULL;
 
+  hc->terminate();
+  pthread_join(health_check_thread, NULL);
+  delete hc; hc = NULL;
+  
   delete sprout_conn; sprout_conn = NULL;
 
   if (!options.dest_realm.empty())

@@ -46,6 +46,7 @@
 #include "statisticsmanager.h"
 #include "sas.h"
 #include "sproutconnection.h"
+#include "health_checker.h"
 
 // Result-Code AVP constants
 const int32_t DIAMETER_SUCCESS = 2001;
@@ -100,6 +101,7 @@ public:
                                  const std::string& server_name,
                                  Cx::Dictionary* dict);
   static void configure_cache(Cache* cache);
+  static void configure_health_checker(HealthChecker* hc);
   static void configure_stats(StatisticsManager* stats_manager);
 
   inline Cache* cache() const
@@ -271,6 +273,7 @@ protected:
   static std::string _server_name;
   static Cx::Dictionary* _dict;
   static Cache* _cache;
+  static HealthChecker* _health_checker;
   static StatisticsManager* _stats_manager;
 };
 
