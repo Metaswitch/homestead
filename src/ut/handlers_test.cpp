@@ -2780,7 +2780,7 @@ TEST_F(HandlersTest, RegistrationStatusPassesHealthCheck)
   ImpiRegistrationStatusTask::Config cfg(true);
   ImpiRegistrationStatusTask* task = new ImpiRegistrationStatusTask(req, &cfg, FAKE_TRAIL_ID);
 
-  // Mock out a UAA response in order to triger a 200 OK return code.
+  // Mock out a UAA response in order to trigger a 200 OK return code.
   EXPECT_CALL(*_mock_stack, send(_, _, 200))
     .Times(1)
     .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
