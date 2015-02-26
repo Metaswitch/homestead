@@ -429,6 +429,7 @@ int init_options(int argc, char**argv, struct options& options)
 }
 
 static sem_t term_sem;
+ExceptionHandler* exception_handler;
 
 // Signal handler that triggers homestead termination.
 void terminate_handler(int sig)
@@ -443,14 +444,18 @@ void signal_handler(int sig)
   signal(SIGABRT, SIG_DFL);
   signal(SIGSEGV, signal_handler);
 
+  // Check if there's a stored jmp_buf on the thread and handle if there is
+  exception_handler->handle_exception();
+
   // Log the signal, along with a backtrace.
-  CL_HOMESTEAD_CRASH.log(strsignal(sig));
-  closelog();
   LOG_BACKTRACE("Signal %d caught", sig);
 
   // Ensure the log files are complete - the core file created by abort() below
   // will trigger the log files to be copied to the diags bundle
   LOG_COMMIT();
+
+  CL_HOMESTEAD_CRASH.log(strsignal(sig));
+  closelog();
 
   // Dump a core.
   abort();
@@ -585,9 +590,9 @@ int main(int argc, char**argv)
   // Create an exception handler. The exception handler doesn't need
   // to quiesce the process before killing it.
   HealthChecker* hc = new HealthChecker();
-  ExceptionHandler* exception_handler = new ExceptionHandler(options.exception_max_ttl,
-                                                             false,
-                                                             hc);
+  exception_handler = new ExceptionHandler(options.exception_max_ttl,
+                                           false,
+                                           hc);
 
   LoadMonitor* load_monitor = new LoadMonitor(options.target_latency_us,
                                               options.max_tokens,
@@ -779,8 +784,6 @@ int main(int argc, char**argv)
   delete rtr_config; rtr_config = NULL;
   delete ppr_task; ppr_task = NULL;
   delete rtr_task; rtr_task = NULL;
-
-  delete hc; hc = NULL;
   
   delete sprout_conn; sprout_conn = NULL;
 
@@ -798,6 +801,7 @@ int main(int argc, char**argv)
   }
 
   delete stats_manager; stats_manager = NULL;
+  delete hc; hc = NULL;
   delete exception_handler; exception_handler = NULL;
   delete load_monitor; load_monitor = NULL;
 
