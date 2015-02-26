@@ -55,6 +55,7 @@ std::string HssCacheTask::_server_name;
 Cx::Dictionary* HssCacheTask::_dict;
 Cache* HssCacheTask::_cache = NULL;
 StatisticsManager* HssCacheTask::_stats_manager = NULL;
+HealthChecker* HssCacheTask::_health_checker = NULL;
 
 const static HssCacheTask::StatsFlags DIGEST_STATS =
   static_cast<HssCacheTask::StatsFlags>(
@@ -87,6 +88,11 @@ void HssCacheTask::configure_diameter(Diameter::Stack* diameter_stack,
 void HssCacheTask::configure_cache(Cache* cache)
 {
   _cache = cache;
+}
+
+void HssCacheTask::configure_health_checker(HealthChecker* hc)
+{
+  _health_checker = hc;
 }
 
 void HssCacheTask::configure_stats(StatisticsManager* stats_manager)
@@ -484,7 +490,9 @@ void ImpiAvTask::send_reply(const AKAAuthVector& av)
 }
 
 //
-// IMPI Registration Status handling
+// IMPI Registration Status handling.
+//
+// A 200 OK response from this URL passes Homestead's health-check criteria.
 //
 
 void ImpiRegistrationStatusTask::run()
@@ -534,6 +542,10 @@ void ImpiRegistrationStatusTask::run()
     writer.EndObject();
     _req.add_content(sb.GetString());
     send_http_reply(HTTP_OK);
+    if (_health_checker)
+    {
+      _health_checker->health_check_passed();
+    }
     delete this;
   }
 }
@@ -581,6 +593,10 @@ void ImpiRegistrationStatusTask::on_uar_response(Diameter::Message& rsp)
     writer.EndObject();
     _req.add_content(sb.GetString());
     send_http_reply(HTTP_OK);
+    if (_health_checker)
+    {
+      _health_checker->health_check_passed();
+    }
   }
   else if ((experimental_result_code == DIAMETER_ERROR_USER_UNKNOWN) ||
            (experimental_result_code == DIAMETER_ERROR_IDENTITIES_DONT_MATCH))
