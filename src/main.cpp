@@ -504,6 +504,7 @@ int main(int argc, char**argv)
   options.max_tokens = 20;
   options.init_token_rate = 100.0;
   options.min_token_rate = 10.0;
+  options.exception_max_ttl = 600;
 
   boost::filesystem::path p = argv[0];
   openlog(p.filename().c_str(), PDLOG_PID, PDLOG_LOCAL6);
