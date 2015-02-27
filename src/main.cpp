@@ -444,15 +444,15 @@ void signal_handler(int sig)
   signal(SIGABRT, SIG_DFL);
   signal(SIGSEGV, signal_handler);
 
-  // Check if there's a stored jmp_buf on the thread and handle if there is
-  exception_handler->handle_exception();
-
   // Log the signal, along with a backtrace.
   LOG_BACKTRACE("Signal %d caught", sig);
 
   // Ensure the log files are complete - the core file created by abort() below
   // will trigger the log files to be copied to the diags bundle
   LOG_COMMIT();
+
+  // Check if there's a stored jmp_buf on the thread and handle if there is
+  exception_handler->handle_exception();
 
   CL_HOMESTEAD_CRASH.log(strsignal(sig));
   closelog();
@@ -608,7 +608,7 @@ int main(int argc, char**argv)
 
   Cache* cache = Cache::get_instance();
   cache->initialize();
-  cache->configure(options.cassandra, 9160, options.cache_threads, 0, cassandra_comm_monitor);
+  cache->configure(options.cassandra, 9160, exception_handler, options.cache_threads, 0, cassandra_comm_monitor);
 
   // Test the connection to Cassandra before starting the store.
   CassandraStore::ResultCode rc = cache->connection_test();
