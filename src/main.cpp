@@ -65,7 +65,7 @@ struct options
   std::string local_host;
   std::string home_domain;
   std::string diameter_conf;
-  std::string dns_server;
+  std::vector<std::string> dns_servers;
   std::string http_address;
   unsigned short http_port;
   int http_threads;
@@ -194,7 +194,9 @@ void usage(void)
        "                            the throttling code (default: 100.0))\n"
        "     --min-token-rate N     Minimum token refill rate of tokens in the token bucket (used by\n"
        "                            the throttling code (default: 10.0))\n"
-       " --exception-max-ttl <secs>\n"
+       "     --dns-server <server>[,<server2>,<server3>]\n"
+       "                            IP addresses of the DNS servers to use (defaults to 127.0.0.1)\n"
+       "     --exception-max-ttl <secs>\n"
        "                            The maximum time before the process exits if it hits an exception.\n"
        "                            The actual time is randomised.\n"
        " -F, --log-file <directory>\n"
@@ -363,8 +365,10 @@ int init_options(int argc, char**argv, struct options& options)
       break;
 
     case DNS_SERVER:
-      LOG_INFO("DNS server set to: %s", optarg);
-      options.dns_server = std::string(optarg);
+      options.dns_servers.clear();
+      Utils::split_string(std::string(optarg), ',', options.dns_servers, 0, false);
+      LOG_INFO("%d DNS servers passed on the command line",
+               options.dns_servers.size());
       break;
 
     case TARGET_LATENCY_US:
@@ -477,7 +481,7 @@ int main(int argc, char**argv)
   options.local_host = "127.0.0.1";
   options.home_domain = "dest-realm.unknown";
   options.diameter_conf = "homestead.conf";
-  options.dns_server = "127.0.0.1";
+  options.dns_servers.push_back("127.0.0.1");
   options.http_address = "0.0.0.0";
   options.http_port = 8888;
   options.http_threads = 1;
@@ -604,7 +608,7 @@ int main(int argc, char**argv)
                                               options.max_tokens,
                                               options.init_token_rate,
                                               options.min_token_rate);
-  DnsCachedResolver* dns_resolver = new DnsCachedResolver(options.dns_server);
+  DnsCachedResolver* dns_resolver = new DnsCachedResolver(options.dns_servers);
   HttpResolver* http_resolver = new HttpResolver(dns_resolver, af);
 
   Cache* cache = Cache::get_instance();
