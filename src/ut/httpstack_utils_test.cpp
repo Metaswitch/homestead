@@ -325,7 +325,7 @@ TEST_F(HandlerUtilsTest, SingleThread)
   Barrier barrier(2);
   TestBarrierHandler barrier_handler(&barrier);
 
-  HttpStackUtils::HandlerThreadPool pool(1);
+  HttpStackUtils::HandlerThreadPool pool(1, NULL);
   HttpStack::HandlerInterface* handler = pool.wrap(&barrier_handler);
 
   MockHttpStack::Request req(_httpstack, "/", "kermit");
@@ -340,13 +340,13 @@ TEST_F(HandlerUtilsTest, MultipleThreads)
   // Check that the thread pool processes requests in parallel.
   //
   // Test this using a barrier with a capacity of 5, and 4 requests. This will
-  // only be triggered when 5 threads arrive at it (the tesbed thread, and the
+  // only be triggered when 5 threads arrive at it (the testbed thread, and the
   // threads handling the requests).
   bool ok;
   Barrier barrier(5);
   TestBarrierHandler barrier_handler(&barrier);
 
-  HttpStackUtils::HandlerThreadPool pool(10);
+  HttpStackUtils::HandlerThreadPool pool(10, NULL);
   HttpStack::HandlerInterface* handler = pool.wrap(&barrier_handler);
 
   for (int i = 0; i < 4; ++i)
@@ -367,7 +367,7 @@ TEST_F(HandlerUtilsTest, SingleThreadReuse)
   // Test this by posting to a semaphore on every request and then waiting on
   // this semaphore once for each request.
   TestSemaphoreHandler semaphore_handler;
-  HttpStackUtils::HandlerThreadPool pool(1);
+  HttpStackUtils::HandlerThreadPool pool(1, NULL);
   HttpStack::HandlerInterface* handler = pool.wrap(&semaphore_handler);
 
   const int NUM_REQUESTS = 5;
@@ -394,7 +394,7 @@ TEST_F(HandlerUtilsTest, SasLogLevelPassThrough)
 
   // This handler returns the logger we pass in on the constructor.
   TestSasLoggingHandler handler(&local_sas_logger);
-  HttpStackUtils::HandlerThreadPool pool(1);
+  HttpStackUtils::HandlerThreadPool pool(1, NULL);
   HttpStack::HandlerInterface* interface = pool.wrap(&handler);
 
   MockHttpStack::Request req(_httpstack, "/", "kermit");

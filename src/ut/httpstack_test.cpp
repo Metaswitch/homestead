@@ -80,7 +80,7 @@ public:
     // either NULL or fully initialised.
     HttpStack* lstack = HttpStack::get_instance();
     lstack->initialize();
-    lstack->configure(_host.c_str(), _port, 1);
+    lstack->configure(_host.c_str(), _port, 1, NULL);
     lstack->start();
     _stack = lstack;
   }
@@ -152,7 +152,7 @@ public:
     // either NULL or fully initialised.
     HttpStack* lstack = HttpStack::get_instance();
     lstack->initialize();
-    lstack->configure(_host.c_str(), _port, 1, NULL, &_load_monitor, &_stats_manager);
+    lstack->configure(_host.c_str(), _port, 1, NULL, NULL, &_load_monitor, &_stats_manager);
     lstack->start();
     _stack = lstack;
 

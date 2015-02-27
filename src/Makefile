@@ -24,7 +24,9 @@ TARGET_SOURCES := accesslogger.cpp \
                   diameterresolver.cpp \
                   dnscachedresolver.cpp \
                   dnsparser.cpp \
+                  exception_handler.cpp \
                   handlers.cpp \
+                  health_checker.cpp \
                   httpconnection.cpp \
                   httpresolver.cpp \
                   httpstack.cpp \
@@ -39,7 +41,7 @@ TARGET_SOURCES := accesslogger.cpp \
                   statisticsmanager.cpp \
                   utils.cpp \
                   xmlutils.cpp \
-                  zmq_lvc.cpp
+                  zmq_lvc.cpp 
 
 TARGET_SOURCES_BUILD := main.cpp
 
