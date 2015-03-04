@@ -2,7 +2,7 @@
 
 This document describes how to build and test Homestead.
 
-Homestead development is ongoing on Ubuntu 12.04, so the processes described
+Homestead development is ongoing on Ubuntu 14.04, so the processes described
 below are targetted for (and tested on) this platform.  The code has been
 written to be portable, though, and should compile on other platforms once the
 required dependencies are installed.
@@ -12,7 +12,7 @@ required dependencies are installed.
 Homestead depends on a number of tools and libraries.  Some of these are
 included as git submodules, but the rest must be installed separately.
 
-On Ubuntu 12.04,
+On Ubuntu 14.04,
 
 1.  update the package list
 
@@ -20,7 +20,7 @@ On Ubuntu 12.04,
 
 2.  install the required packages
 
-        sudo apt-get install git cmake make gcc g++ bison flex libsctp-dev libgnutls-dev libgcrypt-dev libidn11-dev ssl-cert debhelper fakeroot libpq-dev libmysqlclient-dev libxml2-dev swig python-dev libevent-dev libtool autoconf libboost-dev libboost-test-dev libboost-program-options-dev automake pkg-config libssl-dev libzmq3-dev libcurl4-openssl-dev debhelper libboost-filesystem-dev devscripts
+        sudo apt-get install git cmake make gcc g++ bison flex libsctp-dev libgnutls-dev libgcrypt-dev libidn11-dev ssl-cert debhelper fakeroot libpq-dev libmysqlclient-dev libxml2-dev swig python-dev libevent-dev libtool autoconf libboost-all-dev automake pkg-config libssl-dev libzmq3-dev libcurl4-openssl-dev debhelper devscripts libxml2-utils valgrind
 
 ## Getting the Code
 
