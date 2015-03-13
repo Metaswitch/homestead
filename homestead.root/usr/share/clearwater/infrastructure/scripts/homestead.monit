@@ -34,39 +34,35 @@
 # under which the OpenSSL Project distributes the OpenSSL toolkit software,
 # as those licenses appear in the file LICENSE-OPENSSL.
 
-. /etc/clearwater/config
-
 # Set up the monit configuration for homestead with the right IP addresses and ports
 cat > /etc/monit/conf.d/homestead.monit <<EOF
-# Check the service's public interfaces.  We put this first so that we process
-# failed polls (and maybe kill the server) before we process the restart.
+# Check the Homestead process.
 
-check program poll_homestead with path "/usr/share/clearwater/bin/poll_homestead.sh"
+# Monitor the service's PID file and memory use.
+check process homestead with pidfile /var/run/homestead.pid
 
-  if status != 0 for 2 cycles
-     then exec "/etc/init.d/homestead abort"
+  # The start, stop and restart commands are linked to alarms
+  start program = "/bin/bash -c '/usr/share/clearwater/bin/issue_alarm.py monit 1500.3; /etc/init.d/homestead start'"
+  stop program = "/bin/bash -c '/usr/share/clearwater/bin/issue_alarm.py monit 1500.3; /etc/init.d/homestead stop'"
+  restart program = "/bin/bash -c '/usr/share/clearwater/bin/issue_alarm.py monit 1500.3; /etc/init.d/homestead restart'"
 
+  # Check the service's resource usage, and abort the process if it's too high. This will
+  # generate a core file and trigger diagnostics collection.
+  if memory > 80% for 6 cycles then exec "/bin/bash -c '/usr/share/clearwater/bin/issue_alarm.py monit 1500.3; /etc/init.d/homestead abort'"
 
-# Monitor the service's PID file and check its memory usage. Issue an alarm for
-# any restart, clear after the process has run for 30s.
-
-check process homestead pidfile /var/run/homestead.pid
-
-  start program   = "/bin/bash -c '/usr/share/clearwater/bin/issue_alarm.py monit 1500.3; /etc/init.d/homestead start'"
-  stop program    = "/bin/bash -c '/usr/share/clearwater/bin/issue_alarm.py monit 1500.3; /etc/init.d/homestead stop'"
-  restart program = "/bin/bash -c '/usr/share/clearwater/bin/issue_alarm.py monit 1500.3; /etc/init.d/homestead abort-restart'"
-
-  if memory is greater than 80% for 3 cycles
-     then restart
-
+  # Clear any alarms if the process has been running for 30 seconds
   if uptime < 30 seconds
      then exec "/bin/true"
-     else if succeeded
-         then exec "/usr/share/clearwater/bin/issue_alarm.py monit 1500.1"
+     else if succeeded then exec "/usr/share/clearwater/bin/issue_alarm.py monit 1500.1"
 
-# TODO monitor HTTPS as well as HTTP.
-#  if failed host localhost port 8443 type TCPSSL protocol http
-#    and use the request "/ping" then restart
+# Check the HTTP interface. This depends on the Homestead process (and so won't run
+# unless the Homestead process is running)
+check program poll_homestead with path "/usr/share/clearwater/bin/poll_homestead.sh"
+  depends on homestead
+
+  # Aborting generates a core file and triggers diagnostic collection.
+  if status != 0 for 2 cycles then exec "/bin/bash -c '/usr/share/clearwater/bin/issue_alarm.py monit 1500.3; /etc/init.d/homestead abort'"
+
 EOF
 chmod 0644 /etc/monit/conf.d/homestead.monit
 
