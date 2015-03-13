@@ -38,15 +38,7 @@
 cat > /etc/monit/conf.d/homestead.monit <<EOF
 # Check the Homestead process.
 
-# Check the HTTP interface. This depends on the Homestead process (and so won't run
-# unless the Homestead process is running)
-check program poll_homestead with path "/usr/share/clearwater/bin/poll_homestead.sh"
-  depends on homestead
-
-  # Aborting generates a core file and triggers diagnostic collection.
-  if status != 0 for 2 cycles then exec "/bin/bash -c '/usr/share/clearwater/bin/issue_alarm.py monit 1500.3; /etc/init.d/homestead abort'"
-
-# Monitor the service's PID file, CPU and memory use.
+# Monitor the service's PID file and memory use.
 check process homestead with pidfile /var/run/homestead.pid
 
   # The start, stop and restart commands are linked to alarms
@@ -56,13 +48,21 @@ check process homestead with pidfile /var/run/homestead.pid
 
   # Check the service's resource usage, and abort the process if it's too high. This will
   # generate a core file and trigger diagnostics collection.
-  if cpu > 80% for 6 cycles then exec "/bin/bash -c '/usr/share/clearwater/bin/issue_alarm.py monit 1500.3; /etc/init.d/homestead abort'"
   if memory > 80% for 6 cycles then exec "/bin/bash -c '/usr/share/clearwater/bin/issue_alarm.py monit 1500.3; /etc/init.d/homestead abort'"
 
   # Clear any alarms if the process has been running for 30 seconds
   if uptime < 30 seconds
      then exec "/bin/true"
      else if succeeded then exec "/usr/share/clearwater/bin/issue_alarm.py monit 1500.1"
+
+# Check the HTTP interface. This depends on the Homestead process (and so won't run
+# unless the Homestead process is running)
+check program poll_homestead with path "/usr/share/clearwater/bin/poll_homestead.sh"
+  depends on homestead
+
+  # Aborting generates a core file and triggers diagnostic collection.
+  if status != 0 for 2 cycles then exec "/bin/bash -c '/usr/share/clearwater/bin/issue_alarm.py monit 1500.3; /etc/init.d/homestead abort'"
+
 EOF
 chmod 0644 /etc/monit/conf.d/homestead.monit
 
