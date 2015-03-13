@@ -1584,6 +1584,11 @@ void RegistrationTerminationTask::run()
   LOG_INFO("Received Regestration-Termination request with dereg reason %d",
            _deregistration_reason);
 
+  SAS::Event rtr_received(trail(), SASEvent::RTR_RECEIVED, 0);
+  rtr_received.add_var_param(impi);
+  rtr_received.add_static_param(associated_identities.size());
+  SAS::report_event(rtr_received);
+
   if ((_impus.empty()) && ((_deregistration_reason == PERMANENT_TERMINATION) ||
                            (_deregistration_reason == REMOVE_SCSCF) ||
                            (_deregistration_reason == SERVER_CHANGE) ||
@@ -1897,6 +1902,9 @@ void RegistrationTerminationTask::send_rta(const std::string result_code)
 
 void PushProfileTask::run()
 {
+  SAS::Event ppr_received(trail(), SASEvent::PPR_RECEIVED, 0);
+  SAS::report_event(ppr_received);
+
   // Received a Push Profile Request. We may need to update an IMS
   // subscription or charging address information in the cache.
   _ims_sub_present = _ppr.user_data(_ims_subscription);
