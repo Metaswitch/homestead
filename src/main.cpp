@@ -612,8 +612,12 @@ int main(int argc, char**argv)
   HttpResolver* http_resolver = new HttpResolver(dns_resolver, af);
 
   Cache* cache = Cache::get_instance();
-  cache->initialize();
-  cache->configure(options.cassandra, 9160, exception_handler, options.cache_threads, 0, cassandra_comm_monitor);
+  cache->configure_connection(options.cassandra,
+                              9160,
+                              cassandra_comm_monitor);
+  cache->configure_workers(exception_handler,
+                           options.cache_threads,
+                           0);
 
   // Test the connection to Cassandra before starting the store.
   CassandraStore::ResultCode rc = cache->connection_test();
