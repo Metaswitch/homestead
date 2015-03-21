@@ -743,21 +743,16 @@ int main(int argc, char**argv)
 
   DiameterResolver* diameter_resolver = NULL;
   RealmManager* realm_manager = NULL;
-  Diameter::Peer* peer = NULL;
-
-  if (!options.dest_realm.empty())
+  
+  if (hss_configured)
   {
     diameter_resolver = new DiameterResolver(dns_resolver, af);
     realm_manager = new RealmManager(diameter_stack,
                                      options.dest_realm,
+                                     options.dest_host,
                                      options.max_peers,
                                      diameter_resolver);
     realm_manager->start();
-  }
-  else if (!(options.dest_host.empty() || options.dest_host == "0.0.0.0"))
-  {
-    peer = new Diameter::Peer(options.dest_host);
-    diameter_stack->add(peer);
   }
 
   LOG_STATUS("Start-up complete - wait for termination signal");
@@ -797,17 +792,12 @@ int main(int argc, char**argv)
 
   delete sprout_conn; sprout_conn = NULL;
 
-  if (!options.dest_realm.empty())
+  if (hss_configured)
   {
     realm_manager->stop();
     delete realm_manager; realm_manager = NULL;
     delete diameter_resolver; diameter_resolver = NULL;
     delete dns_resolver; dns_resolver = NULL;
-  }
-  else if (!(options.dest_host.empty() || options.dest_host == "0.0.0.0"))
-  {
-    diameter_stack->remove(peer);
-    delete peer; peer = NULL;
   }
 
   delete stats_manager; stats_manager = NULL;
