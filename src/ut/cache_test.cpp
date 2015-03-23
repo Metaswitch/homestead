@@ -88,7 +88,7 @@ const ChargingAddresses ECFS_CHARGING_ADDRS(CCF, ECFS);
 class TestCache : public Cache
 {
 public:
-  MOCK_METHOD0(get_client, CassandraStore::ClientInterface*());
+  MOCK_METHOD0(get_client, CassandraStore::Client*());
   MOCK_METHOD0(release_client, void());
 };
 
