@@ -122,6 +122,15 @@ get_settings()
           dest_realm="--dest-realm=$hss_realm"
         fi
 
+        # Default the diameter timeout to twice the target latency if not
+        # already overridden (rounding up).  Note that the former is expressed
+        # in milliseconds and the latter in microseconds, hence division by 500
+        # (i.e. multiplication by 2/1000).
+        if [ -z $diameter_timeout_ms ]
+        then
+          diameter_timeout_ms=$(( ($target_latency_us + 499)/500 ))
+        fi
+
         [ "$hss_mar_lowercase_unknown" != "Y" ] || scheme_unknown_arg="--scheme-unknown=unknown"
 
         [ -z "$diameter_timeout_ms" ] || diameter_timeout_ms_arg="--diameter-timeout-ms=$diameter_timeout_ms"
