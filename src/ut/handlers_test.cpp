@@ -183,7 +183,7 @@ public:
     _mock_resolver = new FakeHttpResolver("1.2.3.4");
     _mock_http_conn = new MockHttpConnection(_mock_resolver);
     _sprout_conn = new SproutConnection(_mock_http_conn);
-    
+
     _stats = new StrictMock<MockStatisticsManager>;
     _nice_stats = new NiceMock<MockStatisticsManager>;
 
@@ -194,7 +194,7 @@ public:
                                      _cx_dict);
     HssCacheTask::configure_cache(_cache);
     HssCacheTask::configure_stats(_nice_stats);
-    
+
     cwtest_completely_control_time();
   }
 
@@ -382,7 +382,7 @@ public:
     MockCache::MockGetRegData mock_op;
     EXPECT_CALL(*_cache, create_GetRegData(IMPU))
       .WillOnce(Return(&mock_op));
-    _cache->EXPECT_DO_ASYNC(mock_op);
+    EXPECT_DO_ASYNC(*_cache, mock_op);
     task->run();
 
     // Have the cache return the values passed in for this test.
@@ -413,7 +413,7 @@ public:
     {
       EXPECT_CALL(*_cache, create_PutAssociatedPrivateID(IMPU_REG_SET, IMPI, _, 7200))
         .WillOnce(Return(&mock_op2));
-      _cache->EXPECT_DO_ASYNC(mock_op2);
+      EXPECT_DO_ASYNC(*_cache, mock_op2);
     }
 
     // A Server-Assignment-Request should be generated for this
@@ -474,7 +474,7 @@ public:
         .WillOnce(ReturnRef(mock_op3));
       EXPECT_CALL(mock_op3, with_charging_addrs(_))
         .WillOnce(ReturnRef(mock_op3));
-      _cache->EXPECT_DO_ASYNC(mock_op3);
+      EXPECT_DO_ASYNC(*_cache, mock_op3);
 
       EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
       _caught_diam_tsx->on_response(saa);
@@ -491,7 +491,7 @@ public:
       MockCache::MockDeletePublicIDs mock_op3;
       EXPECT_CALL(*_cache, create_DeletePublicIDs(IMPU_REG_SET, IMPI_IN_VECTOR, _))
         .WillOnce(Return(&mock_op3));
-      _cache->EXPECT_DO_ASYNC(mock_op3);
+      EXPECT_DO_ASYNC(*_cache, mock_op3);
 
       EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
       _caught_diam_tsx->on_response(saa);
@@ -533,7 +533,7 @@ public:
     MockCache::MockGetRegData mock_op;
     EXPECT_CALL(*_cache, create_GetRegData(IMPU))
       .WillOnce(Return(&mock_op));
-    _cache->EXPECT_DO_ASYNC(mock_op);
+    EXPECT_DO_ASYNC(*_cache, mock_op);
     task->run();
 
     // Have the cache return the values passed in for this test.
@@ -580,7 +580,7 @@ public:
     MockCache::MockGetRegData mock_op;
     EXPECT_CALL(*_cache, create_GetRegData(IMPU))
       .WillOnce(Return(&mock_op));
-    _cache->EXPECT_DO_ASYNC(mock_op);
+    EXPECT_DO_ASYNC(*_cache, mock_op);
     task->run();
 
     CassandraStore::Transaction* t = mock_op.get_trx();
@@ -665,7 +665,7 @@ public:
     MockCache::MockGetRegData mock_op;
     EXPECT_CALL(*_cache, create_GetRegData(IMPU))
       .WillOnce(Return(&mock_op));
-    _cache->EXPECT_DO_ASYNC(mock_op);
+    EXPECT_DO_ASYNC(*_cache, mock_op);
     task->run();
 
     // Have the cache return the values passed in for this test.
@@ -694,7 +694,7 @@ public:
         EXPECT_CALL(mock_op2, with_reg_state(expected_new_state))
           .WillOnce(ReturnRef(mock_op2));
       }
-      _cache->EXPECT_DO_ASYNC(mock_op2);
+      EXPECT_DO_ASYNC(*_cache, mock_op2);
 
       EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
       t->on_success(&mock_op);
@@ -727,7 +727,7 @@ public:
     MockCache::MockGetRegData mock_op;
     EXPECT_CALL(*_cache, create_GetRegData(IMPU))
       .WillOnce(Return(&mock_op));
-    _cache->EXPECT_DO_ASYNC(mock_op);
+    EXPECT_DO_ASYNC(*_cache, mock_op);
     task->run();
 
     CassandraStore::Transaction* t = mock_op.get_trx();
@@ -869,7 +869,7 @@ public:
     MockCache::MockGetRegData mock_op;
     EXPECT_CALL(*_cache, create_GetRegData(IMPU2))
       .WillOnce(Return(&mock_op));
-    _cache->EXPECT_DO_ASYNC(mock_op);
+    EXPECT_DO_ASYNC(*_cache, mock_op);
 
     task->run();
 
@@ -890,7 +890,7 @@ public:
     MockCache::MockGetRegData mock_op2;
     EXPECT_CALL(*_cache, create_GetRegData(IMPU))
       .WillOnce(Return(&mock_op2));
-    _cache->EXPECT_DO_ASYNC(mock_op2);
+    EXPECT_DO_ASYNC(*_cache, mock_op2);
 
     t->on_success(&mock_op);
 
@@ -921,12 +921,12 @@ public:
     MockCache::MockDissociateImplicitRegistrationSetFromImpi mock_op3;
     EXPECT_CALL(*_cache, create_DissociateImplicitRegistrationSetFromImpi(IMPU_REG_SET, impis, _))
       .WillOnce(Return(&mock_op3));
-    _cache->EXPECT_DO_ASYNC(mock_op3);
+    EXPECT_DO_ASYNC(*_cache, mock_op3);
 
     MockCache::MockDissociateImplicitRegistrationSetFromImpi mock_op4;
     EXPECT_CALL(*_cache, create_DissociateImplicitRegistrationSetFromImpi(IMPU3_REG_SET, impis, _))
       .WillOnce(Return(&mock_op4));
-    _cache->EXPECT_DO_ASYNC(mock_op4);
+    EXPECT_DO_ASYNC(*_cache, mock_op4);
 
     t->on_success(&mock_op2);
 
@@ -985,7 +985,7 @@ public:
     MockCache::MockGetAssociatedPrimaryPublicIDs mock_op;
     EXPECT_CALL(*_cache, create_GetAssociatedPrimaryPublicIDs(impis))
       .WillOnce(Return(&mock_op));
-    _cache->EXPECT_DO_ASYNC(mock_op);
+    EXPECT_DO_ASYNC(*_cache, mock_op);
 
     task->run();
 
@@ -1000,7 +1000,7 @@ public:
     MockCache::MockGetRegData mock_op2;
     EXPECT_CALL(*_cache, create_GetRegData(IMPU))
       .WillOnce(Return(&mock_op2));
-    _cache->EXPECT_DO_ASYNC(mock_op2);
+    EXPECT_DO_ASYNC(*_cache, mock_op2);
 
     t->on_success(&mock_op);
 
@@ -1021,7 +1021,7 @@ public:
     MockCache::MockGetRegData mock_op3;
     EXPECT_CALL(*_cache, create_GetRegData(IMPU2))
       .WillOnce(Return(&mock_op3));
-    _cache->EXPECT_DO_ASYNC(mock_op3);
+    EXPECT_DO_ASYNC(*_cache, mock_op3);
 
     t->on_success(&mock_op2);
 
@@ -1051,12 +1051,12 @@ public:
     MockCache::MockDissociateImplicitRegistrationSetFromImpi mock_op4;
     EXPECT_CALL(*_cache, create_DissociateImplicitRegistrationSetFromImpi(IMPU_REG_SET, impis, _))
       .WillOnce(Return(&mock_op4));
-    _cache->EXPECT_DO_ASYNC(mock_op4);
+    EXPECT_DO_ASYNC(*_cache, mock_op4);
 
     MockCache::MockDissociateImplicitRegistrationSetFromImpi mock_op5;
     EXPECT_CALL(*_cache, create_DissociateImplicitRegistrationSetFromImpi(IMPU3_REG_SET, impis, _))
       .WillOnce(Return(&mock_op5));
-    _cache->EXPECT_DO_ASYNC(mock_op5);
+    EXPECT_DO_ASYNC(*_cache, mock_op5);
 
     // Sometimes we want to delete entire IMPI rows.
     MockCache::MockDeleteIMPIMapping mock_op6;
@@ -1065,7 +1065,7 @@ public:
     {
       EXPECT_CALL(*_cache, create_DeleteIMPIMapping(impis, _))
         .WillOnce(Return(&mock_op6));
-      _cache->EXPECT_DO_ASYNC(mock_op6);
+      EXPECT_DO_ASYNC(*_cache, mock_op6);
     }
 
     t->on_success(&mock_op3);
@@ -1222,7 +1222,7 @@ TEST_F(HandlersTest, DigestCache)
   MockCache::MockGetAuthVector mock_op;
   EXPECT_CALL(*_cache, create_GetAuthVector(IMPI, IMPU))
     .WillOnce(Return(&mock_op));
-  _cache->EXPECT_DO_ASYNC(mock_op);
+  EXPECT_DO_ASYNC(*_cache, mock_op);
 
   task->run();
 
@@ -1266,7 +1266,7 @@ TEST_F(HandlersTest, DigestCacheNotFound)
   MockCache::MockGetAuthVector mock_op;
   EXPECT_CALL(*_cache, create_GetAuthVector(IMPI, IMPU))
     .WillOnce(Return(&mock_op));
-  _cache->EXPECT_DO_ASYNC(mock_op);
+  EXPECT_DO_ASYNC(*_cache, mock_op);
 
   task->run();
 
@@ -1300,7 +1300,7 @@ TEST_F(HandlersTest, DigestCacheFailure)
   MockCache::MockGetAuthVector mock_op;
   EXPECT_CALL(*_cache, create_GetAuthVector(IMPI, IMPU))
     .WillOnce(Return(&mock_op));
-  _cache->EXPECT_DO_ASYNC(mock_op);
+  EXPECT_DO_ASYNC(*_cache, mock_op);
 
   task->run();
 
@@ -1368,7 +1368,7 @@ TEST_F(HandlersTest, DigestHSS)
   MockCache::MockPutAssociatedPublicID mock_op;
   EXPECT_CALL(*_cache, create_PutAssociatedPublicID(IMPI, IMPU,  _, 300))
     .WillOnce(Return(&mock_op));
-  _cache->EXPECT_DO_ASYNC(mock_op);
+  EXPECT_DO_ASYNC(*_cache, mock_op);
 
   EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
   _caught_diam_tsx->on_response(maa);
@@ -1474,7 +1474,7 @@ TEST_F(HandlersTest, DigestHSSNoIMPU)
   MockCache::MockGetAssociatedPublicIDs mock_op;
   EXPECT_CALL(*_cache, create_GetAssociatedPublicIDs(IMPI))
     .WillOnce(Return(&mock_op));
-  _cache->EXPECT_DO_ASYNC(mock_op);
+  EXPECT_DO_ASYNC(*_cache, mock_op);
 
   task->run();
 
@@ -1527,7 +1527,7 @@ TEST_F(HandlersTest, DigestHSSNoIMPU)
   MockCache::MockPutAssociatedPublicID mock_op2;
   EXPECT_CALL(*_cache, create_PutAssociatedPublicID(IMPI, IMPU,  _, 300))
     .WillOnce(Return(&mock_op2));
-  _cache->EXPECT_DO_ASYNC(mock_op2);
+  EXPECT_DO_ASYNC(*_cache, mock_op2);
 
   EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
   _caught_diam_tsx->on_response(maa);
@@ -1731,7 +1731,7 @@ TEST_F(HandlersTest, DigestNoCachedIMPUs)
   MockCache::MockGetAssociatedPublicIDs mock_op;
   EXPECT_CALL(*_cache, create_GetAssociatedPublicIDs(IMPI))
     .WillOnce(Return(&mock_op));
-  _cache->EXPECT_DO_ASYNC(mock_op);
+  EXPECT_DO_ASYNC(*_cache, mock_op);
 
   task->run();
 
@@ -1765,7 +1765,7 @@ TEST_F(HandlersTest, DigestIMPUNotFound)
   MockCache::MockGetAssociatedPublicIDs mock_op;
   EXPECT_CALL(*_cache, create_GetAssociatedPublicIDs(IMPI))
     .WillOnce(Return(&mock_op));
-  _cache->EXPECT_DO_ASYNC(mock_op);
+  EXPECT_DO_ASYNC(*_cache, mock_op);
 
   task->run();
 
@@ -1800,7 +1800,7 @@ TEST_F(HandlersTest, DigestNoIMPUCacheFailure)
   MockCache::MockGetAssociatedPublicIDs mock_op;
   EXPECT_CALL(*_cache, create_GetAssociatedPublicIDs(IMPI))
     .WillOnce(Return(&mock_op));
-  _cache->EXPECT_DO_ASYNC(mock_op);
+  EXPECT_DO_ASYNC(*_cache, mock_op);
 
   task->run();
 
@@ -1834,7 +1834,7 @@ TEST_F(HandlersTest, AvCache)
   MockCache::MockGetAuthVector mock_op;
   EXPECT_CALL(*_cache, create_GetAuthVector(IMPI, IMPU))
     .WillOnce(Return(&mock_op));
-  _cache->EXPECT_DO_ASYNC(mock_op);
+  EXPECT_DO_ASYNC(*_cache, mock_op);
 
   task->run();
 
@@ -1875,7 +1875,7 @@ TEST_F(HandlersTest, AvEmptyQoP)
   MockCache::MockGetAuthVector mock_op;
   EXPECT_CALL(*_cache, create_GetAuthVector(IMPI, IMPU))
     .WillOnce(Return(&mock_op));
-  _cache->EXPECT_DO_ASYNC(mock_op);
+  EXPECT_DO_ASYNC(*_cache, mock_op);
 
   task->run();
 
@@ -1918,7 +1918,7 @@ TEST_F(HandlersTest, AvNoPublicIDHSSAKA)
   MockCache::MockGetAssociatedPublicIDs mock_op;
   EXPECT_CALL(*_cache, create_GetAssociatedPublicIDs(IMPI))
     .WillOnce(Return(&mock_op));
-  _cache->EXPECT_DO_ASYNC(mock_op);
+  EXPECT_DO_ASYNC(*_cache, mock_op);
 
   task->run();
 
@@ -2178,7 +2178,7 @@ TEST_F(HandlersTest, IMSSubscriptionRegInvalidXML)
 
   MockCache::MockGetRegData mock_op;
   EXPECT_CALL(*_cache, create_GetRegData(IMPU)).WillOnce(Return(&mock_op));
-  _cache->EXPECT_DO_ASYNC(mock_op);
+  EXPECT_DO_ASYNC(*_cache, mock_op);
   task->run();
 
   CassandraStore::Transaction* t = mock_op.get_trx();
@@ -2231,7 +2231,7 @@ TEST_F(HandlersTest, IMSSubscriptionNoHSSUnknown)
   MockCache::MockGetRegData mock_op;
   EXPECT_CALL(*_cache, create_GetRegData(IMPU))
     .WillOnce(Return(&mock_op));
-  _cache->EXPECT_DO_ASYNC(mock_op);
+  EXPECT_DO_ASYNC(*_cache, mock_op);
   task->run();
 
   CassandraStore::Transaction* t = mock_op.get_trx();
@@ -2267,7 +2267,7 @@ TEST_F(HandlersTest, IMSSubscriptionNoHSSUnknownCall)
   MockCache::MockGetRegData mock_op;
   EXPECT_CALL(*_cache, create_GetRegData(IMPU))
     .WillOnce(Return(&mock_op));
-  _cache->EXPECT_DO_ASYNC(mock_op);
+  EXPECT_DO_ASYNC(*_cache, mock_op);
   task->run();
 
   CassandraStore::Transaction* t = mock_op.get_trx();
@@ -2303,7 +2303,7 @@ TEST_F(HandlersTest, LegacyIMSSubscriptionNoHSS)
   MockCache::MockGetRegData mock_op;
   EXPECT_CALL(*_cache, create_GetRegData(IMPU))
     .WillOnce(Return(&mock_op));
-  _cache->EXPECT_DO_ASYNC(mock_op);
+  EXPECT_DO_ASYNC(*_cache, mock_op);
   task->run();
 
   CassandraStore::Transaction* t = mock_op.get_trx();
@@ -2337,7 +2337,7 @@ TEST_F(HandlersTest, LegacyIMSSubscriptionNoHSS_NotFound)
   MockCache::MockGetRegData mock_op;
   EXPECT_CALL(*_cache, create_GetRegData(IMPU))
     .WillOnce(Return(&mock_op));
-  _cache->EXPECT_DO_ASYNC(mock_op);
+  EXPECT_DO_ASYNC(*_cache, mock_op);
   task->run();
 
   CassandraStore::Transaction* t = mock_op.get_trx();
@@ -2372,7 +2372,7 @@ TEST_F(HandlersTest, LegacyIMSSubscriptionNoHSS_Unregistered)
   MockCache::MockGetRegData mock_op;
   EXPECT_CALL(*_cache, create_GetRegData(IMPU))
     .WillOnce(Return(&mock_op));
-  _cache->EXPECT_DO_ASYNC(mock_op);
+  EXPECT_DO_ASYNC(*_cache, mock_op);
   task->run();
 
   CassandraStore::Transaction* t = mock_op.get_trx();
@@ -2411,7 +2411,7 @@ TEST_F(HandlersTest, IMSSubscriptionGet)
   MockCache::MockGetRegData mock_op;
   EXPECT_CALL(*_cache, create_GetRegData(IMPU))
     .WillOnce(Return(&mock_op));
-  _cache->EXPECT_DO_ASYNC(mock_op);
+  EXPECT_DO_ASYNC(*_cache, mock_op);
   task->run();
 
   CassandraStore::Transaction* t = mock_op.get_trx();
@@ -2484,7 +2484,7 @@ TEST_F(HandlersTest, IMSSubscriptionUserUnknownDereg)
 
   EXPECT_CALL(*_cache, create_GetRegData(IMPU))
     .WillOnce(Return(&mock_op));
-  _cache->EXPECT_DO_ASYNC(mock_op);
+  EXPECT_DO_ASYNC(*_cache, mock_op);
   task->run();
 
   CassandraStore::Transaction* t = mock_op.get_trx();
@@ -2501,7 +2501,7 @@ TEST_F(HandlersTest, IMSSubscriptionUserUnknownDereg)
   MockCache::MockDeletePublicIDs mock_op2;
   EXPECT_CALL(*_cache, create_DeletePublicIDs(IMPU_REG_SET, _, _))
     .WillOnce(Return(&mock_op2));
-  _cache->EXPECT_DO_ASYNC(mock_op2);
+  EXPECT_DO_ASYNC(*_cache, mock_op2);
 
   EXPECT_CALL(*_mock_stack, send(_, _, 200))
     .Times(1)
@@ -2546,7 +2546,7 @@ TEST_F(HandlersTest, IMSSubscriptionOtherErrorCallReg)
   MockCache::MockGetRegData mock_op;
   EXPECT_CALL(*_cache, create_GetRegData(IMPU))
     .WillOnce(Return(&mock_op));
-  _cache->EXPECT_DO_ASYNC(mock_op);
+  EXPECT_DO_ASYNC(*_cache, mock_op);
   task->run();
 
   CassandraStore::Transaction* t = mock_op.get_trx();
@@ -2602,7 +2602,7 @@ TEST_F(HandlersTest, IMSSubscriptionCacheNotFound)
   MockCache::MockGetRegData mock_op;
   EXPECT_CALL(*_cache, create_GetRegData(IMPU))
     .WillOnce(Return(&mock_op));
-  _cache->EXPECT_DO_ASYNC(mock_op);
+  EXPECT_DO_ASYNC(*_cache, mock_op);
 
   task->run();
 
@@ -2637,7 +2637,7 @@ TEST_F(HandlersTest, IMSSubscriptionCacheFailure)
   MockCache::MockGetRegData mock_op;
   EXPECT_CALL(*_cache, create_GetRegData(IMPU))
     .WillOnce(Return(&mock_op));
-  _cache->EXPECT_DO_ASYNC(mock_op);
+  EXPECT_DO_ASYNC(*_cache, mock_op);
 
   task->run();
 
@@ -2972,7 +2972,7 @@ TEST_F(HandlersTest, RegistrationStatusNoHSSPassesHealthCheck)
 {
   MockHealthChecker* hc = new MockHealthChecker();
   HssCacheTask::configure_health_checker(hc);
-  
+
   // Set up a request to the right URL.
   MockHttpStack::Request req(_httpstack,
                              "/impi/" + IMPI + "/",
@@ -3143,7 +3143,7 @@ TEST_F(HandlersTest, LocationInfoNoHSS)
     .WillRepeatedly(SetArgReferee<0>(IMPI_IN_VECTOR));
   EXPECT_CALL(mock_op, get_charging_addrs(_)).Times(AtLeast(1))
     .WillRepeatedly(SetArgReferee<0>(NO_CHARGING_ADDRESSES));
-  _cache->EXPECT_DO_ASYNC(mock_op);
+  EXPECT_DO_ASYNC(*_cache, mock_op);
   task->run();
 
   // The cache indicates success, so expect a 200 OK over HTTP.
@@ -3179,7 +3179,7 @@ TEST_F(HandlersTest, LocationInfoNoHSSNoSubscriber)
     .WillRepeatedly(SetArgReferee<0>(IMPI_IN_VECTOR));
   EXPECT_CALL(mock_op, get_charging_addrs(_)).Times(AtLeast(1))
     .WillRepeatedly(SetArgReferee<0>(NO_CHARGING_ADDRESSES));
-  _cache->EXPECT_DO_ASYNC(mock_op);
+  EXPECT_DO_ASYNC(*_cache, mock_op);
   task->run();
 
   // The cache indicates not found, so expect a 404 Not Found over HTTP.
@@ -3204,7 +3204,7 @@ TEST_F(HandlersTest, LocationInfoNoHSSTimeout)
   MockCache::MockGetRegData mock_op;
   EXPECT_CALL(*_cache, create_GetRegData(IMPU))
     .WillOnce(Return(&mock_op));
-  _cache->EXPECT_DO_ASYNC(mock_op);
+  EXPECT_DO_ASYNC(*_cache, mock_op);
   task->run();
 
   // The cache indicates connection error, so expect a 504 Gateway Timeout over HTTP.
@@ -3298,7 +3298,7 @@ TEST_F(HandlersTest, RegistrationTerminationNoRegSets)
   MockCache::MockGetRegData mock_op;
   EXPECT_CALL(*_cache, create_GetRegData(IMPU2))
     .WillOnce(Return(&mock_op));
-  _cache->EXPECT_DO_ASYNC(mock_op);
+  EXPECT_DO_ASYNC(*_cache, mock_op);
 
   task->run();
 
@@ -3320,7 +3320,7 @@ TEST_F(HandlersTest, RegistrationTerminationNoRegSets)
   MockCache::MockGetRegData mock_op2;
   EXPECT_CALL(*_cache, create_GetRegData(IMPU))
     .WillOnce(Return(&mock_op2));
-  _cache->EXPECT_DO_ASYNC(mock_op2);
+  EXPECT_DO_ASYNC(*_cache, mock_op2);
 
   t->on_success(&mock_op);
 
@@ -3380,7 +3380,7 @@ TEST_F(HandlersTest, RegistrationTerminationRegSetsCacheFailure)
   MockCache::MockGetRegData mock_op;
   EXPECT_CALL(*_cache, create_GetRegData(IMPU2))
     .WillOnce(Return(&mock_op));
-  _cache->EXPECT_DO_ASYNC(mock_op);
+  EXPECT_DO_ASYNC(*_cache, mock_op);
 
   task->run();
 
@@ -3434,7 +3434,7 @@ TEST_F(HandlersTest, RegistrationTerminationNoAssocIMPUs)
   MockCache::MockGetAssociatedPrimaryPublicIDs mock_op;
   EXPECT_CALL(*_cache, create_GetAssociatedPrimaryPublicIDs(impis))
     .WillOnce(Return(&mock_op));
-  _cache->EXPECT_DO_ASYNC(mock_op);
+  EXPECT_DO_ASYNC(*_cache, mock_op);
 
   task->run();
 
@@ -3488,7 +3488,7 @@ TEST_F(HandlersTest, RegistrationTerminationAssocIMPUsCacheFailure)
   MockCache::MockGetAssociatedPrimaryPublicIDs mock_op;
   EXPECT_CALL(*_cache, create_GetAssociatedPrimaryPublicIDs(impis))
     .WillOnce(Return(&mock_op));
-  _cache->EXPECT_DO_ASYNC(mock_op);
+  EXPECT_DO_ASYNC(*_cache, mock_op);
 
   task->run();
 
@@ -3590,7 +3590,7 @@ TEST_F(HandlersTest, PushProfile)
     .WillOnce(ReturnRef(mock_op));
   EXPECT_CALL(mock_op, with_charging_addrs(_))
     .WillOnce(ReturnRef(mock_op));
-  _cache->EXPECT_DO_ASYNC(mock_op);
+  EXPECT_DO_ASYNC(*_cache, mock_op);
 
   task->run();
 
@@ -3643,7 +3643,7 @@ TEST_F(HandlersTest, PushProfileChargingAddrs)
   MockCache::MockGetAssociatedPublicIDs mock_op;
   EXPECT_CALL(*_cache, create_GetAssociatedPublicIDs(IMPI))
     .WillOnce(Return(&mock_op));
-  _cache->EXPECT_DO_ASYNC(mock_op);
+  EXPECT_DO_ASYNC(*_cache, mock_op);
 
   task->run();
 
@@ -3661,7 +3661,7 @@ TEST_F(HandlersTest, PushProfileChargingAddrs)
     .WillOnce(Return(&mock_op2));
   EXPECT_CALL(mock_op2, with_charging_addrs(_))
     .WillOnce(ReturnRef(mock_op2));
-  _cache->EXPECT_DO_ASYNC(mock_op2);
+  EXPECT_DO_ASYNC(*_cache, mock_op2);
 
   t->on_success(&mock_op);
 
@@ -3716,7 +3716,7 @@ TEST_F(HandlersTest, PushProfileNoPublicIDs)
   MockCache::MockGetAssociatedPublicIDs mock_op;
   EXPECT_CALL(*_cache, create_GetAssociatedPublicIDs(IMPI))
     .WillOnce(Return(&mock_op));
-  _cache->EXPECT_DO_ASYNC(mock_op);
+  EXPECT_DO_ASYNC(*_cache, mock_op);
 
   task->run();
 
@@ -3774,7 +3774,7 @@ TEST_F(HandlersTest, PushProfileLookupPublicIDsFail)
   MockCache::MockGetAssociatedPublicIDs mock_op;
   EXPECT_CALL(*_cache, create_GetAssociatedPublicIDs(IMPI))
     .WillOnce(Return(&mock_op));
-  _cache->EXPECT_DO_ASYNC(mock_op);
+  EXPECT_DO_ASYNC(*_cache, mock_op);
 
   task->run();
 
@@ -3828,7 +3828,7 @@ TEST_F(HandlersTest, PushProfileIMSSub)
     .WillOnce(Return(&mock_op));
   EXPECT_CALL(mock_op, with_xml(IMS_SUBSCRIPTION))
     .WillOnce(ReturnRef(mock_op));
-  _cache->EXPECT_DO_ASYNC(mock_op);
+  EXPECT_DO_ASYNC(*_cache, mock_op);
 
   task->run();
 
@@ -3883,7 +3883,7 @@ TEST_F(HandlersTest, PushProfileIMSSubNoSIPURI)
     .WillOnce(Return(&mock_op));
   EXPECT_CALL(mock_op, with_xml(TEL_URIS_IMS_SUBSCRIPTION))
     .WillOnce(ReturnRef(mock_op));
-  _cache->EXPECT_DO_ASYNC(mock_op);
+  EXPECT_DO_ASYNC(*_cache, mock_op);
 
   task->run();
 
@@ -3935,7 +3935,7 @@ TEST_F(HandlersTest, PushProfileCacheFailure)
     .WillOnce(Return(&mock_op));
   EXPECT_CALL(mock_op, with_xml(IMS_SUBSCRIPTION))
     .WillOnce(ReturnRef(mock_op));
-  _cache->EXPECT_DO_ASYNC(mock_op);
+  EXPECT_DO_ASYNC(*_cache, mock_op);
 
   task->run();
 
@@ -4039,7 +4039,7 @@ TEST_F(HandlerStatsTest, DigestCache)
   MockCache::MockGetAuthVector mock_op;
   EXPECT_CALL(*_cache, create_GetAuthVector(IMPI, IMPU))
     .WillOnce(Return(&mock_op));
-  _cache->EXPECT_DO_ASYNC(mock_op);
+  EXPECT_DO_ASYNC(*_cache, mock_op);
   task->run();
 
   // The cache request takes some time.
@@ -4081,7 +4081,7 @@ TEST_F(HandlerStatsTest, DigestCacheFailure)
   MockCache::MockGetAuthVector mock_op;
   EXPECT_CALL(*_cache, create_GetAuthVector(IMPI, IMPU))
     .WillOnce(Return(&mock_op));
-  _cache->EXPECT_DO_ASYNC(mock_op);
+  EXPECT_DO_ASYNC(*_cache, mock_op);
   task->run();
 
   // The cache request takes some time.
@@ -4151,7 +4151,7 @@ TEST_F(HandlerStatsTest, DigestHSS)
   MockCache::MockPutAssociatedPublicID mock_op;
   EXPECT_CALL(*_cache, create_PutAssociatedPublicID(IMPI, IMPU,  _, _))
     .WillOnce(Return(&mock_op));
-  _cache->EXPECT_DO_ASYNC(mock_op);
+  EXPECT_DO_ASYNC(*_cache, mock_op);
 
   EXPECT_CALL(*_httpstack, send_reply(_, _, _));
   _caught_diam_tsx->on_response(maa);
@@ -4213,7 +4213,7 @@ TEST_F(HandlerStatsTest, IMSSubscriptionReregHSS)
   MockCache::MockGetRegData mock_op;
   EXPECT_CALL(*_cache, create_GetRegData(IMPU))
     .WillOnce(Return(&mock_op));
-  _cache->EXPECT_DO_ASYNC(mock_op);
+  EXPECT_DO_ASYNC(*_cache, mock_op);
   task->run();
 
   // Check the cache get latency is recorded.
@@ -4268,7 +4268,7 @@ TEST_F(HandlerStatsTest, IMSSubscriptionReregHSS)
     .WillOnce(ReturnRef(mock_op2));
   EXPECT_CALL(mock_op2, with_charging_addrs(_))
     .WillOnce(ReturnRef(mock_op2));
-  _cache->EXPECT_DO_ASYNC(mock_op2);
+  EXPECT_DO_ASYNC(*_cache, mock_op2);
 
   // Expect the stats to get updated.
   EXPECT_CALL(*_stats, update_H_hss_latency_us(20000));

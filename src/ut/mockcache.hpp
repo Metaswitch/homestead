@@ -44,11 +44,14 @@
 
 static DigestAuthVector mock_digest_av;
 
-class MockCache : public MockCassandraStore<Cache>
+class MockCache : public Cache
 {
 public:
   MockCache() {};
   virtual ~MockCache() {};
+
+  MOCK_METHOD2(do_async, void(CassandraStore::Operation*& op,
+                              CassandraStore::Transaction*& trx));
 
   //
   // Methods that create cache request objects.
