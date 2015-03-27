@@ -511,7 +511,10 @@ int main(int argc, char**argv)
   options.exception_max_ttl = 600;
 
   boost::filesystem::path p = argv[0];
-  openlog(p.filename().c_str(), PDLOG_PID, PDLOG_LOCAL6);
+  // Copy the filename to a string so that we can be sure of its lifespan -
+  // the value passed to openlog must be valid for the duration of the program.
+  std::string filename = p.filename().c_str();
+  openlog(filename.c_str(), PDLOG_PID, PDLOG_LOCAL6);
   CL_HOMESTEAD_STARTED.log();
 
   if (init_logging_options(argc, argv, options) != 0)
