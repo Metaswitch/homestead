@@ -56,6 +56,7 @@ using ::testing::Invoke;
 using ::testing::WithArgs;
 using ::testing::InvokeWithoutArgs;
 using ::testing::IgnoreResult;
+using ::testing::Pointee;
 
 class DiameterTestTransaction : public Diameter::Transaction
 {
@@ -283,18 +284,29 @@ public:
 };
 
 
+// Fake message struct
+struct msg {};
+
+
 class HandlerThreadPoolTest : public ::testing::Test
 {
 public:
   MockHandler _handler;
-  struct msg* _fd_msg_ptr;
+  struct msg* _msg;
+  struct msg** _msg_ptr;
   SAS::TrailId _trail;
 
   void SetUp()
   {
     // Create a dummy message and trail.
-    _fd_msg_ptr = (struct msg*)1234;
+    _msg = new msg;
+    _msg_ptr = &_msg;
     _trail = 5678;
+  }
+
+  void TearDown()
+  {
+    delete _msg; _msg = NULL;
   }
 };
 
@@ -308,14 +320,14 @@ TEST_F(HandlerThreadPoolTest, SingleThread)
   Diameter::Stack::HandlerInterface* wrapped = pool.wrap(&_handler);
 
   // Check the pool correctly passes through the message and trail ID.
-  EXPECT_CALL(_handler, process_request(&_fd_msg_ptr, _trail))
+  EXPECT_CALL(_handler, process_request(Pointee(_msg), _trail))
     .WillOnce(
        IgnoreResult(
          InvokeWithoutArgs(std::bind(&Barrier::arrive, &barrier, 0))));
 
   // Call `process_request`, then arrive at the barrier. The threads only unblock
   // when both threads have reached it.
-  wrapped->process_request(&_fd_msg_ptr, _trail);
+  wrapped->process_request(_msg_ptr, _trail);
   bool ok = barrier.arrive(10 * 1000000); // 10s timeout
   // We didn't time out waiting on the barrier.
   EXPECT_TRUE(ok);
@@ -330,15 +342,15 @@ TEST_F(HandlerThreadPoolTest, MultipleThreads)
   Diameter::HandlerThreadPool pool(2, NULL);
   Diameter::Stack::HandlerInterface* wrapped = pool.wrap(&_handler);
 
-  EXPECT_CALL(_handler, process_request(&_fd_msg_ptr, _trail))
+  EXPECT_CALL(_handler, process_request(Pointee(_msg), _trail))
     .Times(2)
     .WillRepeatedly(
        IgnoreResult(
          InvokeWithoutArgs(std::bind(&Barrier::arrive, &barrier, 0))));
 
   // Each call to process request returns immediately.
-  wrapped->process_request(&_fd_msg_ptr, _trail);
-  wrapped->process_request(&_fd_msg_ptr, _trail);
+  wrapped->process_request(_msg_ptr, _trail);
+  wrapped->process_request(_msg_ptr, _trail);
 
   // Wait at the barrier - check we did not time out waiting for it.
   bool ok = barrier.arrive(10 * 1000000); // 10s timeout
@@ -355,7 +367,7 @@ TEST_F(HandlerThreadPoolTest, ThreadReuse)
   Diameter::HandlerThreadPool pool(1, NULL);
   Diameter::Stack::HandlerInterface* wrapped = pool.wrap(&_handler);
 
-  EXPECT_CALL(_handler, process_request(&_fd_msg_ptr, _trail))
+  EXPECT_CALL(_handler, process_request(Pointee(_msg), _trail))
     .Times(2)
     .WillRepeatedly(
        IgnoreResult(
@@ -363,11 +375,11 @@ TEST_F(HandlerThreadPoolTest, ThreadReuse)
 
   // Each call to process_request returns immediately, arriving at the barrier
   // each time unblocks the pool thread.
-  wrapped->process_request(&_fd_msg_ptr, _trail);
+  wrapped->process_request(_msg_ptr, _trail);
   ok = barrier.arrive(10 * 1000000); // 10s timeout
   EXPECT_TRUE(ok);
 
-  wrapped->process_request(&_fd_msg_ptr, _trail);
+  wrapped->process_request(_msg_ptr, _trail);
   ok = barrier.arrive(10 * 1000000); // 10s timeout
   EXPECT_TRUE(ok);
 }
