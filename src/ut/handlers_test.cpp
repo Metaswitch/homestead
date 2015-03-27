@@ -3257,7 +3257,7 @@ TEST_F(HandlersTest, RegistrationTerminationHTTPBadMethod)
 
 TEST_F(HandlersTest, RegistrationTerminationHTTPBadResult)
 {
-  rtr_template(PERMANENT_TERMINATION, HTTP_PATH_REG_FALSE, DEREG_BODY_PAIRINGS, HTTP_BAD_RESULT);
+  rtr_template(PERMANENT_TERMINATION, HTTP_PATH_REG_FALSE, DEREG_BODY_PAIRINGS, HTTP_BAD_REQUEST);
 }
 
 TEST_F(HandlersTest, RegistrationTerminationHTTPServerError)

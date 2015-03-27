@@ -937,7 +937,7 @@ void ImpuRegDataTask::run()
       LOG_ERROR("HTTP request contains invalid value %s for type", _req.get_rx_body().c_str());
       SAS::Event event(this->trail(), SASEvent::INVALID_REG_TYPE, 0);
       SAS::report_event(event);
-      send_http_reply(HTTP_BAD_RESULT);
+      send_http_reply(HTTP_BAD_REQUEST);
       delete this;
       return;
     }
@@ -1134,7 +1134,7 @@ void ImpuRegDataTask::on_get_reg_data_success(CassandraStore::Operation* op)
         LOG_DEBUG("Rejecting deregistration for user who was not registered");
         SAS::Event event(this->trail(), SASEvent::SUB_NOT_REG, 0);
         SAS::report_event(event);
-        send_http_reply(HTTP_BAD_RESULT);
+        send_http_reply(HTTP_BAD_REQUEST);
         delete this;
         return;
       }
@@ -1234,7 +1234,7 @@ void ImpuRegDataTask::on_get_reg_data_success(CassandraStore::Operation* op)
         // - this is useful for preventing loops, where we try and
         // continually deregister a user
         LOG_DEBUG("Rejecting deregistration for user who was not registered");
-        send_http_reply(HTTP_BAD_RESULT);
+        send_http_reply(HTTP_BAD_REQUEST);
       }
     }
     else if (is_auth_failure_request(_type))
@@ -1817,7 +1817,7 @@ void RegistrationTerminationTask::delete_registrations()
   break;
 
   case HTTP_BADMETHOD:
-  case HTTP_BAD_RESULT:
+  case HTTP_BAD_REQUEST:
   case HTTP_SERVER_ERROR:
   {
     LOG_DEBUG("Send Registration-Termination answer indicating failure");
