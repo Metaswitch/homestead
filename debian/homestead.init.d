@@ -126,7 +126,7 @@ get_settings()
         # already overridden (rounding up).  Note that the former is expressed
         # in milliseconds and the latter in microseconds, hence division by 500
         # (i.e. multiplication by 2/1000).
-        if [ -z $diameter_timeout_ms ]
+        if [ -z $diameter_timeout_ms ] && [ ! -z $target_latency_us ]
         then
           diameter_timeout_ms=$(( ($target_latency_us + 499)/500 ))
         fi
