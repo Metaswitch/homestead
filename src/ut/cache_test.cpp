@@ -88,7 +88,7 @@ const ChargingAddresses ECFS_CHARGING_ADDRS(CCF, ECFS);
 class TestCache : public Cache
 {
 public:
-  MOCK_METHOD0(get_client, CassandraStore::ClientInterface*());
+  MOCK_METHOD0(get_client, CassandraStore::Client*());
   MOCK_METHOD0(release_client, void());
 };
 
@@ -103,10 +103,10 @@ public:
 class CacheInitializationTest : public ::testing::Test
 {
 public:
-  CacheInitializationTest() 
+  CacheInitializationTest()
   {
-    _cache.initialize();
-    _cache.configure("localhost", 1234, NULL, 1, 0, &_cm); // Start with one worker thread.
+    _cache.configure_connection("localhost", 1234, &_cm);
+    _cache.configure_workers(NULL, 1, 0); // Start with one worker thread.
   }
 
   virtual ~CacheInitializationTest()

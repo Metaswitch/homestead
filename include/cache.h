@@ -109,7 +109,7 @@ public:
     std::map<std::string, std::string> _columns;
     std::vector<CassandraStore::RowColumns> _to_put;
 
-    bool perform(CassandraStore::ClientInterface* client, SAS::TrailId trail);
+    bool perform(CassandraStore::Client* client, SAS::TrailId trail);
   };
 
   virtual PutRegData* create_PutRegData(const std::string& public_id,
@@ -149,7 +149,7 @@ public:
     int64_t _timestamp;
     int32_t _ttl;
 
-    bool perform(CassandraStore::ClientInterface* client, SAS::TrailId trail);
+    bool perform(CassandraStore::Client* client, SAS::TrailId trail);
   };
 
   virtual PutAssociatedPrivateID* create_PutAssociatedPrivateID(
@@ -180,7 +180,7 @@ public:
     int64_t _timestamp;
     int32_t _ttl;
 
-    bool perform(CassandraStore::ClientInterface* client, SAS::TrailId trail);
+    bool perform(CassandraStore::Client* client, SAS::TrailId trail);
   };
 
   virtual PutAssociatedPublicID* create_PutAssociatedPublicID(const std::string& private_id,
@@ -213,7 +213,7 @@ public:
     int64_t _timestamp;
     int32_t _ttl;
 
-    bool perform(CassandraStore::ClientInterface* client, SAS::TrailId trail);
+    bool perform(CassandraStore::Client* client, SAS::TrailId trail);
   };
 
   virtual PutAuthVector* create_PutAuthVector(const std::string& private_id,
@@ -277,7 +277,7 @@ public:
     std::vector<std::string> _impis;
     ChargingAddresses _charging_addrs;
 
-    bool perform(CassandraStore::ClientInterface* client, SAS::TrailId trail);
+    bool perform(CassandraStore::Client* client, SAS::TrailId trail);
   };
 
   virtual GetRegData* create_GetRegData(const std::string& public_id)
@@ -318,7 +318,7 @@ public:
     // Result.
     std::vector<std::string> _public_ids;
 
-    bool perform(CassandraStore::ClientInterface* client, SAS::TrailId trail);
+    bool perform(CassandraStore::Client* client, SAS::TrailId trail);
   };
 
   virtual GetAssociatedPublicIDs* create_GetAssociatedPublicIDs(const std::string& private_id)
@@ -362,7 +362,7 @@ public:
     // Result.
     std::vector<std::string> _public_ids;
 
-    bool perform(CassandraStore::ClientInterface* client, SAS::TrailId trail);
+    bool perform(CassandraStore::Client* client, SAS::TrailId trail);
   };
 
   virtual GetAssociatedPrimaryPublicIDs* create_GetAssociatedPrimaryPublicIDs(
@@ -408,7 +408,7 @@ public:
     // Result.
     DigestAuthVector _auth_vector;
 
-    bool perform(CassandraStore::ClientInterface* client, SAS::TrailId trail);
+    bool perform(CassandraStore::Client* client, SAS::TrailId trail);
   };
 
   virtual GetAuthVector* create_GetAuthVector(const std::string& private_id)
@@ -453,7 +453,7 @@ public:
     std::vector<std::string> _impis;
     int64_t _timestamp;
 
-    bool perform(CassandraStore::ClientInterface* client, SAS::TrailId trail);
+    bool perform(CassandraStore::Client* client, SAS::TrailId trail);
   };
 
   virtual DeletePublicIDs* create_DeletePublicIDs(
@@ -491,7 +491,7 @@ public:
     std::vector<std::string> _private_ids;
     int64_t _timestamp;
 
-    bool perform(CassandraStore::ClientInterface* client, SAS::TrailId trail);
+    bool perform(CassandraStore::Client* client, SAS::TrailId trail);
   };
 
   virtual DeletePrivateIDs* create_DeletePrivateIDs(const std::string& private_id,
@@ -528,7 +528,7 @@ public:
     std::vector<std::string> _private_ids;
     int64_t _timestamp;
 
-    bool perform(CassandraStore::ClientInterface* client, SAS::TrailId trail);
+    bool perform(CassandraStore::Client* client, SAS::TrailId trail);
   };
 
   virtual DeleteIMPIMapping*
@@ -569,7 +569,7 @@ public:
     std::vector<std::string> _impis;
     int64_t _timestamp;
 
-    bool perform(CassandraStore::ClientInterface* client, SAS::TrailId trail);
+    bool perform(CassandraStore::Client* client, SAS::TrailId trail);
   };
 
   virtual DissociateImplicitRegistrationSetFromImpi*
