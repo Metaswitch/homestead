@@ -105,7 +105,7 @@ Response:
 
 `{ "result-code": 2001, "mandatory-capabilities": [1,2,3], "optional-capabilities": [4,5,6] }`
 
-`{ "result-code": 2001, "mandatory-capabilties": [], "optional-capabilities": [] }`
+`{ "result-code": 2001, "mandatory-capabilities": [], "optional-capabilities": [] }`
 
 * 404 if the user cannot be found (either a 5001 error from the HSS, or having no HSS configured and no record of the user).
 * 500 if the HSS is overloaded.
