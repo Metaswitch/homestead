@@ -683,7 +683,8 @@ void ImpuLocationInfoTask::on_lir_response(Diameter::Message& rsp)
   LOG_DEBUG("Received Location-Info answer with result %d/%d",
             result_code, experimental_result_code);
   if ((result_code == DIAMETER_SUCCESS) ||
-      (experimental_result_code == DIAMETER_UNREGISTERED_SERVICE))
+      (experimental_result_code == DIAMETER_UNREGISTERED_SERVICE) ||
+      (experimental_result_code == DIAMETER_ERROR_IDENTITY_NOT_REGISTERED))
   {
     rapidjson::StringBuffer sb;
     rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
