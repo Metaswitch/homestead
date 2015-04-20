@@ -36,6 +36,8 @@
 
 hss_port=3868
 hs_secure_listen_port=5658
+acl_required=false
+check_destination_host=true
 . /etc/clearwater/config
 
 # If we don't have a hs_listen_port set, fall back to hss_port (for
@@ -50,8 +52,6 @@ fi
 # Otherwise, fall back to the public hostname.
 
 identity=$hs_diameteridentity
-
-acl_required=false
 
 if [[ -z "$identity" ]];
 then
@@ -75,4 +75,4 @@ fi
 # example, it might be an IPv6 address)
 realm=$(echo $hs_hostname | sed -e 's/:[^:]*$//g' | sed -e 's/^\[//g' | sed -e 's/\]$//g')
 
-/usr/share/clearwater/bin/generic_create_diameterconf homestead $identity $realm $hs_listen_port $hs_secure_listen_port $acl_required
+/usr/share/clearwater/bin/generic_create_diameterconf homestead $identity $realm $hs_listen_port $hs_secure_listen_port $acl_required $check_destination_host
