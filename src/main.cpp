@@ -577,7 +577,29 @@ int main(int argc, char**argv)
             options.sas_server,
             sas_write);
 
-  StatisticsManager* stats_manager = new StatisticsManager();
+  // Set up the statistics (Homestead specific and Diameter)
+  const static std::string known_stats[] = {
+    "H_latency_us",
+    "H_hss_latency_us",
+    "H_hss_digest_latency_us",
+    "H_hss_subscription_latency_us",
+    "H_cache_latency_us",
+    "H_incoming_requests",
+    "H_rejected_overload",
+    "H_diameter_invalid_dest_host",
+    "H_diameter_invalid_dest_realm",
+  };
+
+  const static int num_known_stats = sizeof(known_stats) / sizeof(std::string);
+  LastValueCache* lvc = new LastValueCache(num_known_stats,
+                                           known_stats,
+                                           "homestead",
+                                           1000);
+  StatisticsManager* stats_manager = new StatisticsManager(lvc);
+  StatisticCounter* realm_counter =  new StatisticCounter("H_diameter_invalid_dest_realm",
+                                                          lvc);
+  StatisticCounter* host_counter = new StatisticCounter("H_diameter_invalid_dest_host",
+                                                        lvc);
 
   if (options.alarms_enabled)
   {
@@ -657,7 +679,11 @@ int main(int argc, char**argv)
   try
   {
     diameter_stack->initialize();
-    diameter_stack->configure(options.diameter_conf, exception_handler, hss_comm_monitor);
+    diameter_stack->configure(options.diameter_conf, 
+                              exception_handler, 
+                              hss_comm_monitor,
+                              realm_counter,
+                              host_counter);
     dict = new Cx::Dictionary();
 
     rtr_config = new RegistrationTerminationTask::Config(cache, dict, sprout_conn, options.hss_reregistration_time);
@@ -807,7 +833,10 @@ int main(int argc, char**argv)
     delete dns_resolver; dns_resolver = NULL;
   }
 
+  delete realm_counter; realm_counter = NULL;
+  delete host_counter; host_counter = NULL;
   delete stats_manager; stats_manager = NULL;
+  delete lvc; lvc = NULL;
 
   hc->terminate();
   pthread_join(health_check_thread, NULL);
