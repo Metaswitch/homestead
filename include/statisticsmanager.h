@@ -51,7 +51,7 @@
 class StatisticsManager : public HttpStack::StatsInterface
 {
 public:
-  StatisticsManager(long poll_timeout_ms = 1000);
+  StatisticsManager(LastValueCache* lvc);
   virtual ~StatisticsManager();
 
   ACCUMULATOR_UPDATE_METHOD(H_latency_us);
@@ -72,7 +72,7 @@ public:
   void incr_http_rejected_overload() { incr_H_rejected_overload(); }
 
 private:
-  LastValueCache lvc;
+  LastValueCache* _lvc;
 
   StatisticAccumulator H_latency_us;
   StatisticAccumulator H_hss_latency_us;

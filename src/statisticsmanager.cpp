@@ -36,27 +36,15 @@
 
 #include <statisticsmanager.h>
 
-const static std::string known_stats[] = {
-  "H_latency_us",
-  "H_hss_latency_us",
-  "H_hss_digest_latency_us",
-  "H_hss_subscription_latency_us",
-  "H_cache_latency_us",
-  "H_incoming_requests",
-  "H_rejected_overload",
-};
-
-const static int num_known_stats = sizeof(known_stats) / sizeof(std::string);
-
-StatisticsManager::StatisticsManager(long poll_timeout_ms) :
-  lvc(num_known_stats, known_stats, "homestead", poll_timeout_ms),
-  H_latency_us("H_latency_us", &lvc),
-  H_hss_latency_us("H_hss_latency_us", &lvc),
-  H_hss_digest_latency_us("H_hss_digest_latency_us", &lvc),
-  H_hss_subscription_latency_us("H_hss_subscription_latency_us", &lvc),
-  H_cache_latency_us("H_cache_latency_us", &lvc),
-  H_incoming_requests("H_incoming_requests", &lvc),
-  H_rejected_overload("H_rejected_overload", &lvc)
+StatisticsManager::StatisticsManager(LastValueCache* lvc) :
+  _lvc(lvc),
+  H_latency_us("H_latency_us", _lvc),
+  H_hss_latency_us("H_hss_latency_us", _lvc),
+  H_hss_digest_latency_us("H_hss_digest_latency_us", _lvc),
+  H_hss_subscription_latency_us("H_hss_subscription_latency_us", _lvc),
+  H_cache_latency_us("H_cache_latency_us", _lvc),
+  H_incoming_requests("H_incoming_requests", _lvc),
+  H_rejected_overload("H_rejected_overload", _lvc)
 {}
 
 StatisticsManager::~StatisticsManager() {}

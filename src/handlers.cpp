@@ -1581,7 +1581,7 @@ void RegistrationTerminationTask::run()
     _impus = _rtr.impus();
   }
 
-  LOG_INFO("Received Regestration-Termination request with dereg reason %d",
+  LOG_INFO("Received Registration-Termination request with dereg reason %d",
            _deregistration_reason);
 
   SAS::Event rtr_received(trail(), SASEvent::RTR_RECEIVED, 0);

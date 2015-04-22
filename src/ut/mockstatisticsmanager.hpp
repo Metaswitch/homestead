@@ -44,7 +44,7 @@ class MockStatisticsManager : public StatisticsManager
 {
 public:
   // Short poll timeout to not slowdown test shutdown.
-  MockStatisticsManager() : StatisticsManager(10) {}
+  MockStatisticsManager() : StatisticsManager(NULL) {}
   virtual ~MockStatisticsManager() {}
 
   MOCK_METHOD1(update_H_latency_us, void(unsigned long sample));
