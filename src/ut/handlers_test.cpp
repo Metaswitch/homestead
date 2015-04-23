@@ -3119,6 +3119,9 @@ TEST_F(HandlersTest, LocationInfoUnregisteredError)
   task->run();
   ASSERT_FALSE(_caught_diam_tsx == NULL);
 
+  // Move the caught message onto the stack to avoid memory leaks
+  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
+  Cx::LocationInfoRequest lir(msg);
   // Build an LIA and expect a successful HTTP response.
   Cx::LocationInfoAnswer lia(_cx_dict,
                              _mock_stack,
