@@ -3097,16 +3097,50 @@ TEST_F(HandlersTest, LocationInfoOptParamsUnregisteredService)
   EXPECT_EQ(build_icscf_json(DIAMETER_UNREGISTERED_SERVICE, "", CAPABILITIES_WITH_SERVER_NAME), req.content());
 }
 
+TEST_F(HandlersTest, LocationInfoUnregisteredError)
+{
+  // This test tests a Location-Information-Answer with a 5003 error - which
+  // is unusual because it means the user exists, but has no services. This has
+  // special handling to not return a 404 error, so that Sprout can detect this
+  // case and return a 480.
+  MockHttpStack::Request req(_httpstack,
+                             "/impu/" + IMPU + "/",
+                             "location",
+                             "");
+
+  ImpuLocationInfoTask::Config cfg(true);
+  ImpuLocationInfoTask* task = new ImpuLocationInfoTask(req, &cfg, FAKE_TRAIL_ID);
+
+  // Once the task's run function is called, expect a diameter message to be
+  // sent.
+  EXPECT_CALL(*_mock_stack, send(_, _, 200))
+    .Times(1)
+    .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
+  task->run();
+  ASSERT_FALSE(_caught_diam_tsx == NULL);
+
+  // Build an LIA and expect a successful HTTP response.
+  Cx::LocationInfoAnswer lia(_cx_dict,
+                             _mock_stack,
+                             0,
+                             DIAMETER_ERROR_IDENTITY_NOT_REGISTERED,
+                             "",
+                             NO_CAPABILITIES);
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
+
+  _caught_diam_tsx->on_response(lia);
+  _caught_fd_msg = NULL;
+  delete _caught_diam_tsx; _caught_diam_tsx = NULL;
+
+  // Build the expected JSON response and check it's correct.
+  EXPECT_EQ("{\"result-code\":5003,\"mandatory-capabilities\":[],\"optional-capabilities\":[]}", req.content());
+}
+
 // The following tests all test HSS error response cases, and use a template
 // function defined at the top of this file.
 TEST_F(HandlersTest, LocationInfoUserUnknown)
 {
   location_info_error_template(0, DIAMETER_ERROR_USER_UNKNOWN, 404);
-}
-
-TEST_F(HandlersTest, LocationInfoIdentityNotRegistered)
-{
-  location_info_error_template(0, DIAMETER_ERROR_IDENTITY_NOT_REGISTERED, 404);
 }
 
 TEST_F(HandlersTest, LocationInfoDiameterBusy)
