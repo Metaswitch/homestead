@@ -95,6 +95,8 @@ struct options
   float init_token_rate;
   float min_token_rate;
   int exception_max_ttl;
+  int http_blacklist_duration;
+  int diameter_blacklist_duration;
 };
 
 // Enum for option types not assigned short-forms
@@ -111,42 +113,46 @@ enum OptionTypes
   MAX_TOKENS,
   INIT_TOKEN_RATE,
   MIN_TOKEN_RATE,
-  EXCEPTION_MAX_TTL
+  EXCEPTION_MAX_TTL,
+  HTTP_BLACKLIST_DURATION,
+  DIAMETER_BLACKLIST_DURATION
 };
 
 const static struct option long_opt[] =
 {
-  {"localhost",               required_argument, NULL, 'l'},
-  {"home-domain",             required_argument, NULL, 'r'},
-  {"diameter-conf",           required_argument, NULL, 'c'},
-  {"dns-server",              required_argument, NULL, DNS_SERVER},
-  {"http",                    required_argument, NULL, 'H'},
-  {"http-threads",            required_argument, NULL, 't'},
-  {"cache-threads",           required_argument, NULL, 'u'},
-  {"cassandra",               required_argument, NULL, 'S'},
-  {"dest-realm",              required_argument, NULL, 'D'},
-  {"dest-host",               required_argument, NULL, 'd'},
-  {"max-peers",               required_argument, NULL, 'p'},
-  {"server-name",             required_argument, NULL, 's'},
-  {"impu-cache-ttl",          required_argument, NULL, 'i'},
-  {"hss-reregistration-time", required_argument, NULL, 'I'},
-  {"sprout-http-name",        required_argument, NULL, 'j'},
-  {"scheme-unknown",          required_argument, NULL, SCHEME_UNKNOWN},
-  {"scheme-digest",           required_argument, NULL, SCHEME_DIGEST},
-  {"scheme-aka",              required_argument, NULL, SCHEME_AKA},
-  {"access-log",              required_argument, NULL, 'a'},
-  {"sas",                     required_argument, NULL, SAS_CONFIG},
-  {"diameter-timeout-ms",     required_argument, NULL, DIAMETER_TIMEOUT_MS},
-  {"alarms-enabled",          no_argument,       NULL, ALARMS_ENABLED},
-  {"log-file",                required_argument, NULL, 'F'},
-  {"log-level",               required_argument, NULL, 'L'},
-  {"help",                    no_argument,       NULL, 'h'},
-  {"target-latency-us",       required_argument, NULL, TARGET_LATENCY_US},
-  {"max-tokens",              required_argument, NULL, MAX_TOKENS},
-  {"init-token-rate",         required_argument, NULL, INIT_TOKEN_RATE},
-  {"min-token-rate",          required_argument, NULL, MIN_TOKEN_RATE},
-  {"exception-max-ttl",       required_argument, NULL, EXCEPTION_MAX_TTL},
-  {NULL,                      0,                 NULL, 0},
+  {"localhost",                   required_argument, NULL, 'l'},
+  {"home-domain",                 required_argument, NULL, 'r'},
+  {"diameter-conf",               required_argument, NULL, 'c'},
+  {"dns-server",                  required_argument, NULL, DNS_SERVER},
+  {"http",                        required_argument, NULL, 'H'},
+  {"http-threads",                required_argument, NULL, 't'},
+  {"cache-threads",               required_argument, NULL, 'u'},
+  {"cassandra",                   required_argument, NULL, 'S'},
+  {"dest-realm",                  required_argument, NULL, 'D'},
+  {"dest-host",                   required_argument, NULL, 'd'},
+  {"max-peers",                   required_argument, NULL, 'p'},
+  {"server-name",                 required_argument, NULL, 's'},
+  {"impu-cache-ttl",              required_argument, NULL, 'i'},
+  {"hss-reregistration-time",     required_argument, NULL, 'I'},
+  {"sprout-http-name",            required_argument, NULL, 'j'},
+  {"scheme-unknown",              required_argument, NULL, SCHEME_UNKNOWN},
+  {"scheme-digest",               required_argument, NULL, SCHEME_DIGEST},
+  {"scheme-aka",                  required_argument, NULL, SCHEME_AKA},
+  {"access-log",                  required_argument, NULL, 'a'},
+  {"sas",                         required_argument, NULL, SAS_CONFIG},
+  {"diameter-timeout-ms",         required_argument, NULL, DIAMETER_TIMEOUT_MS},
+  {"alarms-enabled",              no_argument,       NULL, ALARMS_ENABLED},
+  {"log-file",                    required_argument, NULL, 'F'},
+  {"log-level",                   required_argument, NULL, 'L'},
+  {"help",                        no_argument,       NULL, 'h'},
+  {"target-latency-us",           required_argument, NULL, TARGET_LATENCY_US},
+  {"max-tokens",                  required_argument, NULL, MAX_TOKENS},
+  {"init-token-rate",             required_argument, NULL, INIT_TOKEN_RATE},
+  {"min-token-rate",              required_argument, NULL, MIN_TOKEN_RATE},
+  {"exception-max-ttl",           required_argument, NULL, EXCEPTION_MAX_TTL},
+  {"http-blacklist-duration",     required_argument, NULL, HTTP_BLACKLIST_DURATION},
+  {"diameter-blacklist-duration", required_argument, NULL, DIAMETER_BLACKLIST_DURATION},
+  {NULL,                          0,                 NULL, 0},
 };
 
 static std::string options_description = "l:r:c:H:t:u:S:D:d:p:s:i:I:a:F:L:h";
@@ -199,6 +205,10 @@ void usage(void)
        "     --exception-max-ttl <secs>\n"
        "                            The maximum time before the process exits if it hits an exception.\n"
        "                            The actual time is randomised.\n"
+       " --http-blacklist-duration <secs>\n"
+       "                            The amount of time to blacklist an HTTP peer when it is unresponsive.\n"
+       " --diameter-blacklist-duration <secs>\n"
+       "                            The amount of time to blacklist a Diameter peer when it is unresponsive.\n"
        " -F, --log-file <directory>\n"
        "                            Log to file in specified directory\n"
        " -L, --log-level N          Set log level to N (default: 4)\n"
@@ -410,8 +420,20 @@ int init_options(int argc, char**argv, struct options& options)
     case EXCEPTION_MAX_TTL:
       options.exception_max_ttl = atoi(optarg);
       LOG_INFO("Max TTL after an exception set to %d",
-      options.exception_max_ttl);
-       break;
+               options.exception_max_ttl);
+      break;
+
+    case HTTP_BLACKLIST_DURATION:
+      options.http_blacklist_duration = atoi(optarg);
+      LOG_INFO("HTTP blacklist duration set to %d",
+               options.http_blacklist_duration);
+      break;
+
+    case DIAMETER_BLACKLIST_DURATION:
+      options.diameter_blacklist_duration = atoi(optarg);
+      LOG_INFO("Diameter blacklist duration set to %d",
+               options.diameter_blacklist_duration);
+      break;
 
     case 'F':
     case 'L':
@@ -634,7 +656,9 @@ int main(int argc, char**argv)
                                               options.init_token_rate,
                                               options.min_token_rate);
   DnsCachedResolver* dns_resolver = new DnsCachedResolver(options.dns_servers);
-  HttpResolver* http_resolver = new HttpResolver(dns_resolver, af);
+  HttpResolver* http_resolver = new HttpResolver(dns_resolver,
+                                                 af,
+                                                 options.http_blacklist_duration);
 
   Cache* cache = Cache::get_instance();
   cache->configure_connection(options.cassandra,
@@ -779,7 +803,9 @@ int main(int argc, char**argv)
   
   if (hss_configured)
   {
-    diameter_resolver = new DiameterResolver(dns_resolver, af);
+    diameter_resolver = new DiameterResolver(dns_resolver,
+                                             af,
+                                             options.diameter_blacklist_duration);
     realm_manager = new RealmManager(diameter_stack,
                                      options.dest_realm,
                                      options.dest_host,
