@@ -194,6 +194,9 @@ get_daemon_args()
                      --log-file=$log_directory
                      --log-level=$log_level
                      --sas=$sas_server,$NAME@$public_hostname"
+
+        [ "$http_blacklist_duration" = "" ]     || DAEMON_ARGS="$DAEMON_ARGS --http-blacklist-duration=$http_blacklist_duration"
+        [ "$diameter_blacklist_duration" = "" ] || DAEMON_ARGS="$DAEMON_ARGS --diameter-blacklist-duration=$diameter_blacklist_duration"
 }
 
 #
