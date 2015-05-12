@@ -41,20 +41,20 @@ then
     $namespace_prefix netstat -na | grep "LISTEN" | awk '{ print $4 }' | grep -q ":9160\$"
   done
 
-  echo "CREATE KEYSPACE homestead_cache WITH strategy_class = 'SimpleStrategy' AND strategy_options:replication_factor = 2;
+  echo "CREATE KEYSPACE homestead_cache WITH REPLICATION =  {'class': 'SimpleStrategy', 'replication_factor': 2};
         USE homestead_cache;
         CREATE TABLE impi (private_id text PRIMARY KEY, digest_ha1 text, digest_realm text, digest_qop text, known_preferred boolean) WITH read_repair_chance = 1.0;
-        CREATE TABLE impu (public_id text PRIMARY KEY, ims_subscription_xml text, is_registered boolean) WITH read_repair_chance = 1.0;" | $namespace_prefix cqlsh -2
+        CREATE TABLE impu (public_id text PRIMARY KEY, ims_subscription_xml text, is_registered boolean) WITH read_repair_chance = 1.0;" | $namespace_prefix cqlsh
 fi
 
 echo "USE homestead_cache;
       ALTER TABLE impu ADD primary_ccf text;
       ALTER TABLE impu ADD secondary_ccf text;
       ALTER TABLE impu ADD primary_ecf text;
-      ALTER TABLE impu ADD secondary_ecf text;" | $namespace_prefix cqlsh -2
+      ALTER TABLE impu ADD secondary_ecf text;" | $namespace_prefix cqlsh
 
 if [[ ! -e /var/lib/cassandra/data/homestead_cache/impi_mapping ]];
 then
   echo "USE homestead_cache;
-        CREATE TABLE impi_mapping (private_id text PRIMARY KEY, unused text) WITH read_repair_chance = 1.0;" | $namespace_prefix cqlsh -2
+        CREATE TABLE impi_mapping (private_id text PRIMARY KEY, unused text) WITH read_repair_chance = 1.0;" | $namespace_prefix cqlsh
 fi
