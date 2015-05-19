@@ -17,7 +17,7 @@ class HomesteadCassandraPlugin(SynchroniserPluginBase):
         issue_alarm(constants.RAISE_CASSANDRA_NOT_YET_CLUSTERED)
 
     def key(self):
-        return "/homestead/clustering/cassandra"
+        return "/clearwater/homestead/clustering/cassandra"
 
     def on_cluster_changing(self, cluster_view):
         pass
