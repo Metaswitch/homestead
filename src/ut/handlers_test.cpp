@@ -1782,6 +1782,7 @@ TEST_F(HandlersTest, DigestIMPUNotFound)
   t->on_failure(&mock_op);
 }
 
+// Tests a connection failure to the local cassandra
 TEST_F(HandlersTest, DigestNoIMPUCacheConnectionFailure)
 {
   // This test tests an Impi Digest task case where no public ID is specified
@@ -2657,7 +2658,7 @@ TEST_F(HandlersTest, IMSSubscriptionCacheNotFound)
 TEST_F(HandlersTest, IMSSubscriptionCacheConnectionFailure)
 {
   // This test tests an IMS Subscription handler case where the cache
-  // has an unknown failure. Start by building the HTTP request which
+  // has a connection failure. Start by building the HTTP request which
   // will invoke a cache lookup.
   MockHttpStack::Request req(_httpstack,
                              "/impu/" + IMPU,
@@ -4260,13 +4261,9 @@ TEST_F(HandlerStatsTest, DigestCacheConnectionFailure)
   CassandraStore::Transaction* t = mock_op.get_trx();
   ASSERT_FALSE(t == NULL);
 
-  t->start_timer();
-  cwtest_advance_time_ms(12);
-  t->stop_timer();
-
   // Cache latency stats are updated when the transaction fails.
   EXPECT_CALL(*_httpstack, send_reply(_, 503,  _));
-  EXPECT_CALL(*_stats, update_H_cache_latency_us(12000));
+  EXPECT_CALL(*_stats, update_H_cache_latency_us(_));
 
   mock_op._cass_status = CassandraStore::CONNECTION_ERROR;
   mock_op._cass_error_text = "error";

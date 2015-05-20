@@ -196,10 +196,10 @@ void ImpiTask::on_get_av_failure(CassandraStore::Operation* op,
   }
   else if (error == CassandraStore::CONNECTION_ERROR)
   {
-    // If the cache error is a failure to connect to the local cassandra,
+    // If the cache error is a failure to connect to the local Cassandra,
     // then we want Sprout to retry the request to another Homestead (as this
-    // could be a local issue to the node). Send a 503
-    LOG_DEBUG("Cache query failed as unable to connect to local cassandra");
+    // could be a local issue to the node). Send a 503.
+    LOG_DEBUG("Cache query failed: unable to connect to local Cassandra");
     send_http_reply(HTTP_SERVER_UNAVAILABLE);
   }
   else
@@ -288,10 +288,10 @@ void ImpiTask::on_get_impu_failure(CassandraStore::Operation* op, CassandraStore
   }
   else if (error == CassandraStore::CONNECTION_ERROR)
   {
-    // If the cache error is a failure to connect to the local cassandra,
+    // If the cache error is a failure to connect to the local Cassandra,
     // then we want Sprout to retry the request to another Homestead (as this
-    // could be a local issue to the node). Send a 503
-    LOG_DEBUG("Cache query failed as unable to connect to local cassandra");
+    // could be a local issue to the node). Send a 503.
+    LOG_DEBUG("Cache query failed: unable to connect to local Cassandra");
     send_http_reply(HTTP_SERVER_UNAVAILABLE);
   }
   else
@@ -822,10 +822,10 @@ void ImpuLocationInfoTask::on_get_reg_data_failure(CassandraStore::Operation* op
 
   if (error == CassandraStore::CONNECTION_ERROR)
   {
-    // If the cache error is a failure to connect to the local cassandra,
+    // If the cache error is a failure to connect to the local Cassandra,
     // then we want Sprout to retry the request to another Homestead (as this
-    // could be a local issue to the node). Send a 503
-    LOG_DEBUG("Cache query failed as unable to connect to local cassandra");
+    // could be a local issue to the node). Send a 503.
+    LOG_DEBUG("Cache query failed: unable to connect to local Cassandra");
     send_http_reply(HTTP_SERVER_UNAVAILABLE);
   }
   else
@@ -1330,10 +1330,10 @@ void ImpuRegDataTask::on_get_reg_data_failure(CassandraStore::Operation* op,
   }
   else if (error == CassandraStore::CONNECTION_ERROR)
   {
-    // If the cache error is a failure to connect to the local cassandra,
+    // If the cache error is a failure to connect to the local Cassandra,
     // then we want Sprout to retry the request to another Homestead (as this
-    // could be a local issue to the node). Send a 503
-    LOG_DEBUG("Cache query failed as unable to connect to local cassandra");
+    // could be a local issue to the node). Send a 503.
+    LOG_DEBUG("Cache query failed: unable to connect to local Cassandra");
     send_http_reply(HTTP_SERVER_UNAVAILABLE);
   }
   else
