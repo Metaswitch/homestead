@@ -1782,6 +1782,41 @@ TEST_F(HandlersTest, DigestIMPUNotFound)
   t->on_failure(&mock_op);
 }
 
+TEST_F(HandlersTest, DigestNoIMPUCacheConnectionFailure)
+{
+  // This test tests an Impi Digest task case where no public ID is specified
+  // on the HTTP request, the cache request fails. Start by building the HTTP
+  // request which will invoke a cache lookup.
+  MockHttpStack::Request req(_httpstack,
+                             "/impi/" + IMPI,
+                             "digest",
+                             "");
+
+  ImpiTask::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
+  ImpiDigestTask* task = new ImpiDigestTask(req, &cfg, FAKE_TRAIL_ID);
+
+  // Once the task's run function is called, expect to look for associated
+  // public IDs in the cache.
+  MockCache::MockGetAssociatedPublicIDs mock_op;
+  EXPECT_CALL(*_cache, create_GetAssociatedPublicIDs(IMPI))
+    .WillOnce(Return(&mock_op));
+  EXPECT_DO_ASYNC(*_cache, mock_op);
+
+  task->run();
+
+  // Confirm the transaction is not NULL.
+  CassandraStore::Transaction* t = mock_op.get_trx();
+  ASSERT_FALSE(t == NULL);
+
+  // Once the cache transaction's failure callback is called, expect a 503 Service
+  // unavailable response.
+  EXPECT_CALL(*_httpstack, send_reply(_, 503, _));
+
+  mock_op._cass_status = CassandraStore::CONNECTION_ERROR;
+  mock_op._cass_error_text = "error";
+  t->on_failure(&mock_op);
+}
+
 TEST_F(HandlersTest, DigestNoIMPUCacheFailure)
 {
   // This test tests an Impi Digest task case where no public ID is specified
@@ -2618,6 +2653,41 @@ TEST_F(HandlersTest, IMSSubscriptionCacheNotFound)
   t->on_failure(&mock_op);
 }
 
+// Connection failures should translate into a 503 Service Unavailable error
+TEST_F(HandlersTest, IMSSubscriptionCacheConnectionFailure)
+{
+  // This test tests an IMS Subscription handler case where the cache
+  // has an unknown failure. Start by building the HTTP request which
+  // will invoke a cache lookup.
+  MockHttpStack::Request req(_httpstack,
+                             "/impu/" + IMPU,
+                             "",
+                             "");
+
+  ImpuIMSSubscriptionTask::Config cfg(false, 3600);
+  ImpuIMSSubscriptionTask* task = new ImpuIMSSubscriptionTask(req, &cfg, FAKE_TRAIL_ID);
+
+  // Once the task's run function is called, expect to lookup IMS
+  // subscription information for the specified public ID.
+  MockCache::MockGetRegData mock_op;
+  EXPECT_CALL(*_cache, create_GetRegData(IMPU))
+    .WillOnce(Return(&mock_op));
+  EXPECT_DO_ASYNC(*_cache, mock_op);
+
+  task->run();
+
+  // Confirm that the cache transaction is not NULL.
+  CassandraStore::Transaction* t = mock_op.get_trx();
+  ASSERT_FALSE(t == NULL);
+
+  // Expect a 503 HTTP response once the cache returns an error to the task.
+  EXPECT_CALL(*_httpstack, send_reply(_, 503, _));
+
+  mock_op._cass_status = CassandraStore::CONNECTION_ERROR;
+  mock_op._cass_error_text = "error";
+  t->on_failure(&mock_op);
+}
+
 // Cache failures should translate into a 504 Bad Gateway error
 TEST_F(HandlersTest, IMSSubscriptionCacheFailure)
 {
@@ -3226,6 +3296,33 @@ TEST_F(HandlersTest, LocationInfoNoHSSNoSubscriber)
   t->on_success(&mock_op);
 }
 
+TEST_F(HandlersTest, LocationInfoNoHSSConnectionError)
+{
+  // Test Location Info task when no HSS is configured.
+  MockHttpStack::Request req(_httpstack,
+                             "/impu/" + IMPU + "/",
+                             "location",
+                             "");
+  ImpuLocationInfoTask::Config cfg(false);
+  ImpuLocationInfoTask* task = new ImpuLocationInfoTask(req, &cfg, FAKE_TRAIL_ID);
+
+  // Once the task's run function is called, we expect a cache request for
+  // the registration state of the public identity.
+  MockCache::MockGetRegData mock_op;
+  EXPECT_CALL(*_cache, create_GetRegData(IMPU))
+    .WillOnce(Return(&mock_op));
+  EXPECT_DO_ASYNC(*_cache, mock_op);
+  task->run();
+
+  // The cache indicates connection error, so expect a 503 Service Unavailable over HTTP.
+  EXPECT_CALL(*_httpstack, send_reply(_, 503, _));
+  CassandraStore::Transaction* t = mock_op.get_trx();
+  ASSERT_FALSE(t == NULL);
+  mock_op._cass_status = CassandraStore::CONNECTION_ERROR;
+  mock_op._cass_error_text = "connection error";
+  t->on_failure(&mock_op);
+}
+
 TEST_F(HandlersTest, LocationInfoNoHSSTimeout)
 {
   // Test Location Info task when no HSS is configured.
@@ -3244,12 +3341,12 @@ TEST_F(HandlersTest, LocationInfoNoHSSTimeout)
   EXPECT_DO_ASYNC(*_cache, mock_op);
   task->run();
 
-  // The cache indicates connection error, so expect a 504 Gateway Timeout over HTTP.
+  // The cache indicates error, so expect a 504 Gateway Timeout over HTTP.
   EXPECT_CALL(*_httpstack, send_reply(_, 504, _));
   CassandraStore::Transaction* t = mock_op.get_trx();
   ASSERT_FALSE(t == NULL);
-  mock_op._cass_status = CassandraStore::CONNECTION_ERROR;
-  mock_op._cass_error_text = "connection error";
+  mock_op._cass_status = CassandraStore::UNKNOWN_ERROR;
+  mock_op._cass_error_text = "error";
   t->on_failure(&mock_op);
 }
 
@@ -4140,6 +4237,43 @@ TEST_F(HandlerStatsTest, DigestCacheFailure)
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
 }
 
+TEST_F(HandlerStatsTest, DigestCacheConnectionFailure)
+{
+  // Test that UNsuccessful cache requests result in the latency stats being
+  // updated. Drive this with an HTTP request for digest.
+  MockHttpStack::Request req(_httpstack,
+                             "/impi/" + IMPI,
+                             "digest",
+                             "?public_id=" + IMPU);
+
+  ImpiTask::Config cfg(false);
+  ImpiDigestTask* task = new ImpiDigestTask(req, &cfg, FAKE_TRAIL_ID);
+
+  // Handler does a cache digest lookup.
+  MockCache::MockGetAuthVector mock_op;
+  EXPECT_CALL(*_cache, create_GetAuthVector(IMPI, IMPU))
+    .WillOnce(Return(&mock_op));
+  EXPECT_DO_ASYNC(*_cache, mock_op);
+  task->run();
+
+  // The cache request takes some time.
+  CassandraStore::Transaction* t = mock_op.get_trx();
+  ASSERT_FALSE(t == NULL);
+
+  t->start_timer();
+  cwtest_advance_time_ms(12);
+  t->stop_timer();
+
+  // Cache latency stats are updated when the transaction fails.
+  EXPECT_CALL(*_httpstack, send_reply(_, 503,  _));
+  EXPECT_CALL(*_stats, update_H_cache_latency_us(12000));
+
+  mock_op._cass_status = CassandraStore::CONNECTION_ERROR;
+  mock_op._cass_error_text = "error";
+  t->on_failure(&mock_op);
+
+  delete _caught_diam_tsx; _caught_diam_tsx = NULL;
+}
 
 TEST_F(HandlerStatsTest, DigestHSS)
 {

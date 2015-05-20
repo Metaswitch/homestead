@@ -194,11 +194,21 @@ void ImpiTask::on_get_av_failure(CassandraStore::Operation* op,
     LOG_DEBUG("No cached av found for private ID %s, public ID %s - reject", _impi.c_str(), _impu.c_str());
     send_http_reply(HTTP_NOT_FOUND);
   }
+  else if (error == CassandraStore::CONNECTION_ERROR)
+  {
+    // If the cache error is a failure to connect to the local cassandra,
+    // then we want Sprout to retry the request to another Homestead (as this
+    // could be a local issue to the node). Send a 503
+    LOG_DEBUG("Cache query failed as unable to connect to local cassandra");
+    send_http_reply(HTTP_SERVER_UNAVAILABLE);
+  }
   else
   {
+    // Send a 504 in all other cases (the request won't be retried)
     LOG_DEBUG("Cache query failed with rc %d", error);
     send_http_reply(HTTP_GATEWAY_TIMEOUT);
   }
+
   delete this;
 }
 
@@ -276,11 +286,21 @@ void ImpiTask::on_get_impu_failure(CassandraStore::Operation* op, CassandraStore
     LOG_DEBUG("No cached public ID found for private ID %s - reject", _impi.c_str());
     send_http_reply(HTTP_NOT_FOUND);
   }
+  else if (error == CassandraStore::CONNECTION_ERROR)
+  {
+    // If the cache error is a failure to connect to the local cassandra,
+    // then we want Sprout to retry the request to another Homestead (as this
+    // could be a local issue to the node). Send a 503
+    LOG_DEBUG("Cache query failed as unable to connect to local cassandra");
+    send_http_reply(HTTP_SERVER_UNAVAILABLE);
+  }
   else
   {
+    // Send a 504 in all other cases (the request won't be retried)
     LOG_DEBUG("Cache query failed with rc %d", error);
     send_http_reply(HTTP_GATEWAY_TIMEOUT);
   }
+
   delete this;
 }
 
@@ -799,7 +819,22 @@ void ImpuLocationInfoTask::on_get_reg_data_failure(CassandraStore::Operation* op
   LOG_DEBUG("IMS subscription cache query failed: %u, %s", error, text.c_str());
   SAS::Event event(this->trail(), SASEvent::NO_REG_DATA_CACHE, 0);
   SAS::report_event(event);
-  send_http_reply(HTTP_GATEWAY_TIMEOUT);
+
+  if (error == CassandraStore::CONNECTION_ERROR)
+  {
+    // If the cache error is a failure to connect to the local cassandra,
+    // then we want Sprout to retry the request to another Homestead (as this
+    // could be a local issue to the node). Send a 503
+    LOG_DEBUG("Cache query failed as unable to connect to local cassandra");
+    send_http_reply(HTTP_SERVER_UNAVAILABLE);
+  }
+  else
+  {
+    // Send a 504 in all other cases (the request won't be retried)
+    LOG_DEBUG("Cache query failed with rc %d", error);
+    send_http_reply(HTTP_GATEWAY_TIMEOUT);
+  }
+
   delete this;
 }
 
@@ -1287,16 +1322,27 @@ void ImpuRegDataTask::on_get_reg_data_failure(CassandraStore::Operation* op,
   LOG_DEBUG("IMS subscription cache query failed: %u, %s", error, text.c_str());
   SAS::Event event(this->trail(), SASEvent::NO_REG_DATA_CACHE, 0);
   SAS::report_event(event);
+
   if (error == CassandraStore::NOT_FOUND)
   {
     LOG_DEBUG("No IMS subscription found for public ID %s - reject", _impu.c_str());
     send_http_reply(HTTP_NOT_FOUND);
   }
+  else if (error == CassandraStore::CONNECTION_ERROR)
+  {
+    // If the cache error is a failure to connect to the local cassandra,
+    // then we want Sprout to retry the request to another Homestead (as this
+    // could be a local issue to the node). Send a 503
+    LOG_DEBUG("Cache query failed as unable to connect to local cassandra");
+    send_http_reply(HTTP_SERVER_UNAVAILABLE);
+  }
   else
   {
+    // Send a 504 in all other cases (the request won't be retried)
     LOG_DEBUG("Cache query failed with rc %d", error);
     send_http_reply(HTTP_GATEWAY_TIMEOUT);
   }
+
   delete this;
 }
 
