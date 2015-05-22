@@ -58,7 +58,7 @@ then
     if [[ -z "$public_hostname" ]];
     then
         echo "ERROR: must have a public_hostname set in /etc/clearwater/config" >&2
-        exit 1
+        exit
     fi
 
     identity=$public_hostname
@@ -68,7 +68,7 @@ fi
 if [[ -z "$hs_hostname" ]];
 then
     echo "ERROR: must have a hs_hostname set in /etc/clearwater/config" >&2
-    exit 1
+    exit
 fi
 
 # Strip any characters not valid in an FQDN out of hs_hostname (for
