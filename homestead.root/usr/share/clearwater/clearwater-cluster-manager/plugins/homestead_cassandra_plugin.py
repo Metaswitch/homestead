@@ -10,9 +10,9 @@ _log = logging.getLogger("homestead_cassandra_plugin")
 
 
 class HomesteadCassandraPlugin(SynchroniserPluginBase):
-    def __init__(self, ip, local_site, remote_site):
-        self._ip = ip
-        self._local_site = local_site
+    def __init__(self, params):
+        self._ip = params.ip
+        self._local_site = params.local_site
         _log.debug("Raising Cassandra not-clustered alarm")
         issue_alarm(constants.RAISE_CASSANDRA_NOT_YET_CLUSTERED)
 
@@ -53,5 +53,5 @@ class HomesteadCassandraPlugin(SynchroniserPluginBase):
         return ["/etc/cassandra/cassandra.yaml"]
 
 
-def load_as_plugin(ip, local_site, remote_site):
-    return HomesteadCassandraPlugin(ip, local_site, remote_site)
+def load_as_plugin(params):
+    return HomesteadCassandraPlugin(params)
