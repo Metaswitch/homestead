@@ -15,7 +15,7 @@ Homestead is an HSS-cache. See the documentation below for more information.
 
 Further info
 ------------
-* [Install guide](https://github.com/Metaswitch/clearwater-docs/wiki/Installation-Instructions)
+* [Install guide](http://clearwater.readthedocs.org/en/latest/Installation_Instructions/index.html)
 * [Development guide](docs/development.md)
 * [Homestead API guide](docs/homestead_api.md)
 * [Homestead overview](docs/homestead_overview.md)
