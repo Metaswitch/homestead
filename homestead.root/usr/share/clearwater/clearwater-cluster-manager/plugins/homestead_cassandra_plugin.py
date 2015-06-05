@@ -3,7 +3,7 @@ from metaswitch.clearwater.cluster_manager.plugin_base import \
 from metaswitch.clearwater.cluster_manager.plugin_utils import \
     join_cassandra_cluster, leave_cassandra_cluster, run_command
 from metaswitch.clearwater.cluster_manager.alarms import issue_alarm
-from metaswitch.clearwater.cluster_manager import constants
+from metaswitch.clearwater.cluster_manager import pdlogs, constants
 import logging
 
 _log = logging.getLogger("homestead_cassandra_plugin")
@@ -16,9 +16,13 @@ class HomesteadCassandraPlugin(SynchroniserPluginBase):
         self._sig_namespace = params.signaling_namespace
         _log.debug("Raising Cassandra not-clustered alarm")
         issue_alarm(constants.RAISE_CASSANDRA_NOT_YET_CLUSTERED)
+        pdlogs.NOT_YET_CLUSTERED_ALARM.log(cluster_desc=self.cluster_description())
 
     def key(self):
         return "/clearwater/homestead/clustering/cassandra"
+
+    def cluster_description(self):
+        return "Cassandra cluster"
 
     def on_cluster_changing(self, cluster_view):
         pass
