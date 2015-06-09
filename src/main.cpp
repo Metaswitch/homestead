@@ -681,7 +681,8 @@ int main(int argc, char**argv)
   {
     CL_HOMESTEAD_CASSANDRA_CACHE_INIT_FAIL.log(rc);
     closelog();
-    LOG_ERROR("Failed to initialize cache - rc %d", rc);
+    LOG_ERROR("Failed to initialize the Cassandra cache with error code %d. ", rc);
+    LOG_STATUS("Homestead is shutting down")
     exit(2);
   }
 
