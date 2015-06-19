@@ -129,7 +129,7 @@ Cache::PutRegData& Cache::PutRegData::with_reg_state(const RegistrationState reg
   else
   {
     // LCOV_EXCL_START - invalid case not hit in UT
-    LOG_ERROR("Unexpected registration state %d", reg_state);
+    TRC_ERROR("Unexpected registration state %d", reg_state);
     // LCOV_EXCL_STOP
   }
   return *this;
@@ -347,7 +347,7 @@ bool Cache::GetRegData::perform(CassandraStore::Client* client,
                                 SAS::TrailId trail)
 {
   int64_t now = generate_timestamp();
-  LOG_DEBUG("Issuing get for key %s", _public_id.c_str());
+  TRC_DEBUG("Issuing get for key %s", _public_id.c_str());
   std::vector<ColumnOrSuperColumn> results;
 
   try
@@ -367,7 +367,7 @@ bool Cache::GetRegData::perform(CassandraStore::Client* client,
         {
           _xml_ttl = ((it->column.timestamp/1000000) + it->column.ttl) - (now / 1000000);
         };
-        LOG_DEBUG("Retrieved XML column with TTL %d and value %s", _xml_ttl, _xml.c_str());
+        TRC_DEBUG("Retrieved XML column with TTL %d and value %s", _xml_ttl, _xml.c_str());
       }
       else if (it->column.name == REG_STATE_COLUMN_NAME)
       {
@@ -378,23 +378,23 @@ bool Cache::GetRegData::perform(CassandraStore::Client* client,
         if (it->column.value == CassandraStore::BOOLEAN_TRUE)
         {
           _reg_state = RegistrationState::REGISTERED;
-          LOG_DEBUG("Retrieved is_registered column with value True and TTL %d",
+          TRC_DEBUG("Retrieved is_registered column with value True and TTL %d",
                     _reg_state_ttl);
         }
         else if (it->column.value == CassandraStore::BOOLEAN_FALSE)
         {
           _reg_state = RegistrationState::UNREGISTERED;
-          LOG_DEBUG("Retrieved is_registered column with value False and TTL %d",
+          TRC_DEBUG("Retrieved is_registered column with value False and TTL %d",
                     _reg_state_ttl);
         }
         else if ((it->column.value == ""))
         {
-          LOG_DEBUG("Retrieved is_registered column with empty value and TTL %d",
+          TRC_DEBUG("Retrieved is_registered column with empty value and TTL %d",
                     _reg_state_ttl);
         }
         else
         {
-          LOG_WARNING("Registration state column has invalid value %d %s",
+          TRC_WARNING("Registration state column has invalid value %d %s",
                       it->column.value.c_str()[0],
                       it->column.value.c_str());
         };
@@ -407,25 +407,25 @@ bool Cache::GetRegData::perform(CassandraStore::Client* client,
       else if ((it->column.name == PRIMARY_CCF_COLUMN_NAME) && (it->column.value != ""))
       {
         _charging_addrs.ccfs.push_front(it->column.value);
-        LOG_DEBUG("Retrived primary_ccf column with value %s",
+        TRC_DEBUG("Retrived primary_ccf column with value %s",
                   it->column.value.c_str());
       }
       else if ((it->column.name == SECONDARY_CCF_COLUMN_NAME) && (it->column.value != ""))
       {
         _charging_addrs.ccfs.push_back(it->column.value);
-        LOG_DEBUG("Retrived secondary_ccf column with value %s",
+        TRC_DEBUG("Retrived secondary_ccf column with value %s",
                   it->column.value.c_str());
       }
       else if ((it->column.name == PRIMARY_ECF_COLUMN_NAME) && (it->column.value != ""))
       {
         _charging_addrs.ecfs.push_front(it->column.value);
-        LOG_DEBUG("Retrived primary_ecf column with value %s",
+        TRC_DEBUG("Retrived primary_ecf column with value %s",
                   it->column.value.c_str());
       }
       else if ((it->column.name == SECONDARY_ECF_COLUMN_NAME) && (it->column.value != ""))
       {
         _charging_addrs.ecfs.push_back(it->column.value);
-        LOG_DEBUG("Retrived secondary_ecf column with value %s",
+        TRC_DEBUG("Retrived secondary_ecf column with value %s",
                   it->column.value.c_str());
       }
     }
@@ -435,7 +435,7 @@ bool Cache::GetRegData::perform(CassandraStore::Client* client,
     // - they must be in UNREGISTERED state.
     if ((_reg_state == RegistrationState::NOT_REGISTERED) && !_xml.empty())
     {
-      LOG_DEBUG("Found stored XML for subscriber, treating as UNREGISTERED state");
+      TRC_DEBUG("Found stored XML for subscriber, treating as UNREGISTERED state");
       _reg_state = RegistrationState::UNREGISTERED;
     }
 
@@ -532,7 +532,7 @@ bool Cache::GetAssociatedPublicIDs::perform(CassandraStore::Client* client,
   std::map<std::string, std::vector<ColumnOrSuperColumn> > columns;
   std::set<std::string> public_ids;
 
-  LOG_DEBUG("Looking for public IDs for private ID %s and %d others",
+  TRC_DEBUG("Looking for public IDs for private ID %s and %d others",
             _private_ids.front().c_str(),
             _private_ids.size());
   try
@@ -544,7 +544,7 @@ bool Cache::GetAssociatedPublicIDs::perform(CassandraStore::Client* client,
   }
   catch(CassandraStore::RowNotFoundException& rnfe)
   {
-    LOG_INFO("Couldn't find any public IDs");
+    TRC_INFO("Couldn't find any public IDs");
   }
 
   // Convert the query results from a vector of columns to a vector containing
@@ -558,7 +558,7 @@ bool Cache::GetAssociatedPublicIDs::perform(CassandraStore::Client* client,
         column != key_it->second.end();
         ++column)
     {
-      LOG_DEBUG("Found associated public ID %s", column->column.name.c_str());
+      TRC_DEBUG("Found associated public ID %s", column->column.name.c_str());
       public_ids.insert(column->column.name);
     }
   }
@@ -600,7 +600,7 @@ bool Cache::GetAssociatedPrimaryPublicIDs::perform(CassandraStore::Client* clien
   std::set<std::string> public_ids_set;
   std::map<std::string, std::vector<ColumnOrSuperColumn> > columns;
 
-  LOG_DEBUG("Looking for primary public IDs for private ID %s and %d others", _private_ids.front().c_str(), _private_ids.size());
+  TRC_DEBUG("Looking for primary public IDs for private ID %s and %d others", _private_ids.front().c_str(), _private_ids.size());
   try
   {
     client->ha_multiget_columns_with_prefix(IMPI_MAPPING,
@@ -610,7 +610,7 @@ bool Cache::GetAssociatedPrimaryPublicIDs::perform(CassandraStore::Client* clien
   }
   catch(CassandraStore::RowNotFoundException& rnfe)
   {
-    LOG_INFO("Couldn't find any public IDs");
+    TRC_INFO("Couldn't find any public IDs");
   }
 
   // Convert the query results from a vector of columns to a vector containing
@@ -624,7 +624,7 @@ bool Cache::GetAssociatedPrimaryPublicIDs::perform(CassandraStore::Client* clien
         column != key_it->second.end();
         ++column)
     {
-      LOG_DEBUG("Found associated public ID %s", column->column.name.c_str());
+      TRC_DEBUG("Found associated public ID %s", column->column.name.c_str());
       public_ids_set.insert(column->column.name);
     }
   }
@@ -668,7 +668,7 @@ Cache::GetAuthVector::
 bool Cache::GetAuthVector::perform(CassandraStore::Client* client,
                                    SAS::TrailId trail)
 {
-  LOG_DEBUG("Looking for authentication vector for %s", _private_id.c_str());
+  TRC_DEBUG("Looking for authentication vector for %s", _private_id.c_str());
   std::vector<std::string> requested_columns;
   std::string public_id_col = "";
   bool public_id_requested = false;
@@ -681,7 +681,7 @@ bool Cache::GetAuthVector::perform(CassandraStore::Client* client,
 
   if (_public_id.length() > 0)
   {
-    LOG_DEBUG("Checking public ID %s", _public_id.c_str());
+    TRC_DEBUG("Checking public ID %s", _public_id.c_str());
     // We've been asked to verify the private ID has an associated public ID.
     // So request the public ID column as well.
     //
@@ -691,7 +691,7 @@ bool Cache::GetAuthVector::perform(CassandraStore::Client* client,
     public_id_requested = true;
   }
 
-  LOG_DEBUG("Issuing cache query");
+  TRC_DEBUG("Issuing cache query");
   std::vector<ColumnOrSuperColumn> results;
   client->ha_get_columns(IMPI, _private_id, requested_columns, results);
 
@@ -733,7 +733,7 @@ bool Cache::GetAuthVector::perform(CassandraStore::Client* client,
     _cass_error_text = (boost::format(
                         "Private ID '%s' exists but does not have associated public ID '%s'")
                          % _private_id % _public_id).str();
-    LOG_DEBUG("Cache query failed: %s", _cass_error_text.c_str());
+    TRC_DEBUG("Cache query failed: %s", _cass_error_text.c_str());
     return false;
   }
   else if (_auth_vector.ha1 == "")
@@ -741,7 +741,7 @@ bool Cache::GetAuthVector::perform(CassandraStore::Client* client,
     // The HA1 column was not found.  This cannot be defaulted so is an error.
     _cass_status = CassandraStore::NOT_FOUND;
     _cass_error_text = "HA1 column not found";
-    LOG_DEBUG("Cache query failed: %s", _cass_error_text.c_str());
+    TRC_DEBUG("Cache query failed: %s", _cass_error_text.c_str());
     return false;
   }
   else
@@ -925,7 +925,7 @@ bool Cache::DissociateImplicitRegistrationSetFromImpi::perform(CassandraStore::C
        it != _impis.end();
        ++it)
   {
-    LOG_DEBUG("Deleting association between primary public ID %s and IMPI %s", primary_public_id.c_str(), it->c_str());
+    TRC_DEBUG("Deleting association between primary public ID %s and IMPI %s", primary_public_id.c_str(), it->c_str());
     impu_columns_to_delete[IMPI_COLUMN_PREFIX + *it] = "";
     to_delete.push_back(CassandraStore::RowColumns(IMPI_MAPPING, *it, impi_columns_to_delete));
   }
@@ -939,7 +939,7 @@ bool Cache::DissociateImplicitRegistrationSetFromImpi::perform(CassandraStore::C
                                      primary_public_id,
                                      IMPI_COLUMN_PREFIX,
                                      columns);
-  LOG_DEBUG("%d IMPIs are associated with this IRS", columns.size());
+  TRC_DEBUG("%d IMPIs are associated with this IRS", columns.size());
 
   std::set<std::string> associated_impis_set;
 
@@ -961,11 +961,11 @@ bool Cache::DissociateImplicitRegistrationSetFromImpi::perform(CassandraStore::C
                       associated_impis_set.end(),
                       std::back_inserter(output));
 
-  LOG_DEBUG("Set difference: %d", output.size());
+  TRC_DEBUG("Set difference: %d", output.size());
 
   if (output.size() > 0)
   {
-    LOG_WARNING("DissociateImplicitRegistrationSetFromImpi was called but not all the provided IMPIs are associated with the IMPU");
+    TRC_WARNING("DissociateImplicitRegistrationSetFromImpi was called but not all the provided IMPIs are associated with the IMPU");
   }
 
   //  Are we deleting all the associated impis?
@@ -976,7 +976,7 @@ bool Cache::DissociateImplicitRegistrationSetFromImpi::perform(CassandraStore::C
                         associated_impis_set.begin(),
                         associated_impis_set.end(),
                         std::back_inserter(output));
-  LOG_DEBUG("Set intersection: %d %d", output.size(), associated_impis_set.size());
+  TRC_DEBUG("Set intersection: %d %d", output.size(), associated_impis_set.size());
 
   bool deleting_all_impis = (output.size() == associated_impis_set.size());
 

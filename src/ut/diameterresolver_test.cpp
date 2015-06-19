@@ -205,7 +205,7 @@ TEST_F(DiameterResolverTest, SimpleNAPTRSRVTCPResolution)
   records.push_back(a("sprout-1.cw-ngv.com", 3600, "3.0.0.1"));
   _dnsresolver.add_to_cache("sprout-1.cw-ngv.com", ns_t_a, records);
 
-  LOG_DEBUG("Cache status\n%s", _dnsresolver.display_cache().c_str());
+  TRC_DEBUG("Cache status\n%s", _dnsresolver.display_cache().c_str());
 
   EXPECT_EQ("3.0.0.1:3868;transport=TCP",
             RT(_diameterresolver, "sprout.cw-ngv.com").resolve());
@@ -224,7 +224,7 @@ TEST_F(DiameterResolverTest, SimpleNAPTRSRVSCTPResolution)
   records.push_back(a("sprout-1.cw-ngv.com", 3600, "3.0.0.1"));
   _dnsresolver.add_to_cache("sprout-1.cw-ngv.com", ns_t_a, records);
 
-  LOG_DEBUG("Cache status\n%s", _dnsresolver.display_cache().c_str());
+  TRC_DEBUG("Cache status\n%s", _dnsresolver.display_cache().c_str());
 
   EXPECT_EQ("3.0.0.1:3868;transport=SCTP",
             RT(_diameterresolver, "sprout.cw-ngv.com").resolve());
@@ -240,7 +240,7 @@ TEST_F(DiameterResolverTest, SimpleNAPTRATCPResolution)
   records.push_back(a("sprout-1.cw-ngv.com", 3600, "3.0.0.1"));
   _dnsresolver.add_to_cache("sprout-1.cw-ngv.com", ns_t_a, records);
 
-  LOG_DEBUG("Cache status\n%s", _dnsresolver.display_cache().c_str());
+  TRC_DEBUG("Cache status\n%s", _dnsresolver.display_cache().c_str());
 
   EXPECT_EQ("3.0.0.1:3868;transport=TCP",
   RT(_diameterresolver, "sprout.cw-ngv.com").resolve());
@@ -256,7 +256,7 @@ TEST_F(DiameterResolverTest, SimpleNAPTRASCTPResolution)
   records.push_back(a("sprout-1.cw-ngv.com", 3600, "3.0.0.1"));
   _dnsresolver.add_to_cache("sprout-1.cw-ngv.com", ns_t_a, records);
 
-  LOG_DEBUG("Cache status\n%s", _dnsresolver.display_cache().c_str());
+  TRC_DEBUG("Cache status\n%s", _dnsresolver.display_cache().c_str());
 
   EXPECT_EQ("3.0.0.1:3868;transport=SCTP",
   RT(_diameterresolver, "sprout.cw-ngv.com").resolve());
@@ -272,7 +272,7 @@ TEST_F(DiameterResolverTest, SimpleSRVTCPResolution)
   records.push_back(a("sprout-1.cw-ngv.com", 3600, "3.0.0.1"));
   _dnsresolver.add_to_cache("sprout-1.cw-ngv.com", ns_t_a, records);
 
-  LOG_DEBUG("Cache status\n%s", _dnsresolver.display_cache().c_str());
+  TRC_DEBUG("Cache status\n%s", _dnsresolver.display_cache().c_str());
 
   EXPECT_EQ("3.0.0.1:3868;transport=TCP",
             RT(_diameterresolver, "sprout.cw-ngv.com").resolve());
@@ -288,7 +288,7 @@ TEST_F(DiameterResolverTest, SimpleSRVSCTPResolution)
   records.push_back(a("sprout-1.cw-ngv.com", 3600, "3.0.0.1"));
   _dnsresolver.add_to_cache("sprout-1.cw-ngv.com", ns_t_a, records);
 
-  LOG_DEBUG("Cache status\n%s", _dnsresolver.display_cache().c_str());
+  TRC_DEBUG("Cache status\n%s", _dnsresolver.display_cache().c_str());
 
   EXPECT_EQ("3.0.0.1:3868;transport=SCTP",
             RT(_diameterresolver, "sprout.cw-ngv.com").resolve());
@@ -307,7 +307,7 @@ TEST_F(DiameterResolverTest, SimpleSRVTCPPreference)
   records.push_back(a("sprout-1.cw-ngv.com", 3600, "3.0.0.1"));
   _dnsresolver.add_to_cache("sprout-1.cw-ngv.com", ns_t_a, records);
 
-  LOG_DEBUG("Cache status\n%s", _dnsresolver.display_cache().c_str());
+  TRC_DEBUG("Cache status\n%s", _dnsresolver.display_cache().c_str());
 
   EXPECT_EQ("3.0.0.1:3868;transport=TCP",
             RT(_diameterresolver, "sprout.cw-ngv.com").resolve());
@@ -320,7 +320,7 @@ TEST_F(DiameterResolverTest, SimpleAResolution)
   records.push_back(a("sprout.cw-ngv.com", 3600, "3.0.0.1"));
   _dnsresolver.add_to_cache("sprout.cw-ngv.com", ns_t_a, records);
 
-  LOG_DEBUG("Cache status\n%s", _dnsresolver.display_cache().c_str());
+  TRC_DEBUG("Cache status\n%s", _dnsresolver.display_cache().c_str());
 
   // Test default port/transport.
   EXPECT_EQ("3.0.0.1:3868;transport=SCTP",
