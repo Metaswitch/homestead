@@ -106,7 +106,7 @@ UserAuthorizationRequest::UserAuthorizationRequest(const Dictionary* dict,
                                                    const std::string& authorization_type) :
                                                    Diameter::Message(dict, dict->USER_AUTHORIZATION_REQUEST, stack)
 {
-  LOG_DEBUG("Building User-Authorization request for %s/%s", impi.c_str(), impu.c_str());
+  TRC_DEBUG("Building User-Authorization request for %s/%s", impi.c_str(), impu.c_str());
   add_new_session_id();
   add_app_id(Diameter::Dictionary::Application::AUTH, dict->TGPP, dict->CX);
   add(Diameter::AVP(dict->AUTH_SESSION_STATE).val_i32(1));
@@ -144,7 +144,7 @@ UserAuthorizationAnswer::UserAuthorizationAnswer(const Dictionary* dict,
                                                  const ServerCapabilities& capabs) :
                                                  Diameter::Message(dict, dict->USER_AUTHORIZATION_ANSWER, stack)
 {
-  LOG_DEBUG("Building User-Authorization answer");
+  TRC_DEBUG("Building User-Authorization answer");
 
   // This method creates a UAA which is unrealistic for various reasons, but is useful for
   // testing our handlers code, which is currently all it is used for.
@@ -196,28 +196,28 @@ ServerCapabilities UserAuthorizationAnswer::server_capabilities() const
 
   // Server capabilities are grouped into mandatory capabilities and optional capabilities
   // underneath the SERVER_CAPABILITIES AVP.
-  LOG_DEBUG("Getting server capabilties from User-Authorization answer");
+  TRC_DEBUG("Getting server capabilties from User-Authorization answer");
   Diameter::AVP::iterator avps = begin(((Cx::Dictionary*)dict())->SERVER_CAPABILITIES);
   if (avps != end())
   {
     Diameter::AVP::iterator avps2 = avps->begin(((Cx::Dictionary*)dict())->MANDATORY_CAPABILITY);
     while (avps2 != avps->end())
     {
-      LOG_DEBUG("Found mandatory capability %d", avps2->val_i32());
+      TRC_DEBUG("Found mandatory capability %d", avps2->val_i32());
       server_capabilities.mandatory_capabilities.push_back(avps2->val_i32());
       avps2++;
     }
     avps2 = avps->begin(((Cx::Dictionary*)dict())->OPTIONAL_CAPABILITY);
     while (avps2 != avps->end())
     {
-      LOG_DEBUG("Found optional capability %d", avps2->val_i32());
+      TRC_DEBUG("Found optional capability %d", avps2->val_i32());
       server_capabilities.optional_capabilities.push_back(avps2->val_i32());
       avps2++;
     }
     avps2 = avps->begin(((Cx::Dictionary*)dict())->SERVER_NAME);
     if (avps2 != avps->end())
     {
-      LOG_DEBUG("Found server name %s", avps2->val_str().c_str());
+      TRC_DEBUG("Found server name %s", avps2->val_str().c_str());
       server_capabilities.server_name = avps2->val_str();
     }
   }
@@ -234,7 +234,7 @@ LocationInfoRequest::LocationInfoRequest(const Dictionary* dict,
                                          const std::string& authorization_type) :
                                          Diameter::Message(dict, dict->LOCATION_INFO_REQUEST, stack)
 {
-  LOG_DEBUG("Building Location-Info request for %s", impu.c_str());
+  TRC_DEBUG("Building Location-Info request for %s", impu.c_str());
   add_new_session_id();
   add_app_id(Diameter::Dictionary::Application::AUTH, dict->TGPP, dict->CX);
   add(Diameter::AVP(dict->AUTH_SESSION_STATE).val_i32(1));
@@ -269,7 +269,7 @@ LocationInfoAnswer::LocationInfoAnswer(const Dictionary* dict,
                                        const ServerCapabilities& capabs) :
                                        Diameter::Message(dict, dict->USER_AUTHORIZATION_ANSWER, stack)
 {
-  LOG_DEBUG("Building Location-Info answer");
+  TRC_DEBUG("Building Location-Info answer");
 
   // This method creates an LIA which is unrealistic for various reasons, but is useful for
   // testing our handlers code, which is currently all it is used for.
@@ -323,28 +323,28 @@ ServerCapabilities LocationInfoAnswer::server_capabilities() const
 
   // Server capabilities are grouped into mandatory capabilities and optional capabilities
   // underneath the SERVER_CAPABILITIES AVP.
-  LOG_DEBUG("Getting server capabilties from Location-Info answer");
+  TRC_DEBUG("Getting server capabilties from Location-Info answer");
   Diameter::AVP::iterator avps = begin(((Cx::Dictionary*)dict())->SERVER_CAPABILITIES);
   if (avps != end())
   {
     Diameter::AVP::iterator avps2 = avps->begin(((Cx::Dictionary*)dict())->MANDATORY_CAPABILITY);
     while (avps2 != avps->end())
     {
-      LOG_DEBUG("Found mandatory capability %d", avps2->val_i32());
+      TRC_DEBUG("Found mandatory capability %d", avps2->val_i32());
       server_capabilities.mandatory_capabilities.push_back(avps2->val_i32());
       avps2++;
     }
     avps2 = avps->begin(((Cx::Dictionary*)dict())->OPTIONAL_CAPABILITY);
     while (avps2 != avps->end())
     {
-      LOG_DEBUG("Found optional capability %d", avps2->val_i32());
+      TRC_DEBUG("Found optional capability %d", avps2->val_i32());
       server_capabilities.optional_capabilities.push_back(avps2->val_i32());
       avps2++;
     }
     avps2 = avps->begin(((Cx::Dictionary*)dict())->SERVER_NAME);
     if (avps2 != avps->end())
     {
-      LOG_DEBUG("Found server name %s", avps2->val_str().c_str());
+      TRC_DEBUG("Found server name %s", avps2->val_str().c_str());
       server_capabilities.server_name = avps2->val_str();
     }
   }
@@ -363,7 +363,7 @@ MultimediaAuthRequest::MultimediaAuthRequest(const Dictionary* dict,
                                              const std::string& sip_authorization) :
                                              Diameter::Message(dict, dict->MULTIMEDIA_AUTH_REQUEST, stack)
 {
-  LOG_DEBUG("Building Multimedia-Auth request for %s/%s", impi.c_str(), impu.c_str());
+  TRC_DEBUG("Building Multimedia-Auth request for %s/%s", impi.c_str(), impu.c_str());
   add_new_session_id();
   add_app_id(Diameter::Dictionary::Application::AUTH, dict->TGPP, dict->CX);
   add(Diameter::AVP(dict->AUTH_SESSION_STATE).val_i32(1));
@@ -379,7 +379,7 @@ MultimediaAuthRequest::MultimediaAuthRequest(const Dictionary* dict,
   sip_auth_data_item.add(Diameter::AVP(dict->SIP_AUTH_SCHEME).val_str(sip_auth_scheme));
   if (!sip_authorization.empty())
   {
-    LOG_DEBUG("Specifying SIP-Authorization %s", sip_authorization.c_str());
+    TRC_DEBUG("Specifying SIP-Authorization %s", sip_authorization.c_str());
     sip_auth_data_item.add(Diameter::AVP(dict->SIP_AUTHORIZATION).val_str(sip_authorization));
   }
   add(sip_auth_data_item);
@@ -397,7 +397,7 @@ std::string MultimediaAuthRequest::sip_auth_scheme() const
     if (avps2 != avps->end())
     {
       sip_auth_scheme = avps2->val_str();
-      LOG_DEBUG("Got SIP-Auth-Scheme %s", sip_auth_scheme.c_str());
+      TRC_DEBUG("Got SIP-Auth-Scheme %s", sip_auth_scheme.c_str());
     }
   }
   return sip_auth_scheme;
@@ -413,7 +413,7 @@ std::string MultimediaAuthRequest::sip_authorization() const
     if (avps2 != avps->end())
     {
       sip_authorization = avps2->val_str();
-      LOG_DEBUG("Got SIP-Authorization %s", sip_authorization.c_str());
+      TRC_DEBUG("Got SIP-Authorization %s", sip_authorization.c_str());
     }
   }
   return sip_authorization;
@@ -427,7 +427,7 @@ MultimediaAuthAnswer::MultimediaAuthAnswer(const Dictionary* dict,
                                            const AKAAuthVector& aka_av) :
                                            Diameter::Message(dict, dict->MULTIMEDIA_AUTH_ANSWER, stack)
 {
-  LOG_DEBUG("Building Multimedia-Authorization answer");
+  TRC_DEBUG("Building Multimedia-Authorization answer");
 
   // This method creates an MAA which is unrealistic for various reasons, but is useful for
   // testing our handlers code, which is currently all it is used for.
@@ -456,7 +456,7 @@ std::string MultimediaAuthAnswer::sip_auth_scheme() const
     if (avps != avps2->end())
     {
       sip_auth_scheme = avps2->val_str();
-      LOG_DEBUG("Got SIP-Auth-Scheme %s", sip_auth_scheme.c_str());
+      TRC_DEBUG("Got SIP-Auth-Scheme %s", sip_auth_scheme.c_str());
     }
   }
   return sip_auth_scheme;
@@ -464,7 +464,7 @@ std::string MultimediaAuthAnswer::sip_auth_scheme() const
 
 DigestAuthVector MultimediaAuthAnswer::digest_auth_vector() const
 {
-  LOG_DEBUG("Getting digest authentication vector from Multimedia-Auth answer");
+  TRC_DEBUG("Getting digest authentication vector from Multimedia-Auth answer");
   DigestAuthVector digest_auth_vector;
   Diameter::AVP::iterator avps = begin(((Cx::Dictionary*)dict())->SIP_AUTH_DATA_ITEM);
   if (avps != end())
@@ -477,7 +477,7 @@ DigestAuthVector MultimediaAuthAnswer::digest_auth_vector() const
       if (avps3 != avps2->end())
       {
         digest_auth_vector.ha1 = avps3->val_str();
-        LOG_DEBUG("Found Digest-HA1 %s", digest_auth_vector.ha1.c_str());
+        TRC_DEBUG("Found Digest-HA1 %s", digest_auth_vector.ha1.c_str());
       }
       else
       {
@@ -486,7 +486,7 @@ DigestAuthVector MultimediaAuthAnswer::digest_auth_vector() const
         if (avps3 != avps2->end())
         {
           digest_auth_vector.ha1 = avps3->val_str();
-          LOG_DEBUG("Found (non-3GPP) Digest-HA1 %s", digest_auth_vector.ha1.c_str());
+          TRC_DEBUG("Found (non-3GPP) Digest-HA1 %s", digest_auth_vector.ha1.c_str());
         }
       }
       // Look for the realm.
@@ -494,7 +494,7 @@ DigestAuthVector MultimediaAuthAnswer::digest_auth_vector() const
       if (avps3 != avps2->end())
       {
         digest_auth_vector.realm = avps3->val_str();
-        LOG_DEBUG("Found Digest-Realm %s", digest_auth_vector.realm.c_str());
+        TRC_DEBUG("Found Digest-Realm %s", digest_auth_vector.realm.c_str());
       }
       else
       {
@@ -503,7 +503,7 @@ DigestAuthVector MultimediaAuthAnswer::digest_auth_vector() const
         if (avps3 != avps2->end())
         {
           digest_auth_vector.realm = avps3->val_str();
-          LOG_DEBUG("Found (non-3GPP) Digest-Realm %s", digest_auth_vector.realm.c_str());
+          TRC_DEBUG("Found (non-3GPP) Digest-Realm %s", digest_auth_vector.realm.c_str());
         }
       }
       // Look for the QoP.
@@ -511,7 +511,7 @@ DigestAuthVector MultimediaAuthAnswer::digest_auth_vector() const
       if (avps3 != avps2->end())
       {
         digest_auth_vector.qop = avps3->val_str();
-        LOG_DEBUG("Found Digest-QoP %s", digest_auth_vector.qop.c_str());
+        TRC_DEBUG("Found Digest-QoP %s", digest_auth_vector.qop.c_str());
       }
       else
       {
@@ -520,7 +520,7 @@ DigestAuthVector MultimediaAuthAnswer::digest_auth_vector() const
         if (avps3 != avps2->end())
         {
           digest_auth_vector.qop = avps3->val_str();
-          LOG_DEBUG("Found (non-3GPP) Digest-QoP %s", digest_auth_vector.qop.c_str());
+          TRC_DEBUG("Found (non-3GPP) Digest-QoP %s", digest_auth_vector.qop.c_str());
         }
       }
     }
@@ -530,7 +530,7 @@ DigestAuthVector MultimediaAuthAnswer::digest_auth_vector() const
 
 AKAAuthVector MultimediaAuthAnswer::aka_auth_vector() const
 {
-  LOG_DEBUG("Getting AKA authentication vector from Multimedia-Auth answer");
+  TRC_DEBUG("Getting AKA authentication vector from Multimedia-Auth answer");
   AKAAuthVector aka_auth_vector;
   Diameter::AVP::iterator avps = begin(((Cx::Dictionary*)dict())->SIP_AUTH_DATA_ITEM);
   if (avps != end())
@@ -542,7 +542,7 @@ AKAAuthVector MultimediaAuthAnswer::aka_auth_vector() const
       size_t len;
       const uint8_t* data = avps2->val_os(len);
       aka_auth_vector.challenge = base64(data, len);
-      LOG_DEBUG("Found SIP-Authenticate (challenge) %s", aka_auth_vector.challenge.c_str());
+      TRC_DEBUG("Found SIP-Authenticate (challenge) %s", aka_auth_vector.challenge.c_str());
     }
     // Look for the response.
     avps2 = avps->begin(((Cx::Dictionary*)dict())->SIP_AUTHORIZATION);
@@ -551,7 +551,7 @@ AKAAuthVector MultimediaAuthAnswer::aka_auth_vector() const
       size_t len;
       const uint8_t* data = avps2->val_os(len);
       aka_auth_vector.response = hex(data, len);
-      LOG_DEBUG("Found SIP-Authorization (response) %s", aka_auth_vector.response.c_str());
+      TRC_DEBUG("Found SIP-Authorization (response) %s", aka_auth_vector.response.c_str());
     }
     // Look for the encryption key.
     avps2 = avps->begin(((Cx::Dictionary*)dict())->CONFIDENTIALITY_KEY);
@@ -560,7 +560,7 @@ AKAAuthVector MultimediaAuthAnswer::aka_auth_vector() const
       size_t len;
       const uint8_t* data = avps2->val_os(len);
       aka_auth_vector.crypt_key = hex(data, len);
-      LOG_DEBUG("Found Confidentiality-Key %s", aka_auth_vector.crypt_key.c_str());
+      TRC_DEBUG("Found Confidentiality-Key %s", aka_auth_vector.crypt_key.c_str());
     }
     // Look for the integrity key.
     avps2 = avps->begin(((Cx::Dictionary*)dict())->INTEGRITY_KEY);
@@ -569,7 +569,7 @@ AKAAuthVector MultimediaAuthAnswer::aka_auth_vector() const
       size_t len;
       const uint8_t* data = avps2->val_os(len);
       aka_auth_vector.integrity_key = hex(data, len);
-      LOG_DEBUG("Found Integrity-Key %s", aka_auth_vector.integrity_key.c_str());
+      TRC_DEBUG("Found Integrity-Key %s", aka_auth_vector.integrity_key.c_str());
     }
   }
   return aka_auth_vector;
@@ -615,7 +615,7 @@ ServerAssignmentRequest::ServerAssignmentRequest(const Dictionary* dict,
                                                  const Cx::ServerAssignmentType type) :
                                                  Diameter::Message(dict, dict->SERVER_ASSIGNMENT_REQUEST, stack)
 {
-  LOG_DEBUG("Building Server-Assignment request for %s/%s", impi.c_str(), impu.c_str());
+  TRC_DEBUG("Building Server-Assignment request for %s/%s", impi.c_str(), impu.c_str());
   add_new_session_id();
   add_app_id(Diameter::Dictionary::Application::AUTH, dict->TGPP, dict->CX);
   add(Diameter::AVP(dict->AUTH_SESSION_STATE).val_i32(1));
@@ -627,7 +627,7 @@ ServerAssignmentRequest::ServerAssignmentRequest(const Dictionary* dict,
   add(Diameter::AVP(dict->DESTINATION_REALM).val_str(dest_realm));
   if (!impi.empty())
   {
-    LOG_DEBUG("Specifying User-Name %s", impi.c_str());
+    TRC_DEBUG("Specifying User-Name %s", impi.c_str());
     add(Diameter::AVP(dict->USER_NAME).val_str(impi));
   }
   add(Diameter::AVP(dict->PUBLIC_IDENTITY).val_str(impu));
@@ -643,7 +643,7 @@ ServerAssignmentAnswer::ServerAssignmentAnswer(const Dictionary* dict,
                                                const ChargingAddresses& charging_addrs) :
                                                Diameter::Message(dict, dict->SERVER_ASSIGNMENT_ANSWER, stack)
 {
-  LOG_DEBUG("Building Server-Assignment answer");
+  TRC_DEBUG("Building Server-Assignment answer");
 
   // This method creates an SAA which is unrealistic for various reasons, but is useful for
   // testing our handlers code, which is currently all it is used for.
@@ -654,25 +654,25 @@ ServerAssignmentAnswer::ServerAssignmentAnswer(const Dictionary* dict,
     Diameter::AVP charging_information(dict->CHARGING_INFORMATION);
     if (!charging_addrs.ccfs.empty())
     {
-      LOG_DEBUG("Adding Primary-Charging-Collection-Function-Name %s", charging_addrs.ccfs[0].c_str());
+      TRC_DEBUG("Adding Primary-Charging-Collection-Function-Name %s", charging_addrs.ccfs[0].c_str());
       charging_information.add(Diameter::AVP(dict->PRIMARY_CHARGING_COLLECTION_FUNCTION_NAME).
                                val_str(charging_addrs.ccfs[0]));
     }
     if (charging_addrs.ccfs.size() > 1)
     {
-      LOG_DEBUG("Adding Secondary-Charging-Collection-Function-Name %s", charging_addrs.ccfs[1].c_str());
+      TRC_DEBUG("Adding Secondary-Charging-Collection-Function-Name %s", charging_addrs.ccfs[1].c_str());
       charging_information.add(Diameter::AVP(dict->SECONDARY_CHARGING_COLLECTION_FUNCTION_NAME).
                                val_str(charging_addrs.ccfs[1]));
     }
     if (!charging_addrs.ecfs.empty())
     {
-      LOG_DEBUG("Adding Primary-Event-Charging-Function-Name %s", charging_addrs.ecfs[0].c_str());
+      TRC_DEBUG("Adding Primary-Event-Charging-Function-Name %s", charging_addrs.ecfs[0].c_str());
       charging_information.add(Diameter::AVP(dict->PRIMARY_EVENT_CHARGING_FUNCTION_NAME).
                                val_str(charging_addrs.ecfs[0]));
     }
     if (charging_addrs.ccfs.size() > 1)
     {
-      LOG_DEBUG("Adding Secondary-Event-Charging-Function-Name %s", charging_addrs.ecfs[1].c_str());
+      TRC_DEBUG("Adding Secondary-Event-Charging-Function-Name %s", charging_addrs.ecfs[1].c_str());
       charging_information.add(Diameter::AVP(dict->SECONDARY_EVENT_CHARGING_FUNCTION_NAME).
                                val_str(charging_addrs.ecfs[1]));
     }
@@ -691,28 +691,28 @@ void ServerAssignmentAnswer::charging_addrs(ChargingAddresses& charging_addrs) c
     if (avps2 != avps->end())
     {
       charging_addrs.ccfs.push_back(avps2->val_str());
-      LOG_DEBUG("Found Primary-Charging-Collection-Function-Name %s", avps2->val_str().c_str());
+      TRC_DEBUG("Found Primary-Charging-Collection-Function-Name %s", avps2->val_str().c_str());
     }
 
     avps2 = avps->begin(((Cx::Dictionary*)dict())->SECONDARY_CHARGING_COLLECTION_FUNCTION_NAME);
     if (avps2 != avps->end())
     {
       charging_addrs.ccfs.push_back(avps2->val_str());
-      LOG_DEBUG("Found Secondary-Charging-Collection-Function-Name %s", avps2->val_str().c_str());
+      TRC_DEBUG("Found Secondary-Charging-Collection-Function-Name %s", avps2->val_str().c_str());
     }
 
     avps2 = avps->begin(((Cx::Dictionary*)dict())->PRIMARY_EVENT_CHARGING_FUNCTION_NAME);
     if (avps2 != avps->end())
     {
       charging_addrs.ecfs.push_back(avps2->val_str());
-      LOG_DEBUG("Found Primary-Event-Charging-Function-Name %s", avps2->val_str().c_str());
+      TRC_DEBUG("Found Primary-Event-Charging-Function-Name %s", avps2->val_str().c_str());
     }
 
     avps2 = avps->begin(((Cx::Dictionary*)dict())->SECONDARY_EVENT_CHARGING_FUNCTION_NAME);
     if (avps2 != avps->end())
     {
       charging_addrs.ecfs.push_back(avps2->val_str());
-      LOG_DEBUG("Found Secondary-Event-Charging-Function-Name %s", avps2->val_str().c_str());
+      TRC_DEBUG("Found Secondary-Event-Charging-Function-Name %s", avps2->val_str().c_str());
     }
   }
 }
@@ -726,7 +726,7 @@ RegistrationTerminationRequest::RegistrationTerminationRequest(const Dictionary*
                                                                const int32_t& auth_session_state) :
                                                                Diameter::Message(dict, dict->REGISTRATION_TERMINATION_REQUEST, stack)
 {
-  LOG_DEBUG("Building Registration-Termination request");
+  TRC_DEBUG("Building Registration-Termination request");
   add(Diameter::AVP(dict->AUTH_SESSION_STATE).val_i32(auth_session_state));
   add(Diameter::AVP(dict->USER_NAME).val_str(impi));
   if (!associated_identities.empty())
@@ -736,7 +736,7 @@ RegistrationTerminationRequest::RegistrationTerminationRequest(const Dictionary*
          it != associated_identities.end();
          ++it)
     {
-      LOG_DEBUG("Adding Associated-Identities/User-Name %s", it->c_str());
+      TRC_DEBUG("Adding Associated-Identities/User-Name %s", it->c_str());
       associated_identities_avp.add(Diameter::AVP(dict->USER_NAME).val_str(*it));
     }
     add(associated_identities_avp);
@@ -747,7 +747,7 @@ RegistrationTerminationRequest::RegistrationTerminationRequest(const Dictionary*
          it != impus.end();
          ++it)
     {
-      LOG_DEBUG("Adding Public-Identity %s", it->c_str());
+      TRC_DEBUG("Adding Public-Identity %s", it->c_str());
       add(Diameter::AVP(dict->PUBLIC_IDENTITY).val_str(*it));
     }
   }
@@ -761,14 +761,14 @@ std::vector<std::string> RegistrationTerminationRequest::associated_identities()
   std::vector<std::string> associated_identities;
 
   // Associated Identities are found in USER_NAME AVPS inside the ASSOCIATED_IDENTITIES AVP.
-  LOG_DEBUG("Getting Associated-Identities from Registration-Termination request");
+  TRC_DEBUG("Getting Associated-Identities from Registration-Termination request");
   Diameter::AVP::iterator avps = begin(((Cx::Dictionary*)dict())->ASSOCIATED_IDENTITIES);
   if (avps != end())
   {
     Diameter::AVP::iterator avps2 = avps->begin(dict()->USER_NAME);
     while (avps2 != avps->end())
     {
-      LOG_DEBUG("Found User-Name %s", avps2->val_str().c_str());
+      TRC_DEBUG("Found User-Name %s", avps2->val_str().c_str());
       associated_identities.push_back(avps2->val_str());
       avps2++;
     }
@@ -781,11 +781,11 @@ std::vector<std::string> RegistrationTerminationRequest::impus() const
   std::vector<std::string> impus;
 
   // Find all the PUBLIC_IDENTITY AVPS.
-  LOG_DEBUG("Getting Public-Identities from Registration-Termination request");
+  TRC_DEBUG("Getting Public-Identities from Registration-Termination request");
   Diameter::AVP::iterator avps = begin(((Cx::Dictionary*)dict())->PUBLIC_IDENTITY);
   while (avps != end())
   {
-    LOG_DEBUG("Found Public-Identity %s", avps->val_str().c_str());
+    TRC_DEBUG("Found Public-Identity %s", avps->val_str().c_str());
     impus.push_back(avps->val_str());
     avps++;
   }
@@ -802,7 +802,7 @@ int32_t RegistrationTerminationRequest::deregistration_reason() const
     if (avps2 != avps->end())
     {
       deregistration_reason = avps2->val_i32();
-      LOG_DEBUG("Got Deregistration Reason-Code %d", deregistration_reason);
+      TRC_DEBUG("Got Deregistration Reason-Code %d", deregistration_reason);
     }
   }
   return deregistration_reason;
@@ -815,7 +815,7 @@ RegistrationTerminationAnswer::RegistrationTerminationAnswer(Cx::RegistrationTer
                                                              std::vector<std::string> associated_identities) :
                                                              Diameter::Message(rtr)
 {
-  LOG_DEBUG("Building Registration-Termination answer");
+  TRC_DEBUG("Building Registration-Termination answer");
   build_response(rtr);
   add_app_id(Diameter::Dictionary::Application::AUTH, dict->TGPP, dict->CX);
   set_result_code(result_code);
@@ -829,7 +829,7 @@ RegistrationTerminationAnswer::RegistrationTerminationAnswer(Cx::RegistrationTer
          it != associated_identities.end();
          ++it)
     {
-      LOG_DEBUG("Adding Associated-Identities/User-Name %s", it->c_str());
+      TRC_DEBUG("Adding Associated-Identities/User-Name %s", it->c_str());
       associated_identities_avp.add(Diameter::AVP(dict->USER_NAME).val_str(*it));
     }
     add(associated_identities_avp);
@@ -841,14 +841,14 @@ std::vector<std::string> RegistrationTerminationAnswer::associated_identities() 
   std::vector<std::string> associated_identities;
 
   // Associated Identities are found in USER_NAME AVPS inside the ASSOCIATED_IDENTITIES AVP.
-  LOG_DEBUG("Getting Associated-Identities from Registration-Termination answer");
+  TRC_DEBUG("Getting Associated-Identities from Registration-Termination answer");
   Diameter::AVP::iterator avps = begin(((Cx::Dictionary*)dict())->ASSOCIATED_IDENTITIES);
   if (avps != end())
   {
     Diameter::AVP::iterator avps2 = avps->begin(dict()->USER_NAME);
     while (avps2 != avps->end())
     {
-      LOG_DEBUG("Found User-Name %s", avps2->val_str().c_str());
+      TRC_DEBUG("Found User-Name %s", avps2->val_str().c_str());
       associated_identities.push_back(avps2->val_str());
       avps2++;
     }
@@ -864,7 +864,7 @@ PushProfileRequest::PushProfileRequest(const Dictionary* dict,
                                        const int32_t& auth_session_state) :
                                        Diameter::Message(dict, dict->PUSH_PROFILE_REQUEST, stack)
 {
-  LOG_DEBUG("Building Push-Profile request");
+  TRC_DEBUG("Building Push-Profile request");
   add(Diameter::AVP(dict->USER_NAME).val_str(impi));
   if (!ims_subscription.empty())
   {
@@ -876,25 +876,25 @@ PushProfileRequest::PushProfileRequest(const Dictionary* dict,
     Diameter::AVP charging_information(dict->CHARGING_INFORMATION);
     if (!charging_addrs.ccfs.empty())
     {
-      LOG_DEBUG("Adding Primary-Charging-Collection-Function-Name %s", charging_addrs.ccfs[0].c_str());
+      TRC_DEBUG("Adding Primary-Charging-Collection-Function-Name %s", charging_addrs.ccfs[0].c_str());
       charging_information.add(Diameter::AVP(dict->PRIMARY_CHARGING_COLLECTION_FUNCTION_NAME).
                                val_str(charging_addrs.ccfs[0]));
     }
     if (charging_addrs.ccfs.size() > 1)
     {
-      LOG_DEBUG("Adding Secondary-Charging-Collection-Function-Name %s", charging_addrs.ccfs[1].c_str());
+      TRC_DEBUG("Adding Secondary-Charging-Collection-Function-Name %s", charging_addrs.ccfs[1].c_str());
       charging_information.add(Diameter::AVP(dict->SECONDARY_CHARGING_COLLECTION_FUNCTION_NAME).
                                val_str(charging_addrs.ccfs[1]));
     }
     if (!charging_addrs.ecfs.empty())
     {
-      LOG_DEBUG("Adding Primary-Event-Charging-Function-Name %s", charging_addrs.ecfs[0].c_str());
+      TRC_DEBUG("Adding Primary-Event-Charging-Function-Name %s", charging_addrs.ecfs[0].c_str());
       charging_information.add(Diameter::AVP(dict->PRIMARY_EVENT_CHARGING_FUNCTION_NAME).
                                val_str(charging_addrs.ecfs[0]));
     }
     if (charging_addrs.ccfs.size() > 1)
     {
-      LOG_DEBUG("Adding Secondary-Event-Charging-Function-Name %s", charging_addrs.ecfs[1].c_str());
+      TRC_DEBUG("Adding Secondary-Event-Charging-Function-Name %s", charging_addrs.ecfs[1].c_str());
       charging_information.add(Diameter::AVP(dict->SECONDARY_EVENT_CHARGING_FUNCTION_NAME).
                                val_str(charging_addrs.ecfs[1]));
     }
@@ -918,28 +918,28 @@ bool PushProfileRequest::charging_addrs(ChargingAddresses& charging_addrs) const
     if (avps2 != avps->end())
     {
       charging_addrs.ccfs.push_back(avps2->val_str());
-      LOG_DEBUG("Found Primary-Charging-Collection-Function-Name %s", avps2->val_str().c_str());
+      TRC_DEBUG("Found Primary-Charging-Collection-Function-Name %s", avps2->val_str().c_str());
     }
 
     avps2 = avps->begin(((Cx::Dictionary*)dict())->SECONDARY_CHARGING_COLLECTION_FUNCTION_NAME);
     if (avps2 != avps->end())
     {
       charging_addrs.ccfs.push_back(avps2->val_str());
-      LOG_DEBUG("Found Secondary-Charging-Collection-Function-Name %s", avps2->val_str().c_str());
+      TRC_DEBUG("Found Secondary-Charging-Collection-Function-Name %s", avps2->val_str().c_str());
     }
 
     avps2 = avps->begin(((Cx::Dictionary*)dict())->PRIMARY_EVENT_CHARGING_FUNCTION_NAME);
     if (avps2 != avps->end())
     {
       charging_addrs.ecfs.push_back(avps2->val_str());
-      LOG_DEBUG("Found Primary-Event-Charging-Function-Name %s", avps2->val_str().c_str());
+      TRC_DEBUG("Found Primary-Event-Charging-Function-Name %s", avps2->val_str().c_str());
     }
 
     avps2 = avps->begin(((Cx::Dictionary*)dict())->SECONDARY_EVENT_CHARGING_FUNCTION_NAME);
     if (avps2 != avps->end())
     {
       charging_addrs.ecfs.push_back(avps2->val_str());
-      LOG_DEBUG("Found Secondary-Event-Charging-Function-Name %s", avps2->val_str().c_str());
+      TRC_DEBUG("Found Secondary-Event-Charging-Function-Name %s", avps2->val_str().c_str());
     }
   }
   return found_charging_info;
@@ -952,7 +952,7 @@ PushProfileAnswer::PushProfileAnswer(Cx::PushProfileRequest& ppr,
                                      Diameter::Message(ppr)
 
 {
-  LOG_DEBUG("Building Push-Profile answer");
+  TRC_DEBUG("Building Push-Profile answer");
   build_response(ppr);
   add_app_id(Diameter::Dictionary::Application::AUTH, dict->TGPP, dict->CX);
   set_result_code(result_code);

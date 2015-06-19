@@ -255,92 +255,92 @@ int init_options(int argc, char**argv, struct options& options)
     switch (opt)
     {
     case 'l':
-      LOG_INFO("Local host: %s", optarg);
+      TRC_INFO("Local host: %s", optarg);
       options.local_host = std::string(optarg);
       break;
 
     case 'r':
-      LOG_INFO("Home domain: %s", optarg);
+      TRC_INFO("Home domain: %s", optarg);
       options.home_domain = std::string(optarg);
       break;
 
     case 'c':
-      LOG_INFO("Diameter configuration file: %s", optarg);
+      TRC_INFO("Diameter configuration file: %s", optarg);
       options.diameter_conf = std::string(optarg);
       break;
 
     case 'H':
-      LOG_INFO("HTTP address: %s", optarg);
+      TRC_INFO("HTTP address: %s", optarg);
       options.http_address = std::string(optarg);
       break;
 
     case 't':
-      LOG_INFO("HTTP threads: %s", optarg);
+      TRC_INFO("HTTP threads: %s", optarg);
       options.http_threads = atoi(optarg);
       break;
 
     case 'u':
-      LOG_INFO("Cache threads: %s", optarg);
+      TRC_INFO("Cache threads: %s", optarg);
       options.cache_threads = atoi(optarg);
       break;
 
     case 'S':
-      LOG_INFO("Cassandra host: %s", optarg);
+      TRC_INFO("Cassandra host: %s", optarg);
       options.cassandra = std::string(optarg);
       break;
 
     case 'D':
-      LOG_INFO("Destination realm: %s", optarg);
+      TRC_INFO("Destination realm: %s", optarg);
       options.dest_realm = std::string(optarg);
       break;
 
     case 'd':
-      LOG_INFO("Destination host: %s", optarg);
+      TRC_INFO("Destination host: %s", optarg);
       options.dest_host = std::string(optarg);
       break;
 
     case 'p':
-      LOG_INFO("Maximum peers: %s", optarg);
+      TRC_INFO("Maximum peers: %s", optarg);
       options.max_peers = atoi(optarg);
       break;
 
     case 's':
-      LOG_INFO("Server name: %s", optarg);
+      TRC_INFO("Server name: %s", optarg);
       options.server_name = std::string(optarg);
       break;
 
     case 'i':
-      LOG_INFO("IMPU cache TTL: %s", optarg);
+      TRC_INFO("IMPU cache TTL: %s", optarg);
       options.impu_cache_ttl = atoi(optarg);
       break;
 
     case 'I':
-      LOG_INFO("HSS reregistration time: %s", optarg);
+      TRC_INFO("HSS reregistration time: %s", optarg);
       options.hss_reregistration_time = atoi(optarg);
       break;
 
     case 'j':
-      LOG_INFO("Sprout HTTP name: %s", optarg);
+      TRC_INFO("Sprout HTTP name: %s", optarg);
       options.sprout_http_name = std::string(optarg);
       break;
 
     case SCHEME_UNKNOWN:
-      LOG_INFO("Scheme unknown: %s", optarg);
+      TRC_INFO("Scheme unknown: %s", optarg);
       options.scheme_unknown = std::string(optarg);
       break;
 
     case SCHEME_DIGEST:
-      LOG_INFO("Scheme digest: %s", optarg);
+      TRC_INFO("Scheme digest: %s", optarg);
       options.scheme_digest = std::string(optarg);
       break;
 
     case SCHEME_AKA:
-      LOG_INFO("Scheme AKA: %s", optarg);
+      TRC_INFO("Scheme AKA: %s", optarg);
       options.scheme_aka = std::string(optarg);
       break;
 
     case 'a':
-      LOG_INFO("Access log: %s", optarg);
+      TRC_INFO("Access log: %s", optarg);
       options.access_log_enabled = true;
       options.access_log_directory = std::string(optarg);
       break;
@@ -353,31 +353,31 @@ int init_options(int argc, char**argv, struct options& options)
         {
           options.sas_server = sas_options[0];
           options.sas_system_name = sas_options[1];
-          LOG_INFO("SAS set to %s\n", options.sas_server.c_str());
-          LOG_INFO("System name is set to %s\n", options.sas_system_name.c_str());
+          TRC_INFO("SAS set to %s\n", options.sas_server.c_str());
+          TRC_INFO("System name is set to %s\n", options.sas_system_name.c_str());
         }
         else
         {
           CL_HOMESTEAD_INVALID_SAS_OPTION.log();
-          LOG_WARNING("Invalid --sas option, SAS disabled\n");
+          TRC_WARNING("Invalid --sas option, SAS disabled\n");
         }
       }
       break;
 
     case DIAMETER_TIMEOUT_MS:
-      LOG_INFO("Diameter timeout: %s", optarg);
+      TRC_INFO("Diameter timeout: %s", optarg);
       options.diameter_timeout_ms = atoi(optarg);
       break;
 
     case ALARMS_ENABLED:
-      LOG_INFO("SNMP alarms are enabled");
+      TRC_INFO("SNMP alarms are enabled");
       options.alarms_enabled = true;
       break;
 
     case DNS_SERVER:
       options.dns_servers.clear();
       Utils::split_string(std::string(optarg), ',', options.dns_servers, 0, false);
-      LOG_INFO("%d DNS servers passed on the command line",
+      TRC_INFO("%d DNS servers passed on the command line",
                options.dns_servers.size());
       break;
 
@@ -385,7 +385,7 @@ int init_options(int argc, char**argv, struct options& options)
       options.target_latency_us = atoi(optarg);
       if (options.target_latency_us <= 0)
       {
-        LOG_ERROR("Invalid --target-latency-us option %s", optarg);
+        TRC_ERROR("Invalid --target-latency-us option %s", optarg);
         return -1;
       }
       break;
@@ -394,7 +394,7 @@ int init_options(int argc, char**argv, struct options& options)
       options.max_tokens = atoi(optarg);
       if (options.max_tokens <= 0)
       {
-        LOG_ERROR("Invalid --max-tokens option %s", optarg);
+        TRC_ERROR("Invalid --max-tokens option %s", optarg);
         return -1;
       }
       break;
@@ -403,7 +403,7 @@ int init_options(int argc, char**argv, struct options& options)
       options.init_token_rate = atoi(optarg);
       if (options.init_token_rate <= 0)
       {
-        LOG_ERROR("Invalid --init-token-rate option %s", optarg);
+        TRC_ERROR("Invalid --init-token-rate option %s", optarg);
         return -1;
       }
       break;
@@ -412,26 +412,26 @@ int init_options(int argc, char**argv, struct options& options)
       options.min_token_rate = atoi(optarg);
       if (options.min_token_rate <= 0)
       {
-        LOG_ERROR("Invalid --min-token-rate option %s", optarg);
+        TRC_ERROR("Invalid --min-token-rate option %s", optarg);
         return -1;
       }
       break;
 
     case EXCEPTION_MAX_TTL:
       options.exception_max_ttl = atoi(optarg);
-      LOG_INFO("Max TTL after an exception set to %d",
+      TRC_INFO("Max TTL after an exception set to %d",
                options.exception_max_ttl);
       break;
 
     case HTTP_BLACKLIST_DURATION:
       options.http_blacklist_duration = atoi(optarg);
-      LOG_INFO("HTTP blacklist duration set to %d",
+      TRC_INFO("HTTP blacklist duration set to %d",
                options.http_blacklist_duration);
       break;
 
     case DIAMETER_BLACKLIST_DURATION:
       options.diameter_blacklist_duration = atoi(optarg);
-      LOG_INFO("Diameter blacklist duration set to %d",
+      TRC_INFO("Diameter blacklist duration set to %d",
                options.diameter_blacklist_duration);
       break;
 
@@ -446,7 +446,7 @@ int init_options(int argc, char**argv, struct options& options)
 
     default:
       CL_HOMESTEAD_INVALID_OPTION_C.log(opt);
-      LOG_ERROR("Unknown option. Run with --help for options.\n");
+      TRC_ERROR("Unknown option. Run with --help for options.\n");
       return -1;
     }
   }
@@ -471,11 +471,11 @@ void signal_handler(int sig)
   signal(SIGSEGV, signal_handler);
 
   // Log the signal, along with a backtrace.
-  LOG_BACKTRACE("Signal %d caught", sig);
+  TRC_BACKTRACE("Signal %d caught", sig);
 
   // Ensure the log files are complete - the core file created by abort() below
   // will trigger the log files to be copied to the diags bundle
-  LOG_COMMIT();
+  TRC_COMMIT();
 
   // Check if there's a stored jmp_buf on the thread and handle if there is
   exception_handler->handle_exception();
@@ -561,7 +561,7 @@ int main(int argc, char**argv)
     Log::setLogger(new Logger(options.log_directory, prog_name));
   }
 
-  LOG_STATUS("Log level set to %d", options.log_level);
+  TRC_STATUS("Log level set to %d", options.log_level);
 
   std::stringstream options_ss;
   for (int ii = 0; ii < argc; ii++)
@@ -571,7 +571,7 @@ int main(int argc, char**argv)
   }
   std::string options_str = "Command-line options were: " + options_ss.str();
 
-  LOG_INFO(options_str.c_str());
+  TRC_INFO(options_str.c_str());
 
   if (init_options(argc, argv, options) != 0)
   {
@@ -582,7 +582,7 @@ int main(int argc, char**argv)
   AccessLogger* access_logger = NULL;
   if (options.access_log_enabled)
   {
-    LOG_STATUS("Access logging enabled to %s", options.access_log_directory.c_str());
+    TRC_STATUS("Access logging enabled to %s", options.access_log_directory.c_str());
     access_logger = new AccessLogger(options.access_log_directory);
   }
 
@@ -591,7 +591,7 @@ int main(int argc, char**argv)
   struct in6_addr dummy_addr;
   if (inet_pton(AF_INET6, options.local_host.c_str(), &dummy_addr) == 1)
   {
-    LOG_DEBUG("Local host is an IPv6 address");
+    TRC_DEBUG("Local host is an IPv6 address");
     af = AF_INET6;
   }
 
@@ -683,8 +683,8 @@ int main(int argc, char**argv)
   {
     CL_HOMESTEAD_CASSANDRA_CACHE_INIT_FAIL.log(rc);
     closelog();
-    LOG_ERROR("Failed to initialize the Cassandra cache with error code %d.", rc);
-    LOG_STATUS("Homestead is shutting down");
+    TRC_ERROR("Failed to initialize the Cassandra cache with error code %d.", rc);
+    TRC_STATUS("Homestead is shutting down");
     exit(2);
   }
 
@@ -729,8 +729,8 @@ int main(int argc, char**argv)
   {
     CL_HOMESTEAD_DIAMETER_INIT_FAIL.log(e._func, e._rc);
     closelog();
-    LOG_ERROR("Failed to initialize Diameter stack - function %s, rc %d", e._func, e._rc);
-    LOG_STATUS("Homestead is shutting down");
+    TRC_ERROR("Failed to initialize Diameter stack - function %s, rc %d", e._func, e._rc);
+    TRC_STATUS("Homestead is shutting down");
     exit(2);
   }
 
@@ -798,8 +798,8 @@ int main(int argc, char**argv)
   {
     CL_HOMESTEAD_HTTP_INIT_FAIL.log(e._func, e._rc);
     closelog();
-    LOG_ERROR("Failed to initialize HttpStack stack - function %s, rc %d", e._func, e._rc);
-    LOG_STATUS("Homestead is shutting down");
+    TRC_ERROR("Failed to initialize HttpStack stack - function %s, rc %d", e._func, e._rc);
+    TRC_STATUS("Homestead is shutting down");
     exit(2);
   }
 
@@ -819,9 +819,9 @@ int main(int argc, char**argv)
     realm_manager->start();
   }
 
-  LOG_STATUS("Start-up complete - wait for termination signal");
+  TRC_STATUS("Start-up complete - wait for termination signal");
   sem_wait(&term_sem);
-  LOG_STATUS("Termination signal received - terminating");
+  TRC_STATUS("Termination signal received - terminating");
   CL_HOMESTEAD_ENDED.log();
 
   try
@@ -832,7 +832,7 @@ int main(int argc, char**argv)
   catch (HttpStack::Exception& e)
   {
     CL_HOMESTEAD_HTTP_STOP_FAIL.log(e._func, e._rc);
-    LOG_ERROR("Failed to stop HttpStack stack - function %s, rc %d", e._func, e._rc);
+    TRC_ERROR("Failed to stop HttpStack stack - function %s, rc %d", e._func, e._rc);
   }
 
   cache->stop();
@@ -846,7 +846,7 @@ int main(int argc, char**argv)
   catch (Diameter::Stack::Exception& e)
   {
     CL_HOMESTEAD_DIAMETER_STOP_FAIL.log(e._func, e._rc);
-    LOG_ERROR("Failed to stop Diameter stack - function %s, rc %d", e._func, e._rc);
+    TRC_ERROR("Failed to stop Diameter stack - function %s, rc %d", e._func, e._rc);
   }
   delete dict; dict = NULL;
   delete ppr_config; ppr_config = NULL;
