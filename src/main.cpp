@@ -531,6 +531,8 @@ int main(int argc, char**argv)
   options.init_token_rate = 100.0;
   options.min_token_rate = 10.0;
   options.exception_max_ttl = 600;
+  options.http_blacklist_duration = HttpResolver::DEFAULT_BLACKLIST_DURATION;
+  options.diameter_blacklist_duration = DiameterResolver::DEFAULT_BLACKLIST_DURATION;
 
   boost::filesystem::path p = argv[0];
   // Copy the filename to a string so that we can be sure of its lifespan -
