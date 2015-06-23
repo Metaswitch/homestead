@@ -132,7 +132,7 @@ LDFLAGS += -lthrift \
            -lboost_filesystem
 
 # Only use the real SAS library in the production build.
-LDFLAGS_BUILD += -lsas
+LDFLAGS_BUILD += -lsas -lz
 
 # Test build uses just-built libraries, which may not be installed
 LDFLAGS_TEST += -Wl,-rpath=$(ROOT)/usr/lib
