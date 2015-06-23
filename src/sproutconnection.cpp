@@ -66,7 +66,7 @@ HTTPCode SproutConnection::deregister_bindings(const bool& send_notifications,
   std::string body = create_body(default_public_ids, impis);
 
   HTTPCode ret_code = _http->send_delete(path, trail, body);
-  LOG_DEBUG("HTTP return code from Sprout: %d", ret_code);
+  TRC_DEBUG("HTTP return code from Sprout: %d", ret_code);
   return ret_code;
 }
 

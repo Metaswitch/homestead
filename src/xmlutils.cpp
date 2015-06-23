@@ -73,7 +73,7 @@ int build_ClearwaterRegData_xml(RegistrationState state,
   {
     if (state != RegistrationState::NOT_REGISTERED)
     {
-      LOG_DEBUG("Invalid registration state %d", state);
+      TRC_DEBUG("Invalid registration state %d", state);
     }
     regtype = "NOT_REGISTERED";
   }
@@ -104,14 +104,14 @@ int build_ClearwaterRegData_xml(RegistrationState state,
       }
       else
       {
-        LOG_DEBUG("Missing IMS Subscription in XML");
+        TRC_DEBUG("Missing IMS Subscription in XML");
         prev_doc.clear();
         return 500;
       }
     }
     catch (rapidxml::parse_error err)
     {
-      LOG_DEBUG("Parse error in IMS Subscription document: %s\n\n%s", err.what(), xml.c_str());
+      TRC_DEBUG("Parse error in IMS Subscription document: %s\n\n%s", err.what(), xml.c_str());
       prev_doc.clear();
       return 500;
     }
@@ -188,7 +188,7 @@ std::vector<std::string> get_public_ids(const std::string& user_data)
   }
   catch (rapidxml::parse_error err)
   {
-    LOG_DEBUG("Parse error in IMS Subscription document: %s\n\n%s", err.what(), user_data.c_str());
+    TRC_DEBUG("Parse error in IMS Subscription document: %s\n\n%s", err.what(), user_data.c_str());
     doc.clear();
   }
 
@@ -212,7 +212,7 @@ std::vector<std::string> get_public_ids(const std::string& user_data)
         }
         else
         {
-          LOG_WARNING("PublicIdentity node was missing Identity child: %s", user_data.c_str());
+          TRC_WARNING("PublicIdentity node was missing Identity child: %s", user_data.c_str());
         }
       }
     }
@@ -220,7 +220,7 @@ std::vector<std::string> get_public_ids(const std::string& user_data)
 
   if (public_ids.size() == 0)
   {
-    LOG_ERROR("Failed to extract any ServiceProfile/PublicIdentity/Identity nodes from %s", user_data.c_str());
+    TRC_ERROR("Failed to extract any ServiceProfile/PublicIdentity/Identity nodes from %s", user_data.c_str());
   }
   return public_ids;
 }
@@ -244,7 +244,7 @@ std::string get_private_id(const std::string& user_data)
   }
   catch (rapidxml::parse_error err)
   {
-    LOG_ERROR("Parse error in IMS Subscription document: %s\n\n%s", err.what(), user_data.c_str());
+    TRC_ERROR("Parse error in IMS Subscription document: %s\n\n%s", err.what(), user_data.c_str());
     doc.clear();
   }
 
@@ -258,7 +258,7 @@ std::string get_private_id(const std::string& user_data)
     }
     else
     {
-      LOG_ERROR("Missing Private ID in IMS Subscription document: \n\n%s", user_data.c_str());
+      TRC_ERROR("Missing Private ID in IMS Subscription document: \n\n%s", user_data.c_str());
     }
   }
 

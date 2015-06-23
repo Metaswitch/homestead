@@ -76,6 +76,19 @@ log_directory=/var/log/$NAME
 . /lib/lsb/init-functions
 
 #
+# Function to set up environment
+#
+setup_environment()
+{
+        export LD_LIBRARY_PATH=/usr/share/clearwater/homestead/lib
+        ulimit -Hn 1000000
+        ulimit -Sn 1000000
+        ulimit -c unlimited
+        # enable gdb to dump a parent homestead process's stack
+        echo 0 > /proc/sys/kernel/yama/ptrace_scope
+}
+
+#
 # Function to pull in settings prior to starting the daemon
 #
 get_settings()
@@ -115,11 +128,29 @@ get_settings()
             [ -r $file ] && . $file
           done
         fi
+}
+
+#
+# Function to get the arguments to pass to the process
+#
+get_daemon_args()
+{
+        # Get the settings
+        get_settings
 
         # Set the destination realm correctly
         if [ ! -z $hss_realm ]
         then
           dest_realm="--dest-realm=$hss_realm"
+        fi
+
+        # Default the diameter timeout to twice the target latency if not
+        # already overridden (rounding up).  Note that the former is expressed
+        # in milliseconds and the latter in microseconds, hence division by 500
+        # (i.e. multiplication by 2/1000).
+        if [ -z $diameter_timeout_ms ] && [ ! -z $target_latency_us ]
+        then
+          diameter_timeout_ms=$(( ($target_latency_us + 499)/500 ))
         fi
 
         [ "$hss_mar_lowercase_unknown" != "Y" ] || scheme_unknown_arg="--scheme-unknown=unknown"
@@ -137,28 +168,7 @@ get_settings()
         then
           alarms_enabled_arg="--alarms-enabled"
         fi
-}
 
-#
-# Function that starts the daemon/service
-#
-do_start()
-{
-        # Return
-        #   0 if daemon has been started
-        #   1 if daemon was already running
-        #   2 if daemon could not be started
-        start-stop-daemon --start --quiet --pidfile $PIDFILE --exec $DAEMON --test > /dev/null \
-                || return 1
-
-        # daemon is not running, so attempt to start it.
-        export LD_LIBRARY_PATH=/usr/share/clearwater/homestead/lib
-        ulimit -Hn 1000000
-        ulimit -Sn 1000000
-        ulimit -c unlimited
-        # enable gdb to dump a parent homestead process's stack
-        echo 0 > /proc/sys/kernel/yama/ptrace_scope
-        get_settings
         DAEMON_ARGS="--localhost=$local_ip
                      --home-domain=$home_domain
                      --diameter-conf=/var/lib/homestead/homestead.conf
@@ -185,6 +195,25 @@ do_start()
                      --log-level=$log_level
                      --sas=$sas_server,$NAME@$public_hostname"
 
+        [ "$http_blacklist_duration" = "" ]     || DAEMON_ARGS="$DAEMON_ARGS --http-blacklist-duration=$http_blacklist_duration"
+        [ "$diameter_blacklist_duration" = "" ] || DAEMON_ARGS="$DAEMON_ARGS --diameter-blacklist-duration=$diameter_blacklist_duration"
+}
+
+#
+# Function that starts the daemon/service
+#
+do_start()
+{
+        # Return
+        #   0 if daemon has been started
+        #   1 if daemon was already running
+        #   2 if daemon could not be started
+        start-stop-daemon --start --quiet --pidfile $PIDFILE --exec $DAEMON --test > /dev/null \
+                || return 1
+
+        # daemon is not running, so attempt to start it.
+        setup_environment
+        get_daemon_args
         $namespace_prefix start-stop-daemon --start --quiet --background --make-pidfile --pidfile $PIDFILE --exec $DAEMON --chuid $NAME --chdir $HOME -- $DAEMON_ARGS \
                 || return 2
         # Add code here, if necessary, that waits for the process to be ready
@@ -216,6 +245,17 @@ do_stop()
         # Many daemons don't delete their pidfiles when they exit.
         rm -f $PIDFILE
         return "$RETVAL"
+}
+
+#
+# Function that runs the daemon/service in the foreground
+#
+do_run()
+{
+        setup_environment
+        get_daemon_args
+        $namespace_prefix start-stop-daemon --start --quiet --exec $DAEMON --chuid $NAME --chdir $HOME -- $DAEMON_ARGS \
+                || return 2
 }
 
 #
@@ -283,6 +323,14 @@ case "$1" in
                 2) [ "$VERBOSE" != no ] && log_end_msg 1 ;;
         esac
         ;;
+  run)
+        [ "$VERBOSE" != no ] && log_daemon_msg "Running $DESC" "$NAME"
+        do_run
+        case "$?" in
+                0|1) [ "$VERBOSE" != no ] && log_end_msg 0 ;;
+                2) [ "$VERBOSE" != no ] && log_end_msg 1 ;;
+        esac
+        ;;
   status)
         status_of_proc "$DAEMON" "$NAME" && exit 0 || exit $?
         ;;
@@ -338,8 +386,7 @@ case "$1" in
         esac
         ;;
   *)
-        #echo "Usage: $SCRIPTNAME {start|stop|restart|reload|force-reload}" >&2
-        echo "Usage: $SCRIPTNAME {start|stop|status|restart|force-reload}" >&2
+        echo "Usage: $SCRIPTNAME {start|stop|run|status|reload|force-reload|restart|abort|abort-restart}" >&2
         exit 3
         ;;
 esac

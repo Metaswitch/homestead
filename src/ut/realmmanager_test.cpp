@@ -47,6 +47,7 @@ class RealmmanagerTest : public testing::Test
 {
 public:
   static const std::string DIAMETER_REALM;
+  static const std::string DIAMETER_HOSTNAME;
 
   static MockDiameterStack* _mock_stack;
   static MockDiameterResolver* _mock_resolver;
@@ -79,6 +80,7 @@ public:
 };
 
 const std::string RealmmanagerTest::DIAMETER_REALM = "hss.example.com";
+const std::string RealmmanagerTest::DIAMETER_HOSTNAME = "hss1.example.com";
 
 MockDiameterStack* RealmmanagerTest::_mock_stack = NULL;
 MockDiameterResolver* RealmmanagerTest::_mock_resolver = NULL;
@@ -137,11 +139,12 @@ TEST_F(RealmmanagerTest, CreateDestroy)
 
   RealmManager* realm_manager = new RealmManager(_mock_stack,
                                                  DIAMETER_REALM,
+                                                 DIAMETER_HOSTNAME,
                                                  2,
                                                  _mock_resolver);
 
   targets.push_back(peer);
-  EXPECT_CALL(*_mock_resolver, resolve(DIAMETER_REALM, "", 2, _, _))
+  EXPECT_CALL(*_mock_resolver, resolve(DIAMETER_REALM, DIAMETER_HOSTNAME, 2, _, _))
     .WillOnce(DoAll(SetArgReferee<3>(targets), SetArgReferee<4>(15)));
   EXPECT_CALL(*_mock_stack, add(_))
     .Times(1)
@@ -187,6 +190,7 @@ TEST_F(RealmmanagerTest, ManageConnections)
   // Create a RealmManager.
   RealmManager* realm_manager = new RealmManager(_mock_stack,
                                                  DIAMETER_REALM,
+                                                 DIAMETER_HOSTNAME,
                                                  2,
                                                  _mock_resolver);
 
@@ -194,7 +198,7 @@ TEST_F(RealmmanagerTest, ManageConnections)
   // expect to try and connect to them.
   targets.push_back(peer1);
   targets.push_back(peer2);
-  EXPECT_CALL(*_mock_resolver, resolve(DIAMETER_REALM, "", 2, _, _))
+  EXPECT_CALL(*_mock_resolver, resolve(DIAMETER_REALM, DIAMETER_HOSTNAME, 2, _, _))
     .WillOnce(DoAll(SetArgReferee<3>(targets), SetArgReferee<4>(15)));
   EXPECT_CALL(*_mock_stack, add(_))
     .Times(2)
@@ -213,7 +217,7 @@ TEST_F(RealmmanagerTest, ManageConnections)
   targets.clear();
   targets.push_back(peer2);
   targets.push_back(peer3);
-  EXPECT_CALL(*_mock_resolver, resolve(DIAMETER_REALM, "", 2, _, _))
+  EXPECT_CALL(*_mock_resolver, resolve(DIAMETER_REALM, DIAMETER_HOSTNAME, 2, _, _))
     .WillOnce(DoAll(SetArgReferee<3>(targets), SetArgReferee<4>(10)));
   EXPECT_CALL(*_mock_stack, add(_))
     .Times(1)
@@ -229,7 +233,7 @@ TEST_F(RealmmanagerTest, ManageConnections)
   // one of the connections.
   targets.clear();
   targets.push_back(peer2);
-  EXPECT_CALL(*_mock_resolver, resolve(DIAMETER_REALM, "", 2, _, _))
+  EXPECT_CALL(*_mock_resolver, resolve(DIAMETER_REALM, DIAMETER_HOSTNAME, 2, _, _))
     .WillOnce(DoAll(SetArgReferee<3>(targets), SetArgReferee<4>(15)));
   EXPECT_CALL(*_mock_stack, remove(_))
     .Times(1);
@@ -242,7 +246,7 @@ TEST_F(RealmmanagerTest, ManageConnections)
   targets.clear();
   targets.push_back(peer2);
   targets.push_back(peer3);
-  EXPECT_CALL(*_mock_resolver, resolve(DIAMETER_REALM, "", 2, _, _))
+  EXPECT_CALL(*_mock_resolver, resolve(DIAMETER_REALM, DIAMETER_HOSTNAME, 2, _, _))
     .WillOnce(DoAll(SetArgReferee<3>(targets), SetArgReferee<4>(15)));
   EXPECT_CALL(*_mock_stack, add(_))
     .Times(1)
@@ -253,7 +257,7 @@ TEST_F(RealmmanagerTest, ManageConnections)
   // The diameter resolver returns no peers. We expect to tear down the one
   // connection (to peer2) that we have up.
   targets.clear();
-  EXPECT_CALL(*_mock_resolver, resolve(DIAMETER_REALM, "", 2, _, _))
+  EXPECT_CALL(*_mock_resolver, resolve(DIAMETER_REALM, DIAMETER_HOSTNAME, 2, _, _))
     .WillOnce(DoAll(SetArgReferee<3>(targets), SetArgReferee<4>(15)));
   EXPECT_CALL(*_mock_stack, remove(_))
     .Times(1);
