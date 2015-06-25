@@ -128,7 +128,8 @@ LDFLAGS += -lthrift \
            -lpthread \
            -lcurl \
            -lc \
-           -lboost_filesystem
+           -lboost_filesystem \
+           $(shell net-snmp-config --netsnmp-agent-libs)
 
 # Only use the real SAS library in the production build.
 LDFLAGS_BUILD += -lsas
