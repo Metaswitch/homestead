@@ -149,6 +149,8 @@ TEST_F(RealmmanagerTest, CreateDestroy)
   EXPECT_CALL(*_mock_stack, add(_))
     .Times(1)
     .WillRepeatedly(Return(true));
+  EXPECT_CALL(*_mock_stack, register_peer_hook_hdlr())
+    .Times(1);
   realm_manager->start();
 
   // We have to sleep here to ensure that the main thread has been
@@ -156,6 +158,8 @@ TEST_F(RealmmanagerTest, CreateDestroy)
   sleep(1);
 
   EXPECT_CALL(*_mock_stack, remove(_))
+    .Times(1);
+  EXPECT_CALL(*_mock_stack, unregister_peer_hook_hdlr())
     .Times(1);
   realm_manager->stop();
 
