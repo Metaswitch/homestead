@@ -20,7 +20,7 @@ On Ubuntu 14.04,
 
 2.  install the required packages
 
-        sudo apt-get install git cmake make gcc g++ bison flex libsctp-dev libgnutls-dev libgcrypt-dev libidn11-dev ssl-cert debhelper fakeroot libpq-dev libmysqlclient-dev libxml2-dev swig python-dev libevent-dev libtool autoconf libboost-all-dev automake pkg-config libssl-dev libzmq3-dev libcurl4-openssl-dev debhelper devscripts libxml2-utils valgrind
+        sudo apt-get install git cmake make gcc g++ bison flex libsctp-dev libgnutls-dev libgcrypt-dev libidn11-dev ssl-cert debhelper fakeroot libpq-dev libmysqlclient-dev libxml2-dev swig python-dev libevent-dev libtool autoconf libboost-all-dev automake pkg-config libssl-dev libzmq3-dev libcurl4-openssl-dev debhelper devscripts libxml2-utils libsnmp-dev valgrind
 
 ## Getting the Code
 
