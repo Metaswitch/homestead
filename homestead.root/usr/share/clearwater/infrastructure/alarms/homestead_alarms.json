@@ -1,0 +1,55 @@
+{
+    "alarms": [
+        {
+            "name": "HOMESTEAD_PROCESS_FAIL",
+            "index": 1500,
+            "cause": "SOFTWARE_ERROR",
+            "levels": [
+                {
+                  "severity": "CLEARED",
+                  "details": "The Homestead process has been restored to normal operation.",
+                  "description": "Homestead: Process failure cleared"
+                },
+                {
+                  "severity": "CRITICAL",
+                  "details": "Monit has detected that the Homestead process has failed. A restart will automatically be attempted. If this alarm does not clear, the Homestead process may have been stopped or an unrecoverable failure may have occurred.",
+                  "description": "Homestead: Process failure"
+                }
+            ]
+        },
+        {
+            "name": "HOMESTEAD_CASSANDRA_COMM_ERROR",
+            "index": 1501,
+            "cause": "UNDERLYING_RESOURCE_UNAVAILABLE",
+            "levels": [
+                {
+                  "severity": "CLEARED",
+                  "details": "Homestead communication to the local Cassandra has been restored.",
+                  "description": "Homestead: Cassandra communication error cleared"
+                },
+                {
+                  "severity": "CRITICAL",
+                  "details": "Homestead is unable to contact the local Cassandra. It will periodically attempt to reconnect. If this alarm does not clear, ensure that the local Cassandra is configured correctly then restart it.",
+                  "description": "Homestead: Cassandra communication error"
+                }
+            ]
+        },
+        {
+            "name": "HOMESTEAD_HSS_COMM_ERROR",
+            "index": 1502,
+            "cause": "UNDERLYING_RESOURCE_UNAVAILABLE",
+            "levels": [
+                {
+                  "severity": "CLEARED",
+                  "details": "Homestead communication to at least one HSS has been restored.",
+                  "description": "Homestead: HSS communication error cleared"
+                },
+                {
+                  "severity": "CRITICAL",
+                  "details": "Homestead is unable to contact any HSSs. It will periodically attempt to reconnect. If this alarm does not clear, ensure that at least one HSS is operational and that network connectivity exists between it and Homestead.",
+                  "description": "Homestead: HSS communication error"
+                }
+            ]
+        }
+    ]
+}
