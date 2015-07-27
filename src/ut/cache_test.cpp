@@ -1330,18 +1330,11 @@ TEST_F(CacheRequestTest, HaGetMainline)
   RecordingTransaction* trx = make_rec_trx(&rec);
   CassandraStore::Operation* op = _cache.create_GetRegData("kermit");
 
-  cass::NotFoundException nfe;
   EXPECT_CALL(_client, get_slice(_,
                                  "kermit",
                                  ColumnPathForTable("impu"),
                                  AllColumns(),
-                                 cass::ConsistencyLevel::ONE))
-    .WillOnce(Throw(nfe));
-  EXPECT_CALL(_client, get_slice(_,
-                                 "kermit",
-                                 ColumnPathForTable("impu"),
-                                 AllColumns(),
-                                 cass::ConsistencyLevel::QUORUM))
+                                 cass::ConsistencyLevel::LOCAL_QUORUM))
     .WillOnce(SetArgReferee<0>(slice));
 
   EXPECT_CALL(*trx, on_success(_))
@@ -1369,10 +1362,7 @@ TEST_F(CacheRequestTest, HaGet2ndReadNotFoundException)
 
   cass::NotFoundException nfe;
   EXPECT_CALL(_client, get_slice(_, _, _, _,
-                                 cass::ConsistencyLevel::ONE))
-    .WillOnce(Throw(nfe));
-  EXPECT_CALL(_client, get_slice(_, _, _, _,
-                                 cass::ConsistencyLevel::QUORUM))
+                                 cass::ConsistencyLevel::LOCAL_QUORUM))
     .WillOnce(Throw(nfe));
 
   EXPECT_CALL(*trx, on_failure(OperationHasResult(CassandraStore::NOT_FOUND)));
@@ -1395,15 +1385,19 @@ TEST_F(CacheRequestTest, HaGet2ndReadUnavailableException)
   RecordingTransaction* trx = make_rec_trx(&rec);
   CassandraStore::Operation* op = _cache.create_GetRegData("kermit");
 
+  cass::UnavailableException ue;
+  EXPECT_CALL(_client, get_slice(_, _, _, _,
+                                 cass::ConsistencyLevel::LOCAL_QUORUM))
+    .WillOnce(Throw(ue));
+
+  EXPECT_CALL(_client, get_slice(_, _, _, _,
+                                 cass::ConsistencyLevel::QUORUM))
+    .WillOnce(Throw(ue));
+
   cass::NotFoundException nfe;
   EXPECT_CALL(_client, get_slice(_, _, _, _,
                                  cass::ConsistencyLevel::ONE))
     .WillOnce(Throw(nfe));
-
-  cass::UnavailableException ue;
-  EXPECT_CALL(_client, get_slice(_, _, _, _,
-                                 cass::ConsistencyLevel::QUORUM))
-    .WillOnce(Throw(ue));
 
   EXPECT_CALL(*trx, on_failure(OperationHasResult(CassandraStore::NOT_FOUND)));
   execute_trx(op, trx);
