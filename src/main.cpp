@@ -59,6 +59,7 @@
 #include "alarm.h"
 #include "communicationmonitor.h"
 #include "exception_handler.h"
+#include "homestead_alarmdefinition.h"
 
 struct options
 {
