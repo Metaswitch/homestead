@@ -91,7 +91,6 @@ public:
     _stack = Diameter::Stack::get_instance();
     _stack->initialize();
     _stack->configure(UT_DIR + "/diameterstack.conf", NULL);
-    _stack->start();
 
     _dict = new Cx::Dictionary();
 
@@ -155,7 +154,6 @@ public:
     _stack = Diameter::Stack::get_instance();
     _stack->initialize();
     _stack->configure(UT_DIR + "/diameterstack.conf", NULL, &_cm);
-    _stack->start();
 
     _dict = new Cx::Dictionary();
   }
@@ -185,7 +183,6 @@ TEST(DiameterStackTest, SimpleMainline)
   Diameter::Stack* stack = Diameter::Stack::get_instance();
   stack->initialize();
   stack->configure(UT_DIR + "/diameterstack.conf", NULL);
-  stack->start();
   stack->stop();
   stack->wait_stopped();
 }
@@ -197,7 +194,6 @@ TEST(DiameterStackTest, AdvertizeApplication)
   stack->configure(UT_DIR + "/diameterstack.conf", NULL);
   Diameter::Dictionary::Application app("Cx");
   stack->advertize_application(Diameter::Dictionary::Application::AUTH, app);
-  stack->start();
   stack->stop();
   stack->wait_stopped();
 }
