@@ -14,6 +14,7 @@ TARGET_TEST := homestead_test
 TARGET_SOURCES := accesslogger.cpp \
                   accumulator.cpp \
                   alarm.cpp \
+                  base_communication_monitor.cpp \
                   baseresolver.cpp \
                   cache.cpp \
                   cassandra_store.cpp \

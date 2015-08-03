@@ -28,4 +28,5 @@ modules/cpp-common/src/cassandra_store.cpp
 
 # The Alarm classes and CommunicationMonitor are tested in Sprout
 modules/cpp-common/src/alarm.cpp
+modules/cpp-common/src/base_communication_monitor.cpp
 modules/cpp-common/src/communicationmonitor.cpp
