@@ -91,7 +91,14 @@ case "$1" in
             $SCRIPT
         done
 
-        /usr/share/clearwater/cassandra-schemas/homestead_cache.sh
+        /usr/share/clearwater/cassandra-schemas/homestead_cache.sh || /bin/true
+
+        # Stop the cluster manager, so that it is restarted by Monit and picks
+        # up the new Cassandra scaling plugin. We check whether the process is 
+        # installed to avoid warning logs when etcd isn't being used
+        if [ -x "/etc/init.d/clearwater-cluster-manager" ]; then
+          service clearwater-cluster-manager stop || /bin/true
+        fi  
 
         # Restart homestead.  Always do this by terminating homestead so monit will
         # restart it more-or-less immediately.  (monit restart seems to have

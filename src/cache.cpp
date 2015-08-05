@@ -129,7 +129,7 @@ Cache::PutRegData& Cache::PutRegData::with_reg_state(const RegistrationState reg
   else
   {
     // LCOV_EXCL_START - invalid case not hit in UT
-    LOG_ERROR("Unexpected registration state %d", reg_state);
+    TRC_ERROR("Unexpected registration state %d", reg_state);
     // LCOV_EXCL_STOP
   }
   return *this;
@@ -188,7 +188,7 @@ Cache::PutRegData& Cache::PutRegData::with_charging_addrs(const ChargingAddresse
   return *this;
 }
 
-bool Cache::PutRegData::perform(CassandraStore::ClientInterface* client,
+bool Cache::PutRegData::perform(CassandraStore::Client* client,
                                 SAS::TrailId trail)
 {
   for (std::vector<std::string>::iterator row = _public_ids.begin();
@@ -198,7 +198,7 @@ bool Cache::PutRegData::perform(CassandraStore::ClientInterface* client,
     _to_put.push_back(CassandraStore::RowColumns(IMPU, *row, _columns));
   }
 
-  put_columns(client, _to_put, _timestamp, _ttl);
+  client->put_columns(_to_put, _timestamp, _ttl);
 
   return true;
 }
@@ -225,7 +225,7 @@ Cache::PutAssociatedPrivateID::
 {}
 
 
-bool Cache::PutAssociatedPrivateID::perform(CassandraStore::ClientInterface* client,
+bool Cache::PutAssociatedPrivateID::perform(CassandraStore::Client* client,
                                             SAS::TrailId trail)
 {
   std::vector<CassandraStore::RowColumns> to_put;
@@ -244,7 +244,7 @@ bool Cache::PutAssociatedPrivateID::perform(CassandraStore::ClientInterface* cli
     to_put.push_back(CassandraStore::RowColumns(IMPU, *row, impu_columns));
   }
 
-  put_columns(client, to_put, _timestamp, _ttl);
+  client->put_columns(to_put, _timestamp, _ttl);
 
   return true;
 }
@@ -272,7 +272,7 @@ Cache::PutAssociatedPublicID::
 {}
 
 
-bool Cache::PutAssociatedPublicID::perform(CassandraStore::ClientInterface* client,
+bool Cache::PutAssociatedPublicID::perform(CassandraStore::Client* client,
                                            SAS::TrailId trail)
 {
   std::map<std::string, std::string> columns;
@@ -280,7 +280,7 @@ bool Cache::PutAssociatedPublicID::perform(CassandraStore::ClientInterface* clie
 
   std::vector<std::string> keys(1, _private_id);
 
-  put_columns(client, IMPI, keys, columns, _timestamp, _ttl);
+  client->put_columns(IMPI, keys, columns, _timestamp, _ttl);
   return true;
 }
 
@@ -306,7 +306,7 @@ Cache::PutAuthVector::
 {}
 
 
-bool Cache::PutAuthVector::perform(CassandraStore::ClientInterface* client,
+bool Cache::PutAuthVector::perform(CassandraStore::Client* client,
                                    SAS::TrailId trail)
 {
   std::map<std::string, std::string> columns;
@@ -316,7 +316,7 @@ bool Cache::PutAuthVector::perform(CassandraStore::ClientInterface* client,
   columns[KNOWN_PREFERRED_COLUMN_NAME] = _auth_vector.preferred ?
                    CassandraStore::BOOLEAN_TRUE : CassandraStore::BOOLEAN_FALSE;
 
-  put_columns(client, IMPI, _private_ids, columns, _timestamp, _ttl);
+  client->put_columns(IMPI, _private_ids, columns, _timestamp, _ttl);
   return true;
 }
 
@@ -343,16 +343,16 @@ Cache::GetRegData::
 {}
 
 
-bool Cache::GetRegData::perform(CassandraStore::ClientInterface* client,
+bool Cache::GetRegData::perform(CassandraStore::Client* client,
                                 SAS::TrailId trail)
 {
   int64_t now = generate_timestamp();
-  LOG_DEBUG("Issuing get for key %s", _public_id.c_str());
+  TRC_DEBUG("Issuing get for key %s", _public_id.c_str());
   std::vector<ColumnOrSuperColumn> results;
 
   try
   {
-    ha_get_all_columns(client, IMPU, _public_id, results);
+    client->ha_get_all_columns(IMPU, _public_id, results);
 
     for(std::vector<ColumnOrSuperColumn>::iterator it = results.begin(); it != results.end(); ++it)
     {
@@ -367,7 +367,7 @@ bool Cache::GetRegData::perform(CassandraStore::ClientInterface* client,
         {
           _xml_ttl = ((it->column.timestamp/1000000) + it->column.ttl) - (now / 1000000);
         };
-        LOG_DEBUG("Retrieved XML column with TTL %d and value %s", _xml_ttl, _xml.c_str());
+        TRC_DEBUG("Retrieved XML column with TTL %d and value %s", _xml_ttl, _xml.c_str());
       }
       else if (it->column.name == REG_STATE_COLUMN_NAME)
       {
@@ -378,23 +378,23 @@ bool Cache::GetRegData::perform(CassandraStore::ClientInterface* client,
         if (it->column.value == CassandraStore::BOOLEAN_TRUE)
         {
           _reg_state = RegistrationState::REGISTERED;
-          LOG_DEBUG("Retrieved is_registered column with value True and TTL %d",
+          TRC_DEBUG("Retrieved is_registered column with value True and TTL %d",
                     _reg_state_ttl);
         }
         else if (it->column.value == CassandraStore::BOOLEAN_FALSE)
         {
           _reg_state = RegistrationState::UNREGISTERED;
-          LOG_DEBUG("Retrieved is_registered column with value False and TTL %d",
+          TRC_DEBUG("Retrieved is_registered column with value False and TTL %d",
                     _reg_state_ttl);
         }
         else if ((it->column.value == ""))
         {
-          LOG_DEBUG("Retrieved is_registered column with empty value and TTL %d",
+          TRC_DEBUG("Retrieved is_registered column with empty value and TTL %d",
                     _reg_state_ttl);
         }
         else
         {
-          LOG_WARNING("Registration state column has invalid value %d %s",
+          TRC_WARNING("Registration state column has invalid value %d %s",
                       it->column.value.c_str()[0],
                       it->column.value.c_str());
         };
@@ -407,25 +407,25 @@ bool Cache::GetRegData::perform(CassandraStore::ClientInterface* client,
       else if ((it->column.name == PRIMARY_CCF_COLUMN_NAME) && (it->column.value != ""))
       {
         _charging_addrs.ccfs.push_front(it->column.value);
-        LOG_DEBUG("Retrived primary_ccf column with value %s",
+        TRC_DEBUG("Retrived primary_ccf column with value %s",
                   it->column.value.c_str());
       }
       else if ((it->column.name == SECONDARY_CCF_COLUMN_NAME) && (it->column.value != ""))
       {
         _charging_addrs.ccfs.push_back(it->column.value);
-        LOG_DEBUG("Retrived secondary_ccf column with value %s",
+        TRC_DEBUG("Retrived secondary_ccf column with value %s",
                   it->column.value.c_str());
       }
       else if ((it->column.name == PRIMARY_ECF_COLUMN_NAME) && (it->column.value != ""))
       {
         _charging_addrs.ecfs.push_front(it->column.value);
-        LOG_DEBUG("Retrived primary_ecf column with value %s",
+        TRC_DEBUG("Retrived primary_ecf column with value %s",
                   it->column.value.c_str());
       }
       else if ((it->column.name == SECONDARY_ECF_COLUMN_NAME) && (it->column.value != ""))
       {
         _charging_addrs.ecfs.push_back(it->column.value);
-        LOG_DEBUG("Retrived secondary_ecf column with value %s",
+        TRC_DEBUG("Retrived secondary_ecf column with value %s",
                   it->column.value.c_str());
       }
     }
@@ -435,7 +435,7 @@ bool Cache::GetRegData::perform(CassandraStore::ClientInterface* client,
     // - they must be in UNREGISTERED state.
     if ((_reg_state == RegistrationState::NOT_REGISTERED) && !_xml.empty())
     {
-      LOG_DEBUG("Found stored XML for subscriber, treating as UNREGISTERED state");
+      TRC_DEBUG("Found stored XML for subscriber, treating as UNREGISTERED state");
       _reg_state = RegistrationState::UNREGISTERED;
     }
 
@@ -526,26 +526,25 @@ Cache::GetAssociatedPublicIDs::
 {}
 
 
-bool Cache::GetAssociatedPublicIDs::perform(CassandraStore::ClientInterface* client,
+bool Cache::GetAssociatedPublicIDs::perform(CassandraStore::Client* client,
                                             SAS::TrailId trail)
 {
   std::map<std::string, std::vector<ColumnOrSuperColumn> > columns;
   std::set<std::string> public_ids;
 
-  LOG_DEBUG("Looking for public IDs for private ID %s and %d others",
+  TRC_DEBUG("Looking for public IDs for private ID %s and %d others",
             _private_ids.front().c_str(),
             _private_ids.size());
   try
   {
-    ha_multiget_columns_with_prefix(client,
-                                    IMPI,
-                                    _private_ids,
-                                    ASSOC_PUBLIC_ID_COLUMN_PREFIX,
-                                    columns);
+    client->ha_multiget_columns_with_prefix(IMPI,
+                                            _private_ids,
+                                            ASSOC_PUBLIC_ID_COLUMN_PREFIX,
+                                            columns);
   }
   catch(CassandraStore::RowNotFoundException& rnfe)
   {
-    LOG_INFO("Couldn't find any public IDs");
+    TRC_INFO("Couldn't find any public IDs");
   }
 
   // Convert the query results from a vector of columns to a vector containing
@@ -559,7 +558,7 @@ bool Cache::GetAssociatedPublicIDs::perform(CassandraStore::ClientInterface* cli
         column != key_it->second.end();
         ++column)
     {
-      LOG_DEBUG("Found associated public ID %s", column->column.name.c_str());
+      TRC_DEBUG("Found associated public ID %s", column->column.name.c_str());
       public_ids.insert(column->column.name);
     }
   }
@@ -595,24 +594,23 @@ GetAssociatedPrimaryPublicIDs(const std::vector<std::string>& private_ids) :
 {}
 
 
-bool Cache::GetAssociatedPrimaryPublicIDs::perform(CassandraStore::ClientInterface* client,
+bool Cache::GetAssociatedPrimaryPublicIDs::perform(CassandraStore::Client* client,
                                                    SAS::TrailId trail)
 {
   std::set<std::string> public_ids_set;
   std::map<std::string, std::vector<ColumnOrSuperColumn> > columns;
 
-  LOG_DEBUG("Looking for primary public IDs for private ID %s and %d others", _private_ids.front().c_str(), _private_ids.size());
+  TRC_DEBUG("Looking for primary public IDs for private ID %s and %d others", _private_ids.front().c_str(), _private_ids.size());
   try
   {
-    ha_multiget_columns_with_prefix(client,
-                                    IMPI_MAPPING,
-                                    _private_ids,
-                                    IMPI_MAPPING_PREFIX,
-                                    columns);
+    client->ha_multiget_columns_with_prefix(IMPI_MAPPING,
+                                            _private_ids,
+                                            IMPI_MAPPING_PREFIX,
+                                            columns);
   }
   catch(CassandraStore::RowNotFoundException& rnfe)
   {
-    LOG_INFO("Couldn't find any public IDs");
+    TRC_INFO("Couldn't find any public IDs");
   }
 
   // Convert the query results from a vector of columns to a vector containing
@@ -626,7 +624,7 @@ bool Cache::GetAssociatedPrimaryPublicIDs::perform(CassandraStore::ClientInterfa
         column != key_it->second.end();
         ++column)
     {
-      LOG_DEBUG("Found associated public ID %s", column->column.name.c_str());
+      TRC_DEBUG("Found associated public ID %s", column->column.name.c_str());
       public_ids_set.insert(column->column.name);
     }
   }
@@ -667,10 +665,10 @@ Cache::GetAuthVector::
 {}
 
 
-bool Cache::GetAuthVector::perform(CassandraStore::ClientInterface* client,
+bool Cache::GetAuthVector::perform(CassandraStore::Client* client,
                                    SAS::TrailId trail)
 {
-  LOG_DEBUG("Looking for authentication vector for %s", _private_id.c_str());
+  TRC_DEBUG("Looking for authentication vector for %s", _private_id.c_str());
   std::vector<std::string> requested_columns;
   std::string public_id_col = "";
   bool public_id_requested = false;
@@ -683,7 +681,7 @@ bool Cache::GetAuthVector::perform(CassandraStore::ClientInterface* client,
 
   if (_public_id.length() > 0)
   {
-    LOG_DEBUG("Checking public ID %s", _public_id.c_str());
+    TRC_DEBUG("Checking public ID %s", _public_id.c_str());
     // We've been asked to verify the private ID has an associated public ID.
     // So request the public ID column as well.
     //
@@ -693,9 +691,9 @@ bool Cache::GetAuthVector::perform(CassandraStore::ClientInterface* client,
     public_id_requested = true;
   }
 
-  LOG_DEBUG("Issuing cache query");
+  TRC_DEBUG("Issuing cache query");
   std::vector<ColumnOrSuperColumn> results;
-  ha_get_columns(client, IMPI, _private_id, requested_columns, results);
+  client->ha_get_columns(IMPI, _private_id, requested_columns, results);
 
   for (std::vector<ColumnOrSuperColumn>::const_iterator it = results.begin();
        it != results.end();
@@ -735,7 +733,7 @@ bool Cache::GetAuthVector::perform(CassandraStore::ClientInterface* client,
     _cass_error_text = (boost::format(
                         "Private ID '%s' exists but does not have associated public ID '%s'")
                          % _private_id % _public_id).str();
-    LOG_DEBUG("Cache query failed: %s", _cass_error_text.c_str());
+    TRC_DEBUG("Cache query failed: %s", _cass_error_text.c_str());
     return false;
   }
   else if (_auth_vector.ha1 == "")
@@ -743,7 +741,7 @@ bool Cache::GetAuthVector::perform(CassandraStore::ClientInterface* client,
     // The HA1 column was not found.  This cannot be defaulted so is an error.
     _cass_status = CassandraStore::NOT_FOUND;
     _cass_error_text = "HA1 column not found";
-    LOG_DEBUG("Cache query failed: %s", _cass_error_text.c_str());
+    TRC_DEBUG("Cache query failed: %s", _cass_error_text.c_str());
     return false;
   }
   else
@@ -786,7 +784,7 @@ Cache::DeletePublicIDs::
 ~DeletePublicIDs()
 {}
 
-bool Cache::DeletePublicIDs::perform(CassandraStore::ClientInterface* client,
+bool Cache::DeletePublicIDs::perform(CassandraStore::Client* client,
                                      SAS::TrailId trail)
 {
   std::vector<CassandraStore::RowColumns> to_delete;
@@ -813,7 +811,7 @@ bool Cache::DeletePublicIDs::perform(CassandraStore::ClientInterface* client,
   }
 
   // Perform the batch deletion we've built up
-  delete_columns(client, to_delete, _timestamp);
+  client->delete_columns(to_delete, _timestamp);
 
   return true;
 }
@@ -843,14 +841,14 @@ Cache::DeletePrivateIDs::
 {}
 
 
-bool Cache::DeletePrivateIDs::perform(CassandraStore::ClientInterface* client,
+bool Cache::DeletePrivateIDs::perform(CassandraStore::Client* client,
                                       SAS::TrailId trail)
 {
   for (std::vector<std::string>::const_iterator it = _private_ids.begin();
        it != _private_ids.end();
        ++it)
   {
-    delete_row(client, IMPI, *it, _timestamp);
+    client->delete_row(IMPI, *it, _timestamp);
   }
 
   return true;
@@ -867,7 +865,7 @@ DeleteIMPIMapping(const std::vector<std::string>& private_ids, int64_t timestamp
   _timestamp(timestamp)
 {}
 
-bool Cache::DeleteIMPIMapping::perform(CassandraStore::ClientInterface* client,
+bool Cache::DeleteIMPIMapping::perform(CassandraStore::Client* client,
                                        SAS::TrailId trail)
 {
   std::vector<CassandraStore::RowColumns> to_delete;
@@ -880,7 +878,7 @@ bool Cache::DeleteIMPIMapping::perform(CassandraStore::ClientInterface* client,
     to_delete.push_back(CassandraStore::RowColumns(IMPI_MAPPING, *it));
   }
 
-  delete_columns(client, to_delete, _timestamp);
+  client->delete_columns(to_delete, _timestamp);
   return true;
 }
 
@@ -909,7 +907,7 @@ DissociateImplicitRegistrationSetFromImpi(const std::vector<std::string>& impus,
   _timestamp(timestamp)
 {}
 
-bool Cache::DissociateImplicitRegistrationSetFromImpi::perform(CassandraStore::ClientInterface* client,
+bool Cache::DissociateImplicitRegistrationSetFromImpi::perform(CassandraStore::Client* client,
                                                                SAS::TrailId trail)
 {
   std::vector<CassandraStore::RowColumns> to_delete;
@@ -927,23 +925,21 @@ bool Cache::DissociateImplicitRegistrationSetFromImpi::perform(CassandraStore::C
        it != _impis.end();
        ++it)
   {
-    LOG_DEBUG("Deleting association between primary public ID %s and IMPI %s", primary_public_id.c_str(), it->c_str());
+    TRC_DEBUG("Deleting association between primary public ID %s and IMPI %s", primary_public_id.c_str(), it->c_str());
     impu_columns_to_delete[IMPI_COLUMN_PREFIX + *it] = "";
     to_delete.push_back(CassandraStore::RowColumns(IMPI_MAPPING, *it, impi_columns_to_delete));
   }
-
 
   // Check how many IMPIs are associated with this implicit
   // registration set (all the columns are the same, so we only need
   // to check the first)
 
   std::vector<ColumnOrSuperColumn> columns;
-  ha_get_columns_with_prefix(client,
-                             IMPU,
-                             primary_public_id,
-                             IMPI_COLUMN_PREFIX,
-                             columns);
-  LOG_DEBUG("%d IMPIs are associated with this IRS", columns.size());
+  client->ha_get_columns_with_prefix(IMPU,
+                                     primary_public_id,
+                                     IMPI_COLUMN_PREFIX,
+                                     columns);
+  TRC_DEBUG("%d IMPIs are associated with this IRS", columns.size());
 
   std::set<std::string> associated_impis_set;
 
@@ -965,11 +961,11 @@ bool Cache::DissociateImplicitRegistrationSetFromImpi::perform(CassandraStore::C
                       associated_impis_set.end(),
                       std::back_inserter(output));
 
-  LOG_DEBUG("Set difference: %d", output.size());
+  TRC_DEBUG("Set difference: %d", output.size());
 
   if (output.size() > 0)
   {
-    LOG_WARNING("DissociateImplicitRegistrationSetFromImpi was called but not all the provided IMPIs are associated with the IMPU");
+    TRC_WARNING("DissociateImplicitRegistrationSetFromImpi was called but not all the provided IMPIs are associated with the IMPU");
   }
 
   //  Are we deleting all the associated impis?
@@ -980,7 +976,7 @@ bool Cache::DissociateImplicitRegistrationSetFromImpi::perform(CassandraStore::C
                         associated_impis_set.begin(),
                         associated_impis_set.end(),
                         std::back_inserter(output));
-  LOG_DEBUG("Set intersection: %d %d", output.size(), associated_impis_set.size());
+  TRC_DEBUG("Set intersection: %d %d", output.size(), associated_impis_set.size());
 
   bool deleting_all_impis = (output.size() == associated_impis_set.size());
 
@@ -1002,7 +998,7 @@ bool Cache::DissociateImplicitRegistrationSetFromImpi::perform(CassandraStore::C
   }
 
   // Perform the batch deletion we've built up
-  delete_columns(client, to_delete, _timestamp);
+  client->delete_columns(to_delete, _timestamp);
 
   return true;
 }

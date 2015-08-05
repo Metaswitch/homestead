@@ -35,4 +35,30 @@
 # This script is executed in the context of the clearwater_diags_monitor script
 # (in the clearwater-infrastructure project).
 
+. /etc/clearwater/config
+
 copy_to_dump "/var/lib/homestead/homestead.conf"
+
+check_connectivity_to_domain "$sprout_hostname" 9888
+
+# Check if homestead can connect to the HSS.
+hss_file=$CURRENT_DUMP_DIR/connectivity_to_hss_realm.txt
+
+if [ ! -z "$hss_realm" ]; then
+  # An HSS realm is configured. Replicating homestead's full connection logic is
+  # difficult as it involves a chain of DNS queries. Instead we do the more
+  # obvious DNS queries, which is better than nothing.
+  dig -t NAPTR $hss_realm               >> $hss_file 2>&1
+  dig -t SRV _diameter._tcp.$hss_realm  >> $hss_file 2>&1
+  dig -t SRV _diameter._sctp.$hss_realm >> $hss_file 2>&1
+  dig -t A $hss_realm                   >> $hss_file 2>&1
+
+  # The HSS realm might map to a collection of A records, so try pinging it.
+  # Only wait for at most 2s (to avoid blocking for a long time if it's not
+  # ping-able). Also only do one ping (by default `ping` carries on forever).
+  ping -c1 -w2 $hss_realm               >> $hss_file 2>&1
+fi
+
+if [ ! -z "$hss_hostname" ]; then
+  check_connectivity_to_domain "$hss_hostname" 3868
+fi
