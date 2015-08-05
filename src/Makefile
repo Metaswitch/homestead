@@ -14,6 +14,7 @@ TARGET_TEST := homestead_test
 TARGET_SOURCES := accesslogger.cpp \
                   accumulator.cpp \
                   alarm.cpp \
+                  base_communication_monitor.cpp \
                   baseresolver.cpp \
                   cache.cpp \
                   cassandra_store.cpp \
@@ -110,6 +111,7 @@ CPPFLAGS_TEST  += -DUNIT_TEST \
                   -fprofile-arcs -ftest-coverage \
                   -O0 \
                   -fno-access-control \
+                  -DGTEST_USE_OWN_TR1_TUPLE=0 \
                   -I$(GTEST_DIR)/include -I$(GMOCK_DIR)/include
 
 LDFLAGS += -L${ROOT}/usr/lib
@@ -128,16 +130,17 @@ LDFLAGS += -lthrift \
            -lpthread \
            -lcurl \
            -lc \
-           -lboost_filesystem
+           -lboost_filesystem \
+           $(shell net-snmp-config --netsnmp-agent-libs)
 
 # Only use the real SAS library in the production build.
-LDFLAGS_BUILD += -lsas
+LDFLAGS_BUILD += -lsas -lz
 
 # Test build uses just-built libraries, which may not be installed
 LDFLAGS_TEST += -Wl,-rpath=$(ROOT)/usr/lib
 
 # Test build also uses libcurl (to verify HttpStack operation)
-LDFLAGS_TEST += -lcurl
+LDFLAGS_TEST += -lcurl -ldl
 
 # Now the GMock / GTest boilerplate.
 GTEST_HEADERS := $(GTEST_DIR)/include/gtest/*.h \
@@ -167,7 +170,10 @@ ifdef JUSTTEST
   EXTRA_TEST_ARGS ?= --gtest_filter=*$(JUSTTEST)*
 endif
 
+build: ${ROOT}/usr/include/homestead_alarmdefinition.h
+
 include ${MK_DIR}/platform.mk
+include ${ROOT}/modules/cpp-common/makefiles/alarm-utils.mk 
 
 .PHONY: stage-build
 stage-build: build
@@ -259,10 +265,14 @@ vg_raw: build_test | $(TEST_OUT_DIR)
 .PHONY: distclean
 distclean: clean
 
+${ROOT}/usr/include/homestead_alarmdefinition.h : ${BUILD_DIR}/bin/alarm_header ${ROOT}/homestead.root/usr/share/clearwater/infrastructure/alarms/homestead_alarms.json
+	${BUILD_DIR}/bin/alarm_header -j "${ROOT}/homestead.root/usr/share/clearwater/infrastructure/alarms/homestead_alarms.json" -n "homestead"
+	mv homestead_alarmdefinition.h $@
+
 # Build rules for GMock/GTest library.
 $(OBJ_DIR_TEST)/gtest-all.o : $(GTEST_SRCS_)
 	$(CXX) $(CPPFLAGS) -I$(GTEST_DIR) -I$(GTEST_DIR)/include -I$(GMOCK_DIR) -I$(GMOCK_DIR)/include \
-            -c $(GTEST_DIR)/src/gtest-all.cc -o $@
+            -DGTEST_USE_OWN_TR1_TUPLE=0 -c $(GTEST_DIR)/src/gtest-all.cc -o $@
 
 $(OBJ_DIR_TEST)/gmock-all.o : $(GMOCK_SRCS_)
 	$(CXX) $(CPPFLAGS) -I$(GTEST_DIR) -I$(GTEST_DIR)/include -I$(GMOCK_DIR) -I$(GMOCK_DIR)/include \

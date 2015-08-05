@@ -96,7 +96,6 @@ public:
     _real_stack = Diameter::Stack::get_instance();
     _real_stack->initialize();
     _real_stack->configure(UT_DIR + "/diameterstack.conf", NULL);
-    _real_stack->start();
     _mock_stack = new MockDiameterStack();
     _cx_dict = new Cx::Dictionary();
   }
