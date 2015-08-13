@@ -1,5 +1,5 @@
 /**
- * @file statisticsmanager.cpp class used for all homestead statistics.
+ * @file fakestatisticsmanager.cpp Fake statistics manager for UT.
  *
  * project clearwater - ims in the cloud
  * copyright (c) 2013  metaswitch networks ltd
@@ -34,24 +34,32 @@
  * as those licenses appear in the file license-openssl.
  */
 
-#include <statisticsmanager.h>
+#include "gmock/gmock.h"
+#include "fakestatisticsmanager.hpp"
+#include "statisticsmanager.h"
 
-StatisticsManager::StatisticsManager()
+namespace SNMP
 {
-  H_latency_us = SNMP::AccumulatorTable::create("H_latency_us",
-                                                ".1.2.826.0.1.1578918.9.5.1");
-  H_hss_latency_us = SNMP::AccumulatorTable::create("H_hss_latency_us",
-                                                    ".1.2.826.0.1.1578918.9.5.2");
-  H_cache_latency_us = SNMP::AccumulatorTable::create("H_cache_latency_us",
-                                                      ".1.2.826.0.1.1578918.9.5.3");
-  H_hss_digest_latency_us = SNMP::AccumulatorTable::create("H_hss_digest_latency_us",
-                                                           ".1.2.826.0.1.1578918.9.5.4");
-  H_hss_subscription_latency_us = SNMP::AccumulatorTable::create("H_hss_subscription_latency_us",
-                                                                 ".1.2.826.0.1.1578918.9.5.5");
-  H_incoming_requests = SNMP::CounterTable::create("H_incoming_requests",
-                                                   ".1.2.826.0.1.1578918.9.5.6");
-  H_rejected_overload = SNMP::CounterTable::create("H_rejected_overload",
-                                                   ".1.2.826.0.1.1578918.9.5.7");
-}
+FakeAccumulatorTable FAKE_H_LATENCY_US_TABLE;
+FakeAccumulatorTable FAKE_H_HSS_LATENCY_US_TABLE;
+FakeAccumulatorTable FAKE_H_CACHE_LATENCY_US_TABLE;
+FakeAccumulatorTable FAKE_H_HSS_DIGEST_LATENCY_US_TABLE;
+FakeAccumulatorTable FAKE_H_HSS_SUBSCRIPTION_LATENCY_US_TABLE;
+FakeCounterTable FAKE_H_INCOMING_REQUESTS_TABLE;
+FakeCounterTable FAKE_H_REJECTED_OVERLOAD_TABLE;
 
-StatisticsManager::~StatisticsManager() {}
+AccumulatorTable* AccumulatorTable::create(std::string name, std::string oid) { return NULL; };
+CounterTable* CounterTable::create(std::string name, std::string oid) { return NULL; };
+
+} // Namespace SNMP ends.
+
+FakeStatisticsManager::FakeStatisticsManager()
+{
+  H_latency_us = &SNMP::FAKE_H_LATENCY_US_TABLE; 
+  H_hss_latency_us = &SNMP::FAKE_H_HSS_LATENCY_US_TABLE; 
+  H_cache_latency_us = &SNMP::FAKE_H_CACHE_LATENCY_US_TABLE; 
+  H_hss_digest_latency_us = &SNMP::FAKE_H_HSS_DIGEST_LATENCY_US_TABLE; 
+  H_hss_subscription_latency_us = &SNMP::FAKE_H_HSS_SUBSCRIPTION_LATENCY_US_TABLE; 
+  H_incoming_requests = &SNMP::FAKE_H_INCOMING_REQUESTS_TABLE;
+  H_rejected_overload = &SNMP::FAKE_H_REJECTED_OVERLOAD_TABLE;
+}
