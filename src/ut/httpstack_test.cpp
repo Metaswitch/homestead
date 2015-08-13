@@ -42,7 +42,7 @@
 #include "httpstack.h"
 
 #include "mockloadmonitor.hpp"
-#include "mockstatisticsmanager.hpp"
+#include "fakestatisticsmanager.hpp"
 #include "mock_sas.h"
 
 using ::testing::Return;
@@ -162,6 +162,8 @@ public:
   {
     cwtest_reset_time();
     stop_stack();
+    ((SNMP::FakeCounterTable*)_stats_manager.H_incoming_requests)->reset_count();
+    ((SNMP::FakeCounterTable*)_stats_manager.H_rejected_overload)->reset_count();
   }
 
   void start_stack()
@@ -171,7 +173,7 @@ public:
 private:
   // Strict mocks - we only allow method calls that the test explicitly expects.
   StrictMock<MockLoadMonitor> _load_monitor;
-  StrictMock<MockStatisticsManager> _stats_manager;
+  FakeStatisticsManager _stats_manager;
 };
 
 // Basic handler.
@@ -287,8 +289,7 @@ TEST_F(HttpStackStatsTest, SuccessfulRequest)
   _stack->register_handler("^/BasicHandler$", &handler);
 
   EXPECT_CALL(_load_monitor, admit_request()).WillOnce(Return(true));
-  EXPECT_CALL(_stats_manager, incr_http_incoming_requests()).Times(1);
-  EXPECT_CALL(_stats_manager, update_http_latency_us(DELAY_US)).Times(1);
+  ////!!!EXPECT_CALL(_stats_manager, update_http_latency_us(DELAY_US)).Times(1);
   EXPECT_CALL(_load_monitor, request_complete(DELAY_US)).Times(1);
 
   int status;
@@ -296,6 +297,9 @@ TEST_F(HttpStackStatsTest, SuccessfulRequest)
   int rc = get("/BasicHandler", status, response);
   ASSERT_EQ(CURLE_OK, rc);
   ASSERT_EQ(200, status);
+  
+  //!!EXPECT_CALL(_stats_manager, incr_http_incoming_requests()).Times(1);
+  EXPECT_EQ(1, ((SNMP::FakeCounterTable*)_stats_manager.H_incoming_requests)->_count);
 }
 
 TEST_F(HttpStackStatsTest, RejectOverload)
@@ -304,14 +308,15 @@ TEST_F(HttpStackStatsTest, RejectOverload)
   _stack->register_handler("^/BasicHandler$", &handler);
 
   EXPECT_CALL(_load_monitor, admit_request()).WillOnce(Return(false));
-  EXPECT_CALL(_stats_manager, incr_http_incoming_requests()).Times(1);
-  EXPECT_CALL(_stats_manager, incr_http_rejected_overload()).Times(1);
 
   int status;
   std::string response;
   int rc = get("/BasicHandler", status, response);
   ASSERT_EQ(CURLE_OK, rc);
   ASSERT_EQ(503, status);  // Request is rejected with a 503.
+  
+  EXPECT_EQ(1, ((SNMP::FakeCounterTable*)_stats_manager.H_incoming_requests)->_count);
+  EXPECT_EQ(1, ((SNMP::FakeCounterTable*)_stats_manager.H_rejected_overload)->_count);
 }
 
 TEST_F(HttpStackStatsTest, LatencyPenalties)
@@ -321,8 +326,7 @@ TEST_F(HttpStackStatsTest, LatencyPenalties)
 
   EXPECT_CALL(_load_monitor, admit_request()).WillOnce(Return(true));
   EXPECT_CALL(_load_monitor, incr_penalties()).Times(1);
-  EXPECT_CALL(_stats_manager, incr_http_incoming_requests()).Times(1);
-  EXPECT_CALL(_stats_manager, update_http_latency_us(_)).Times(1);
+  ////!!!EXPECT_CALL(_stats_manager, update_http_latency_us(_)).Times(1);
   EXPECT_CALL(_load_monitor, request_complete(_)).Times(1);
 
   int status;
@@ -330,4 +334,6 @@ TEST_F(HttpStackStatsTest, LatencyPenalties)
   int rc = get("/BasicHandler", status, response);
   ASSERT_EQ(CURLE_OK, rc);
   ASSERT_EQ(200, status);
+  
+  EXPECT_EQ(1, ((SNMP::FakeCounterTable*)_stats_manager.H_incoming_requests)->_count);
 }

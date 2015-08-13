@@ -1,5 +1,5 @@
 /**
- * @file statisticsmanager.cpp class used for all homestead statistics.
+ * @file fakestatisticsmanager.hpp Fake statistics manager for UT.
  *
  * project clearwater - ims in the cloud
  * copyright (c) 2013  metaswitch networks ltd
@@ -34,24 +34,48 @@
  * as those licenses appear in the file license-openssl.
  */
 
-#include <statisticsmanager.h>
+#ifndef FAKESTATISTICSMANAGER_HPP__
+#define FAKESTATISTICSMANAGER_HPP__
 
-StatisticsManager::StatisticsManager()
+#include "gmock/gmock.h"
+#include "statisticsmanager.h"
+#include "fakestatisticsmanager.hpp"
+
+namespace SNMP
 {
-  H_latency_us = SNMP::AccumulatorTable::create("H_latency_us",
-                                                ".1.2.826.0.1.1578918.9.5.1");
-  H_hss_latency_us = SNMP::AccumulatorTable::create("H_hss_latency_us",
-                                                    ".1.2.826.0.1.1578918.9.5.2");
-  H_cache_latency_us = SNMP::AccumulatorTable::create("H_cache_latency_us",
-                                                      ".1.2.826.0.1.1578918.9.5.3");
-  H_hss_digest_latency_us = SNMP::AccumulatorTable::create("H_hss_digest_latency_us",
-                                                           ".1.2.826.0.1.1578918.9.5.4");
-  H_hss_subscription_latency_us = SNMP::AccumulatorTable::create("H_hss_subscription_latency_us",
-                                                                 ".1.2.826.0.1.1578918.9.5.5");
-  H_incoming_requests = SNMP::CounterTable::create("H_incoming_requests",
-                                                   ".1.2.826.0.1.1578918.9.5.6");
-  H_rejected_overload = SNMP::CounterTable::create("H_rejected_overload",
-                                                   ".1.2.826.0.1.1578918.9.5.7");
-}
+class FakeAccumulatorTable: public AccumulatorTable
+{
+  public:
+    int _count;
+    FakeAccumulatorTable() { _count = 0; };
+    void accumulate(uint32_t sample) { _count += sample; };
+    void reset_count() { _count = 0; };
+};
 
-StatisticsManager::~StatisticsManager() {}
+class FakeCounterTable: public CounterTable
+{
+  public:
+    int _count;
+    FakeCounterTable() { _count = 0; };
+    void increment() { _count++; };
+    void reset_count() { _count = 0; };
+};
+
+extern FakeAccumulatorTable FAKE_H_LATENCY_US_TABLE;
+extern FakeAccumulatorTable FAKE_H_HSS_LATENCY_US_TABLE;
+extern FakeAccumulatorTable FAKE_H_CACHE_LATENCY_US_TABLE;
+extern FakeAccumulatorTable FAKE_H_HSS_DIGEST_LATENCY_US_TABLE;
+extern FakeAccumulatorTable FAKE_H_HSS_SUBSCRIPTION_LATENCY_US_TABLE;
+extern FakeCounterTable FAKE_H_INCOMING_REQUESTS_TABLE;
+extern FakeCounterTable FAKE_H_REJECTED_OVERLOAD_TABLE;
+
+} // Namespace SNMP ends.
+
+class FakeStatisticsManager: public StatisticsManager
+{
+  FakeStatisticsManager();
+};
+
+extern FakeStatisticsManager FAKE_STATISTICS_MANAGER;
+
+#endif

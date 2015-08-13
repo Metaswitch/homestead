@@ -68,7 +68,7 @@
 #include "mockhttpconnection.hpp"
 #include "fakehttpresolver.hpp"
 #include "handlers.h"
-#include "mockstatisticsmanager.hpp"
+#include "fakestatisticsmanager.hpp"
 #include "sproutconnection.h"
 #include "mock_health_checker.hpp"
 
@@ -152,9 +152,7 @@ public:
   static MockHttpConnection* _mock_http_conn;
   static SproutConnection* _sprout_conn;
 
-  // Two mock stats managers, so we can choose whether to ignore stats or not.
-  static NiceMock<MockStatisticsManager>* _nice_stats;
-  static StrictMock<MockStatisticsManager>* _stats;
+  static FakeStatisticsManager* _stats;
 
   // Used to catch diameter messages and transactions on the MockDiameterStack
   // so that we can inspect them.
@@ -168,6 +166,13 @@ public:
   virtual ~HandlersTest()
   {
     Mock::VerifyAndClear(_httpstack);
+    ((SNMP::FakeAccumulatorTable*)_stats->H_latency_us)->reset_count();
+    ((SNMP::FakeAccumulatorTable*)_stats->H_hss_latency_us)->reset_count();
+    ((SNMP::FakeAccumulatorTable*)_stats->H_cache_latency_us)->reset_count();
+    ((SNMP::FakeAccumulatorTable*)_stats->H_hss_digest_latency_us)->reset_count();
+    ((SNMP::FakeAccumulatorTable*)_stats->H_hss_subscription_latency_us)->reset_count();
+    ((SNMP::FakeAccumulatorTable*)_stats->H_incoming_requests)->reset_count();
+    ((SNMP::FakeAccumulatorTable*)_stats->H_rejected_overload)->reset_count();
   }
 
   static void SetUpTestCase()
@@ -183,8 +188,7 @@ public:
     _mock_http_conn = new MockHttpConnection(_mock_resolver);
     _sprout_conn = new SproutConnection(_mock_http_conn);
 
-    _stats = new StrictMock<MockStatisticsManager>;
-    _nice_stats = new NiceMock<MockStatisticsManager>;
+    _stats = new FakeStatisticsManager;
 
     HssCacheTask::configure_diameter(_mock_stack,
                                      DEST_REALM,
@@ -192,7 +196,7 @@ public:
                                      DEFAULT_SERVER_NAME,
                                      _cx_dict);
     HssCacheTask::configure_cache(_cache);
-    HssCacheTask::configure_stats(_nice_stats);
+    HssCacheTask::configure_stats(_stats);
 
     cwtest_completely_control_time();
   }
@@ -202,7 +206,6 @@ public:
     cwtest_reset_time();
 
     delete _stats; _stats = NULL;
-    delete _nice_stats; _nice_stats = NULL;
     delete _cx_dict; _cx_dict = NULL;
     delete _mock_stack; _mock_stack = NULL;
     delete _cache; _cache = NULL;
@@ -1092,15 +1095,7 @@ public:
 
   static void ignore_stats(bool ignore)
   {
-    if (ignore)
-    {
-      Mock::VerifyAndClear(_stats);
-      HssCacheTask::configure_stats(_nice_stats);
-    }
-    else
-    {
-      HssCacheTask::configure_stats(_stats);
-    }
+    HssCacheTask::configure_stats(_stats);
   }
 };
 
@@ -1142,19 +1137,19 @@ const std::string HandlersTest::IMPU_IMS_SUBSCRIPTION_INVALID = "<?xml version=\
 const std::string HandlersTest::IMPU3_IMS_SUBSCRIPTION = "<?xml version=\"1.0\"?><IMSSubscription><PrivateID>" + IMPI + "</PrivateID><ServiceProfile><PublicIdentity><Identity>" + IMPU3 + "</Identity></PublicIdentity><PublicIdentity><Identity>" + IMPU2 + "</Identity></PublicIdentity></ServiceProfile></IMSSubscription>";
 std::vector<std::string> HandlersTest::EMPTY_VECTOR = {};
 const std::string HandlersTest::DEREG_BODY_PAIRINGS = "{\"registrations\":[{\"primary-impu\":\"" + IMPU3 + "\",\"impi\":\"" + IMPI +
-                                                                      "\"},{\"primary-impu\":\"" + IMPU3 + "\",\"impi\":\"" + ASSOCIATED_IDENTITY1 +
-                                                                      "\"},{\"primary-impu\":\"" + IMPU3 + "\",\"impi\":\"" + ASSOCIATED_IDENTITY2 +
-                                                                      "\"},{\"primary-impu\":\"" + IMPU + "\",\"impi\":\"" + IMPI +
-                                                                      "\"},{\"primary-impu\":\"" + IMPU + "\",\"impi\":\"" + ASSOCIATED_IDENTITY1 +
-                                                                      "\"},{\"primary-impu\":\"" + IMPU + "\",\"impi\":\"" + ASSOCIATED_IDENTITY2 + "\"}]}";
+"\"},{\"primary-impu\":\"" + IMPU3 + "\",\"impi\":\"" + ASSOCIATED_IDENTITY1 +
+"\"},{\"primary-impu\":\"" + IMPU3 + "\",\"impi\":\"" + ASSOCIATED_IDENTITY2 +
+"\"},{\"primary-impu\":\"" + IMPU + "\",\"impi\":\"" + IMPI +
+"\"},{\"primary-impu\":\"" + IMPU + "\",\"impi\":\"" + ASSOCIATED_IDENTITY1 +
+"\"},{\"primary-impu\":\"" + IMPU + "\",\"impi\":\"" + ASSOCIATED_IDENTITY2 + "\"}]}";
 const std::string HandlersTest::DEREG_BODY_LIST = "{\"registrations\":[{\"primary-impu\":\"" + IMPU3 + "\"},{\"primary-impu\":\"" + IMPU + "\"}]}";
 // These are effectively the same as above, but depending on the exact code path the ordering of IMPUS can be different.
 const std::string HandlersTest::DEREG_BODY_PAIRINGS2 = "{\"registrations\":[{\"primary-impu\":\"" + IMPU + "\",\"impi\":\"" + IMPI +
-                                                                       "\"},{\"primary-impu\":\"" + IMPU + "\",\"impi\":\"" + ASSOCIATED_IDENTITY1 +
-                                                                       "\"},{\"primary-impu\":\"" + IMPU + "\",\"impi\":\"" + ASSOCIATED_IDENTITY2 +
-                                                                       "\"},{\"primary-impu\":\"" + IMPU3 + "\",\"impi\":\"" + IMPI +
-                                                                       "\"},{\"primary-impu\":\"" + IMPU3 + "\",\"impi\":\"" + ASSOCIATED_IDENTITY1 +
-                                                                       "\"},{\"primary-impu\":\"" + IMPU3 + "\",\"impi\":\"" + ASSOCIATED_IDENTITY2 + "\"}]}";
+"\"},{\"primary-impu\":\"" + IMPU + "\",\"impi\":\"" + ASSOCIATED_IDENTITY1 +
+"\"},{\"primary-impu\":\"" + IMPU + "\",\"impi\":\"" + ASSOCIATED_IDENTITY2 +
+"\"},{\"primary-impu\":\"" + IMPU3 + "\",\"impi\":\"" + IMPI +
+"\"},{\"primary-impu\":\"" + IMPU3 + "\",\"impi\":\"" + ASSOCIATED_IDENTITY1 +
+"\"},{\"primary-impu\":\"" + IMPU3 + "\",\"impi\":\"" + ASSOCIATED_IDENTITY2 + "\"}]}";
 const std::string HandlersTest::DEREG_BODY_LIST2 = "{\"registrations\":[{\"primary-impu\":\"" + IMPU + "\"},{\"primary-impu\":\"" + IMPU3 + "\"}]}";
 const std::string HandlersTest::SCHEME_UNKNOWN = "Unknwon";
 const std::string HandlersTest::SCHEME_DIGEST = "SIP Digest";
@@ -1182,8 +1177,7 @@ MockHttpStack* HandlersTest::_httpstack = NULL;
 MockHttpConnection* HandlersTest::_mock_http_conn = NULL;
 SproutConnection* HandlersTest::_sprout_conn = NULL;
 
-NiceMock<MockStatisticsManager>* HandlersTest::_nice_stats = NULL;
-StrictMock<MockStatisticsManager>* HandlersTest::_stats = NULL;
+FakeStatisticsManager* HandlersTest::_stats = NULL;
 struct msg* HandlersTest::_caught_fd_msg = NULL;
 Diameter::Transaction* HandlersTest::_caught_diam_tsx = NULL;
 
@@ -4190,12 +4184,12 @@ TEST_F(HandlerStatsTest, DigestCache)
   digest.realm = "realm";
   digest.qop = "qop";
 
-  EXPECT_CALL(*_stats, update_H_cache_latency_us(12000));
   EXPECT_CALL(mock_op, get_result(_))
     .WillRepeatedly(SetArgReferee<0>(digest));
   EXPECT_CALL(*_httpstack, send_reply(_, _, _));
   t->on_success(&mock_op);
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
+  EXPECT_EQ(12000, ((SNMP::FakeAccumulatorTable*)_stats->H_cache_latency_us)->_count);
 }
 
 
@@ -4228,12 +4222,12 @@ TEST_F(HandlerStatsTest, DigestCacheFailure)
 
   // Cache latency stats are updated when the transaction fails.
   EXPECT_CALL(*_httpstack, send_reply(_, _, _));
-  EXPECT_CALL(*_stats, update_H_cache_latency_us(12000));
 
   mock_op._cass_status = CassandraStore::NOT_FOUND;
   mock_op._cass_error_text = "error";
   t->on_failure(&mock_op);
 
+  EXPECT_EQ(12000, ((SNMP::FakeAccumulatorTable*)_stats->H_cache_latency_us)->_count);
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
 }
 
@@ -4262,7 +4256,7 @@ TEST_F(HandlerStatsTest, DigestCacheConnectionFailure)
 
   // Cache latency stats are updated when the transaction fails.
   EXPECT_CALL(*_httpstack, send_reply(_, 503,  _));
-  EXPECT_CALL(*_stats, update_H_cache_latency_us(_));
+  ////!!EXPECT_EQ(_, ((SNMP::FakeAccumulatorTable*)_stats->H_cache_latency_us)->_count);
 
   mock_op._cass_status = CassandraStore::CONNECTION_ERROR;
   mock_op._cass_error_text = "error";
@@ -4311,10 +4305,6 @@ TEST_F(HandlerStatsTest, DigestHSS)
                                digest,
                                aka);
 
-  // The HSS and digest stats are updated.
-  EXPECT_CALL(*_stats, update_H_hss_latency_us(13000));
-  EXPECT_CALL(*_stats, update_H_hss_digest_latency_us(13000));
-
   MockCache::MockPutAssociatedPublicID mock_op;
   EXPECT_CALL(*_cache, create_PutAssociatedPublicID(IMPI, IMPU,  _, _))
     .WillOnce(Return(&mock_op));
@@ -4322,6 +4312,10 @@ TEST_F(HandlerStatsTest, DigestHSS)
 
   EXPECT_CALL(*_httpstack, send_reply(_, _, _));
   _caught_diam_tsx->on_response(maa);
+  
+  // The HSS and digest stats are updated.
+  EXPECT_EQ(13000, ((SNMP::FakeAccumulatorTable*)_stats->H_hss_latency_us)->_count);
+  EXPECT_EQ(13000, ((SNMP::FakeAccumulatorTable*)_stats->H_hss_digest_latency_us)->_count);
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
 }
 
@@ -4353,11 +4347,10 @@ TEST_F(HandlerStatsTest, DigestHSSTimeout)
   // Free the underlying FD message.
   fd_msg_free(_caught_fd_msg); _caught_fd_msg = NULL;
 
-  EXPECT_CALL(*_stats, update_H_hss_latency_us(13000));
-  EXPECT_CALL(*_stats, update_H_hss_digest_latency_us(13000));
-
   EXPECT_CALL(*_httpstack, send_reply(_, _, _));
   _caught_diam_tsx->on_timeout();
+  EXPECT_EQ(13000, ((SNMP::FakeAccumulatorTable*)_stats->H_hss_latency_us)->_count);
+  EXPECT_EQ(13000, ((SNMP::FakeAccumulatorTable*)_stats->H_hss_digest_latency_us)->_count);
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
 }
 
@@ -4404,11 +4397,12 @@ TEST_F(HandlerStatsTest, IMSSubscriptionReregHSS)
   EXPECT_CALL(*_mock_stack, send(_, _, 200))
     .Times(1)
     .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
-  EXPECT_CALL(*_stats, update_H_cache_latency_us(10000));
 
   t->on_success(&mock_op);
   ASSERT_FALSE(_caught_diam_tsx == NULL);
-
+  EXPECT_EQ(10000, ((SNMP::FakeAccumulatorTable*)_stats->H_cache_latency_us)->_count);
+  ((SNMP::FakeAccumulatorTable*)_stats->H_cache_latency_us)->reset_count();
+  
   // The diameter SAR takes some time to process.
   _caught_diam_tsx->start_timer();
   cwtest_advance_time_ms(20);
@@ -4437,13 +4431,12 @@ TEST_F(HandlerStatsTest, IMSSubscriptionReregHSS)
     .WillOnce(ReturnRef(mock_op2));
   EXPECT_DO_ASYNC(*_cache, mock_op2);
 
-  // Expect the stats to get updated.
-  EXPECT_CALL(*_stats, update_H_hss_latency_us(20000));
-  EXPECT_CALL(*_stats, update_H_hss_subscription_latency_us(20000));
-
   EXPECT_CALL(*_httpstack, send_reply(_, _, _));
   _caught_diam_tsx->on_response(saa);
 
+  // Expect the stats to get updated.
+  EXPECT_EQ(20000, ((SNMP::FakeAccumulatorTable*)_stats->H_hss_latency_us)->_count);
+  EXPECT_EQ(20000, ((SNMP::FakeAccumulatorTable*)_stats->H_hss_subscription_latency_us)->_count);
   // Check the cache put latency is recorded.
   t = mock_op2.get_trx();
   ASSERT_FALSE(t == NULL);
@@ -4452,8 +4445,8 @@ TEST_F(HandlerStatsTest, IMSSubscriptionReregHSS)
   cwtest_advance_time_ms(11);
   t->stop_timer();
 
-  EXPECT_CALL(*_stats, update_H_cache_latency_us(11000));
   t->on_success(&mock_op2);
+  EXPECT_EQ(11000, ((SNMP::FakeAccumulatorTable*)_stats->H_cache_latency_us)->_count);
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
 }
 
@@ -4493,9 +4486,9 @@ TEST_F(HandlerStatsTest, RegistrationStatus)
                                   SERVER_NAME,
                                   CAPABILITIES);
   EXPECT_CALL(*_httpstack, send_reply(_, _, _));
-  EXPECT_CALL(*_stats, update_H_hss_latency_us(13000));
-  EXPECT_CALL(*_stats, update_H_hss_subscription_latency_us(13000));
   _caught_diam_tsx->on_response(uaa);
+  EXPECT_EQ(13000, ((SNMP::FakeAccumulatorTable*)_stats->H_hss_latency_us)->_count);
+  EXPECT_EQ(13000, ((SNMP::FakeAccumulatorTable*)_stats->H_hss_subscription_latency_us)->_count);
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
 }
 
@@ -4534,10 +4527,10 @@ TEST_F(HandlerStatsTest, LocationInfo)
                              SERVER_NAME,
                              CAPABILITIES);
   EXPECT_CALL(*_httpstack, send_reply(_, _, _));
-  EXPECT_CALL(*_stats, update_H_hss_latency_us(16000));
-  EXPECT_CALL(*_stats, update_H_hss_subscription_latency_us(16000));
 
   _caught_diam_tsx->on_response(lia);
+  EXPECT_EQ(16000, ((SNMP::FakeAccumulatorTable*)_stats->H_hss_latency_us)->_count);
+  EXPECT_EQ(16000, ((SNMP::FakeAccumulatorTable*)_stats->H_hss_subscription_latency_us)->_count);
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
 }
 
@@ -4579,9 +4572,9 @@ TEST_F(HandlerStatsTest, LocationInfoOverload)
                              CAPABILITIES);
   EXPECT_CALL(*_httpstack, record_penalty());
   EXPECT_CALL(*_httpstack, send_reply(_, _, _));
-  EXPECT_CALL(*_stats, update_H_hss_latency_us(17000));
-  EXPECT_CALL(*_stats, update_H_hss_subscription_latency_us(17000));
 
   _caught_diam_tsx->on_response(lia);
+  EXPECT_EQ(17000, ((SNMP::FakeAccumulatorTable*)_stats->H_hss_latency_us)->_count);
+  EXPECT_EQ(17000, ((SNMP::FakeAccumulatorTable*)_stats->H_hss_subscription_latency_us)->_count);
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
 }

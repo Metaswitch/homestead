@@ -185,15 +185,15 @@ public:
         {
           if (_stat_updates & STAT_HSS_LATENCY)
           {
-            stats->update_H_hss_latency_us(latency);
+            stats->H_hss_latency_us->accumulate(latency);
           }
           if (_stat_updates & STAT_HSS_DIGEST_LATENCY)
           {
-            stats->update_H_hss_digest_latency_us(latency);
+            stats->H_hss_digest_latency_us->accumulate(latency);
           }
           if (_stat_updates & STAT_HSS_SUBSCRIPTION_LATENCY)
           {
-            stats->update_H_hss_subscription_latency_us(latency);
+            stats->H_hss_subscription_latency_us->accumulate(latency);
           }
         }
       }
@@ -261,7 +261,7 @@ public:
       unsigned long latency = 0;
       if ((stats != NULL) && get_duration(latency))
       {
-        stats->update_H_cache_latency_us(latency);
+        stats->H_cache_latency_us->accumulate(latency);
       }
     }
   };
