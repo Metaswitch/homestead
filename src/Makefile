@@ -40,11 +40,16 @@ TARGET_SOURCES := accesslogger.cpp \
                   sproutconnection.cpp \
                   statistic.cpp \
                   statisticsmanager.cpp \
+                  snmp_agent.cpp \
+                  snmp_row.cpp \
+                  snmp_scalar.cpp \
                   utils.cpp \
                   xmlutils.cpp \
                   zmq_lvc.cpp 
 
-TARGET_SOURCES_BUILD := main.cpp
+TARGET_SOURCES_BUILD := main.cpp \
+                        snmp_counter_table.cpp \
+                        snmp_accumulator_table.cpp \
 
 TARGET_SOURCES_TEST := test_main.cpp \
                        test_interposer.cpp \

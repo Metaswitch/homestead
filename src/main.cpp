@@ -60,6 +60,8 @@
 #include "communicationmonitor.h"
 #include "exception_handler.h"
 #include "homestead_alarmdefinition.h"
+#include "snmp_counter_table.h"
+#include "snmp_agent.h"
 
 struct options
 {
@@ -603,28 +605,14 @@ int main(int argc, char**argv)
             sas_write);
 
   // Set up the statistics (Homestead specific and Diameter)
-  const static std::string known_stats[] = {
-    "H_latency_us",
-    "H_hss_latency_us",
-    "H_hss_digest_latency_us",
-    "H_hss_subscription_latency_us",
-    "H_cache_latency_us",
-    "H_incoming_requests",
-    "H_rejected_overload",
-    "H_diameter_invalid_dest_host",
-    "H_diameter_invalid_dest_realm",
-  };
-
-  const static int num_known_stats = sizeof(known_stats) / sizeof(std::string);
-  LastValueCache* lvc = new LastValueCache(num_known_stats,
-                                           known_stats,
-                                           "homestead",
-                                           1000);
-  StatisticsManager* stats_manager = new StatisticsManager(lvc);
-  StatisticCounter* realm_counter =  new StatisticCounter("H_diameter_invalid_dest_realm",
-                                                          lvc);
-  StatisticCounter* host_counter = new StatisticCounter("H_diameter_invalid_dest_host",
-                                                        lvc);
+  snmp_setup("homestead");
+  StatisticsManager* stats_manager = new StatisticsManager();
+  SNMP::CounterTable* realm_counter = SNMP::CounterTable::create("H_diameter_invalid_dest_realm",
+                                                                 ".1.2.826.0.1.1578918.9.5.8");
+  SNMP::CounterTable* host_counter = SNMP::CounterTable::create("H_diameter_invalid_destr_host",
+                                                                 ".1.2.826.0.1.1578918.9.5.9");
+  // Must happen after all SNMP tables have been registered.
+  init_snmp_handler_threads("homestead");
 
   if (options.alarms_enabled)
   {
@@ -822,6 +810,7 @@ int main(int argc, char**argv)
 
   TRC_STATUS("Start-up complete - wait for termination signal");
   sem_wait(&term_sem);
+  snmp_terminate("homestead");
   TRC_STATUS("Termination signal received - terminating");
   CL_HOMESTEAD_ENDED.log();
 
@@ -868,7 +857,6 @@ int main(int argc, char**argv)
   delete realm_counter; realm_counter = NULL;
   delete host_counter; host_counter = NULL;
   delete stats_manager; stats_manager = NULL;
-  delete lvc; lvc = NULL;
 
   hc->terminate();
   pthread_join(health_check_thread, NULL);

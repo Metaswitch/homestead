@@ -38,20 +38,20 @@
 #define STATISTICSMANAGER_H__
 
 #include "zmq_lvc.h"
-#include "counter.h"
-#include "accumulator.h"
+#include "snmp_counter_table.h"
+#include "snmp_accumulator_table.h"
 #include "httpstack.h"
 
 #define COUNTER_INCR_METHOD(NAME) \
-  virtual void incr_##NAME() { (NAME).increment(); }
+  virtual void incr_##NAME() { (NAME)->increment(); }
 
 #define ACCUMULATOR_UPDATE_METHOD(NAME) \
-  virtual void update_##NAME(unsigned long sample) { (NAME).accumulate(sample); }
+  virtual void update_##NAME(unsigned long sample) { (NAME)->accumulate(sample); }
 
 class StatisticsManager : public HttpStack::StatsInterface
 {
 public:
-  StatisticsManager(LastValueCache* lvc);
+  StatisticsManager();
   virtual ~StatisticsManager();
 
   ACCUMULATOR_UPDATE_METHOD(H_latency_us);
@@ -72,16 +72,14 @@ public:
   void incr_http_rejected_overload() { incr_H_rejected_overload(); }
 
 private:
-  LastValueCache* _lvc;
+  SNMP::AccumulatorTable* H_latency_us;
+  SNMP::AccumulatorTable* H_hss_latency_us;
+  SNMP::AccumulatorTable* H_hss_digest_latency_us;
+  SNMP::AccumulatorTable* H_hss_subscription_latency_us;
+  SNMP::AccumulatorTable* H_cache_latency_us;
 
-  StatisticAccumulator H_latency_us;
-  StatisticAccumulator H_hss_latency_us;
-  StatisticAccumulator H_hss_digest_latency_us;
-  StatisticAccumulator H_hss_subscription_latency_us;
-  StatisticAccumulator H_cache_latency_us;
-
-  StatisticCounter H_incoming_requests;
-  StatisticCounter H_rejected_overload;
+  SNMP::CounterTable* H_incoming_requests;
+  SNMP::CounterTable* H_rejected_overload;
 };
 
 #endif
