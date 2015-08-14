@@ -43,7 +43,7 @@
 #define FAKE_SNMP_H
 
 #include "snmp_row.h"
-#include "snmp_accumulator_table.h"
+#include "snmp_event_accumulator_table.h"
 #include "snmp_counter_table.h"
 
 namespace SNMP
@@ -56,10 +56,10 @@ public:
   void increment() {};
 };
 
-class FakeAccumulatorTable: public AccumulatorTable
+class FakeEventAccumulatorTable: public EventAccumulatorTable
 {
 public:
-  FakeAccumulatorTable() {};
+  FakeEventAccumulatorTable() {};
   void accumulate(uint32_t sample) {};
 };
 }

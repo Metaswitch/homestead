@@ -45,11 +45,11 @@ TARGET_SOURCES := accesslogger.cpp \
                   snmp_scalar.cpp \
                   utils.cpp \
                   xmlutils.cpp \
-                  zmq_lvc.cpp 
+                  zmq_lvc.cpp
 
 TARGET_SOURCES_BUILD := main.cpp \
                         snmp_counter_table.cpp \
-                        snmp_accumulator_table.cpp \
+                        snmp_event_accumulator_table.cpp \
 
 TARGET_SOURCES_TEST := test_main.cpp \
                        test_interposer.cpp \
@@ -179,7 +179,7 @@ endif
 build: ${ROOT}/usr/include/homestead_alarmdefinition.h
 
 include ${MK_DIR}/platform.mk
-include ${ROOT}/modules/cpp-common/makefiles/alarm-utils.mk 
+include ${ROOT}/modules/cpp-common/makefiles/alarm-utils.mk
 
 .PHONY: stage-build
 stage-build: build
