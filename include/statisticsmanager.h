@@ -39,7 +39,7 @@
 
 #include "zmq_lvc.h"
 #include "snmp_counter_table.h"
-#include "snmp_accumulator_table.h"
+#include "snmp_event_accumulator_table.h"
 #include "httpstack.h"
 
 #define COUNTER_INCR_METHOD(NAME) \
@@ -72,11 +72,11 @@ public:
   void incr_http_rejected_overload() { incr_H_rejected_overload(); }
 
 private:
-  SNMP::AccumulatorTable* H_latency_us;
-  SNMP::AccumulatorTable* H_hss_latency_us;
-  SNMP::AccumulatorTable* H_hss_digest_latency_us;
-  SNMP::AccumulatorTable* H_hss_subscription_latency_us;
-  SNMP::AccumulatorTable* H_cache_latency_us;
+  SNMP::EventAccumulatorTable* H_latency_us;
+  SNMP::EventAccumulatorTable* H_hss_latency_us;
+  SNMP::EventAccumulatorTable* H_hss_digest_latency_us;
+  SNMP::EventAccumulatorTable* H_hss_subscription_latency_us;
+  SNMP::EventAccumulatorTable* H_cache_latency_us;
 
   SNMP::CounterTable* H_incoming_requests;
   SNMP::CounterTable* H_rejected_overload;
