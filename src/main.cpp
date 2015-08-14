@@ -609,7 +609,7 @@ int main(int argc, char**argv)
   StatisticsManager* stats_manager = new StatisticsManager();
   SNMP::CounterTable* realm_counter = SNMP::CounterTable::create("H_diameter_invalid_dest_realm",
                                                                  ".1.2.826.0.1.1578918.9.5.8");
-  SNMP::CounterTable* host_counter = SNMP::CounterTable::create("H_diameter_invalid_destr_host",
+  SNMP::CounterTable* host_counter = SNMP::CounterTable::create("H_diameter_invalid_dest_host",
                                                                  ".1.2.826.0.1.1578918.9.5.9");
   // Must happen after all SNMP tables have been registered.
   init_snmp_handler_threads("homestead");
