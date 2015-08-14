@@ -1,8 +1,13 @@
 /**
- * @file statisticsmanager.h class used for all homestead statistics.
+ * @file fakesnmp.cpp Fake SNMP infrastructure for UT.
  *
  * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2013  Metaswitch Networks Ltd
+ * Copyright (C) 2015  Metaswitch Networks Ltd
+ *
+ * Parts of this module were derived from GPL licensed PJSIP sample code
+ * with the following copyrights.
+ *   Copyright (C) 2008-2011 Teluu Inc. (http://www.teluu.com)
+ *   Copyright (C) 2003-2008 Benny Prijono <benny@prijono.org>
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -34,52 +39,21 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#ifndef STATISTICSMANAGER_H__
-#define STATISTICSMANAGER_H__
-
-#include "zmq_lvc.h"
-#include "snmp_counter_table.h"
+#include "snmp_internal/snmp_includes.h"
+#include "fakesnmp.hpp"
 #include "snmp_accumulator_table.h"
-#include "httpstack.h"
+#include "snmp_counter_table.h"
 
-#define COUNTER_INCR_METHOD(NAME) \
-  virtual void incr_##NAME() { (NAME)->increment(); }
-
-#define ACCUMULATOR_UPDATE_METHOD(NAME) \
-  virtual void update_##NAME(unsigned long sample) { (NAME)->accumulate(sample); }
-
-class StatisticsManager : public HttpStack::StatsInterface
+namespace SNMP
 {
-public:
-  StatisticsManager();
-  virtual ~StatisticsManager();
-
-  ACCUMULATOR_UPDATE_METHOD(H_latency_us);
-  ACCUMULATOR_UPDATE_METHOD(H_hss_latency_us);
-  ACCUMULATOR_UPDATE_METHOD(H_hss_digest_latency_us);
-  ACCUMULATOR_UPDATE_METHOD(H_hss_subscription_latency_us);
-  ACCUMULATOR_UPDATE_METHOD(H_cache_latency_us);
-
-  COUNTER_INCR_METHOD(H_incoming_requests);
-  COUNTER_INCR_METHOD(H_rejected_overload);
-
-  // Methods required to implement the HTTP stack stats interface.
-  void update_http_latency_us(unsigned long latency_us)
-  {
-    update_H_latency_us(latency_us);
-  }
-  void incr_http_incoming_requests() { incr_H_incoming_requests(); }
-  void incr_http_rejected_overload() { incr_H_rejected_overload(); }
-
-private:
-  SNMP::AccumulatorTable* H_latency_us;
-  SNMP::AccumulatorTable* H_hss_latency_us;
-  SNMP::AccumulatorTable* H_hss_digest_latency_us;
-  SNMP::AccumulatorTable* H_hss_subscription_latency_us;
-  SNMP::AccumulatorTable* H_cache_latency_us;
-
-  SNMP::CounterTable* H_incoming_requests;
-  SNMP::CounterTable* H_rejected_overload;
+CounterTable* CounterTable::create(std::string name, std::string oid)
+{
+  return new FakeCounterTable();
 };
 
-#endif
+AccumulatorTable* AccumulatorTable::create(std::string name, std::string oid)
+{
+  return new FakeAccumulatorTable();
+};
+
+}

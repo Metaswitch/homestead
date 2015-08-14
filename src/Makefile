@@ -40,11 +40,16 @@ TARGET_SOURCES := accesslogger.cpp \
                   sproutconnection.cpp \
                   statistic.cpp \
                   statisticsmanager.cpp \
+                  snmp_agent.cpp \
+                  snmp_row.cpp \
+                  snmp_scalar.cpp \
                   utils.cpp \
                   xmlutils.cpp \
                   zmq_lvc.cpp 
 
-TARGET_SOURCES_BUILD := main.cpp
+TARGET_SOURCES_BUILD := main.cpp \
+                        snmp_counter_table.cpp \
+                        snmp_accumulator_table.cpp \
 
 TARGET_SOURCES_TEST := test_main.cpp \
                        test_interposer.cpp \
@@ -56,6 +61,7 @@ TARGET_SOURCES_TEST := test_main.cpp \
                        httpstack_test.cpp \
                        httpstack_utils_test.cpp \
                        fakelogger.cpp \
+                       fakesnmp.cpp \
                        mockfreediameter.cpp \
                        mock_sas.cpp \
                        realmmanager_test.cpp \
