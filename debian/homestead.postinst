@@ -86,11 +86,8 @@ case "$1" in
         setup_logging
         [ ! -x /usr/share/clearwater/bin/clearwater-logging-update ] || /usr/share/clearwater/bin/clearwater-logging-update
         add_section /etc/security/limits.conf homestead /etc/security/limits.conf.homestead
-        for SCRIPT in $(ls -1 /usr/share/clearwater/infrastructure/scripts/$NAME* 2>/dev/null)
-        do
-            $SCRIPT
-        done
 
+        service clearwater-infrastructure restart
         /usr/share/clearwater/cassandra-schemas/homestead_cache.sh || /bin/true
 
         # Stop the cluster manager, so that it is restarted by Monit and picks
