@@ -88,7 +88,6 @@ case "$1" in
         add_section /etc/security/limits.conf homestead /etc/security/limits.conf.homestead
 
         service clearwater-infrastructure restart
-        /usr/share/clearwater/cassandra-schemas/homestead_cache.sh || /bin/true
 
         # Stop the cluster manager, so that it is restarted by Monit and picks
         # up the new Cassandra scaling plugin. We check whether the process is 
