@@ -53,26 +53,18 @@ fi
 
 identity=$hs_diameteridentity
 
-if [[ -z "$identity" ]];
+if [ -n "$hs_hostname" ] && [ -n "$public_hostname" ];
 then
-    if [[ -z "$public_hostname" ]];
-    then
-        echo "No public_hostname set in /etc/clearwater/local_config" >&2
-        exit
-    fi
-
+  if [[ -z "$identity" ]];
+  then
     identity=$public_hostname
+  fi
+
+  # Strip any characters not valid in an FQDN out of hs_hostname (for
+  # example, it might be an IPv6 address)
+  realm=$(echo $hs_hostname | sed -e 's/:[^:]*$//g' | sed -e 's/^\[//g' | sed -e 's/\]$//g')
+  /usr/share/clearwater/bin/generic_create_diameterconf homestead $identity $realm $hs_listen_port $hs_secure_listen_port $acl_required $check_destination_host
 fi
 
-
-if [[ -z "$hs_hostname" ]];
-then
-  echo "No hs_hostname set in /etc/clearwater/shared_config" >&2
-  exit
-fi
-
-# Strip any characters not valid in an FQDN out of hs_hostname (for
-# example, it might be an IPv6 address)
-realm=$(echo $hs_hostname | sed -e 's/:[^:]*$//g' | sed -e 's/^\[//g' | sed -e 's/\]$//g')
-
-/usr/share/clearwater/bin/generic_create_diameterconf homestead $identity $realm $hs_listen_port $hs_secure_listen_port $acl_required $check_destination_host
+# Create Cassandra schema
+/usr/share/clearwater/cassandra-schemas/homestead_cache.sh || /bin/true
