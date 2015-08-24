@@ -47,11 +47,14 @@ then
         CREATE TABLE impu (public_id text PRIMARY KEY, ims_subscription_xml text, is_registered boolean) WITH COMPACT STORAGE AND read_repair_chance = 1.0;" | $namespace_prefix cqlsh
 fi
 
-echo "USE homestead_cache;
-      ALTER TABLE impu ADD primary_ccf text;
-      ALTER TABLE impu ADD secondary_ccf text;
-      ALTER TABLE impu ADD primary_ecf text;
-      ALTER TABLE impu ADD secondary_ecf text;" | $namespace_prefix cqlsh
+echo "USE homestead_cache; DESC TABLE impu" | cqlsh | grep primary_ccf > /dev/null
+if [ $? != 0 ]; then
+  echo "USE homestead_cache;
+        ALTER TABLE impu ADD primary_ccf text;
+        ALTER TABLE impu ADD secondary_ccf text;
+        ALTER TABLE impu ADD primary_ecf text;
+        ALTER TABLE impu ADD secondary_ecf text;" | $namespace_prefix cqlsh
+fi
 
 if [[ ! -e /var/lib/cassandra/data/homestead_cache/impi_mapping ]];
 then
