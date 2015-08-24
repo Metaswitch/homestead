@@ -54,6 +54,7 @@ fi
 identity=$hs_diameteridentity
 
 if [ -n "$hs_hostname" ] && [ -n "$public_hostname" ];
+then
   if [[ -z "$identity" ]];
   then
     identity=$public_hostname
