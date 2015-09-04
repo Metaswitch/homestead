@@ -61,6 +61,7 @@
 #include "exception_handler.h"
 #include "homestead_alarmdefinition.h"
 #include "snmp_counter_table.h"
+#include "snmp_cx_counter_table.h"
 #include "snmp_agent.h"
 
 struct options
@@ -611,8 +612,27 @@ int main(int argc, char**argv)
                                                                  ".1.2.826.0.1.1578918.9.5.8");
   SNMP::CounterTable* host_counter = SNMP::CounterTable::create("H_diameter_invalid_dest_host",
                                                                  ".1.2.826.0.1.1578918.9.5.9");
+  SNMP::CxCounterTable* mar_results_table = SNMP::CxCounterTable::create("cx_mar_results",
+                                                                         ".1.2.826.0.1.1578918.9.5.10");
+  SNMP::CxCounterTable* sar_results_table = SNMP::CxCounterTable::create("cx_sar_results",
+                                                                         ".1.2.826.0.1.1578918.9.5.11");
+  SNMP::CxCounterTable* uar_results_table = SNMP::CxCounterTable::create("cx_uar_results",
+                                                                         ".1.2.826.0.1.1578918.9.5.12");
+  SNMP::CxCounterTable* lir_results_table = SNMP::CxCounterTable::create("cx_lir_results",
+                                                                         ".1.2.826.0.1.1578918.9.5.13");
+  SNMP::CxCounterTable* ppr_results_table = SNMP::CxCounterTable::create("cx_ppr_results",
+                                                                         ".1.2.826.0.1.1578918.9.5.14");
+  SNMP::CxCounterTable* rtr_results_table = SNMP::CxCounterTable::create("cx_rtr_results",
+                                                                         ".1.2.826.0.1.1578918.9.5.15");
   // Must happen after all SNMP tables have been registered.
   init_snmp_handler_threads("homestead");
+  
+  configure_cx_results_tables(mar_results_table,
+                             sar_results_table,
+                             uar_results_table,
+                             lir_results_table,
+                             ppr_results_table,
+                             rtr_results_table);
 
   if (options.alarms_enabled)
   {
@@ -857,6 +877,12 @@ int main(int argc, char**argv)
   delete realm_counter; realm_counter = NULL;
   delete host_counter; host_counter = NULL;
   delete stats_manager; stats_manager = NULL;
+  delete mar_results_table; mar_results_table = NULL;
+  delete sar_results_table; sar_results_table = NULL;
+  delete uar_results_table; uar_results_table = NULL;
+  delete lir_results_table; lir_results_table = NULL;
+  delete ppr_results_table; ppr_results_table = NULL;
+  delete rtr_results_table; rtr_results_table = NULL;
 
   hc->terminate();
   pthread_join(health_check_thread, NULL);

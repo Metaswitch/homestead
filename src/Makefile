@@ -50,6 +50,7 @@ TARGET_SOURCES := accesslogger.cpp \
 TARGET_SOURCES_BUILD := main.cpp \
                         snmp_counter_table.cpp \
                         snmp_event_accumulator_table.cpp \
+                        snmp_cx_counter_table.cpp 
 
 TARGET_SOURCES_TEST := test_main.cpp \
                        test_interposer.cpp \
