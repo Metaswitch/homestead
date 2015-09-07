@@ -61,7 +61,7 @@ class FakeCxCounterTable: public CxCounterTable
 {
 public:
   FakeCxCounterTable() {};
-  void increment(AppId app_id, int code) {};
+  void increment(DiameterAppId app_id, int code) {};
 };
 
 class FakeEventAccumulatorTable: public EventAccumulatorTable

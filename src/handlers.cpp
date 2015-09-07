@@ -323,7 +323,7 @@ void ImpiTask::send_mar()
                                 _scheme,
                                 _authorization);
   DiameterTransaction* tsx =
-    new DiameterTransaction(_dict, this, DIGEST_STATS, &ImpiTask::on_mar_response);
+    new DiameterTransaction(_dict, this, DIGEST_STATS, &ImpiTask::on_mar_response, mar_results_tbl);
   mar.send(tsx, _cfg->diameter_timeout_ms);
 }
 
@@ -334,7 +334,7 @@ void ImpiTask::on_mar_response(Diameter::Message& rsp)
   maa.result_code(result_code);
   printf("result code: %d\n", result_code);
   if (mar_results_tbl == NULL) { printf("There is no table\n"); }
-  mar_results_tbl->increment(SNMP::AppId::BASE, result_code);
+  mar_results_tbl->increment(SNMP::DiameterAppId::BASE, result_code);
   TRC_DEBUG("Received Multimedia-Auth answer with result code %d", result_code);
   switch (result_code)
   {
@@ -554,7 +554,8 @@ void ImpiRegistrationStatusTask::run()
       new DiameterTransaction(_dict,
                               this,
                               SUBSCRIPTION_STATS,
-                              &ImpiRegistrationStatusTask::on_uar_response);
+                              &ImpiRegistrationStatusTask::on_uar_response,
+                              uar_results_tbl);
     uar.send(tsx, _cfg->diameter_timeout_ms);
   }
   else
@@ -588,11 +589,11 @@ void ImpiRegistrationStatusTask::on_uar_response(Diameter::Message& rsp)
   int32_t experimental_result_code = uaa.experimental_result_code();
   if (result_code != 0)
   {
-    uar_results_tbl->increment(SNMP::AppId::BASE, result_code);
+    uar_results_tbl->increment(SNMP::DiameterAppId::BASE, result_code);
   }
   else if (experimental_result_code != 0)
   {
-    uar_results_tbl->increment(SNMP::AppId::_3GPP, experimental_result_code);
+    uar_results_tbl->increment(SNMP::DiameterAppId::_3GPP, experimental_result_code);
   }
   TRC_DEBUG("Received User-Authorization answer with result %d/%d",
             result_code, experimental_result_code);
@@ -700,7 +701,8 @@ void ImpuLocationInfoTask::run()
       new DiameterTransaction(_dict,
                               this,
                               SUBSCRIPTION_STATS,
-                              &ImpuLocationInfoTask::on_lir_response);
+                              &ImpuLocationInfoTask::on_lir_response,
+                              lir_results_tbl);
     lir.send(tsx, _cfg->diameter_timeout_ms);
   }
   else
@@ -720,11 +722,11 @@ void ImpuLocationInfoTask::on_lir_response(Diameter::Message& rsp)
   int32_t experimental_result_code = lia.experimental_result_code();
   if (result_code != 0)
   {
-    lir_results_tbl->increment(SNMP::AppId::BASE, result_code);
+    lir_results_tbl->increment(SNMP::DiameterAppId::BASE, result_code);
   }
   else if (experimental_result_code != 0)
   {
-    lir_results_tbl->increment(SNMP::AppId::_3GPP, experimental_result_code);
+    lir_results_tbl->increment(SNMP::DiameterAppId::_3GPP, experimental_result_code);
   }
   TRC_DEBUG("Received Location-Info answer with result %d/%d",
             result_code, experimental_result_code);
@@ -1386,7 +1388,8 @@ void ImpuRegDataTask::send_server_assignment_request(Cx::ServerAssignmentType ty
     new DiameterTransaction(_dict,
                             this,
                             SUBSCRIPTION_STATS,
-                            &ImpuRegDataTask::on_sar_response);
+                            &ImpuRegDataTask::on_sar_response,
+                            sar_results_tbl);
   sar.send(tsx, _cfg->diameter_timeout_ms);
 }
 
@@ -1515,7 +1518,7 @@ void ImpuRegDataTask::on_sar_response(Diameter::Message& rsp)
   Cx::ServerAssignmentAnswer saa(rsp);
   int32_t result_code = 0;
   saa.result_code(result_code);
-  sar_results_tbl->increment(SNMP::AppId::BASE, result_code);
+  sar_results_tbl->increment(SNMP::DiameterAppId::BASE, result_code);
   TRC_DEBUG("Received Server-Assignment answer with result code %d", result_code);
 
   // Even if the HSS rejects our deregistration request, we should
@@ -1697,7 +1700,7 @@ void RegistrationTerminationTask::run()
     SAS::Event event(this->trail(), SASEvent::INVALID_DEREG_REASON, 0);
     SAS::report_event(event);
     send_rta(DIAMETER_REQ_FAILURE);
-    rtr_results_tbl->increment(SNMP::AppId::BASE, 5012);
+    rtr_results_tbl->increment(SNMP::DiameterAppId::BASE, 5012);
     delete this;
   }
 }
@@ -1715,7 +1718,7 @@ void RegistrationTerminationTask::get_assoc_primary_public_ids_success(Cassandra
     SAS::Event event(this->trail(), SASEvent::NO_IMPU_DEREG, 0);
     SAS::report_event(event);
     send_rta(DIAMETER_REQ_SUCCESS);
-    rtr_results_tbl->increment(SNMP::AppId::BASE, 2001);
+    rtr_results_tbl->increment(SNMP::DiameterAppId::BASE, 2001);
     delete this;
   }
   else
@@ -1742,7 +1745,7 @@ void RegistrationTerminationTask::get_assoc_primary_public_ids_failure(Cassandra
   SAS::Event event(this->trail(), SASEvent::DEREG_SUCCESS, 0);
   SAS::report_event(event);
   send_rta(DIAMETER_REQ_FAILURE);
-  rtr_results_tbl->increment(SNMP::AppId::BASE, 5012);
+  rtr_results_tbl->increment(SNMP::DiameterAppId::BASE, 5012);
   delete this;
 }
 
@@ -1773,7 +1776,7 @@ void RegistrationTerminationTask::get_registration_sets()
     SAS::Event event(this->trail(), SASEvent::NO_IMPU_DEREG, 0);
     SAS::report_event(event);
     send_rta(DIAMETER_REQ_SUCCESS);
-    rtr_results_tbl->increment(SNMP::AppId::BASE, 2001);
+    rtr_results_tbl->increment(SNMP::DiameterAppId::BASE, 2001);
     delete this;
   }
   else
@@ -1832,7 +1835,7 @@ void RegistrationTerminationTask::get_registration_set_failure(CassandraStore::O
   SAS::Event event(this->trail(), SASEvent::DEREG_FAIL, 0);
   SAS::report_event(event);
   send_rta(DIAMETER_REQ_FAILURE);
-  rtr_results_tbl->increment(SNMP::AppId::BASE, 5012);
+  rtr_results_tbl->increment(SNMP::DiameterAppId::BASE, 5012);
   delete this;
 }
 
@@ -1892,7 +1895,7 @@ void RegistrationTerminationTask::delete_registrations()
     SAS::Event event(this->trail(), SASEvent::DEREG_SUCCESS, 0);
     SAS::report_event(event);
     send_rta(DIAMETER_REQ_SUCCESS);
-    rtr_results_tbl->increment(SNMP::AppId::BASE, 2001);
+    rtr_results_tbl->increment(SNMP::DiameterAppId::BASE, 2001);
   }
   break;
 
@@ -1904,7 +1907,7 @@ void RegistrationTerminationTask::delete_registrations()
     SAS::Event event(this->trail(), SASEvent::DEREG_FAIL, 0);
     SAS::report_event(event);
     send_rta(DIAMETER_REQ_FAILURE);
-    rtr_results_tbl->increment(SNMP::AppId::BASE, 5012);
+    rtr_results_tbl->increment(SNMP::DiameterAppId::BASE, 5012);
   }
   break;
 
@@ -1914,7 +1917,7 @@ void RegistrationTerminationTask::delete_registrations()
     SAS::Event event(this->trail(), SASEvent::DEREG_FAIL, 0);
     SAS::report_event(event);
     send_rta(DIAMETER_REQ_FAILURE);
-    rtr_results_tbl->increment(SNMP::AppId::BASE, 5012);
+    rtr_results_tbl->increment(SNMP::DiameterAppId::BASE, 5012);
   }
   break;
   }
@@ -2043,7 +2046,7 @@ void PushProfileTask::on_get_impus_success(CassandraStore::Operation* op)
     SAS::Event event(this->trail(), SASEvent::CACHE_GET_ASSOC_IMPU_FAIL, 0);
     SAS::report_event(event);
     send_ppa(DIAMETER_REQ_FAILURE);
-    ppr_results_tbl->increment(SNMP::AppId::BASE, 5012);
+    ppr_results_tbl->increment(SNMP::DiameterAppId::BASE, 5012);
   }
 }
 
@@ -2055,7 +2058,7 @@ void PushProfileTask::on_get_impus_failure(CassandraStore::Operation* op,
   SAS::report_event(event);
   TRC_DEBUG("Cache query failed with rc %d", error);
   send_ppa(DIAMETER_REQ_FAILURE);
-  ppr_results_tbl->increment(SNMP::AppId::BASE, 5012);
+  ppr_results_tbl->increment(SNMP::DiameterAppId::BASE, 5012);
 }
 
 void PushProfileTask::update_reg_data()
@@ -2139,7 +2142,7 @@ void PushProfileTask::update_reg_data()
   else
   {
     send_ppa(DIAMETER_REQ_SUCCESS);
-    ppr_results_tbl->increment(SNMP::AppId::BASE, 2001);
+    ppr_results_tbl->increment(SNMP::DiameterAppId::BASE, 2001);
   }
 }
 
@@ -2148,7 +2151,7 @@ void PushProfileTask::update_reg_data_success(CassandraStore::Operation* op)
   SAS::Event event(this->trail(), SASEvent::UPDATED_REG_DATA, 0);
   SAS::report_event(event);
   send_ppa(DIAMETER_REQ_SUCCESS);
-  ppr_results_tbl->increment(SNMP::AppId::BASE, 2001);
+  ppr_results_tbl->increment(SNMP::DiameterAppId::BASE, 2001);
 }
 
 void PushProfileTask::update_reg_data_failure(CassandraStore::Operation* op,
@@ -2157,7 +2160,7 @@ void PushProfileTask::update_reg_data_failure(CassandraStore::Operation* op,
 {
   TRC_DEBUG("Failed to update registration data - report failure to HSS");
   send_ppa(DIAMETER_REQ_FAILURE);
-  ppr_results_tbl->increment(SNMP::AppId::BASE, 5012);
+  ppr_results_tbl->increment(SNMP::DiameterAppId::BASE, 5012);
 }
 
 void PushProfileTask::send_ppa(const std::string result_code)
