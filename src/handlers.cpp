@@ -332,8 +332,6 @@ void ImpiTask::on_mar_response(Diameter::Message& rsp)
   Cx::MultimediaAuthAnswer maa(rsp);
   int32_t result_code = 0;
   maa.result_code(result_code);
-  printf("result code: %d\n", result_code);
-  if (mar_results_tbl == NULL) { printf("There is no table\n"); }
   mar_results_tbl->increment(SNMP::DiameterAppId::BASE, result_code);
   TRC_DEBUG("Received Multimedia-Auth answer with result code %d", result_code);
   switch (result_code)
