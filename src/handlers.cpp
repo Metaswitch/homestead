@@ -1114,6 +1114,10 @@ void ImpuRegDataTask::on_get_reg_data_success(CassandraStore::Operation* op)
       _cache->do_async(put_associated_private_id, tsx);
     }
 
+    // Work out whether we're allowed to answer only using the cache. If not we
+    // will have to contact the HSS.
+    bool cache_not_allowed = (_req.header("Cache-control") == "no-cache");
+
     if (_type == RequestType::REG)
     {
       // This message was based on a REGISTER request from Sprout. Check
@@ -1127,12 +1131,20 @@ void ImpuRegDataTask::on_get_reg_data_success(CassandraStore::Operation* op)
         _new_state = RegistrationState::REGISTERED;
 
         // We set the record's TTL to be double the --hss-reregistration-time
-        // option - once half that time has elapsed, it's time to
-        // re-notify the HSS.
+        // option - once half that time has elapsed, it's time to re-notify the
+        // HSS.
+        //
+        // Alternatively we need to notify the HSS if the HTTP request does not
+        // allow cached responses.
         if (ttl < _cfg->hss_reregistration_time)
         {
           TRC_DEBUG("Sending re-registration to HSS as %d seconds have passed",
                     _cfg->hss_reregistration_time);
+          send_server_assignment_request(Cx::ServerAssignmentType::RE_REGISTRATION);
+        }
+        else if (cache_not_allowed)
+        {
+          TRC_DEBUG("Sending re-registration to HSS as cached responses are not allowed");
           send_server_assignment_request(Cx::ServerAssignmentType::RE_REGISTRATION);
         }
         else
@@ -2165,7 +2177,7 @@ void PushProfileTask::send_ppa(const std::string result_code)
                             _cfg->dict,
                             result_code,
                             _msg.auth_session_state());
-  
+
   if (result_code == DIAMETER_REQ_SUCCESS)
   {
     ppr_results_tbl->increment(SNMP::DiameterAppId::BASE, 2001);
