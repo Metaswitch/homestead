@@ -1698,7 +1698,6 @@ void RegistrationTerminationTask::run()
     SAS::Event event(this->trail(), SASEvent::INVALID_DEREG_REASON, 0);
     SAS::report_event(event);
     send_rta(DIAMETER_REQ_FAILURE);
-    rtr_results_tbl->increment(SNMP::DiameterAppId::BASE, 5012);
     delete this;
   }
 }
@@ -1716,7 +1715,6 @@ void RegistrationTerminationTask::get_assoc_primary_public_ids_success(Cassandra
     SAS::Event event(this->trail(), SASEvent::NO_IMPU_DEREG, 0);
     SAS::report_event(event);
     send_rta(DIAMETER_REQ_SUCCESS);
-    rtr_results_tbl->increment(SNMP::DiameterAppId::BASE, 2001);
     delete this;
   }
   else
@@ -1740,10 +1738,9 @@ void RegistrationTerminationTask::get_assoc_primary_public_ids_failure(Cassandra
                                                                        std::string& text)
 {
   TRC_DEBUG("Failed to get associated default public identities");
-  SAS::Event event(this->trail(), SASEvent::DEREG_SUCCESS, 0);
+  SAS::Event event(this->trail(), SASEvent::DEREG_FAIL, 0);
   SAS::report_event(event);
   send_rta(DIAMETER_REQ_FAILURE);
-  rtr_results_tbl->increment(SNMP::DiameterAppId::BASE, 5012);
   delete this;
 }
 
@@ -1774,7 +1771,6 @@ void RegistrationTerminationTask::get_registration_sets()
     SAS::Event event(this->trail(), SASEvent::NO_IMPU_DEREG, 0);
     SAS::report_event(event);
     send_rta(DIAMETER_REQ_SUCCESS);
-    rtr_results_tbl->increment(SNMP::DiameterAppId::BASE, 2001);
     delete this;
   }
   else
@@ -1833,7 +1829,6 @@ void RegistrationTerminationTask::get_registration_set_failure(CassandraStore::O
   SAS::Event event(this->trail(), SASEvent::DEREG_FAIL, 0);
   SAS::report_event(event);
   send_rta(DIAMETER_REQ_FAILURE);
-  rtr_results_tbl->increment(SNMP::DiameterAppId::BASE, 5012);
   delete this;
 }
 
@@ -1893,7 +1888,6 @@ void RegistrationTerminationTask::delete_registrations()
     SAS::Event event(this->trail(), SASEvent::DEREG_SUCCESS, 0);
     SAS::report_event(event);
     send_rta(DIAMETER_REQ_SUCCESS);
-    rtr_results_tbl->increment(SNMP::DiameterAppId::BASE, 2001);
   }
   break;
 
@@ -1905,7 +1899,6 @@ void RegistrationTerminationTask::delete_registrations()
     SAS::Event event(this->trail(), SASEvent::DEREG_FAIL, 0);
     SAS::report_event(event);
     send_rta(DIAMETER_REQ_FAILURE);
-    rtr_results_tbl->increment(SNMP::DiameterAppId::BASE, 5012);
   }
   break;
 
@@ -1915,7 +1908,6 @@ void RegistrationTerminationTask::delete_registrations()
     SAS::Event event(this->trail(), SASEvent::DEREG_FAIL, 0);
     SAS::report_event(event);
     send_rta(DIAMETER_REQ_FAILURE);
-    rtr_results_tbl->increment(SNMP::DiameterAppId::BASE, 5012);
   }
   break;
   }
@@ -1977,6 +1969,15 @@ void RegistrationTerminationTask::send_rta(const std::string result_code)
                                         result_code,
                                         _msg.auth_session_state(),
                                         _impis);
+
+  if (result_code == DIAMETER_REQ_SUCCESS)
+  {
+    rtr_results_tbl->increment(SNMP::DiameterAppId::BASE, 2001);
+  }
+  else if (result_code == DIAMETER_REQ_FAILURE)
+  {
+    rtr_results_tbl->increment(SNMP::DiameterAppId::BASE, 5012);
+  }
 
   // Send the RTA back to the HSS.
   TRC_INFO("Ready to send RTA");
@@ -2044,7 +2045,6 @@ void PushProfileTask::on_get_impus_success(CassandraStore::Operation* op)
     SAS::Event event(this->trail(), SASEvent::CACHE_GET_ASSOC_IMPU_FAIL, 0);
     SAS::report_event(event);
     send_ppa(DIAMETER_REQ_FAILURE);
-    ppr_results_tbl->increment(SNMP::DiameterAppId::BASE, 5012);
   }
 }
 
@@ -2056,7 +2056,6 @@ void PushProfileTask::on_get_impus_failure(CassandraStore::Operation* op,
   SAS::report_event(event);
   TRC_DEBUG("Cache query failed with rc %d", error);
   send_ppa(DIAMETER_REQ_FAILURE);
-  ppr_results_tbl->increment(SNMP::DiameterAppId::BASE, 5012);
 }
 
 void PushProfileTask::update_reg_data()
@@ -2140,7 +2139,6 @@ void PushProfileTask::update_reg_data()
   else
   {
     send_ppa(DIAMETER_REQ_SUCCESS);
-    ppr_results_tbl->increment(SNMP::DiameterAppId::BASE, 2001);
   }
 }
 
@@ -2149,7 +2147,6 @@ void PushProfileTask::update_reg_data_success(CassandraStore::Operation* op)
   SAS::Event event(this->trail(), SASEvent::UPDATED_REG_DATA, 0);
   SAS::report_event(event);
   send_ppa(DIAMETER_REQ_SUCCESS);
-  ppr_results_tbl->increment(SNMP::DiameterAppId::BASE, 2001);
 }
 
 void PushProfileTask::update_reg_data_failure(CassandraStore::Operation* op,
@@ -2158,7 +2155,6 @@ void PushProfileTask::update_reg_data_failure(CassandraStore::Operation* op,
 {
   TRC_DEBUG("Failed to update registration data - report failure to HSS");
   send_ppa(DIAMETER_REQ_FAILURE);
-  ppr_results_tbl->increment(SNMP::DiameterAppId::BASE, 5012);
 }
 
 void PushProfileTask::send_ppa(const std::string result_code)
@@ -2169,6 +2165,15 @@ void PushProfileTask::send_ppa(const std::string result_code)
                             _cfg->dict,
                             result_code,
                             _msg.auth_session_state());
+  
+  if (result_code == DIAMETER_REQ_SUCCESS)
+  {
+    ppr_results_tbl->increment(SNMP::DiameterAppId::BASE, 2001);
+  }
+  else if (result_code == DIAMETER_REQ_FAILURE)
+  {
+    ppr_results_tbl->increment(SNMP::DiameterAppId::BASE, 5012);
+  }
 
   // Send the PPA back to the HSS.
   TRC_INFO("Ready to send PPA");
