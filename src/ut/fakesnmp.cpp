@@ -43,12 +43,18 @@
 #include "fakesnmp.hpp"
 #include "snmp_event_accumulator_table.h"
 #include "snmp_counter_table.h"
+#include "snmp_cx_counter_table.h"
 
 namespace SNMP
 {
 CounterTable* CounterTable::create(std::string name, std::string oid)
 {
   return new FakeCounterTable();
+};
+
+CxCounterTable* CxCounterTable::create(std::string name, std::string oid)
+{
+  return new FakeCxCounterTable();
 };
 
 EventAccumulatorTable* EventAccumulatorTable::create(std::string name, std::string oid)

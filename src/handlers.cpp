@@ -38,6 +38,7 @@
 #include "xmlutils.h"
 #include "servercapabilities.h"
 #include "homesteadsasevent.h"
+#include "snmp_cx_counter_table.h"
 
 #include "log.h"
 
@@ -67,6 +68,12 @@ const static HssCacheTask::StatsFlags SUBSCRIPTION_STATS =
     HssCacheTask::STAT_HSS_LATENCY |
     HssCacheTask::STAT_HSS_SUBSCRIPTION_LATENCY);
 
+static SNMP::CxCounterTable* mar_results_tbl;
+static SNMP::CxCounterTable* sar_results_tbl;
+static SNMP::CxCounterTable* uar_results_tbl;
+static SNMP::CxCounterTable* lir_results_tbl;
+static SNMP::CxCounterTable* ppr_results_tbl;
+static SNMP::CxCounterTable* rtr_results_tbl;
 
 void HssCacheTask::configure_diameter(Diameter::Stack* diameter_stack,
                                       const std::string& dest_realm,
@@ -316,7 +323,7 @@ void ImpiTask::send_mar()
                                 _scheme,
                                 _authorization);
   DiameterTransaction* tsx =
-    new DiameterTransaction(_dict, this, DIGEST_STATS, &ImpiTask::on_mar_response);
+    new DiameterTransaction(_dict, this, DIGEST_STATS, &ImpiTask::on_mar_response, mar_results_tbl);
   mar.send(tsx, _cfg->diameter_timeout_ms);
 }
 
@@ -325,6 +332,7 @@ void ImpiTask::on_mar_response(Diameter::Message& rsp)
   Cx::MultimediaAuthAnswer maa(rsp);
   int32_t result_code = 0;
   maa.result_code(result_code);
+  mar_results_tbl->increment(SNMP::DiameterAppId::BASE, result_code);
   TRC_DEBUG("Received Multimedia-Auth answer with result code %d", result_code);
   switch (result_code)
   {
@@ -544,7 +552,8 @@ void ImpiRegistrationStatusTask::run()
       new DiameterTransaction(_dict,
                               this,
                               SUBSCRIPTION_STATS,
-                              &ImpiRegistrationStatusTask::on_uar_response);
+                              &ImpiRegistrationStatusTask::on_uar_response,
+                              uar_results_tbl);
     uar.send(tsx, _cfg->diameter_timeout_ms);
   }
   else
@@ -576,6 +585,14 @@ void ImpiRegistrationStatusTask::on_uar_response(Diameter::Message& rsp)
   int32_t result_code = 0;
   uaa.result_code(result_code);
   int32_t experimental_result_code = uaa.experimental_result_code();
+  if (result_code != 0)
+  {
+    uar_results_tbl->increment(SNMP::DiameterAppId::BASE, result_code);
+  }
+  else if (experimental_result_code != 0)
+  {
+    uar_results_tbl->increment(SNMP::DiameterAppId::_3GPP, experimental_result_code);
+  }
   TRC_DEBUG("Received User-Authorization answer with result %d/%d",
             result_code, experimental_result_code);
   if ((result_code == DIAMETER_SUCCESS) ||
@@ -682,7 +699,8 @@ void ImpuLocationInfoTask::run()
       new DiameterTransaction(_dict,
                               this,
                               SUBSCRIPTION_STATS,
-                              &ImpuLocationInfoTask::on_lir_response);
+                              &ImpuLocationInfoTask::on_lir_response,
+                              lir_results_tbl);
     lir.send(tsx, _cfg->diameter_timeout_ms);
   }
   else
@@ -700,6 +718,14 @@ void ImpuLocationInfoTask::on_lir_response(Diameter::Message& rsp)
   int32_t result_code = 0;
   lia.result_code(result_code);
   int32_t experimental_result_code = lia.experimental_result_code();
+  if (result_code != 0)
+  {
+    lir_results_tbl->increment(SNMP::DiameterAppId::BASE, result_code);
+  }
+  else if (experimental_result_code != 0)
+  {
+    lir_results_tbl->increment(SNMP::DiameterAppId::_3GPP, experimental_result_code);
+  }
   TRC_DEBUG("Received Location-Info answer with result %d/%d",
             result_code, experimental_result_code);
   if ((result_code == DIAMETER_SUCCESS) ||
@@ -1360,7 +1386,8 @@ void ImpuRegDataTask::send_server_assignment_request(Cx::ServerAssignmentType ty
     new DiameterTransaction(_dict,
                             this,
                             SUBSCRIPTION_STATS,
-                            &ImpuRegDataTask::on_sar_response);
+                            &ImpuRegDataTask::on_sar_response,
+                            sar_results_tbl);
   sar.send(tsx, _cfg->diameter_timeout_ms);
 }
 
@@ -1489,6 +1516,7 @@ void ImpuRegDataTask::on_sar_response(Diameter::Message& rsp)
   Cx::ServerAssignmentAnswer saa(rsp);
   int32_t result_code = 0;
   saa.result_code(result_code);
+  sar_results_tbl->increment(SNMP::DiameterAppId::BASE, result_code);
   TRC_DEBUG("Received Server-Assignment answer with result code %d", result_code);
 
   // Even if the HSS rejects our deregistration request, we should
@@ -1710,7 +1738,7 @@ void RegistrationTerminationTask::get_assoc_primary_public_ids_failure(Cassandra
                                                                        std::string& text)
 {
   TRC_DEBUG("Failed to get associated default public identities");
-  SAS::Event event(this->trail(), SASEvent::DEREG_SUCCESS, 0);
+  SAS::Event event(this->trail(), SASEvent::DEREG_FAIL, 0);
   SAS::report_event(event);
   send_rta(DIAMETER_REQ_FAILURE);
   delete this;
@@ -1942,6 +1970,15 @@ void RegistrationTerminationTask::send_rta(const std::string result_code)
                                         _msg.auth_session_state(),
                                         _impis);
 
+  if (result_code == DIAMETER_REQ_SUCCESS)
+  {
+    rtr_results_tbl->increment(SNMP::DiameterAppId::BASE, 2001);
+  }
+  else if (result_code == DIAMETER_REQ_FAILURE)
+  {
+    rtr_results_tbl->increment(SNMP::DiameterAppId::BASE, 5012);
+  }
+
   // Send the RTA back to the HSS.
   TRC_INFO("Ready to send RTA");
   rta.send(trail());
@@ -2128,10 +2165,34 @@ void PushProfileTask::send_ppa(const std::string result_code)
                             _cfg->dict,
                             result_code,
                             _msg.auth_session_state());
+  
+  if (result_code == DIAMETER_REQ_SUCCESS)
+  {
+    ppr_results_tbl->increment(SNMP::DiameterAppId::BASE, 2001);
+  }
+  else if (result_code == DIAMETER_REQ_FAILURE)
+  {
+    ppr_results_tbl->increment(SNMP::DiameterAppId::BASE, 5012);
+  }
 
   // Send the PPA back to the HSS.
   TRC_INFO("Ready to send PPA");
   ppa.send(trail());
 
   delete this;
+}
+
+void configure_cx_results_tables(SNMP::CxCounterTable* mar_results_table,
+                                 SNMP::CxCounterTable* sar_results_table,
+                                 SNMP::CxCounterTable* uar_results_table,
+                                 SNMP::CxCounterTable* lir_results_table,
+                                 SNMP::CxCounterTable* ppr_results_table,
+                                 SNMP::CxCounterTable* rtr_results_table)
+{
+  mar_results_tbl = mar_results_table;
+  sar_results_tbl = sar_results_table;
+  uar_results_tbl = uar_results_table;
+  lir_results_tbl = lir_results_table;
+  ppr_results_tbl = ppr_results_table;
+  rtr_results_tbl = rtr_results_table;
 }

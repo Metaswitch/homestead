@@ -45,6 +45,7 @@
 #include "snmp_row.h"
 #include "snmp_event_accumulator_table.h"
 #include "snmp_counter_table.h"
+#include "snmp_cx_counter_table.h"
 
 namespace SNMP
 {
@@ -54,6 +55,13 @@ class FakeCounterTable: public CounterTable
 public:
   FakeCounterTable() {};
   void increment() {};
+};
+
+class FakeCxCounterTable: public CxCounterTable
+{
+public:
+  FakeCxCounterTable() {};
+  void increment(DiameterAppId app_id, int code) {};
 };
 
 class FakeEventAccumulatorTable: public EventAccumulatorTable

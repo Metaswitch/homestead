@@ -71,6 +71,7 @@
 #include "mockstatisticsmanager.hpp"
 #include "sproutconnection.h"
 #include "mock_health_checker.hpp"
+#include "fakesnmp.hpp"
 
 using ::testing::Return;
 using ::testing::ReturnRef;
@@ -156,6 +157,13 @@ public:
   static NiceMock<MockStatisticsManager>* _nice_stats;
   static StrictMock<MockStatisticsManager>* _stats;
 
+  static SNMP::CxCounterTable* _mar_results_table;
+  static SNMP::CxCounterTable* _sar_results_table;
+  static SNMP::CxCounterTable* _uar_results_table;
+  static SNMP::CxCounterTable* _lir_results_table;
+  static SNMP::CxCounterTable* _ppr_results_table;
+  static SNMP::CxCounterTable* _rtr_results_table;
+  
   // Used to catch diameter messages and transactions on the MockDiameterStack
   // so that we can inspect them.
   static struct msg* _caught_fd_msg;
@@ -186,6 +194,12 @@ public:
     _stats = new StrictMock<MockStatisticsManager>;
     _nice_stats = new NiceMock<MockStatisticsManager>;
 
+    _mar_results_table = SNMP::CxCounterTable::create("", "");
+    _sar_results_table = SNMP::CxCounterTable::create("", "");
+    _uar_results_table = SNMP::CxCounterTable::create("", "");
+    _lir_results_table = SNMP::CxCounterTable::create("", "");
+    _ppr_results_table = SNMP::CxCounterTable::create("", "");
+    _rtr_results_table = SNMP::CxCounterTable::create("", "");
     HssCacheTask::configure_diameter(_mock_stack,
                                      DEST_REALM,
                                      DEST_HOST,
@@ -194,6 +208,12 @@ public:
     HssCacheTask::configure_cache(_cache);
     HssCacheTask::configure_stats(_nice_stats);
 
+    configure_cx_results_tables(_mar_results_table,
+                                _sar_results_table,
+                                _uar_results_table,
+                                _lir_results_table,
+                                _ppr_results_table,
+                                _rtr_results_table);
     cwtest_completely_control_time();
   }
 
@@ -209,6 +229,12 @@ public:
     delete _httpstack; _httpstack = NULL;
     delete _sprout_conn; _sprout_conn = NULL;
     delete _mock_resolver; _mock_resolver = NULL;
+    delete _mar_results_table; _mar_results_table = NULL;
+    delete _sar_results_table; _sar_results_table = NULL;
+    delete _uar_results_table; _uar_results_table = NULL;
+    delete _lir_results_table; _lir_results_table = NULL;
+    delete _ppr_results_table; _ppr_results_table = NULL;
+    delete _rtr_results_table; _rtr_results_table = NULL;
     _real_stack->stop();
     _real_stack->wait_stopped();
     _real_stack = NULL;
@@ -1186,6 +1212,12 @@ NiceMock<MockStatisticsManager>* HandlersTest::_nice_stats = NULL;
 StrictMock<MockStatisticsManager>* HandlersTest::_stats = NULL;
 struct msg* HandlersTest::_caught_fd_msg = NULL;
 Diameter::Transaction* HandlersTest::_caught_diam_tsx = NULL;
+SNMP::CxCounterTable* HandlersTest::_mar_results_table = NULL; 
+SNMP::CxCounterTable* HandlersTest::_sar_results_table = NULL; 
+SNMP::CxCounterTable* HandlersTest::_uar_results_table = NULL; 
+SNMP::CxCounterTable* HandlersTest::_lir_results_table = NULL; 
+SNMP::CxCounterTable* HandlersTest::_ppr_results_table = NULL; 
+SNMP::CxCounterTable* HandlersTest::_rtr_results_table = NULL; 
 
 //
 // Ping test

@@ -47,6 +47,7 @@
 #include "sas.h"
 #include "sproutconnection.h"
 #include "health_checker.h"
+#include "snmp_cx_counter_table.h"
 
 // Result-Code AVP constants
 const int32_t DIAMETER_SUCCESS = 2001;
@@ -130,13 +131,15 @@ public:
                         H* handler,
                         StatsFlags stat_updates,
                         response_clbk_t response_clbk,
+                        SNMP::CxCounterTable* cx_results_tbl,
                         timeout_clbk_t timeout_clbk = &HssCacheTask::on_diameter_timeout) :
       Diameter::Transaction(dict,
                             ((handler != NULL) ? handler->trail() : 0)),
       _handler(handler),
       _stat_updates(stat_updates),
       _response_clbk(response_clbk),
-      _timeout_clbk(timeout_clbk)
+      _timeout_clbk(timeout_clbk),
+      _cx_results_tbl(cx_results_tbl)
     {};
 
   protected:
@@ -144,10 +147,13 @@ public:
     StatsFlags _stat_updates;
     response_clbk_t _response_clbk;
     timeout_clbk_t _timeout_clbk;
+    SNMP::CxCounterTable* _cx_results_tbl;
 
     void on_timeout()
     {
       update_latency_stats();
+      // No result-code returned on timeout, so use 0.
+      _cx_results_tbl->increment(SNMP::DiameterAppId::TIMEOUT, 0);
 
       if ((_handler != NULL) && (_timeout_clbk != NULL))
       {
@@ -610,4 +616,11 @@ private:
                                std::string& text);
   void send_ppa(const std::string result_code);
 };
+
+void configure_cx_results_tables(SNMP::CxCounterTable* mar_results_table,
+                                 SNMP::CxCounterTable* sar_results_table,
+                                 SNMP::CxCounterTable* uar_results_table,
+                                 SNMP::CxCounterTable* lir_results_table,
+                                 SNMP::CxCounterTable* ppr_results_table,
+                                 SNMP::CxCounterTable* rtr_results_table);
 #endif
