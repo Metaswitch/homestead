@@ -152,6 +152,7 @@ public:
     void on_timeout()
     {
       update_latency_stats();
+      // No result-code returned on timeout, so use 0.
       _cx_results_tbl->increment(SNMP::DiameterAppId::TIMEOUT, 0);
 
       if ((_handler != NULL) && (_timeout_clbk != NULL))
