@@ -5,6 +5,7 @@ from metaswitch.clearwater.cluster_manager.plugin_utils import \
 from metaswitch.clearwater.cluster_manager.alarms import issue_alarm
 from metaswitch.clearwater.cluster_manager import pdlogs, alarm_constants
 import logging
+import os
 
 _log = logging.getLogger("homestead_cassandra_plugin")
 
@@ -38,7 +39,10 @@ class HomesteadCassandraPlugin(SynchroniserPluginBase):
         if (self._ip == sorted(cluster_view.keys())[0]):
             _log.debug("Adding Homestead schema")
             run_command("/usr/share/clearwater/cassandra-schemas/homestead_cache.sh")
-            run_command("/usr/share/clearwater/cassandra-schemas/homestead_provisioning.sh")
+
+            # If homestead-prov is installed then attempt to add its schema as well
+            if os.path.exists("/etc/init.d/homestead-prov"):
+                run_command("/usr/share/clearwater/cassandra-schemas/homestead_provisioning.sh")
 
         _log.debug("Clearing Cassandra not-clustered alarm")
         issue_alarm(alarm_constants.CASSANDRA_NOT_YET_CLUSTERED_CLEARED)
