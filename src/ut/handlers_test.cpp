@@ -163,7 +163,7 @@ public:
   static SNMP::CxCounterTable* _lir_results_table;
   static SNMP::CxCounterTable* _ppr_results_table;
   static SNMP::CxCounterTable* _rtr_results_table;
-  
+
   // Used to catch diameter messages and transactions on the MockDiameterStack
   // so that we can inspect them.
   static struct msg* _caught_fd_msg;
@@ -366,6 +366,16 @@ public:
     return sb.GetString();
   }
 
+  MockHttpStack::Request make_request(const std::string& req_type, bool use_impi)
+  {
+    return MockHttpStack::Request(_httpstack,
+                                  "/impu/" + IMPU + "/reg-data",
+                                  "",
+                                  use_impi ? "?private_id=" + IMPI : "",
+                                  "{\"reqtype\": \"" + req_type +"\"}",
+                                  htp_method_PUT);
+  }
+
   void reg_data_template_with_deletion(std::string request_type,
                                        bool use_impi,
                                        RegistrationState db_regstate,
@@ -374,13 +384,22 @@ public:
                                        std::string expected_result = REGDATA_RESULT_DEREG,
                                        RegistrationState expected_new_state = RegistrationState::NOT_REGISTERED)
   {
-    reg_data_template(request_type, use_impi, false, db_regstate, expected_type, db_ttl, expected_result, expected_new_state, true);
+    MockHttpStack::Request req = make_request(request_type, use_impi);
+    reg_data_template(req,
+                      use_impi,
+                      false,
+                      db_regstate,
+                      expected_type,
+                      db_ttl,
+                      expected_result,
+                      expected_new_state,
+                      true);
   }
 
   // Test function for the case where we have a HSS. Feeds a request
   // in to a task, checks for a SAR, checks for a resulting
   // database delete or insert, and then verifies the response.
-  void reg_data_template(std::string request_type,
+  void reg_data_template(MockHttpStack::Request& req,
                          bool use_impi,
                          bool new_binding,
                          RegistrationState db_regstate,
@@ -390,13 +409,6 @@ public:
                          RegistrationState expected_new_state = RegistrationState::REGISTERED,
                          bool expect_deletion = false)
   {
-    MockHttpStack::Request req(_httpstack,
-                               "/impu/" + IMPU + "/reg-data",
-                               "",
-                               use_impi ? "?private_id=" + IMPI : "",
-                               "{\"reqtype\": \"" + request_type +"\"}",
-                               htp_method_PUT);
-
     // Configure the task to use a HSS, and send a RE_REGISTRATION
     // SAR to the HSS every hour.
     ImpuRegDataTask::Config cfg(true, 3600);
@@ -1212,12 +1224,12 @@ NiceMock<MockStatisticsManager>* HandlersTest::_nice_stats = NULL;
 StrictMock<MockStatisticsManager>* HandlersTest::_stats = NULL;
 struct msg* HandlersTest::_caught_fd_msg = NULL;
 Diameter::Transaction* HandlersTest::_caught_diam_tsx = NULL;
-SNMP::CxCounterTable* HandlersTest::_mar_results_table = NULL; 
-SNMP::CxCounterTable* HandlersTest::_sar_results_table = NULL; 
-SNMP::CxCounterTable* HandlersTest::_uar_results_table = NULL; 
-SNMP::CxCounterTable* HandlersTest::_lir_results_table = NULL; 
-SNMP::CxCounterTable* HandlersTest::_ppr_results_table = NULL; 
-SNMP::CxCounterTable* HandlersTest::_rtr_results_table = NULL; 
+SNMP::CxCounterTable* HandlersTest::_mar_results_table = NULL;
+SNMP::CxCounterTable* HandlersTest::_sar_results_table = NULL;
+SNMP::CxCounterTable* HandlersTest::_uar_results_table = NULL;
+SNMP::CxCounterTable* HandlersTest::_lir_results_table = NULL;
+SNMP::CxCounterTable* HandlersTest::_ppr_results_table = NULL;
+SNMP::CxCounterTable* HandlersTest::_rtr_results_table = NULL;
 
 //
 // Ping test
@@ -2099,14 +2111,16 @@ TEST_F(HandlersTest, AkaNoIMPU)
 
 TEST_F(HandlersTest, IMSSubscriptionHSS_InitialRegister)
 {
-  reg_data_template("reg", true, false, RegistrationState::NOT_REGISTERED, 1);
+  MockHttpStack::Request req = make_request("reg", true);
+  reg_data_template(req, true, false, RegistrationState::NOT_REGISTERED, 1);
 }
 
 // Initial registration from UNREGISTERED state
 
 TEST_F(HandlersTest, IMSSubscriptionHSS_InitialRegisterFromUnreg)
 {
-  reg_data_template("reg", true, false, RegistrationState::UNREGISTERED, 1);
+  MockHttpStack::Request req = make_request("reg", true);
+  reg_data_template(req, true, false, RegistrationState::UNREGISTERED, 1);
 }
 
 // Re-registration when the database record is old enough (500s - less
@@ -2114,14 +2128,25 @@ TEST_F(HandlersTest, IMSSubscriptionHSS_InitialRegisterFromUnreg)
 
 TEST_F(HandlersTest, IMSSubscriptionHSS_ReregWithSAR)
 {
-  reg_data_template("reg", true, false, RegistrationState::REGISTERED, 2, 500);
+  MockHttpStack::Request req = make_request("reg", true);
+  reg_data_template(req, true, false, RegistrationState::REGISTERED, 2, 500);
 }
 
 // Re-registration with a new binding.
 
 TEST_F(HandlersTest, IMSSubscriptionHSS_ReregNewBinding)
 {
-  reg_data_template("reg", true, true, RegistrationState::REGISTERED, 1);
+  MockHttpStack::Request req = make_request("reg", true);
+  reg_data_template(req, true, true, RegistrationState::REGISTERED, 1);
+}
+
+// Re-registration with no new binding, but with cached responses not allowed.
+// This means homestead still sends a SAR.
+TEST_F(HandlersTest, IMSSubscriptionHSS_ReregCacheNotallowed)
+{
+  MockHttpStack::Request req = make_request("reg", true);
+  req.add_header_to_incoming_req("Cache-control", "no-cache");
+  reg_data_template(req, true, false, RegistrationState::REGISTERED, 2);
 }
 
 // Re-registration when the database record is not old enough to
@@ -2152,7 +2177,15 @@ TEST_F(HandlersTest, IMSSubscriptionCallHSSUnregisteredService)
 
 TEST_F(HandlersTest, IMSSubscriptionCallHSSNewUnregisteredService)
 {
-  reg_data_template("call", true, false, RegistrationState::NOT_REGISTERED, 3, 0, REGDATA_RESULT_UNREG, RegistrationState::UNREGISTERED);
+  MockHttpStack::Request req = make_request("call", true);
+  reg_data_template(req,
+                    true,
+                    false,
+                    RegistrationState::NOT_REGISTERED,
+                    3,
+                    0,
+                    REGDATA_RESULT_UNREG,
+                    RegistrationState::UNREGISTERED);
 }
 
 // Test the three types of deregistration flows
