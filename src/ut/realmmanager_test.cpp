@@ -151,7 +151,9 @@ TEST_F(RealmmanagerTest, CreateDestroy)
   EXPECT_CALL(*_mock_stack, add(_))
     .Times(1)
     .WillRepeatedly(Return(true));
-  EXPECT_CALL(*_mock_stack, register_peer_hook_hdlr(_))
+  EXPECT_CALL(*_mock_stack, register_peer_hook_hdlr("realmmanager", _))
+    .Times(1);
+  EXPECT_CALL(*_mock_stack, register_rt_out_cb("realmmanager", _))
     .Times(1);
   EXPECT_CALL(*_mock_stack, peer_count(1, 0))
     .Times(1);
@@ -163,7 +165,9 @@ TEST_F(RealmmanagerTest, CreateDestroy)
 
   EXPECT_CALL(*_mock_stack, remove(_))
     .Times(1);
-  EXPECT_CALL(*_mock_stack, unregister_peer_hook_hdlr())
+  EXPECT_CALL(*_mock_stack, unregister_peer_hook_hdlr("realmmanager"))
+    .Times(1);
+  EXPECT_CALL(*_mock_stack, unregister_rt_out_cb("realmmanager"))
     .Times(1);
   realm_manager->stop();
 
@@ -308,6 +312,92 @@ TEST_F(RealmmanagerTest, ManageConnections)
     .WillOnce(DoAll(SetArgReferee<3>(targets), SetArgReferee<4>(15)));
   EXPECT_CALL(*_mock_stack, remove(_))
     .Times(1);
+  EXPECT_CALL(*_mock_stack, peer_count(0, 0))
+    .Times(1);
+
+  realm_manager->manage_connections(ttl);
+
+  delete realm_manager;
+}
+
+// This tests that the SRV priority callback works.
+TEST_F(RealmmanagerTest, SRVPriority)
+{
+  // Set up some AddrInfo structures for the diameter resolver
+  // to return.
+  AddrInfo peer1;
+  peer1.transport = IPPROTO_TCP;
+  peer1.port = 3868;
+  peer1.priority = 1;
+  peer1.address.af = AF_INET;
+  inet_pton(AF_INET, "1.1.1.1", &peer1.address.addr.ipv4);
+  AddrInfo peer2;
+  peer2.transport = IPPROTO_TCP;
+  peer2.port = 3868;
+  peer2.priority = 2;
+  peer2.address.af = AF_INET;
+  inet_pton(AF_INET, "2.2.2.2", &peer2.address.addr.ipv4);
+  std::vector<AddrInfo> targets;
+  int ttl;
+
+  // Create a RealmManager.
+  RealmManager* realm_manager = new RealmManager(_mock_stack,
+                                                 DIAMETER_REALM,
+                                                 DIAMETER_HOSTNAME,
+                                                 2,
+                                                 _mock_resolver);
+
+  // The diameter resolver returns two peers. We successfully connect to both of
+  // them.
+  targets.push_back(peer1);
+  targets.push_back(peer2);
+  EXPECT_CALL(*_mock_resolver, resolve(DIAMETER_REALM, DIAMETER_HOSTNAME, 2, _, _))
+    .WillOnce(DoAll(SetArgReferee<3>(targets), SetArgReferee<4>(15)));
+  EXPECT_CALL(*_mock_stack, add(_))
+    .Times(2)
+    .WillRepeatedly(Return(true));
+  EXPECT_CALL(*_mock_stack, peer_count(2, 0))
+    .Times(1);
+
+  realm_manager->manage_connections(ttl);
+  set_all_peers_connected(realm_manager);
+
+  // Create a list of candidates and call the SRV priority callback. candidate1
+  // and candidate2 are real peers - check that their scores are adjusted
+  // correctly. candidate3 is not a real peer - check its score remains the
+  // same.
+  struct fd_list candidates;
+  fd_list_init(&candidates, NULL);
+  struct rtd_candidate candidate1;
+  candidate1.cfg_diamid = "1.1.1.1";
+  candidate1.score = 50;
+  fd_list_init(&candidate1.chain, &candidate1);
+  fd_list_insert_after(&candidates, &candidate1.chain);
+  struct rtd_candidate candidate2;
+  candidate2.cfg_diamid = "2.2.2.2";
+  candidate2.score = 50;
+  fd_list_init(&candidate2.chain, &candidate2);
+  fd_list_insert_after(&candidates, &candidate2.chain);
+  struct rtd_candidate candidate3;
+  candidate3.cfg_diamid = "9.9.9.9";
+  candidate3.score = 50;
+  fd_list_init(&candidate3.chain, &candidate3);
+  fd_list_insert_after(&candidates, &candidate3.chain);
+
+  realm_manager->srv_priority_cb(&candidates);
+
+  EXPECT_EQ(candidate1.score, 49);
+  EXPECT_EQ(candidate2.score, 48);
+  EXPECT_EQ(candidate3.score, 50);
+
+
+  // Tidy up by having the resolver return no peers so that the RealmManager
+  // tears down it's connections.
+  targets.clear();
+  EXPECT_CALL(*_mock_resolver, resolve(DIAMETER_REALM, DIAMETER_HOSTNAME, 2, _, _))
+    .WillOnce(DoAll(SetArgReferee<3>(targets), SetArgReferee<4>(15)));
+  EXPECT_CALL(*_mock_stack, remove(_))
+    .Times(2);
   EXPECT_CALL(*_mock_stack, peer_count(0, 0))
     .Times(1);
 
