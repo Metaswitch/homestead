@@ -69,14 +69,14 @@ public:
 
   void set_all_peers_connected(RealmManager* realm_manager)
   {
-    for (std::vector<Diameter::Peer*>::iterator ii = realm_manager->_peers.begin();
+    for (std::map<std::string, Diameter::Peer*>::iterator ii = realm_manager->_peers.begin();
          ii != realm_manager->_peers.end();
          ii++)
     {
       realm_manager->peer_connection_cb(true,
-                                        (*ii)->host(),
-                                        (*ii)->realm());
-      (*ii)->_connected = true;
+                                        (ii->second)->host(),
+                                        (ii->second)->realm());
+      (ii->second)->_connected = true;
     }
   }
 };
