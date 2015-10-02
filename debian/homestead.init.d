@@ -154,8 +154,8 @@ get_daemon_args()
         fi
 
         [ "$hss_mar_lowercase_unknown" != "Y" ] || scheme_args="--scheme-unknown=unknown"
-        [ "$hss_mar_force_digest" != "Y" ] || scheme_args="--scheme-unknown=\"SIP Digest\" --scheme-aka=\"SIP Digest\""
-        [ "$hss_mar_force_aka" != "Y" ] || scheme_args="--scheme-unknown=Digest-AKAv1-MD5 --scheme-digest=Digest-AKAv1-MD5"
+        [ "$hss_mar_force_digest" != "Y" ] || scheme_args="--scheme-unknown=\"SIP Digest\" --scheme-digest=\"SIP Digest\" --scheme-aka=\"SIP Digest\""
+        [ "$hss_mar_force_aka" != "Y" ] || scheme_args="--scheme-unknown=Digest-AKAv1-MD5 --scheme-digest=Digest-AKAv1-MD5 --scheme-aka=Digest-AKAv1-MD5"
 
         [ -z "$diameter_timeout_ms" ] || diameter_timeout_ms_arg="--diameter-timeout-ms=$diameter_timeout_ms"
         [ -z "$signaling_namespace" ] || namespace_prefix="ip netns exec $signaling_namespace"
