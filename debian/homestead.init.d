@@ -177,6 +177,7 @@ get_daemon_args()
                      --http-threads=$num_http_threads
                      $dest_realm
                      --dest-host=$hss_hostname
+                     --hss-peer=$force_hss_peer
                      --max-peers=$max_peers
                      --server-name=$server_name
                      --impu-cache-ttl=$impu_cache_ttl
