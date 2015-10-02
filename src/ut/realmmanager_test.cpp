@@ -73,7 +73,9 @@ public:
          ii != realm_manager->_peers.end();
          ii++)
     {
-      realm_manager->connection_succeeded(*ii);
+      realm_manager->peer_connection_cb(true,
+                                        (*ii)->host(),
+                                        (*ii)->realm());
       (*ii)->_connected = true;
     }
   }
@@ -149,7 +151,9 @@ TEST_F(RealmmanagerTest, CreateDestroy)
   EXPECT_CALL(*_mock_stack, add(_))
     .Times(1)
     .WillRepeatedly(Return(true));
-  EXPECT_CALL(*_mock_stack, register_peer_hook_hdlr())
+  EXPECT_CALL(*_mock_stack, register_peer_hook_hdlr(_))
+    .Times(1);
+  EXPECT_CALL(*_mock_stack, peer_count(1, 0))
     .Times(1);
   realm_manager->start();
 
@@ -207,13 +211,17 @@ TEST_F(RealmmanagerTest, ManageConnections)
   EXPECT_CALL(*_mock_stack, add(_))
     .Times(2)
     .WillRepeatedly(Return(true));
+  EXPECT_CALL(*_mock_stack, peer_count(2, 0))
+    .Times(1);
 
   realm_manager->manage_connections(ttl);
   EXPECT_EQ(15, ttl);
 
   // The connection to peer1 fails. Set the connected flag on the
   // remaining peers. This should just be peer2.
-  realm_manager->connection_failed(realm_manager->_peers.front());
+  realm_manager->peer_connection_cb(false,
+                                    "1.1.1.1",
+                                    DIAMETER_REALM);
   set_all_peers_connected(realm_manager);
 
   // The diameter resolver returns the peer we're already connected to
@@ -226,6 +234,8 @@ TEST_F(RealmmanagerTest, ManageConnections)
   EXPECT_CALL(*_mock_stack, add(_))
     .Times(1)
     .WillOnce(Return(true));
+  EXPECT_CALL(*_mock_stack, peer_count(2, 1))
+    .Times(1);
 
   realm_manager->manage_connections(ttl);
   EXPECT_EQ(10, ttl);
@@ -241,6 +251,8 @@ TEST_F(RealmmanagerTest, ManageConnections)
     .WillOnce(DoAll(SetArgReferee<3>(targets), SetArgReferee<4>(15)));
   EXPECT_CALL(*_mock_stack, remove(_))
     .Times(1);
+  EXPECT_CALL(*_mock_stack, peer_count(1, 1))
+    .Times(1);
 
   realm_manager->manage_connections(ttl);
 
@@ -255,8 +267,39 @@ TEST_F(RealmmanagerTest, ManageConnections)
   EXPECT_CALL(*_mock_stack, add(_))
     .Times(1)
     .WillOnce(Return(false));
+  EXPECT_CALL(*_mock_stack, peer_count(2, 1))
+    .Times(1);
 
   realm_manager->manage_connections(ttl);
+
+  // The RealmManager gets told that an unknown peer has connected. It ignores
+  // this.
+  realm_manager->peer_connection_cb(true,
+                                    "9.9.9.9",
+                                    DIAMETER_REALM);
+
+  // The diameter resolver returns two peers again. We expect to try and
+  // reconnect to peer3.
+  targets.clear();
+  targets.push_back(peer2);
+  targets.push_back(peer3);
+  EXPECT_CALL(*_mock_resolver, resolve(DIAMETER_REALM, DIAMETER_HOSTNAME, 2, _, _))
+    .WillOnce(DoAll(SetArgReferee<3>(targets), SetArgReferee<4>(15)));
+  EXPECT_CALL(*_mock_stack, add(_))
+    .Times(1)
+    .WillRepeatedly(Return(true));
+  EXPECT_CALL(*_mock_stack, peer_count(2, 1))
+    .Times(1);
+
+  realm_manager->manage_connections(ttl);
+
+  // However, this time peer3 reports that he's in an unexpected realm. We
+  // remove it.
+  EXPECT_CALL(*_mock_stack, remove(_))
+    .Times(1);
+  realm_manager->peer_connection_cb(true,
+                                    "3.3.3.3",
+                                    "hss.badexample.com");
 
   // The diameter resolver returns no peers. We expect to tear down the one
   // connection (to peer2) that we have up.
@@ -264,6 +307,8 @@ TEST_F(RealmmanagerTest, ManageConnections)
   EXPECT_CALL(*_mock_resolver, resolve(DIAMETER_REALM, DIAMETER_HOSTNAME, 2, _, _))
     .WillOnce(DoAll(SetArgReferee<3>(targets), SetArgReferee<4>(15)));
   EXPECT_CALL(*_mock_stack, remove(_))
+    .Times(1);
+  EXPECT_CALL(*_mock_stack, peer_count(0, 0))
     .Times(1);
 
   realm_manager->manage_connections(ttl);
