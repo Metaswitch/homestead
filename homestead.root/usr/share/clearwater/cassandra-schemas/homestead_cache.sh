@@ -29,11 +29,11 @@ if [ $? != 0 ]; then
         ALTER TABLE impu ADD primary_ccf text;
         ALTER TABLE impu ADD secondary_ccf text;
         ALTER TABLE impu ADD primary_ecf text;
-        ALTER TABLE impu ADD secondary_ecf text;" | $namespace_prefix cqlsh
+        ALTER TABLE impu ADD secondary_ecf text;" | /usr/share/clearwater/bin/run-in-signaling-namespace cqlsh
 fi
 
 if [[ ! -e /var/lib/cassandra/data/homestead_cache/impi_mapping ]];
 then
   echo "USE homestead_cache;
-        CREATE TABLE impi_mapping (private_id text PRIMARY KEY, unused text) WITH COMPACT STORAGE AND read_repair_chance = 1.0;" | $namespace_prefix cqlsh
+        CREATE TABLE impi_mapping (private_id text PRIMARY KEY, unused text) WITH COMPACT STORAGE AND read_repair_chance = 1.0;" | /usr/share/clearwater/bin/run-in-signaling-namespace cqlsh
 fi
