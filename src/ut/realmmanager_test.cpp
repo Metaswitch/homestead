@@ -190,6 +190,7 @@ TEST_F(RealmmanagerTest, ManageConnections)
   peer2.transport = IPPROTO_TCP;
   peer2.port = 3868;
   peer2.address.af = AF_INET;
+  peer2.priority = 1;
   inet_pton(AF_INET, "2.2.2.2", &peer2.address.addr.ipv4);
   AddrInfo peer3;
   peer3.transport = IPPROTO_TCP;
@@ -247,9 +248,11 @@ TEST_F(RealmmanagerTest, ManageConnections)
   // Set the connected flag on the new peer.
   set_all_peers_connected(realm_manager);
 
-  // The diameter resolver returns just one peer. We expect to tear down
-  // one of the connections.
+  // The diameter resolver returns just one peer, and the priority of that peer
+  // has changed. We expect to tear down one of the connections, and the new
+  // priority to have been saved off correctly.
   targets.clear();
+  peer2.priority = 2;
   targets.push_back(peer2);
   EXPECT_CALL(*_mock_resolver, resolve(DIAMETER_REALM, DIAMETER_HOSTNAME, 2, _, _))
     .WillOnce(DoAll(SetArgReferee<3>(targets), SetArgReferee<4>(15)));
@@ -259,6 +262,7 @@ TEST_F(RealmmanagerTest, ManageConnections)
     .Times(1);
 
   realm_manager->manage_connections(ttl);
+  EXPECT_EQ(realm_manager->_peers.find("2.2.2.2")->second->addr_info().priority, 2);
 
   // The diameter resolver returns two peers again. We expect to try and
   // reconnect to peer3. However, freeDiameter says we're already connected
