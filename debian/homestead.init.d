@@ -180,7 +180,7 @@ get_daemon_args()
                      $dest_realm
                      --dest-host=$hss_hostname
                      --max-peers=$max_peers
-                     --server-name=$server_name
+                     --server-name=\"$server_name\"
                      --impu-cache-ttl=$impu_cache_ttl
                      --hss-reregistration-time=$hss_reregistration_time
                      --sprout-http-name=$sprout_http_name
