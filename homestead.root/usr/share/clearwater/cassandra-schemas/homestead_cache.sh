@@ -46,4 +46,5 @@ fi
 
 echo "USE homestead_cache;
       ALTER TABLE impu WITH speculative_retry = '$speculative_retry_value';
+      ALTER TABLE impi_mapping WITH speculative_retry = '$speculative_retry_value';
       ALTER TABLE impi WITH speculative_retry = '$speculative_retry_value';" | /usr/share/clearwater/bin/run-in-signaling-namespace cqlsh
