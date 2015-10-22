@@ -1334,7 +1334,7 @@ TEST_F(CacheRequestTest, HaGetMainline)
                                  "kermit",
                                  ColumnPathForTable("impu"),
                                  AllColumns(),
-                                 cass::ConsistencyLevel::LOCAL_QUORUM))
+                                 cass::ConsistencyLevel::TWO))
     .WillOnce(SetArgReferee<0>(slice));
 
   EXPECT_CALL(*trx, on_success(_))
@@ -1362,7 +1362,7 @@ TEST_F(CacheRequestTest, HaGet2ndReadNotFoundException)
 
   cass::NotFoundException nfe;
   EXPECT_CALL(_client, get_slice(_, _, _, _,
-                                 cass::ConsistencyLevel::LOCAL_QUORUM))
+                                 cass::ConsistencyLevel::TWO))
     .WillOnce(Throw(nfe));
 
   EXPECT_CALL(*trx, on_failure(OperationHasResult(CassandraStore::NOT_FOUND)));
@@ -1387,11 +1387,7 @@ TEST_F(CacheRequestTest, HaGet2ndReadUnavailableException)
 
   cass::UnavailableException ue;
   EXPECT_CALL(_client, get_slice(_, _, _, _,
-                                 cass::ConsistencyLevel::LOCAL_QUORUM))
-    .WillOnce(Throw(ue));
-
-  EXPECT_CALL(_client, get_slice(_, _, _, _,
-                                 cass::ConsistencyLevel::QUORUM))
+                                 cass::ConsistencyLevel::TWO))
     .WillOnce(Throw(ue));
 
   cass::NotFoundException nfe;
