@@ -66,5 +66,8 @@ then
   /usr/share/clearwater/bin/generic_create_diameterconf homestead $identity $realm $hs_listen_port $hs_secure_listen_port $acl_required $check_destination_host
 fi
 
-# Create Cassandra schema
-/usr/share/clearwater/cassandra-schemas/homestead_cache.sh || /bin/true
+# Create Cassandra schema if Cassandra is installed.
+if dpkg-query -W -f='${Status}' cassandra | grep -iq installed
+then
+  /usr/share/clearwater/cassandra-schemas/homestead_cache.sh || /bin/true
+fi
