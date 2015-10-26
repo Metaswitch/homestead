@@ -76,6 +76,7 @@ struct options
   std::string cassandra;
   std::string dest_realm;
   std::string dest_host;
+  std::string force_hss_peer;
   int max_peers;
   std::string server_name;
   int impu_cache_ttl;
@@ -119,7 +120,8 @@ enum OptionTypes
   MIN_TOKEN_RATE,
   EXCEPTION_MAX_TTL,
   HTTP_BLACKLIST_DURATION,
-  DIAMETER_BLACKLIST_DURATION
+  DIAMETER_BLACKLIST_DURATION,
+  FORCE_HSS_PEER
 };
 
 const static struct option long_opt[] =
@@ -134,6 +136,7 @@ const static struct option long_opt[] =
   {"cassandra",                   required_argument, NULL, 'S'},
   {"dest-realm",                  required_argument, NULL, 'D'},
   {"dest-host",                   required_argument, NULL, 'd'},
+  {"hss-peer",                    required_argument, NULL, FORCE_HSS_PEER},
   {"max-peers",                   required_argument, NULL, 'p'},
   {"server-name",                 required_argument, NULL, 's'},
   {"impu-cache-ttl",              required_argument, NULL, 'i'},
@@ -174,6 +177,7 @@ void usage(void)
        " -S, --cassandra <address>  Set the IP address or FQDN of the Cassandra database (default: localhost)"
        " -D, --dest-realm <name>    Set Destination-Realm on Cx messages\n"
        " -d, --dest-host <name>     Set Destination-Host on Cx messages\n"
+       "     --hss-peer <name>      IP address of HSS to connect to (rather than resolving Destination-Realm/Destination-Host)\n"
        " -p, --max-peers N          Number of peers to connect to (default: 2)\n"
        " -s, --server-name <name>   Set Server-Name on Cx messages\n"
        " -i, --impu-cache-ttl <secs>\n"
@@ -439,6 +443,10 @@ int init_options(int argc, char**argv, struct options& options)
                options.diameter_blacklist_duration);
       break;
 
+    case FORCE_HSS_PEER:
+      options.force_hss_peer = std::string(optarg);
+      break;
+
     case 'F':
     case 'L':
       // Ignore F and L - these are handled by init_logging_options
@@ -515,6 +523,7 @@ int main(int argc, char**argv)
   options.cassandra = "localhost";
   options.dest_realm = "";
   options.dest_host = "dest-host.unknown";
+  options.force_hss_peer = "";
   options.max_peers = 2;
   options.server_name = "sip:server-name.unknown";
   options.scheme_unknown = "Unknown";
@@ -820,11 +829,22 @@ int main(int argc, char**argv)
     diameter_resolver = new DiameterResolver(dns_resolver,
                                              af,
                                              options.diameter_blacklist_duration);
-    realm_manager = new RealmManager(diameter_stack,
-                                     options.dest_realm,
-                                     options.dest_host,
-                                     options.max_peers,
-                                     diameter_resolver);
+    if (options.force_hss_peer.empty())
+    {
+      realm_manager = new RealmManager(diameter_stack,
+                                       options.dest_realm,
+                                       options.dest_host,
+                                       options.max_peers,
+                                       diameter_resolver);
+    }
+    else
+    {
+      realm_manager = new RealmManager(diameter_stack,
+                                       "",
+                                       options.force_hss_peer,
+                                       options.max_peers,
+                                       diameter_resolver);
+    }
     realm_manager->start();
   }
 
