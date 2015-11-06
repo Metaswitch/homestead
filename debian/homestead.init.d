@@ -165,12 +165,6 @@ get_daemon_args()
         [ -z "$min_token_rate" ] || min_token_rate_arg="--min-token-rate=$min_token_rate"
         [ -z "$exception_max_ttl" ] || exception_max_ttl_arg="--exception-max-ttl=$exception_max_ttl"
 
-        # Enable SNMP alarms if informsink(s) are configured
-        if [ ! -z "$snmp_ip" ]
-        then
-          alarms_enabled_arg="--alarms-enabled"
-        fi
-
         DAEMON_ARGS="--localhost=$local_ip
                      --home-domain=$home_domain
                      --diameter-conf=/var/lib/homestead/homestead.conf
@@ -187,7 +181,6 @@ get_daemon_args()
                      --sprout-http-name=$sprout_http_name
                      $scheme_args
                      $diameter_timeout_ms_arg
-                     $alarms_enabled_arg
                      $target_latency_us_arg
                      $max_tokens_arg
                      $init_token_rate_arg

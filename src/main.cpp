@@ -95,7 +95,6 @@ struct options
   std::string sas_system_name;
   int diameter_timeout_ms;
   int target_latency_us;
-  bool alarms_enabled;
   int max_tokens;
   float init_token_rate;
   float min_token_rate;
@@ -148,7 +147,6 @@ const static struct option long_opt[] =
   {"access-log",                  required_argument, NULL, 'a'},
   {"sas",                         required_argument, NULL, SAS_CONFIG},
   {"diameter-timeout-ms",         required_argument, NULL, DIAMETER_TIMEOUT_MS},
-  {"alarms-enabled",              no_argument,       NULL, ALARMS_ENABLED},
   {"log-file",                    required_argument, NULL, 'F'},
   {"log-level",                   required_argument, NULL, 'L'},
   {"help",                        no_argument,       NULL, 'h'},
@@ -199,7 +197,6 @@ void usage(void)
        "                            system name to identify this system to SAS.  If this option isn't\n"
        "                            specified SAS is disabled\n"
        "     --diameter-timeout-ms  Length of time (in ms) before timing out a Diameter request to the HSS\n"
-       "     --alarms-enabled       Whether SNMP alarms are enabled (default: false)\n"
        "     --target-latency-us <usecs>\n"
        "                            Target latency above which throttling applies (default: 100000)\n"
        "     --max-tokens N         Maximum number of tokens allowed in the token bucket (used by\n"
@@ -377,11 +374,6 @@ int init_options(int argc, char**argv, struct options& options)
       options.diameter_timeout_ms = atoi(optarg);
       break;
 
-    case ALARMS_ENABLED:
-      TRC_INFO("SNMP alarms are enabled");
-      options.alarms_enabled = true;
-      break;
-
     case DNS_SERVER:
       options.dns_servers.clear();
       Utils::split_string(std::string(optarg), ',', options.dns_servers, 0, false);
@@ -501,9 +493,6 @@ void signal_handler(int sig)
 
 int main(int argc, char**argv)
 {
-  CommunicationMonitor* hss_comm_monitor = NULL;
-  CommunicationMonitor* cassandra_comm_monitor = NULL;
-
   // Set up our exception signal handler for asserts and segfaults.
   signal(SIGABRT, signal_handler);
   signal(SIGSEGV, signal_handler);
@@ -538,7 +527,6 @@ int main(int argc, char**argv)
   options.sas_server = "0.0.0.0";
   options.sas_system_name = "";
   options.diameter_timeout_ms = 200;
-  options.alarms_enabled = false;
   options.target_latency_us = 100000;
   options.max_tokens = 20;
   options.init_token_rate = 100.0;
@@ -643,21 +631,20 @@ int main(int argc, char**argv)
                              ppr_results_table,
                              rtr_results_table);
 
-  if (options.alarms_enabled)
-  {
-    // Create Homesteads's alarm objects. Note that the alarm identifier strings must match those
-    // in the alarm definition JSON file exactly.
+  // Create Homesteads's alarm objects. Note that the alarm identifier strings must match those
+  // in the alarm definition JSON file exactly.
 
-    hss_comm_monitor = new CommunicationMonitor(new Alarm("homestead", AlarmDef::HOMESTEAD_HSS_COMM_ERROR,
-                                                                       AlarmDef::CRITICAL));
+  CommunicationMonitor* hss_comm_monitor = new CommunicationMonitor(new Alarm("homestead",
+                                                                              AlarmDef::HOMESTEAD_HSS_COMM_ERROR,
+                                                                              AlarmDef::CRITICAL));
 
-    cassandra_comm_monitor = new CommunicationMonitor(new Alarm("homestead", AlarmDef::HOMESTEAD_CASSANDRA_COMM_ERROR,
-                                                                             AlarmDef::CRITICAL));
+  CommunicationMonitor* cassandra_comm_monitor = new CommunicationMonitor(new Alarm("homestead",
+                                                                                    AlarmDef::HOMESTEAD_CASSANDRA_COMM_ERROR,
+                                                                                    AlarmDef::CRITICAL));
 
-    // Start the alarm request agent
-    AlarmReqAgent::get_instance().start();
-    AlarmState::clear_all("homestead");
-  }
+  // Start the alarm request agent
+  AlarmReqAgent::get_instance().start();
+  AlarmState::clear_all("homestead");
 
   // Create an exception handler. The exception handler doesn't need
   // to quiesce the process before killing it.
@@ -914,15 +901,12 @@ int main(int argc, char**argv)
   SAS::term();
   closelog();
 
-  if (options.alarms_enabled)
-  {
-    // Stop the alarm request agent
-    AlarmReqAgent::get_instance().stop();
+  // Stop the alarm request agent
+  AlarmReqAgent::get_instance().stop();
 
-    // Delete Homestead's alarm objects
-    delete hss_comm_monitor;
-    delete cassandra_comm_monitor;
-  }
+  // Delete Homestead's alarm objects
+  delete hss_comm_monitor;
+  delete cassandra_comm_monitor;
 
   signal(SIGTERM, SIG_DFL);
   sem_destroy(&term_sem);
