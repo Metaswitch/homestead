@@ -63,6 +63,7 @@
 #include "snmp_counter_table.h"
 #include "snmp_cx_counter_table.h"
 #include "snmp_agent.h"
+#include "namespace_hop.h"
 
 struct options
 {
@@ -600,7 +601,8 @@ int main(int argc, char**argv)
             "homestead",
             SASEvent::CURRENT_RESOURCE_BUNDLE,
             options.sas_server,
-            sas_write);
+            sas_write,
+            create_connection_in_management_namespace);
 
   // Set up the statistics (Homestead specific and Diameter)
   snmp_setup("homestead");
@@ -649,11 +651,7 @@ int main(int argc, char**argv)
   // Create an exception handler. The exception handler doesn't need
   // to quiesce the process before killing it.
   HealthChecker* hc = new HealthChecker();
-  pthread_t health_check_thread;
-  pthread_create(&health_check_thread,
-                 NULL,
-                 &HealthChecker::static_main_thread_function,
-                 (void*)hc);
+  hc->start_thread();
   exception_handler = new ExceptionHandler(options.exception_max_ttl,
                                            false,
                                            hc);
@@ -891,8 +889,7 @@ int main(int argc, char**argv)
   delete ppr_results_table; ppr_results_table = NULL;
   delete rtr_results_table; rtr_results_table = NULL;
 
-  hc->terminate();
-  pthread_join(health_check_thread, NULL);
+  hc->stop_thread();
   delete hc; hc = NULL;
   delete exception_handler; exception_handler = NULL;
 
