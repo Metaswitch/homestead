@@ -19,6 +19,7 @@ modules/cpp-common/src/zmq_lvc.cpp
 modules/cpp-common/src/saslogger.cpp
 modules/cpp-common/src/httpresolver.cpp
 modules/cpp-common/src/exception_handler.cpp
+modules/cpp-common/src/namespace_hop.cpp
 modules/cpp-common/test_utils/fakehttpresolver.hpp
 modules/cpp-common/test_utils/cass_test_utils.h
 modules/cpp-common/test_utils/mock_cassandra_store.h
