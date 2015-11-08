@@ -37,6 +37,7 @@ TARGET_SOURCES := accesslogger.cpp \
                   log.cpp \
                   realmmanager.cpp \
                   saslogger.cpp \
+                  namespace_hop.cpp \
                   sproutconnection.cpp \
                   statistic.cpp \
                   statisticsmanager.cpp \
