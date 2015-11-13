@@ -24,7 +24,7 @@ then
         CREATE TABLE impu (public_id text PRIMARY KEY, ims_subscription_xml text, is_registered boolean) WITH COMPACT STORAGE AND read_repair_chance = 1.0;" | /usr/share/clearwater/bin/run-in-signaling-namespace cqlsh
 fi
 
-echo "USE homestead_cache; DESC TABLE impu" | cqlsh | grep primary_ccf > /dev/null
+echo "USE homestead_cache; DESC TABLE impu" | /usr/share/clearwater/bin/run-in-signaling-namespace cqlsh | grep primary_ccf > /dev/null
 if [ $? != 0 ]; then
   echo "USE homestead_cache;
         ALTER TABLE impu ADD primary_ccf text;
