@@ -207,7 +207,7 @@ do_start()
         #   2 if daemon could not be started
 
         # Allow us to write to the pidfile directory
-        [ -d /var/run/$NAME ] || install -m 755 -o $USER -g root -d /var/run/$NAME
+        [ -d /var/run/$NAME ] || install -m 755 -o $NAME -g root -d /var/run/$NAME
 
         start-stop-daemon --start --quiet --pidfile $PIDFILE --exec $DAEMON --test > /dev/null \
                 || return 1
