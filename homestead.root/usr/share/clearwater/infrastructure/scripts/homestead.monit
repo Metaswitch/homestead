@@ -39,7 +39,7 @@ cat > /etc/monit/conf.d/homestead.monit <<EOF
 # Check the Homestead process.
 
 # Monitor the service's PID file and memory use.
-check process homestead_process with pidfile /var/run/homestead.pid
+check process homestead_process with pidfile /var/run/homestead/homestead.pid
   group homestead
   
   # The start, stop and restart commands are linked to alarms
