@@ -56,7 +56,7 @@ PATH=/sbin:/usr/sbin:/bin:/usr/bin
 DESC="Homestead HSS Cache/Gateway"
 NAME=homestead
 EXECNAME=homestead
-PIDFILE=/var/run/$NAME.pid
+PIDFILE=/var/run/$NAME/$NAME.pid
 DAEMON=/usr/share/clearwater/bin/homestead
 HOME=/etc/clearwater
 log_directory=/var/log/$NAME
@@ -205,6 +205,10 @@ do_start()
         #   0 if daemon has been started
         #   1 if daemon was already running
         #   2 if daemon could not be started
+
+        # Allow us to write to the pidfile directory
+        [ -d /var/run/$NAME ] || install -m 755 -o $USER -g root -d /var/run/$NAME
+
         start-stop-daemon --start --quiet --pidfile $PIDFILE --exec $DAEMON --test > /dev/null \
                 || return 1
 
