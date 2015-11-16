@@ -64,6 +64,7 @@
 #include "snmp_cx_counter_table.h"
 #include "snmp_agent.h"
 #include "namespace_hop.h"
+#include "utils.h"
 
 struct options
 {
@@ -102,6 +103,7 @@ struct options
   int exception_max_ttl;
   int http_blacklist_duration;
   int diameter_blacklist_duration;
+  std::string pidfile;
 };
 
 // Enum for option types not assigned short-forms
@@ -121,7 +123,8 @@ enum OptionTypes
   EXCEPTION_MAX_TTL,
   HTTP_BLACKLIST_DURATION,
   DIAMETER_BLACKLIST_DURATION,
-  FORCE_HSS_PEER
+  FORCE_HSS_PEER,
+  PIDFILE
 };
 
 const static struct option long_opt[] =
@@ -158,6 +161,7 @@ const static struct option long_opt[] =
   {"exception-max-ttl",           required_argument, NULL, EXCEPTION_MAX_TTL},
   {"http-blacklist-duration",     required_argument, NULL, HTTP_BLACKLIST_DURATION},
   {"diameter-blacklist-duration", required_argument, NULL, DIAMETER_BLACKLIST_DURATION},
+  {"pidfile",                     required_argument, NULL, PIDFILE},
   {NULL,                          0,                 NULL, 0},
 };
 
@@ -219,6 +223,7 @@ void usage(void)
        "                            Log to file in specified directory\n"
        " -L, --log-level N          Set log level to N (default: 4)\n"
        " -d, --daemon               Run as daemon\n"
+       " --pidfile=<filename>       Write pidfile\n"
        " -h, --help                 Show this help screen\n");
 }
 
@@ -440,6 +445,10 @@ int init_options(int argc, char**argv, struct options& options)
       options.force_hss_peer = std::string(optarg);
       break;
 
+    case PIDFILE:
+      options.pidfile = std::string(optarg);
+      break;
+
     case 'F':
     case 'L':
       // Ignore F and L - these are handled by init_logging_options
@@ -535,6 +544,7 @@ int main(int argc, char**argv)
   options.exception_max_ttl = 600;
   options.http_blacklist_duration = HttpResolver::DEFAULT_BLACKLIST_DURATION;
   options.diameter_blacklist_duration = DiameterResolver::DEFAULT_BLACKLIST_DURATION;
+  options.pidfile = "";
 
   boost::filesystem::path p = argv[0];
   // Copy the filename to a string so that we can be sure of its lifespan -
@@ -579,6 +589,17 @@ int main(int argc, char**argv)
   {
     closelog();
     return 1;
+  }
+
+  if (options.pidfile != "")
+  {
+    int rc = Utils::lock_and_write_pidfile(options.pidfile);
+    if (rc == -1)
+    {
+      // Failure to acquire pidfile lock
+      TRC_ERROR("Could not write pidfile - exiting");
+      return 2;
+    }
   }
 
   AccessLogger* access_logger = NULL;
