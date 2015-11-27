@@ -31,7 +31,7 @@
 }
 
 {
-   gnutls_global_init allocates memory that is not reliably released by gnutls_global_deinit.  However, since freeDiameter initialisation is a once done at homestead (DiameterStack) startup, this is benign.
+   gnutls_global_init allocates memory that is not reliably released by gnutls_global_deinit.  However, since freeDiameter initialisation is done once at homestead (DiameterStack) startup, this is benign.
    Memcheck:Leak
    match-leak-kinds: definite
    fun:malloc
