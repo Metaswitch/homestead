@@ -29,3 +29,15 @@
    fun:evthread_use_pthreads
    ...
 }
+
+{
+   gnutls_global_init allocates memory that is not reliably released by gnutls_global_deinit.  However, since freeDiameter initialisation is a once done at homestead (DiameterStack) startup, this is benign.
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   obj:/usr/lib/x86_64-linux-gnu/libgnutls.so.26.22.6
+   fun:gnutls_pkcs11_init
+   fun:gnutls_global_init
+   fun:fd_core_initialize
+   ...
+}
