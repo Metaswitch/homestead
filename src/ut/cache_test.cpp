@@ -1400,6 +1400,36 @@ TEST_F(CacheRequestTest, HaGet2ndReadUnavailableException)
 }
 
 
+TEST_F(CacheRequestTest, HaGet2ndReadTimedUutException)
+{
+  std::vector<std::string> requested_columns;
+  requested_columns.push_back("ims_subscription_xml");
+
+  std::map<std::string, std::string> columns;
+  columns["ims_subscription_xml"] = "<howdy>";
+
+  std::vector<cass::ColumnOrSuperColumn> slice;
+  make_slice(slice, columns);
+
+  ResultRecorder<Cache::GetRegData, std::pair<RegistrationState, std::string> > rec;
+  RecordingTransaction* trx = make_rec_trx(&rec);
+  CassandraStore::Operation* op = _cache.create_GetRegData("kermit");
+
+  cass::TimedOutException te;
+  EXPECT_CALL(_client, get_slice(_, _, _, _,
+                                 cass::ConsistencyLevel::TWO))
+    .WillOnce(Throw(te));
+
+  cass::NotFoundException nfe;
+  EXPECT_CALL(_client, get_slice(_, _, _, _,
+                                 cass::ConsistencyLevel::ONE))
+    .WillOnce(Throw(nfe));
+
+  EXPECT_CALL(*trx, on_failure(OperationHasResult(CassandraStore::NOT_FOUND)));
+  execute_trx(op, trx);
+}
+
+
 TEST(CacheGenerateTimestamp, CreatesMicroTimestamp)
 {
   struct timespec ts;
