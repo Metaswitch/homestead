@@ -103,3 +103,13 @@ homestead_test_VALGRIND_ARGS := --suppressions=ut/homestead_test.supp
 VPATH := ../modules/cpp-common/src ../modules/cpp-common/test_utils ut
 
 include ../build-infra/cpp.mk
+
+# Alarm definition generation rules
+ROOT := $(abspath $(shell pwd)/../)
+MODULE_DIR := ${ROOT}/modules
+include ../modules/cpp-common/makefiles/alarm-utils.mk
+
+../usr/include/homestead_alarmdefinition.h : ../build/bin/alarm_header ../homestead.root/usr/share/clearwater/infrastructure/alarms/homestead_alarms.json
+	$< -j "../homestead.root/usr/share/clearwater/infrastructure/alarms/homestead_alarms.json" -n "homestead"
+	mv homestead_alarmdefinition.h $@
+${homestead_OBJECT_DIR}/main.o : ../usr/include/homestead_alarmdefinition.h
