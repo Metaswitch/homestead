@@ -25,7 +25,9 @@ build: ${SUBMODULES} homestead
 
 test: ${SUBMODULES} homestead_test
 
-testall: $(patsubst %, %_test, ${SUBMODULES}) test
+full_test: ${SUBMODULES} homestead_full_test
+
+testall: $(patsubst %, %_test, ${SUBMODULES}) full_test
 
 clean: $(patsubst %, %_clean, ${SUBMODULES}) homestead_clean
 	rm -rf ${ROOT}/usr

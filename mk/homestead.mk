@@ -9,6 +9,9 @@ homestead:
 homestead_test:
 	${MAKE} -C ${HOMESTEAD_DIR} test
 
+homestead_full_test:
+	${MAKE} -C ${HOMESTEAD_DIR} full_test
+
 homestead_clean:
 	${MAKE} -C ${HOMESTEAD_DIR} clean
 
