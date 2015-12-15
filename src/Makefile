@@ -105,7 +105,7 @@ VPATH := ../modules/cpp-common/src ../modules/cpp-common/test_utils ut
 include ../build-infra/cpp.mk
 
 # Alarm definition generation rules
-ROOT := $(abspath $(shell pwd)/../)
+ROOT := ..
 MODULE_DIR := ${ROOT}/modules
 include ../modules/cpp-common/makefiles/alarm-utils.mk
 
