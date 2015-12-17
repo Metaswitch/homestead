@@ -1,5 +1,6 @@
 #! /bin/bash
 . /etc/clearwater/config
+. /usr/share/clearwater/cassandra-schemas/replication_string.sh
 
 if [[ ! -e /var/lib/cassandra/data/homestead_cache ]];
 then
@@ -18,23 +19,8 @@ then
     /usr/share/clearwater/bin/poll_cassandra.sh --no-grace-period
   done
 
-  replication_str="{'class': 'SimpleStrategy', 'replication_factor': 2}"
-
-  # If local_site_name and remote_site_names are set then this is a GR
-  # deployment. Set the replication strategy to NetworkTopologyStrategy and
-  # define the sites.
-  if [ -n $local_site_name ] && [ -n $remote_site_names ]
-  then
-    IFS=',' read -a remote_site_names_array <<< "$remote_site_names"
-    replication_str="{'class': 'NetworkTopologyStrategy', '$local_site_name': 2"
-    for remote_site in "${remote_site_names_array[@]}"
-    do
-      # Set the replication factor for each site to 2.
-      replication_str+=", '$remote_site': 2"
-    done
-    replication_str+="}"
-  fi
-
+  # replication_str is set up by
+  # /usr/share/clearwater/cassandra-schemas/replication_string.sh
   echo "CREATE KEYSPACE homestead_cache WITH REPLICATION =  $replication_str;
         USE homestead_cache;
         CREATE TABLE impi (private_id text PRIMARY KEY, digest_ha1 text, digest_realm text, digest_qop text, known_preferred boolean) WITH COMPACT STORAGE AND read_repair_chance = 1.0;
