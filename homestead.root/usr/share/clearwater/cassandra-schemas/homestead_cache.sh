@@ -1,5 +1,6 @@
 #! /bin/bash
 . /etc/clearwater/config
+. /usr/share/clearwater/cassandra-schemas/replication_string.sh
 
 if [[ ! -e /var/lib/cassandra/data/homestead_cache ]];
 then
@@ -18,7 +19,9 @@ then
     /usr/share/clearwater/bin/poll_cassandra.sh --no-grace-period
   done
 
-  echo "CREATE KEYSPACE homestead_cache WITH REPLICATION =  {'class': 'SimpleStrategy', 'replication_factor': 2};
+  # replication_str is set up by
+  # /usr/share/clearwater/cassandra-schemas/replication_string.sh
+  echo "CREATE KEYSPACE homestead_cache WITH REPLICATION =  $replication_str;
         USE homestead_cache;
         CREATE TABLE impi (private_id text PRIMARY KEY, digest_ha1 text, digest_realm text, digest_qop text, known_preferred boolean) WITH COMPACT STORAGE AND read_repair_chance = 1.0;
         CREATE TABLE impu (public_id text PRIMARY KEY, ims_subscription_xml text, is_registered boolean) WITH COMPACT STORAGE AND read_repair_chance = 1.0;" | /usr/share/clearwater/bin/run-in-signaling-namespace cqlsh
