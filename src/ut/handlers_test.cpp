@@ -1413,14 +1413,18 @@ TEST_F(HandlersTest, DigestHSS)
     .WillOnce(Return(&mock_op));
   EXPECT_DO_ASYNC(*_cache, mock_op);
 
+  task->run();
+
+  // Confirm the transaction is not NULL, and submit a successful cache response
+  CassandraStore::Transaction* t = mock_op.get_trx();
+  ASSERT_FALSE(t == NULL);
+  t->on_success(&mock_op);
+
+  // Check that a successful HTTP response is sent.
   EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
   _caught_diam_tsx->on_response(maa);
   _caught_fd_msg = NULL;
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
-
-  // Confirm the cache transaction is not NULL.
-  CassandraStore::Transaction* t = mock_op.get_trx();
-  ASSERT_FALSE(t == NULL);
 
   // Build the expected response and check it's correct.
   EXPECT_EQ(build_digest_json(digest), req.content());

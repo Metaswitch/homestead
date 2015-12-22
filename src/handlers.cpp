@@ -329,19 +329,20 @@ void ImpiTask::send_mar()
 
 void ImpiTask::on_mar_response(Diameter::Message& rsp)
 {
-  Cx::MultimediaAuthAnswer maa(rsp);
+  Cx::MultimediaAuthAnswer *maa = new Cx::MultimediaAuthAnswer(rsp);
   int32_t result_code = 0;
-  maa.result_code(result_code);
+  maa->result_code(result_code);
   mar_results_tbl->increment(SNMP::DiameterAppId::BASE, result_code);
   TRC_DEBUG("Received Multimedia-Auth answer with result code %d", result_code);
+
+  bool updating_assoc_public_ids = false;
   switch (result_code)
   {
     case 2001:
     {
-      std::string sip_auth_scheme = maa.sip_auth_scheme();
+      std::string sip_auth_scheme = maa->sip_auth_scheme();
       if (sip_auth_scheme == _cfg->scheme_digest)
       {
-        send_reply(maa.digest_auth_vector());
         if (_cfg->impu_cache_ttl != 0)
         {
           TRC_DEBUG("Caching that private ID %s includes public ID %s",
@@ -350,18 +351,30 @@ void ImpiTask::on_mar_response(Diameter::Message& rsp)
           event.add_var_param(_impi);
           event.add_var_param(_impu);
           SAS::report_event(event);
+
+          // Store the MAA so that we can return it on the response from the
+          // cache layer
+          _maa = maa;
+
           CassandraStore::Operation* put_public_id =
             _cache->create_PutAssociatedPublicID(_impi,
                                                  _impu,
                                                  Cache::generate_timestamp(),
                                                  _cfg->impu_cache_ttl);
-          CassandraStore::Transaction* tsx = new CacheTransaction;
+          CassandraStore::Transaction* tsx = new CacheTransaction(this,
+                        &ImpiTask::on_put_assoc_impu_success,
+                        &ImpiTask::on_put_assoc_impu_failure);
           _cache->do_async(put_public_id, tsx);
+          updating_assoc_public_ids = true;
+        }
+        else
+        {
+          send_reply(maa->digest_auth_vector());
         }
       }
       else if (sip_auth_scheme == _cfg->scheme_aka)
       {
-        send_reply(maa.aka_auth_vector());
+        send_reply(maa->aka_auth_vector());
       }
       else
       {
@@ -385,6 +398,36 @@ void ImpiTask::on_mar_response(Diameter::Message& rsp)
       break;
   }
 
+  // If not waiting for the assoicated IMPU put to succeed, tidy up now
+  if (!updating_assoc_public_ids)
+  {
+    delete maa;
+    delete this;
+  }
+}
+
+void ImpiTask::on_put_assoc_impu_success(CassandraStore::Operation* op)
+{
+  SAS::Event event(this->trail(), SASEvent::CACHE_PUT_ASSOC_IMPU_SUCCESS, 0);
+  SAS::report_event(event);
+
+  send_reply(_maa->digest_auth_vector());
+  delete _maa;
+  _maa = NULL;
+  delete this;
+}
+
+void ImpiTask::on_put_assoc_impu_failure(CassandraStore::Operation* op, CassandraStore::ResultCode error, std::string& text)
+{
+  SAS::Event event(this->trail(), SASEvent::CACHE_PUT_ASSOC_IMPU_FAIL, 0);
+  event.add_static_param(error);
+  event.add_var_param(text);
+  SAS::report_event(event);
+
+  // We have successfully read the MAA, so we might as well send this
+  send_reply(_maa->digest_auth_vector());
+  delete _maa;
+  _maa = NULL;
   delete this;
 }
 
@@ -1111,6 +1154,11 @@ void ImpuRegDataTask::on_get_reg_data_success(CassandraStore::Operation* op)
                                               Cache::generate_timestamp(),
                                               (2 * _cfg->hss_reregistration_time));
       CassandraStore::Transaction* tsx = new CacheTransaction;
+
+      // TODO: Technically, we should be blocking our response until this PUT
+      // has completed (in case the client relies on it having been done by the
+      // time it gets control again).  This is awkward to implement, so pend
+      // this change until a use case arises that needs it.
       _cache->do_async(put_associated_private_id, tsx);
     }
 
@@ -1236,6 +1284,7 @@ void ImpuRegDataTask::on_get_reg_data_success(CassandraStore::Operation* op)
   else
   {
     // No HSS
+    bool caching = false;
     if (_type == RequestType::REG)
     {
       // This message was based on a REGISTER request from Sprout. Check
@@ -1257,7 +1306,7 @@ void ImpuRegDataTask::on_get_reg_data_success(CassandraStore::Operation* op)
         TRC_DEBUG("Handling initial registration");
         _new_state = RegistrationState::REGISTERED;
         put_in_cache();
-        send_reply();
+        caching = true;
         break;
 
       default:
@@ -1300,7 +1349,7 @@ void ImpuRegDataTask::on_get_reg_data_success(CassandraStore::Operation* op)
         TRC_DEBUG("Handling deregistration");
         _new_state = RegistrationState::UNREGISTERED;
         put_in_cache();
-        send_reply();
+        caching = true;
       }
       else
       {
@@ -1326,7 +1375,12 @@ void ImpuRegDataTask::on_get_reg_data_success(CassandraStore::Operation* op)
       TRC_ERROR("Invalid type %d", _type);
       // LCOV_EXCL_STOP - unreachable
     }
-    delete this;
+
+    // If we're not caching the registration data, delete the task now
+    if (!caching)
+    {
+      delete this;
+    }
   }
 }
 
@@ -1517,10 +1571,39 @@ void ImpuRegDataTask::put_in_cache()
       put_reg_data->with_charging_addrs(_charging_addrs);
     }
 
-    CassandraStore::Transaction* tsx = new CacheTransaction;
+    CassandraStore::Transaction* tsx = new CacheTransaction(this,
+                                    &ImpuRegDataTask::on_put_reg_data_success,
+                                    &ImpuRegDataTask::on_put_reg_data_failure);
     CassandraStore::Operation*& op = (CassandraStore::Operation*&)put_reg_data;
     _cache->do_async(op, tsx);
   }
+  else
+  {
+    delete this;
+  }
+}
+
+void ImpuRegDataTask::on_put_reg_data_success(CassandraStore::Operation* op)
+{
+  SAS::Event event(this->trail(), SASEvent::CACHE_PUT_REG_DATA_SUCCESS, 0);
+  SAS::report_event(event);
+
+  send_reply();
+
+  delete this;
+}
+
+void ImpuRegDataTask::on_put_reg_data_failure(CassandraStore::Operation* op, CassandraStore::ResultCode error, std::string& text)
+{
+  SAS::Event event(this->trail(), SASEvent::CACHE_PUT_REG_DATA_FAIL, 0);
+  event.add_static_param(error);
+  event.add_var_param(text);
+  SAS::report_event(event);
+
+  // Failed to cache Reg Data.  Return an error in the hope that the client might try again
+  send_http_reply(HTTP_SERVER_ERROR);
+
+  delete this;
 }
 
 void ImpuRegDataTask::on_sar_response(Diameter::Message& rsp)
@@ -1531,40 +1614,8 @@ void ImpuRegDataTask::on_sar_response(Diameter::Message& rsp)
   sar_results_tbl->increment(SNMP::DiameterAppId::BASE, result_code);
   TRC_DEBUG("Received Server-Assignment answer with result code %d", result_code);
 
-  // Even if the HSS rejects our deregistration request, we should
-  // still delete our cached data - this reflects the fact that Sprout
-  // has no bindings for it.
-  if (is_deregistration_request(_type))
-  {
-    SAS::Event event(this->trail(), SASEvent::REG_DATA_HSS_SUCCESS, 0);
-    SAS::report_event(event);
-    std::vector<std::string> public_ids = XmlUtils::get_public_ids(_xml);
-    if (!public_ids.empty())
-    {
-      TRC_DEBUG("Got public IDs to delete from cache - doing it");
-      for (std::vector<std::string>::iterator i = public_ids.begin();
-           i != public_ids.end();
-           i++)
-      {
-        TRC_DEBUG("Public ID %s", i->c_str());
-      }
-
-      SAS::Event event(this->trail(), SASEvent::CACHE_DELETE_IMPUS, 0);
-      std::string public_ids_str = boost::algorithm::join(public_ids, ", ");
-      event.add_var_param(public_ids_str);
-      std::vector<std::string> associated_private_ids = get_associated_private_ids();
-      std::string associated_private_ids_str = boost::algorithm::join(associated_private_ids, ", ");
-      event.add_var_param(associated_private_ids_str);
-      SAS::report_event(event);
-      CassandraStore::Operation* delete_public_id =
-        _cache->create_DeletePublicIDs(public_ids,
-                                       associated_private_ids,
-                                       Cache::generate_timestamp());
-      CassandraStore::Transaction* tsx = new CacheTransaction;
-      _cache->do_async(delete_public_id, tsx);
-    }
-  }
-
+  _http_rc = HTTP_OK;
+  bool caching = false;
   switch (result_code)
   {
     case 2001:
@@ -1579,26 +1630,113 @@ void ImpuRegDataTask::on_sar_response(Diameter::Message& rsp)
         TRC_DEBUG("Getting User-Data from SAA for cache");
         saa.user_data(_xml);
         put_in_cache();
+        caching = true;
       }
-      send_reply();
       break;
     case 5001:
     {
       TRC_INFO("Server-Assignment answer with result code %d - reject", result_code);
       SAS::Event event(this->trail(), SASEvent::REG_DATA_HSS_FAIL, 0);
       SAS::report_event(event);
-      send_http_reply(HTTP_NOT_FOUND);
+      _http_rc = HTTP_NOT_FOUND;
     }
     break;
     default:
       TRC_INFO("Server-Assignment answer with result code %d - reject", result_code);
       SAS::Event event(this->trail(), SASEvent::REG_DATA_HSS_FAIL, 0);
       SAS::report_event(event);
-      send_http_reply(HTTP_SERVER_ERROR);
+      _http_rc = HTTP_SERVER_ERROR;
       break;
   }
-  delete this;
+
+  // If we're not caching the registration data, check for deregistration and
+  // delete the task now
+  if (!caching)
+  {
+    // Even if the HSS rejects our deregistration request, we should
+    // still delete our cached data - this reflects the fact that Sprout
+    // has no bindings for it.
+    bool deleting = false;
+    if (is_deregistration_request(_type))
+    {
+      SAS::Event event(this->trail(), SASEvent::REG_DATA_HSS_SUCCESS, 0);
+      SAS::report_event(event);
+      std::vector<std::string> public_ids = XmlUtils::get_public_ids(_xml);
+      if (!public_ids.empty())
+      {
+        TRC_DEBUG("Got public IDs to delete from cache - doing it");
+        for (std::vector<std::string>::iterator i = public_ids.begin();
+             i != public_ids.end();
+             i++)
+        {
+          TRC_DEBUG("Public ID %s", i->c_str());
+        }
+
+        SAS::Event event(this->trail(), SASEvent::CACHE_DELETE_IMPUS, 0);
+        std::string public_ids_str = boost::algorithm::join(public_ids, ", ");
+        event.add_var_param(public_ids_str);
+        std::vector<std::string> associated_private_ids = get_associated_private_ids();
+        std::string associated_private_ids_str = boost::algorithm::join(associated_private_ids, ", ");
+        event.add_var_param(associated_private_ids_str);
+        SAS::report_event(event);
+        CassandraStore::Operation* delete_public_id =
+          _cache->create_DeletePublicIDs(public_ids,
+                                         associated_private_ids,
+                                         Cache::generate_timestamp());
+        CassandraStore::Transaction* tsx = new CacheTransaction(this,
+                                        &ImpuRegDataTask::on_del_impu_success,
+                                        &ImpuRegDataTask::on_del_impu_failure);
+        _cache->do_async(delete_public_id, tsx);
+        deleting = true;
+      }
+    }
+
+    // If we're not deleting the public IDs, reply and quit now.
+    if (!deleting)
+    {
+      if (_http_rc == HTTP_OK)
+      {
+        send_reply();
+      }
+      else
+      {
+        send_http_reply(_http_rc);
+      }
+      delete this;
+    }
+  }
   return;
+}
+
+void ImpuRegDataTask::on_del_impu_success(CassandraStore::Operation* op)
+{
+  SAS::Event event(this->trail(), SASEvent::CACHE_DELETE_IMPUS_SUCCESS, 0);
+  SAS::report_event(event);
+
+  // Send error code from original deREGISTER attempt
+  if (_http_rc == HTTP_OK)
+  {
+    send_reply();
+  }
+  else
+  {
+    send_http_reply(_http_rc);
+  }
+
+  delete this;
+}
+
+void ImpuRegDataTask::on_del_impu_failure(CassandraStore::Operation* op, CassandraStore::ResultCode error, std::string& text)
+{
+  SAS::Event event(this->trail(), SASEvent::CACHE_DELETE_IMPUS_FAIL, 0);
+  event.add_static_param(error);
+  event.add_var_param(text);
+  SAS::report_event(event);
+
+  // Failed to cache Reg Data.  Return the original error if it wasn't OK - otherwise reply with SERVER ERROR
+  send_http_reply((_http_rc == HTTP_OK) ? HTTP_SERVER_ERROR : _http_rc);
+
+  delete this;
 }
 
 //
@@ -1953,6 +2091,11 @@ void RegistrationTerminationTask::dissociate_implicit_registration_sets()
     CassandraStore::Operation* dissociate_reg_set =
       _cfg->cache->create_DissociateImplicitRegistrationSetFromImpi(*i, _impis, Cache::generate_timestamp());
     CassandraStore::Transaction* tsx = new CacheTransaction;
+
+    // TODO: Technically, we should be blocking our response until this PUT
+    // has completed (in case the client relies on it having been done by the
+    // time it gets control again).  This is awkward to implement, so pend
+    // this change until a use case arises that needs it.
     _cfg->cache->do_async(dissociate_reg_set, tsx);
   }
 }
@@ -1969,6 +2112,13 @@ void RegistrationTerminationTask::delete_impi_mappings()
   CassandraStore::Operation* delete_impis =
     _cfg->cache->create_DeleteIMPIMapping(_impis, Cache::generate_timestamp());
   CassandraStore::Transaction* tsx = new CacheTransaction;
+
+  // Note that this is an asynchronous operation and we are not attempting to
+  // wait for completion.  This is deliberate: Registration Termination is not
+  // driven by a client, and so there are no agents in the system that need to
+  // know when the async operation is complete (unlike a REGISTER from a SIP
+  // client which might follow the operation immediately with a request, such
+  // as a reg-event SUBSCRIBE, that relies on the cache being up to date).
   _cfg->cache->do_async(delete_impis, tsx);
 }
 
