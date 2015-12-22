@@ -310,7 +310,7 @@ public:
   };
 
   ImpiTask(HttpStack::Request& req, const Config* cfg, SAS::TrailId trail) :
-    HssCacheTask(req, trail), _cfg(cfg), _impi(), _impu(), _scheme(), _authorization()
+    HssCacheTask(req, trail), _cfg(cfg), _impi(), _impu(), _scheme(), _authorization(), _maa(NULL)
   {}
 
   void run();
@@ -322,6 +322,8 @@ public:
   void query_cache_impu();
   void on_get_impu_success(CassandraStore::Operation* op);
   void on_get_impu_failure(CassandraStore::Operation* op, CassandraStore::ResultCode error, std::string& text);
+  void on_put_assoc_impu_success(CassandraStore::Operation* op);
+  void on_put_assoc_impu_failure(CassandraStore::Operation* op, CassandraStore::ResultCode error, std::string& text);
   void send_mar();
   void on_mar_response(Diameter::Message& rsp);
   virtual void send_reply(const DigestAuthVector& av) = 0;
@@ -335,6 +337,7 @@ protected:
   std::string _impu;
   std::string _scheme;
   std::string _authorization;
+  Cx::MultimediaAuthAnswer *_maa;
 };
 
 class ImpiDigestTask : public ImpiTask
@@ -450,7 +453,7 @@ public:
   };
 
   ImpuRegDataTask(HttpStack::Request& req, const Config* cfg, SAS::TrailId trail) :
-    HssCacheTask(req, trail), _cfg(cfg), _impi(), _impu()
+    HssCacheTask(req, trail), _cfg(cfg), _impi(), _impu(), _http_rc()
   {}
   virtual ~ImpuRegDataTask() {};
   virtual void run();
@@ -460,6 +463,10 @@ public:
                                std::string& text);
   void send_server_assignment_request(Cx::ServerAssignmentType type);
   void on_sar_response(Diameter::Message& rsp);
+  void on_put_reg_data_success(CassandraStore::Operation* op);
+  void on_put_reg_data_failure(CassandraStore::Operation* op, CassandraStore::ResultCode error, std::string& text);
+  void on_del_impu_success(CassandraStore::Operation* op);
+  void on_del_impu_failure(CassandraStore::Operation* op, CassandraStore::ResultCode error, std::string& text);
 
   typedef HssCacheTask::CacheTransaction<ImpuRegDataTask> CacheTransaction;
   typedef HssCacheTask::DiameterTransaction<ImpuRegDataTask> DiameterTransaction;
@@ -492,6 +499,7 @@ protected:
   std::string _xml;
   RegistrationState _new_state;
   ChargingAddresses _charging_addrs;
+  long _http_rc;
 };
 
 class ImpuIMSSubscriptionTask : public ImpuRegDataTask
