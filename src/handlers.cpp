@@ -2108,10 +2108,12 @@ void RegistrationTerminationTask::dissociate_implicit_registration_sets()
       _cfg->cache->create_DissociateImplicitRegistrationSetFromImpi(*i, _impis, Cache::generate_timestamp());
     CassandraStore::Transaction* tsx = new CacheTransaction;
 
-    // TODO: Technically, we should be blocking our response until this PUT
-    // has completed (in case the client relies on it having been done by the
-    // time it gets control again).  This is awkward to implement, so pend
-    // this change until a use case arises that needs it.
+    // Note that this is an asynchronous operation and we are not attempting to
+    // wait for completion.  This is deliberate: Registration Termination is not
+    // driven by a client, and so there are no agents in the system that need to
+    // know when the async operation is complete (unlike a REGISTER from a SIP
+    // client which might follow the operation immediately with a request, such
+    // as a reg-event SUBSCRIBE, that relies on the cache being up to date).
     _cfg->cache->do_async(dissociate_reg_set, tsx);
   }
 }
