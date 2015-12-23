@@ -1579,6 +1579,8 @@ void ImpuRegDataTask::put_in_cache()
   }
   else
   {
+    // No need to wait for a cache write.  Just reply inline.
+    send_reply();
     delete this;
   }
 }
@@ -1708,9 +1710,9 @@ void ImpuRegDataTask::on_sar_response(Diameter::Message& rsp)
   return;
 }
 
-void ImpuRegDataTask::on_del_impu_success(CassandraStore::Operation* op)
+void ImpuRegDataTask::on_del_impu_benign(CassandraStore::Operation* op, bool not_found)
 {
-  SAS::Event event(this->trail(), SASEvent::CACHE_DELETE_IMPUS_SUCCESS, 0);
+  SAS::Event event(this->trail(), (not_found) ? SASEvent::CACHE_DELETE_IMPUS_NOT_FOUND : SASEvent::CACHE_DELETE_IMPUS_SUCCESS, 0);
   SAS::report_event(event);
 
   // Send error code from original deREGISTER attempt
@@ -1726,17 +1728,31 @@ void ImpuRegDataTask::on_del_impu_success(CassandraStore::Operation* op)
   delete this;
 }
 
+void ImpuRegDataTask::on_del_impu_success(CassandraStore::Operation* op)
+{
+  on_del_impu_benign(op, false);
+}
+
 void ImpuRegDataTask::on_del_impu_failure(CassandraStore::Operation* op, CassandraStore::ResultCode error, std::string& text)
 {
-  SAS::Event event(this->trail(), SASEvent::CACHE_DELETE_IMPUS_FAIL, 0);
-  event.add_static_param(error);
-  event.add_var_param(text);
-  SAS::report_event(event);
+  // Failed to delete IMPUs. If the error was "Not Found", just pass back the
+  // stored error code.  "Not Found" errors are benign on deletion
+  if (error == CassandraStore::NOT_FOUND)
+  {
 
-  // Failed to cache Reg Data.  Return the original error if it wasn't OK - otherwise reply with SERVER ERROR
-  send_http_reply((_http_rc == HTTP_OK) ? HTTP_SERVER_ERROR : _http_rc);
+    on_del_impu_benign(op, true);
+  }
+  else
+  {
+    // Not benign.  Return the original error if it wasn't OK - otherwise reply with SERVER ERROR
+    SAS::Event event(this->trail(), SASEvent::CACHE_DELETE_IMPUS_FAIL, 0);
+    event.add_static_param(error);
+    event.add_var_param(text);
+    SAS::report_event(event);
 
-  delete this;
+    send_http_reply((_http_rc == HTTP_OK) ? HTTP_SERVER_ERROR : _http_rc);
+    delete this;
+  }
 }
 
 //

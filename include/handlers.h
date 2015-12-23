@@ -466,6 +466,7 @@ public:
   void on_put_reg_data_success(CassandraStore::Operation* op);
   void on_put_reg_data_failure(CassandraStore::Operation* op, CassandraStore::ResultCode error, std::string& text);
   void on_del_impu_success(CassandraStore::Operation* op);
+  void on_del_impu_benign(CassandraStore::Operation* op, bool not_found);
   void on_del_impu_failure(CassandraStore::Operation* op, CassandraStore::ResultCode error, std::string& text);
 
   typedef HssCacheTask::CacheTransaction<ImpuRegDataTask> CacheTransaction;
