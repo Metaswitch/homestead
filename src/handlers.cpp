@@ -164,11 +164,8 @@ void ImpiTask::run()
 
 ImpiTask::~ImpiTask()
 {
-  if (_maa != NULL)
-  {
-    delete _maa;
-    _maa = NULL;
-  }
+  delete _maa;
+  _maa = NULL;
 }
 
 void ImpiTask::query_cache_av()
@@ -1738,7 +1735,6 @@ void ImpuRegDataTask::on_del_impu_failure(CassandraStore::Operation* op, Cassand
   // stored error code.  "Not Found" errors are benign on deletion
   if (error == CassandraStore::NOT_FOUND)
   {
-
     on_del_impu_benign(op, true);
   }
   else
