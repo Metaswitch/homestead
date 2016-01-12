@@ -1623,22 +1623,12 @@ void ImpuRegDataTask::on_sar_response(Diameter::Message& rsp)
   sar_results_tbl->increment(SNMP::DiameterAppId::BASE, result_code);
   TRC_DEBUG("Received Server-Assignment answer with result code %d", result_code);
 
-  bool caching = false;
   switch (result_code)
   {
     case 2001:
-      // Get the charging addresses.
+      // Get the charging addresses and user data.
       saa.charging_addrs(_charging_addrs);
-
-      // If we expect this request to assign the user to us (i.e. it
-      // isn't triggered by a deregistration or a failure) we should
-      // cache the User-Data.
-      if (!is_deregistration_request(_type) && !is_auth_failure_request(_type))
-      {
-        TRC_DEBUG("Getting User-Data from SAA for cache");
-        saa.user_data(_xml);
-        caching = true;
-      }
+      saa.user_data(_xml);
       break;
     case 5001:
     {
@@ -1656,60 +1646,61 @@ void ImpuRegDataTask::on_sar_response(Diameter::Message& rsp)
       break;
   }
 
-  if (caching)
+  // Update the cache if required.
+  bool pending_cache_op = false;
+  if ((result_code == 2001) &&
+      (!is_deregistration_request(_type)) &&
+      (!is_auth_failure_request(_type)))
   {
+    // This request assigned the user to us (i.e. it was successful and wasn't
+    // triggered by a deregistration or auth failure) so cache the User-Data.
     put_in_cache();
+    pending_cache_op = true;
   }
-  else
+  else if (is_deregistration_request(_type))
   {
-    // We're not caching the registration data.  Check for deregistration and
-    // delete the task now (provided we don't need to delete public IDs from
-    // the cache first).
+    // We're deregistering, so clear the cache.
     //
     // Even if the HSS rejects our deregistration request, we should
     // still delete our cached data - this reflects the fact that Sprout
     // has no bindings for it.
-    bool deleting = false;
-    if (is_deregistration_request(_type))
+    SAS::Event event(this->trail(), SASEvent::REG_DATA_HSS_SUCCESS, 0);
+    SAS::report_event(event);
+    std::vector<std::string> public_ids = XmlUtils::get_public_ids(_xml);
+    if (!public_ids.empty())
     {
-      SAS::Event event(this->trail(), SASEvent::REG_DATA_HSS_SUCCESS, 0);
-      SAS::report_event(event);
-      std::vector<std::string> public_ids = XmlUtils::get_public_ids(_xml);
-      if (!public_ids.empty())
+      TRC_DEBUG("Got public IDs to delete from cache - doing it");
+      for (std::vector<std::string>::iterator i = public_ids.begin();
+           i != public_ids.end();
+           i++)
       {
-        TRC_DEBUG("Got public IDs to delete from cache - doing it");
-        for (std::vector<std::string>::iterator i = public_ids.begin();
-             i != public_ids.end();
-             i++)
-        {
-          TRC_DEBUG("Public ID %s", i->c_str());
-        }
-
-        SAS::Event event(this->trail(), SASEvent::CACHE_DELETE_IMPUS, 0);
-        std::string public_ids_str = boost::algorithm::join(public_ids, ", ");
-        event.add_var_param(public_ids_str);
-        std::vector<std::string> associated_private_ids = get_associated_private_ids();
-        std::string associated_private_ids_str = boost::algorithm::join(associated_private_ids, ", ");
-        event.add_var_param(associated_private_ids_str);
-        SAS::report_event(event);
-        CassandraStore::Operation* delete_public_id =
-          _cache->create_DeletePublicIDs(public_ids,
-                                         associated_private_ids,
-                                         Cache::generate_timestamp());
-        CassandraStore::Transaction* tsx = new CacheTransaction(this,
-                                        &ImpuRegDataTask::on_del_impu_success,
-                                        &ImpuRegDataTask::on_del_impu_failure);
-        _cache->do_async(delete_public_id, tsx);
-        deleting = true;
+        TRC_DEBUG("Public ID %s", i->c_str());
       }
-    }
 
-    // If we're not deleting the public IDs, reply and quit now.
-    if (!deleting)
-    {
-      send_reply();
-      delete this;
+      SAS::Event event(this->trail(), SASEvent::CACHE_DELETE_IMPUS, 0);
+      std::string public_ids_str = boost::algorithm::join(public_ids, ", ");
+      event.add_var_param(public_ids_str);
+      std::vector<std::string> associated_private_ids = get_associated_private_ids();
+      std::string associated_private_ids_str = boost::algorithm::join(associated_private_ids, ", ");
+      event.add_var_param(associated_private_ids_str);
+      SAS::report_event(event);
+      CassandraStore::Operation* delete_public_id =
+        _cache->create_DeletePublicIDs(public_ids,
+                                       associated_private_ids,
+                                       Cache::generate_timestamp());
+      CassandraStore::Transaction* tsx = new CacheTransaction(this,
+                                      &ImpuRegDataTask::on_del_impu_success,
+                                      &ImpuRegDataTask::on_del_impu_failure);
+      _cache->do_async(delete_public_id, tsx);
+      pending_cache_op = true;
     }
+  }
+
+  // If we're not pending a cache operation, send a reply and delete the task.
+  if (!pending_cache_op)
+  {
+    send_reply();
+    delete this;
   }
   return;
 }
