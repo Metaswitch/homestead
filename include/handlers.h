@@ -314,6 +314,7 @@ public:
   {}
 
   void run();
+  virtual ~ImpiTask();
   virtual bool parse_request() = 0;
   void query_cache_av();
   void on_get_av_success(CassandraStore::Operation* op);
@@ -453,7 +454,7 @@ public:
   };
 
   ImpuRegDataTask(HttpStack::Request& req, const Config* cfg, SAS::TrailId trail) :
-    HssCacheTask(req, trail), _cfg(cfg), _impi(), _impu(), _http_rc()
+    HssCacheTask(req, trail), _cfg(cfg), _impi(), _impu(), _http_rc(HTTP_OK)
   {}
   virtual ~ImpuRegDataTask() {};
   virtual void run();

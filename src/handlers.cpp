@@ -162,6 +162,15 @@ void ImpiTask::run()
   }
 }
 
+ImpiTask::~ImpiTask()
+{
+  if (_maa != NULL)
+  {
+    delete _maa;
+    _maa = NULL;
+  }
+}
+
 void ImpiTask::query_cache_av()
 {
   TRC_DEBUG("Querying cache for authentication vector for %s/%s", _impi.c_str(), _impu.c_str());
@@ -329,9 +338,9 @@ void ImpiTask::send_mar()
 
 void ImpiTask::on_mar_response(Diameter::Message& rsp)
 {
-  Cx::MultimediaAuthAnswer *maa = new Cx::MultimediaAuthAnswer(rsp);
+  _maa = new Cx::MultimediaAuthAnswer(rsp);
   int32_t result_code = 0;
-  maa->result_code(result_code);
+  _maa->result_code(result_code);
   mar_results_tbl->increment(SNMP::DiameterAppId::BASE, result_code);
   TRC_DEBUG("Received Multimedia-Auth answer with result code %d", result_code);
 
@@ -340,7 +349,7 @@ void ImpiTask::on_mar_response(Diameter::Message& rsp)
   {
     case 2001:
     {
-      std::string sip_auth_scheme = maa->sip_auth_scheme();
+      std::string sip_auth_scheme = _maa->sip_auth_scheme();
       if (sip_auth_scheme == _cfg->scheme_digest)
       {
         if (_cfg->impu_cache_ttl != 0)
@@ -351,10 +360,6 @@ void ImpiTask::on_mar_response(Diameter::Message& rsp)
           event.add_var_param(_impi);
           event.add_var_param(_impu);
           SAS::report_event(event);
-
-          // Store the MAA so that we can return it on the response from the
-          // cache layer
-          _maa = maa;
 
           CassandraStore::Operation* put_public_id =
             _cache->create_PutAssociatedPublicID(_impi,
@@ -369,12 +374,12 @@ void ImpiTask::on_mar_response(Diameter::Message& rsp)
         }
         else
         {
-          send_reply(maa->digest_auth_vector());
+          send_reply(_maa->digest_auth_vector());
         }
       }
       else if (sip_auth_scheme == _cfg->scheme_aka)
       {
-        send_reply(maa->aka_auth_vector());
+        send_reply(_maa->aka_auth_vector());
       }
       else
       {
@@ -401,7 +406,6 @@ void ImpiTask::on_mar_response(Diameter::Message& rsp)
   // If not waiting for the assoicated IMPU put to succeed, tidy up now
   if (!updating_assoc_public_ids)
   {
-    delete maa;
     delete this;
   }
 }
@@ -412,8 +416,6 @@ void ImpiTask::on_put_assoc_impu_success(CassandraStore::Operation* op)
   SAS::report_event(event);
 
   send_reply(_maa->digest_auth_vector());
-  delete _maa;
-  _maa = NULL;
   delete this;
 }
 
@@ -426,8 +428,6 @@ void ImpiTask::on_put_assoc_impu_failure(CassandraStore::Operation* op, Cassandr
 
   // We have successfully read the MAA, so we might as well send this
   send_reply(_maa->digest_auth_vector());
-  delete _maa;
-  _maa = NULL;
   delete this;
 }
 
@@ -1387,20 +1387,30 @@ void ImpuRegDataTask::on_get_reg_data_success(CassandraStore::Operation* op)
 void ImpuRegDataTask::send_reply()
 {
   std::string xml_str;
-  int rc = XmlUtils::build_ClearwaterRegData_xml(_new_state,
-                                                 _xml,
-                                                 _charging_addrs,
-                                                 xml_str);
+  int rc;
 
-  if (rc == HTTP_OK)
+  // Check whether we have a saved failure return code
+  if (_http_rc != HTTP_OK)
   {
-    _req.add_content(xml_str);
+    rc = _http_rc;
   }
   else
   {
-    SAS::Event event(this->trail(), SASEvent::REG_DATA_HSS_INVALID, 0);
-    event.add_compressed_param(_xml, &SASEvent::PROFILE_SERVICE_PROFILE);
-    SAS::report_event(event);
+    rc = XmlUtils::build_ClearwaterRegData_xml(_new_state,
+                                               _xml,
+                                               _charging_addrs,
+                                               xml_str);
+
+    if (rc == HTTP_OK)
+    {
+      _req.add_content(xml_str);
+    }
+    else
+    {
+      SAS::Event event(this->trail(), SASEvent::REG_DATA_HSS_INVALID, 0);
+      event.add_compressed_param(_xml, &SASEvent::PROFILE_SERVICE_PROFILE);
+      SAS::report_event(event);
+    }
   }
 
   TRC_DEBUG("Sending %d response (body was %s)", rc, _req.get_rx_body().c_str());
@@ -1616,7 +1626,6 @@ void ImpuRegDataTask::on_sar_response(Diameter::Message& rsp)
   sar_results_tbl->increment(SNMP::DiameterAppId::BASE, result_code);
   TRC_DEBUG("Received Server-Assignment answer with result code %d", result_code);
 
-  _http_rc = HTTP_OK;
   bool caching = false;
   switch (result_code)
   {
@@ -1631,7 +1640,6 @@ void ImpuRegDataTask::on_sar_response(Diameter::Message& rsp)
       {
         TRC_DEBUG("Getting User-Data from SAA for cache");
         saa.user_data(_xml);
-        put_in_cache();
         caching = true;
       }
       break;
@@ -1651,10 +1659,16 @@ void ImpuRegDataTask::on_sar_response(Diameter::Message& rsp)
       break;
   }
 
-  // If we're not caching the registration data, check for deregistration and
-  // delete the task now
-  if (!caching)
+  if (caching)
   {
+    put_in_cache();
+  }
+  else
+  {
+    // We're not caching the registration data.  Check for deregistration and
+    // delete the task now (provided we don't need to delete public IDs from
+    // the cache first).
+    //
     // Even if the HSS rejects our deregistration request, we should
     // still delete our cached data - this reflects the fact that Sprout
     // has no bindings for it.
@@ -1696,14 +1710,7 @@ void ImpuRegDataTask::on_sar_response(Diameter::Message& rsp)
     // If we're not deleting the public IDs, reply and quit now.
     if (!deleting)
     {
-      if (_http_rc == HTTP_OK)
-      {
-        send_reply();
-      }
-      else
-      {
-        send_http_reply(_http_rc);
-      }
+      send_reply();
       delete this;
     }
   }
@@ -1715,15 +1722,7 @@ void ImpuRegDataTask::on_del_impu_benign(CassandraStore::Operation* op, bool not
   SAS::Event event(this->trail(), (not_found) ? SASEvent::CACHE_DELETE_IMPUS_NOT_FOUND : SASEvent::CACHE_DELETE_IMPUS_SUCCESS, 0);
   SAS::report_event(event);
 
-  // Send error code from original deREGISTER attempt
-  if (_http_rc == HTTP_OK)
-  {
-    send_reply();
-  }
-  else
-  {
-    send_http_reply(_http_rc);
-  }
+  send_reply();
 
   delete this;
 }
