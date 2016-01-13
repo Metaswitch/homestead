@@ -382,7 +382,8 @@ public:
                                        int expected_type,
                                        int db_ttl = 3600,
                                        std::string expected_result = REGDATA_RESULT_DEREG,
-                                       RegistrationState expected_new_state = RegistrationState::NOT_REGISTERED)
+                                       RegistrationState expected_new_state = RegistrationState::NOT_REGISTERED,
+                                       CassandraStore::ResultCode cache_error = CassandraStore::OK)
   {
     MockHttpStack::Request req = make_request(request_type, use_impi);
     reg_data_template(req,
@@ -393,7 +394,8 @@ public:
                       db_ttl,
                       expected_result,
                       expected_new_state,
-                      true);
+                      true,
+                      cache_error);
   }
 
   // Test function for the case where we have a HSS. Feeds a request
@@ -407,7 +409,8 @@ public:
                          int db_ttl = 3600,
                          std::string expected_result = REGDATA_RESULT,
                          RegistrationState expected_new_state = RegistrationState::REGISTERED,
-                         bool expect_deletion = false)
+                         bool expect_deletion = false,
+                         CassandraStore::ResultCode cache_error = CassandraStore::OK)
   {
     // Configure the task to use a HSS, and send a RE_REGISTRATION
     // SAR to the HSS every hour.
@@ -487,7 +490,6 @@ public:
                                    DIAMETER_SUCCESS,
                                    IMPU_IMS_SUBSCRIPTION,
                                    NO_CHARGING_ADDRESSES);
-
     if (!expect_deletion)
     {
       // This is a request where we expect the database to be
@@ -496,7 +498,7 @@ public:
       // RE_REGISTRATION time of 3600 seconds.
 
       // Once we simulate the Diameter response, check that the
-      // database is updated and a 200 OK is sent.
+      // database is updated.
       MockCache::MockPutRegData mock_op3;
       EXPECT_CALL(*_cache, create_PutRegData(IMPU_REG_SET, _, 7200))
         .WillOnce(Return(&mock_op3));
@@ -513,28 +515,62 @@ public:
         .WillOnce(ReturnRef(mock_op3));
       EXPECT_DO_ASYNC(*_cache, mock_op3);
 
-      EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
       _caught_diam_tsx->on_response(saa);
 
       t = mock_op3.get_trx();
       ASSERT_FALSE(t == NULL);
+
+      if (cache_error != CassandraStore::OK)
+      {
+        EXPECT_CALL(*_httpstack, send_reply(_, 500, _));
+        mock_op3._cass_status = CassandraStore::CONNECTION_ERROR;
+        mock_op3._cass_error_text = "Connection error";
+        t->on_failure(&mock_op3);
+      }
+      else
+      {
+        // Response positively to the cache update and check that a 200 OK is sent.
+        EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
+        t->on_success(&mock_op3);
+      }
     }
     else
     {
       // This is a request where we expect fields to be deleted from
-      // the database after the SAA. Check that they are, and that a
-      // 200 OK HTTP response is sent.
+      // the database after the SAA. Check that they are.
 
       MockCache::MockDeletePublicIDs mock_op3;
       EXPECT_CALL(*_cache, create_DeletePublicIDs(IMPU_REG_SET, IMPI_IN_VECTOR, _))
         .WillOnce(Return(&mock_op3));
       EXPECT_DO_ASYNC(*_cache, mock_op3);
 
-      EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
       _caught_diam_tsx->on_response(saa);
 
       t = mock_op3.get_trx();
       ASSERT_FALSE(t == NULL);
+
+      if (cache_error != CassandraStore::OK)
+      {
+        // Send in a Cassandra error response to the Delete and expect a 500 Internal Server error response,
+        // unless its a benign "Not found" response
+        if (cache_error != CassandraStore::NOT_FOUND)
+        {
+          EXPECT_CALL(*_httpstack, send_reply(_, 500, _));
+        }
+        else
+        {
+          EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
+        }
+        mock_op3._cass_status = cache_error;
+        mock_op3._cass_error_text = "error";
+        t->on_failure(&mock_op3);
+      }
+      else
+      {
+        // Send in a good response to the Delete and expect a 200 OK response
+        EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
+        t->on_success(&mock_op3);
+      }
     }
 
     // Build the expected response and check it's correct
@@ -733,11 +769,14 @@ public:
       }
       EXPECT_DO_ASYNC(*_cache, mock_op2);
 
-      EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
       t->on_success(&mock_op);
 
       t = mock_op2.get_trx();
       ASSERT_FALSE(t == NULL);
+
+      // Send in a response to the Put Reg and expect an HTTP reply
+      EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
+      t->on_success(&mock_op2);
     }
     else
     {
@@ -1128,6 +1167,176 @@ public:
     }
   }
 
+  // This is a template function for testing deregistration of unknown users
+  // with and without cache failure (external behaviour should be the same in
+  // both cases - the user needs to know about the 404 error regardless of
+  // the cache behaviour)
+  void unreg_unknown_template(bool cache_fail)
+  {
+    MockHttpStack::Request req(_httpstack,
+                               "/impu/" + IMPU + "/reg-data",
+                               "",
+                               "?private_id=" + ASSOCIATED_IDENTITY1,
+                               "{\"reqtype\": \"dereg-timeout\"}",
+                               htp_method_PUT);
+    ImpuRegDataTask::Config cfg(true, 3600);
+    ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
+    MockCache::MockGetRegData mock_op;
+
+    EXPECT_CALL(*_cache, create_GetRegData(IMPU))
+      .WillOnce(Return(&mock_op));
+    EXPECT_DO_ASYNC(*_cache, mock_op);
+    task->run();
+
+    CassandraStore::Transaction* t = mock_op.get_trx();
+    ASSERT_FALSE(t == NULL);
+    EXPECT_CALL(mock_op, get_xml(_, _)).Times(AtLeast(1))
+      .WillRepeatedly(SetArgReferee<0>(IMPU_IMS_SUBSCRIPTION));
+    EXPECT_CALL(mock_op, get_registration_state(_, _)).Times(AtLeast(1))
+      .WillRepeatedly(SetArgReferee<0>(RegistrationState::REGISTERED));
+    EXPECT_CALL(mock_op, get_associated_impis(_)).Times(AtLeast(1))
+      .WillRepeatedly(SetArgReferee<0>(ASSOCIATED_IDENTITY1_IN_VECTOR));
+    EXPECT_CALL(mock_op, get_charging_addrs(_)).Times(AtLeast(1))
+      .WillRepeatedly(SetArgReferee<0>(NO_CHARGING_ADDRESSES));
+
+    MockCache::MockDeletePublicIDs mock_op2;
+    EXPECT_CALL(*_cache, create_DeletePublicIDs(IMPU_REG_SET, _, _))
+      .WillOnce(Return(&mock_op2));
+    EXPECT_DO_ASYNC(*_cache, mock_op2);
+
+    EXPECT_CALL(*_mock_stack, send(_, _, 200))
+      .Times(1)
+      .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
+    std::string error_text = "error";
+    t->on_success(&mock_op);
+
+    ASSERT_FALSE(_caught_diam_tsx == NULL);
+    Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
+    Cx::ServerAssignmentRequest sar(msg);
+
+    Cx::ServerAssignmentAnswer saa(_cx_dict,
+                                   _mock_stack,
+                                   DIAMETER_ERROR_USER_UNKNOWN,
+                                   "",
+                                   NO_CHARGING_ADDRESSES);
+
+    _caught_diam_tsx->on_response(saa);
+
+    CassandraStore::Transaction* t2 = mock_op2.get_trx();
+    ASSERT_FALSE(t2 == NULL);
+
+    EXPECT_CALL(*_httpstack, send_reply(_, 404, _));
+    if (cache_fail)
+    {
+      // Fail the DeletePublicID task. Expect a 404 response (rather than the 500
+      // that the Delete failure would normally give us) as its more important to
+      // tell the user about the "Not Found" error)
+      mock_op2._cass_status = CassandraStore::CONNECTION_ERROR;
+      mock_op2._cass_error_text = "error";
+      t2->on_failure(&mock_op2);
+    }
+    else
+    {
+      t2->on_success(&mock_op2);
+    }
+
+    delete _caught_diam_tsx; _caught_diam_tsx = NULL;
+    _caught_fd_msg = NULL;
+  }
+
+  // This template is used for Impi Digest requests with different IMPU Cache
+  // settings
+  void digest_hss_template(bool impu_cache_enabled, bool cache_fail)
+  {
+    // This test tests an Impi Digest task case with an HSS configured.
+    // Start by building the HTTP request which will invoke an HSS lookup.
+    MockHttpStack::Request req(_httpstack,
+                               "/impi/" + IMPI,
+                               "digest",
+                               "?public_id=" + IMPU);
+
+    // Set the IMPU Cache TTL based on whether the IMPU cache is enabled
+    ImpiTask::Config cfg(true, (impu_cache_enabled) ? 300 : 0, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
+    ImpiDigestTask* task = new ImpiDigestTask(req, &cfg, FAKE_TRAIL_ID);
+
+    // Once the task's run function is called, expect a diameter message to be sent.
+    EXPECT_CALL(*_mock_stack, send(_, _, 200))
+      .Times(1)
+      .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
+    task->run();
+    ASSERT_FALSE(_caught_diam_tsx == NULL);
+
+    // Turn the caught Diameter msg structure into a MAR and check its contents.
+    Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
+    Cx::MultimediaAuthRequest mar(msg);
+    EXPECT_TRUE(mar.get_str_from_avp(_cx_dict->DESTINATION_REALM, test_str));
+    EXPECT_EQ(DEST_REALM, test_str);
+    EXPECT_TRUE(mar.get_str_from_avp(_cx_dict->DESTINATION_HOST, test_str));
+    EXPECT_EQ(DEST_HOST, test_str);
+    EXPECT_EQ(IMPI, mar.impi());
+    EXPECT_EQ(IMPU, mar.impu());
+    EXPECT_EQ(SCHEME_DIGEST, mar.sip_auth_scheme());
+    EXPECT_EQ("", mar.sip_authorization());
+    EXPECT_TRUE(mar.server_name(test_str));
+    EXPECT_EQ(DEFAULT_SERVER_NAME, test_str);
+
+    DigestAuthVector digest;
+    digest.ha1 = "ha1";
+    digest.realm = "realm";
+    digest.qop = "qop";
+    AKAAuthVector aka;
+
+    // Build an MAA.
+    Cx::MultimediaAuthAnswer maa(_cx_dict,
+                                 _mock_stack,
+                                 DIAMETER_SUCCESS,
+                                 SCHEME_DIGEST,
+                                 digest,
+                                 aka);
+
+    MockCache::MockPutAssociatedPublicID mock_op;
+
+    if (impu_cache_enabled)
+    {
+      // Once it receives the MAA, check that the handler tries to add the public ID
+      // to the database and that a successful HTTP response is sent.
+      EXPECT_CALL(*_cache, create_PutAssociatedPublicID(IMPI, IMPU,  _, 300))
+        .WillOnce(Return(&mock_op));
+      EXPECT_DO_ASYNC(*_cache, mock_op);
+    }
+
+    // Check that a successful HTTP response is sent.
+    EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
+    _caught_diam_tsx->on_response(maa);
+
+    if (impu_cache_enabled)
+    {
+      // Confirm the transaction is not NULL.
+      CassandraStore::Transaction* t = mock_op.get_trx();
+      ASSERT_FALSE(t == NULL);
+
+      if (cache_fail)
+      {
+        // Submit a failed cache response.  Note that this doesn't affect the
+        // overall result of the HTTP request.
+        mock_op._cass_status = CassandraStore::CONNECTION_ERROR;
+        mock_op._cass_error_text = "Connection failed";
+        t->on_failure(&mock_op);
+      }
+      else
+      {
+        // Submit a successful cache response
+        t->on_success(&mock_op);
+      }
+    }
+
+    _caught_fd_msg = NULL;
+    delete _caught_diam_tsx; _caught_diam_tsx = NULL;
+
+    // Build the expected response and check it's correct.
+    EXPECT_EQ(build_digest_json(digest), req.content());
+  }
+
   static void ignore_stats(bool ignore)
   {
     if (ignore)
@@ -1361,69 +1570,20 @@ TEST_F(HandlersTest, DigestCacheFailure)
 
 TEST_F(HandlersTest, DigestHSS)
 {
-  // This test tests an Impi Digest task case with an HSS configured.
-  // Start by building the HTTP request which will invoke an HSS lookup.
-  MockHttpStack::Request req(_httpstack,
-                             "/impi/" + IMPI,
-                             "digest",
-                             "?public_id=" + IMPU);
+  digest_hss_template(true, false);
+}
 
-  ImpiTask::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
-  ImpiDigestTask* task = new ImpiDigestTask(req, &cfg, FAKE_TRAIL_ID);
+TEST_F(HandlersTest, DigestHSSCacheFail)
+{
+  // This test tests an Impi Digest task case with an HSS configured, and covers
+  // the case where the cache of the associated public IDs fails
+  digest_hss_template(true, true);
+}
 
-  // Once the task's run function is called, expect a diameter message to be sent.
-  EXPECT_CALL(*_mock_stack, send(_, _, 200))
-    .Times(1)
-    .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
-  task->run();
-  ASSERT_FALSE(_caught_diam_tsx == NULL);
-
-  // Turn the caught Diameter msg structure into a MAR and check its contents.
-  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
-  Cx::MultimediaAuthRequest mar(msg);
-  EXPECT_TRUE(mar.get_str_from_avp(_cx_dict->DESTINATION_REALM, test_str));
-  EXPECT_EQ(DEST_REALM, test_str);
-  EXPECT_TRUE(mar.get_str_from_avp(_cx_dict->DESTINATION_HOST, test_str));
-  EXPECT_EQ(DEST_HOST, test_str);
-  EXPECT_EQ(IMPI, mar.impi());
-  EXPECT_EQ(IMPU, mar.impu());
-  EXPECT_EQ(SCHEME_DIGEST, mar.sip_auth_scheme());
-  EXPECT_EQ("", mar.sip_authorization());
-  EXPECT_TRUE(mar.server_name(test_str));
-  EXPECT_EQ(DEFAULT_SERVER_NAME, test_str);
-
-  DigestAuthVector digest;
-  digest.ha1 = "ha1";
-  digest.realm = "realm";
-  digest.qop = "qop";
-  AKAAuthVector aka;
-
-  // Build an MAA.
-  Cx::MultimediaAuthAnswer maa(_cx_dict,
-                               _mock_stack,
-                               DIAMETER_SUCCESS,
-                               SCHEME_DIGEST,
-                               digest,
-                               aka);
-
-  // Once it receives the MAA, check that the handler tries to add the public ID
-  // to the database and that a successful HTTP response is sent.
-  MockCache::MockPutAssociatedPublicID mock_op;
-  EXPECT_CALL(*_cache, create_PutAssociatedPublicID(IMPI, IMPU,  _, 300))
-    .WillOnce(Return(&mock_op));
-  EXPECT_DO_ASYNC(*_cache, mock_op);
-
-  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
-  _caught_diam_tsx->on_response(maa);
-  _caught_fd_msg = NULL;
-  delete _caught_diam_tsx; _caught_diam_tsx = NULL;
-
-  // Confirm the cache transaction is not NULL.
-  CassandraStore::Transaction* t = mock_op.get_trx();
-  ASSERT_FALSE(t == NULL);
-
-  // Build the expected response and check it's correct.
-  EXPECT_EQ(build_digest_json(digest), req.content());
+TEST_F(HandlersTest, DigestHSSNoCacheTTL)
+{
+  // This is the same test as DigestHSS with the IMPU cache turned off (impu-cache-ttl set to zero)
+  digest_hss_template(false, false);
 }
 
 TEST_F(HandlersTest, DigestHSSTimeout)
@@ -1566,20 +1726,23 @@ TEST_F(HandlersTest, DigestHSSNoIMPU)
                                aka);
 
   // Once it receives the MAA, check that the handler tries to add the public
-  // ID to the database, and that a successful HTTP response is sent.
+  // ID to the database.
   MockCache::MockPutAssociatedPublicID mock_op2;
   EXPECT_CALL(*_cache, create_PutAssociatedPublicID(IMPI, IMPU,  _, 300))
     .WillOnce(Return(&mock_op2));
   EXPECT_DO_ASYNC(*_cache, mock_op2);
 
-  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
   _caught_diam_tsx->on_response(maa);
   _caught_fd_msg = NULL;
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
 
-  // Confirm the cache transaction is not NULL.
+  // Confirm the cache transaction is not NULL, and submit a successful cache response.
   t = mock_op2.get_trx();
   ASSERT_FALSE(t == NULL);
+
+  // Check that a successful HTTP response is sent.
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
+  t->on_success(&mock_op2);
 
   // Build the expected response and check it's correct.
   EXPECT_EQ(build_digest_json(digest), req.content());
@@ -2115,6 +2278,14 @@ TEST_F(HandlersTest, IMSSubscriptionHSS_InitialRegister)
   reg_data_template(req, true, false, RegistrationState::NOT_REGISTERED, 1);
 }
 
+// Initial registration with cache failure
+
+TEST_F(HandlersTest, IMSSubscriptionHSS_InitialRegisterCacheFail)
+{
+  MockHttpStack::Request req = make_request("reg", true);
+  reg_data_template(req, true, false, RegistrationState::NOT_REGISTERED, 1,  3600, "", RegistrationState::REGISTERED, false, CassandraStore::CONNECTION_ERROR);
+}
+
 // Initial registration from UNREGISTERED state
 
 TEST_F(HandlersTest, IMSSubscriptionHSS_InitialRegisterFromUnreg)
@@ -2211,6 +2382,18 @@ TEST_F(HandlersTest, IMSSubscriptionDeregAdmin)
 TEST_F(HandlersTest, IMSSubscriptionDeregUseCacheIMPI)
 {
   reg_data_template_with_deletion("dereg-admin", false, RegistrationState::REGISTERED, 8);
+}
+
+// Test the cache failure path
+TEST_F(HandlersTest, IMSSubscriptionDeregHSSCacheFail)
+{
+  reg_data_template_with_deletion("dereg-user", true, RegistrationState::REGISTERED, 5, 3600, "", RegistrationState::NOT_REGISTERED, CassandraStore::CONNECTION_ERROR);
+}
+
+// Test the benign cache failure path
+TEST_F(HandlersTest, IMSSubscriptionDeregHSSCacheFailBenign)
+{
+  reg_data_template_with_deletion("dereg-user", true, RegistrationState::REGISTERED, 5, 3600, REGDATA_RESULT_DEREG, RegistrationState::NOT_REGISTERED, CassandraStore::NOT_FOUND);
 }
 
 // Test the two authentication failure flows (which should only affect
@@ -2568,65 +2751,17 @@ TEST_F(HandlersTest, IMSSubscriptionWrongMethod)
   task->run();
 }
 
-// HSS USER_UNKNOWN errors should translate into a 404
+// HSS USER_UNKNOWN errors should translate into a 404 (regardless of whether
+// the cache operation succeeds or not)
 
 TEST_F(HandlersTest, IMSSubscriptionUserUnknownDereg)
 {
-  MockHttpStack::Request req(_httpstack,
-                             "/impu/" + IMPU + "/reg-data",
-                             "",
-                             "?private_id=" + ASSOCIATED_IDENTITY1,
-                             "{\"reqtype\": \"dereg-timeout\"}",
-                             htp_method_PUT);
-  ImpuRegDataTask::Config cfg(true, 3600);
-  ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
-  MockCache::MockGetRegData mock_op;
+  unreg_unknown_template(false);
+}
 
-  EXPECT_CALL(*_cache, create_GetRegData(IMPU))
-    .WillOnce(Return(&mock_op));
-  EXPECT_DO_ASYNC(*_cache, mock_op);
-  task->run();
-
-  CassandraStore::Transaction* t = mock_op.get_trx();
-  ASSERT_FALSE(t == NULL);
-  EXPECT_CALL(mock_op, get_xml(_, _)).Times(AtLeast(1))
-    .WillRepeatedly(SetArgReferee<0>(IMPU_IMS_SUBSCRIPTION));
-  EXPECT_CALL(mock_op, get_registration_state(_, _)).Times(AtLeast(1))
-    .WillRepeatedly(SetArgReferee<0>(RegistrationState::REGISTERED));
-  EXPECT_CALL(mock_op, get_associated_impis(_)).Times(AtLeast(1))
-    .WillRepeatedly(SetArgReferee<0>(ASSOCIATED_IDENTITY1_IN_VECTOR));
-  EXPECT_CALL(mock_op, get_charging_addrs(_)).Times(AtLeast(1))
-    .WillRepeatedly(SetArgReferee<0>(NO_CHARGING_ADDRESSES));
-
-  MockCache::MockDeletePublicIDs mock_op2;
-  EXPECT_CALL(*_cache, create_DeletePublicIDs(IMPU_REG_SET, _, _))
-    .WillOnce(Return(&mock_op2));
-  EXPECT_DO_ASYNC(*_cache, mock_op2);
-
-  EXPECT_CALL(*_mock_stack, send(_, _, 200))
-    .Times(1)
-    .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
-  std::string error_text = "error";
-  t->on_success(&mock_op);
-
-  ASSERT_FALSE(_caught_diam_tsx == NULL);
-  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
-  Cx::ServerAssignmentRequest sar(msg);
-
-  Cx::ServerAssignmentAnswer saa(_cx_dict,
-                                 _mock_stack,
-                                 DIAMETER_ERROR_USER_UNKNOWN,
-                                 "",
-                                 NO_CHARGING_ADDRESSES);
-
-  EXPECT_CALL(*_httpstack, send_reply(_, 404, _));
-  _caught_diam_tsx->on_response(saa);
-
-  CassandraStore::Transaction* t2 = mock_op2.get_trx();
-  ASSERT_FALSE(t2 == NULL);
-
-  delete _caught_diam_tsx; _caught_diam_tsx = NULL;
-  _caught_fd_msg = NULL;
+TEST_F(HandlersTest, IMSSubscriptionUserUnknownDeregCacheFail)
+{
+  unreg_unknown_template(true);
 }
 
 // Other HSS errors should translate into a 500 error
@@ -4385,8 +4520,15 @@ TEST_F(HandlerStatsTest, DigestHSS)
     .WillOnce(Return(&mock_op));
   EXPECT_DO_ASYNC(*_cache, mock_op);
 
-  EXPECT_CALL(*_httpstack, send_reply(_, _, _));
   _caught_diam_tsx->on_response(maa);
+
+  CassandraStore::Transaction* t = mock_op.get_trx();
+  ASSERT_FALSE(t == NULL);
+
+  EXPECT_CALL(*_httpstack, send_reply(_, _, _));
+  EXPECT_CALL(*_stats, update_H_cache_latency_us(_));
+  t->on_success(&mock_op);
+
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
 }
 
