@@ -659,11 +659,15 @@ int main(int argc, char**argv)
 
   CommunicationMonitor* hss_comm_monitor = new CommunicationMonitor(new Alarm("homestead",
                                                                               AlarmDef::HOMESTEAD_HSS_COMM_ERROR,
-                                                                              AlarmDef::CRITICAL));
+                                                                              AlarmDef::CRITICAL),
+                                                                    "Homestead",
+                                                                    "HSS");
 
   CommunicationMonitor* cassandra_comm_monitor = new CommunicationMonitor(new Alarm("homestead",
                                                                                     AlarmDef::HOMESTEAD_CASSANDRA_COMM_ERROR,
-                                                                                    AlarmDef::CRITICAL));
+                                                                                    AlarmDef::CRITICAL),
+                                                                          "Homestead",
+                                                                          "Cassandra");
 
   // Start the alarm request agent
   AlarmReqAgent::get_instance().start();
