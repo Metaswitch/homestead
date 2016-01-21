@@ -46,6 +46,7 @@
 #include "rapidjson/stringbuffer.h"
 #include "rapidxml/rapidxml.hpp"
 #include "boost/algorithm/string/join.hpp"
+#include "base64.h"
 
 const std::string SIP_URI_PRE = "sip:";
 
@@ -496,7 +497,7 @@ bool ImpiAvTask::parse_request()
     return false;
   }
   _impu = _req.param("impu");
-  _authorization = _req.param("autn");
+  _authorization = base64_decode(_req.param("resync-auth"));
 
   return true;
 }
