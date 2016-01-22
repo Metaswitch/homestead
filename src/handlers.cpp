@@ -497,7 +497,7 @@ bool ImpiAvTask::parse_request()
     return false;
   }
   _impu = _req.param("impu");
-  _authorization = base64_decode(_req.param("resync-auth"));
+  _authorization = base64_decode(_req.param(AUTH_FIELD_NAME));
 
   return true;
 }

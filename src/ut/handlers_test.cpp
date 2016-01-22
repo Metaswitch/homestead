@@ -2152,7 +2152,7 @@ TEST_F(HandlersTest, AvNoPublicIDHSSAKA)
   MockHttpStack::Request req(_httpstack,
                              "/impi/" + IMPI,
                              "av",
-                             "?resync-auth=" + base64_encode(reinterpret_cast<const unsigned char*>(SIP_AUTHORIZATION.c_str()), SIP_AUTHORIZATION.length()));
+                             "?resync-auth=" + base64_encode(SIP_AUTHORIZATION));
   ImpiTask::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
   ImpiAvTask* task = new ImpiAvTask(req, &cfg, FAKE_TRAIL_ID);
 
