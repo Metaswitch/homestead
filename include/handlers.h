@@ -89,6 +89,9 @@ const std::string JSON_INTEGRITYKEY = "integritykey";
 const std::string JSON_RC = "result-code";
 const std::string JSON_SCSCF = "scscf";
 
+// HTTP query string field names
+const std::string AUTH_FIELD_NAME = "resync-auth";
+
 class HssCacheTask : public HttpStackUtils::Task
 {
 public:

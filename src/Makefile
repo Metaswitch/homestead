@@ -6,6 +6,7 @@ COMMON_SOURCES := accesslogger.cpp \
                   alarm.cpp \
                   base_communication_monitor.cpp \
                   baseresolver.cpp \
+                  base64.cpp \
                   cache.cpp \
                   cassandra_store.cpp \
                   communicationmonitor.cpp \

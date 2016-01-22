@@ -72,6 +72,7 @@
 #include "sproutconnection.h"
 #include "mock_health_checker.hpp"
 #include "fakesnmp.hpp"
+#include "base64.h"
 
 using ::testing::Return;
 using ::testing::ReturnRef;
@@ -2151,7 +2152,7 @@ TEST_F(HandlersTest, AvNoPublicIDHSSAKA)
   MockHttpStack::Request req(_httpstack,
                              "/impi/" + IMPI,
                              "av",
-                             "?autn=" + SIP_AUTHORIZATION);
+                             "?resync-auth=" + base64_encode(SIP_AUTHORIZATION));
   ImpiTask::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
   ImpiAvTask* task = new ImpiAvTask(req, &cfg, FAKE_TRAIL_ID);
 
