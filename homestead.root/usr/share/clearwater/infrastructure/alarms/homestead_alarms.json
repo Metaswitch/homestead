@@ -8,12 +8,18 @@
                 {
                   "severity": "CLEARED",
                   "details": "The Homestead process has been restored to normal operation.",
-                  "description": "Homestead: Process failure cleared"
+                  "description": "Homestead: Process failure cleared",
+                  "cause": "The Homestead process has been restored to normal operation. The previously issued alarm has been cleared.",
+                  "effect": "Full capacity and availability of the connected HSSs has been restored for the I-CSCF and the S-CSCF.",
+                  "action": "No action."
                 },
                 {
                   "severity": "CRITICAL",
                   "details": "Monit has detected that the Homestead process has failed. A restart will automatically be attempted. If this alarm does not clear, the Homestead process may have been stopped or an unrecoverable failure may have occurred.",
-                  "description": "Homestead: Process failure"
+                  "description": "Homestead: Process failure",
+                  "cause": "The system has detected that the Homestead process has failed.",
+                  "effect": "In progress I-CSCF and S-CSCF SIP registrations on the reporting Homestead node are interrupted and may require retransmission by the SIP clients. If a single Homestead process failed then there is no significant affect to HSS communication capacity. If multiple Homestead processes fail then HSS communication capacity will be reduced or communication may be out of service.",
+                  "action": "Monitor for the alarm to clear and confirm the system is operating normally. Determine if the local Cassandra process has failed. If it has then make sure it also returns to service. If the failed Homestead node fails to return to service then call Metaswitch Support."
                 }
             ]
         },
@@ -25,12 +31,18 @@
                 {
                   "severity": "CLEARED",
                   "details": "Homestead communication to the local Cassandra has been restored.",
-                  "description": "Homestead: Cassandra communication error cleared"
+                  "description": "Homestead: Cassandra communication error cleared",
+                  "cause": "Homestead communication to the local Cassandra has been restored. The previously issued alarm has been cleared.",
+                  "effect": "Full capacity and availability of the connected HSSs has been restored for the I-CSCF and the S-CSCF.",
+                  "action": "No action."
                 },
                 {
                   "severity": "CRITICAL",
                   "details": "Homestead is unable to contact the local Cassandra. It will periodically attempt to reconnect. If this alarm does not clear, ensure that the local Cassandra is configured correctly then restart it.",
-                  "description": "Homestead: Cassandra communication error"
+                  "description": "Homestead: Cassandra communication error",
+                  "cause": "Homestead is unable to contact the local Cassandra.",
+                  "effect": "Effectively equivalent to a Homestead process failure because Homestead cannot access the local Cassandra database. In progress I-CSCF and S-CSCF SIP registrations handled by the reporting Homestead node are interrupted and may require retransmission by the SIP clients. If a single Cassandra process failed then there is no significant affect to HSS communication capacity. If multiple Cassandra processes fail then HSS communication capacity will be reduced",
+                  "action": "Monitor for the alarm to clear and confirm the system is operating normally for HSS traffic. If the alarm fails to clear then call Metaswitch Support."
                 }
             ]
         },
@@ -42,12 +54,18 @@
                 {
                   "severity": "CLEARED",
                   "details": "Homestead communication to at least one HSS has been restored.",
-                  "description": "Homestead: HSS communication error cleared"
+                  "description": "Homestead: HSS communication error cleared",
+                  "cause": "Homestead communication to at least one HSS has been restored. The previously issued alarm has been cleared.",
+                  "effect": "Full capacity and availability of the connected HSSs has been restored for the I-CSCF and the S-CSCF.",
+                  "action": "No action."
                 },
                 {
                   "severity": "CRITICAL",
                   "details": "Homestead is unable to contact any HSSs. It will periodically attempt to reconnect. If this alarm does not clear, ensure that at least one HSS is operational and that network connectivity exists between it and Homestead.",
-                  "description": "Homestead: HSS communication error"
+                  "description": "Homestead: HSS communication error",
+                  "cause": "Homestead is unable to contact any HSSs.",
+                  "effect": "The system will eventually reach a state where subscribers can no longer register or originate and receive calls.",
+                  "action": "Monitor for this alarm to clear. If this alarm does not clear, ensure that an HSS is operational and that network connectivity exists between it and Homestead. Check the configuration file for correct configuration of the HSS. Confirm that the DNS records for the HSS are correct. If the HSS will not return to service then you may need to contact the HSS vendor."
                 }
             ]
         }
