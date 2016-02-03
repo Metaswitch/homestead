@@ -96,11 +96,6 @@ case "$1" in
           service clearwater-cluster-manager stop || /bin/true
         fi  
 
-        # Restart the alarm agent
-        if [ -x "/etc/init.d/clearwater-snmp-alarm-agent" ]; then
-          service clearwater-snmp-alarm-agent stop || /bin/true
-        fi
-
         # Restart homestead.  Always do this by terminating homestead so monit will
         # restart it more-or-less immediately.  (monit restart seems to have
         # significant lag.)
