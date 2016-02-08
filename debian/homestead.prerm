@@ -90,6 +90,7 @@ case "$1" in
         if [ $1 != "upgrade" ]; then
             remove_user
             remove_logging
+            rm -rf /var/run/$NAME
         fi
         remove_section /etc/security/limits.conf $NAME
         rm -f /var/lib/$NAME/$NAME.conf
