@@ -50,17 +50,13 @@ homestead_test_SOURCES := ${COMMON_SOURCES} \
                           test_interposer.cpp \
                           cx_test.cpp \
                           xmlutils_test.cpp \
-                          diameterstack_test.cpp \
                           cache_test.cpp \
                           handlers_test.cpp \
-                          httpstack_test.cpp \
-                          httpstack_utils_test.cpp \
                           fakelogger.cpp \
                           fakesnmp.cpp \
                           mockfreediameter.cpp \
                           mock_sas.cpp \
                           realmmanager_test.cpp \
-                          diameterresolver_test.cpp \
                           chargingaddresses_test.cpp
 
 COMMON_CPPFLAGS := -I../include \
