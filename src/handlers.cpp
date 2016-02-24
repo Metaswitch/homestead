@@ -385,6 +385,12 @@ void ImpiTask::on_mar_response(Diameter::Message& rsp)
       }
     }
     break;
+    case DIAMETER_UNABLE_TO_DELIVER:
+      // LCOV_EXCL_START - nothing interesting to UT.
+      TRC_ERROR("Unable to deliver MAR - suggest retrying from a different Homestead node");
+      send_http_reply(HTTP_SERVER_UNAVAILABLE);
+      break;
+      // LCOV_EXCL_STOP
     case 5001:
     {
       TRC_INFO("Multimedia-Auth answer with result code %d - reject", result_code);
@@ -696,6 +702,13 @@ void ImpiRegistrationStatusTask::on_uar_response(Diameter::Message& rsp)
     sas_log_hss_failure(result_code);
     send_http_reply(HTTP_GATEWAY_TIMEOUT);
   }
+  else if (result_code == DIAMETER_UNABLE_TO_DELIVER)
+  {
+    // LCOV_EXCL_START - nothing interesting to UT.
+    TRC_ERROR("Unable to deliver UAR - suggest retrying from a different Homestead node");
+    send_http_reply(HTTP_SERVER_UNAVAILABLE);
+    // LCOV_EXCL_STOP
+  }
   else
   {
     TRC_INFO("User-Authorization answer with result %d/%d - reject",
@@ -818,6 +831,13 @@ void ImpuLocationInfoTask::on_lir_response(Diameter::Message& rsp)
     TRC_INFO("HSS busy - reject");
     sas_log_hss_failure(result_code);
     send_http_reply(HTTP_GATEWAY_TIMEOUT);
+  }
+  else if (result_code == DIAMETER_UNABLE_TO_DELIVER)
+  {
+    // LCOV_EXCL_START - nothing interesting to UT.
+    TRC_ERROR("Unable to deliver LIR - suggest retrying from a different Homestead node");
+    send_http_reply(HTTP_SERVER_UNAVAILABLE);
+    // LCOV_EXCL_STOP
   }
   else
   {
@@ -1631,6 +1651,12 @@ void ImpuRegDataTask::on_sar_response(Diameter::Message& rsp)
       saa.charging_addrs(_charging_addrs);
       saa.user_data(_xml);
       break;
+    case DIAMETER_UNABLE_TO_DELIVER:
+      // LCOV_EXCL_START - nothing interesting to UT.
+      TRC_ERROR("Unable to deliver SAR - suggest retrying from a different Homestead node");
+      _http_rc = HTTP_SERVER_UNAVAILABLE;
+      break;
+      // LCOV_EXCL_STOP
     case 5001:
     {
       TRC_INFO("Server-Assignment answer with result code %d - reject", result_code);
@@ -1655,18 +1681,23 @@ void ImpuRegDataTask::on_sar_response(Diameter::Message& rsp)
   {
     // This request assigned the user to us (i.e. it was successful and wasn't
     // triggered by a deregistration or auth failure) so cache the User-Data.
+    SAS::Event event(this->trail(), SASEvent::REG_DATA_HSS_SUCCESS, 0);
+    SAS::report_event(event);
     put_in_cache();
     pending_cache_op = true;
   }
-  else if (is_deregistration_request(_type))
+  else if ((is_deregistration_request(_type)) &&
+           (result_code != DIAMETER_UNABLE_TO_DELIVER))
   {
     // We're deregistering, so clear the cache.
     //
     // Even if the HSS rejects our deregistration request, we should
     // still delete our cached data - this reflects the fact that Sprout
-    // has no bindings for it.
-    SAS::Event event(this->trail(), SASEvent::REG_DATA_HSS_SUCCESS, 0);
-    SAS::report_event(event);
+    // has no bindings for it. If we were unable to deliver the Diameter
+    // message, we might retry to a new Homestead node, and in this case we
+    // don't want to delete the data (since the new Homestead node will receive
+    // the request, not find the subscriber registered in Cassandra and reject
+    // the request without trying to notify the HSS).
     std::vector<std::string> public_ids = XmlUtils::get_public_ids(_xml);
     if (!public_ids.empty())
     {
