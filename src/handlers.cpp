@@ -387,7 +387,10 @@ void ImpiTask::on_mar_response(Diameter::Message& rsp)
     break;
     case DIAMETER_UNABLE_TO_DELIVER:
       // LCOV_EXCL_START - nothing interesting to UT.
-      TRC_ERROR("Unable to deliver MAR - suggest retrying from a different Homestead node");
+      // This may mean we don't have any Diameter connections. Another Homestead
+      // node might have Diameter connections (either to the HSS, or to an SLF
+      // which is able to talk to the HSS), and we should return a 503 so that
+      // Sprout tries a different Homestead.
       send_http_reply(HTTP_SERVER_UNAVAILABLE);
       break;
       // LCOV_EXCL_STOP
@@ -705,7 +708,10 @@ void ImpiRegistrationStatusTask::on_uar_response(Diameter::Message& rsp)
   else if (result_code == DIAMETER_UNABLE_TO_DELIVER)
   {
     // LCOV_EXCL_START - nothing interesting to UT.
-    TRC_ERROR("Unable to deliver UAR - suggest retrying from a different Homestead node");
+    // This may mean we don't have any Diameter connections. Another Homestead
+    // node might have Diameter connections (either to the HSS, or to an SLF
+    // which is able to talk to the HSS), and we should return a 503 so that
+    // Sprout tries a different Homestead.
     send_http_reply(HTTP_SERVER_UNAVAILABLE);
     // LCOV_EXCL_STOP
   }
@@ -835,7 +841,10 @@ void ImpuLocationInfoTask::on_lir_response(Diameter::Message& rsp)
   else if (result_code == DIAMETER_UNABLE_TO_DELIVER)
   {
     // LCOV_EXCL_START - nothing interesting to UT.
-    TRC_ERROR("Unable to deliver LIR - suggest retrying from a different Homestead node");
+    // This may mean we don't have any Diameter connections. Another Homestead
+    // node might have Diameter connections (either to the HSS, or to an SLF
+    // which is able to talk to the HSS), and we should return a 503 so that
+    // Sprout tries a different Homestead.
     send_http_reply(HTTP_SERVER_UNAVAILABLE);
     // LCOV_EXCL_STOP
   }
@@ -1653,7 +1662,10 @@ void ImpuRegDataTask::on_sar_response(Diameter::Message& rsp)
       break;
     case DIAMETER_UNABLE_TO_DELIVER:
       // LCOV_EXCL_START - nothing interesting to UT.
-      TRC_ERROR("Unable to deliver SAR - suggest retrying from a different Homestead node");
+      // This may mean we don't have any Diameter connections. Another Homestead
+      // node might have Diameter connections (either to the HSS, or to an SLF
+      // which is able to talk to the HSS), and we should return a 503 so that
+      // Sprout tries a different Homestead.
       _http_rc = HTTP_SERVER_UNAVAILABLE;
       break;
       // LCOV_EXCL_STOP
