@@ -81,7 +81,6 @@ COMMON_LDFLAGS := -L../usr/lib \
                   -lcares \
                   -lboost_regex \
                   -lboost_system \
-                  -lboost_date_time \
                   -lpthread \
                   -lcurl \
                   -lc \
