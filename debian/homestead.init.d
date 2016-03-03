@@ -129,9 +129,6 @@ get_settings()
 
         sprout_http_name=$(python /usr/share/clearwater/bin/bracket_ipv6_address.py $sprout_hostname):9888
 
-        # Pull in user_settings as a final level of overrides
-        [ -r /etc/clearwater/user_settings ] && . /etc/clearwater/user_settings
-
         # Work out which features are enabled.
         if [ -d /etc/clearwater/features.d ]
         then

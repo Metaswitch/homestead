@@ -56,7 +56,6 @@ homestead_test_SOURCES := ${COMMON_SOURCES} \
                           fakesnmp.cpp \
                           mockfreediameter.cpp \
                           mock_sas.cpp \
-                          realmmanager_test.cpp \
                           chargingaddresses_test.cpp
 
 COMMON_CPPFLAGS := -I../include \
