@@ -550,7 +550,7 @@ int main(int argc, char**argv)
   // Copy the filename to a string so that we can be sure of its lifespan -
   // the value passed to openlog must be valid for the duration of the program.
   std::string filename = p.filename().c_str();
-  openlog(filename.c_str(), PDLOG_PID, PDLOG_LOCAL6);
+  openlog(filename.c_str(), PDLOG_PID, PDLOG_LOCAL7);
   CL_HOMESTEAD_STARTED.log();
 
   if (init_logging_options(argc, argv, options) != 0)
@@ -646,7 +646,7 @@ int main(int argc, char**argv)
                                                                          ".1.2.826.0.1.1578918.9.5.15");
   // Must happen after all SNMP tables have been registered.
   init_snmp_handler_threads("homestead");
-  
+
   configure_cx_results_tables(mar_results_table,
                              sar_results_table,
                              uar_results_table,
@@ -734,8 +734,8 @@ int main(int argc, char**argv)
   try
   {
     diameter_stack->initialize();
-    diameter_stack->configure(options.diameter_conf, 
-                              exception_handler, 
+    diameter_stack->configure(options.diameter_conf,
+                              exception_handler,
                               hss_comm_monitor,
                               realm_counter,
                               host_counter);
@@ -833,7 +833,7 @@ int main(int argc, char**argv)
 
   DiameterResolver* diameter_resolver = NULL;
   RealmManager* realm_manager = NULL;
-  
+
   if (hss_configured)
   {
     diameter_resolver = new DiameterResolver(dns_resolver,
