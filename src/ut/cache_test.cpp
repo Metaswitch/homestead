@@ -560,7 +560,6 @@ TEST_F(CacheRequestTest, PutAuthVectorMainline)
   av.ha1 = "somehash";
   av.realm = "themuppetshow.com";
   av.qop = "auth";
-  av.preferred = true;
 
   TestTransaction *trx = make_trx();
   CassandraStore::Operation* op =
@@ -570,7 +569,6 @@ TEST_F(CacheRequestTest, PutAuthVectorMainline)
   columns["digest_ha1"] = av.ha1;
   columns["digest_realm"] = av.realm;
   columns["digest_qop"] = av.qop;
-  columns["known_preferred"] = "\x01"; // That's how thrift represents bools.
 
   EXPECT_CALL(_client,
               batch_mutate(MutationMap("impi", "gonzo", columns, 1000), _));
@@ -954,13 +952,11 @@ TEST_F(CacheRequestTest, GetAuthVectorAllColsReturned)
   requested_columns.push_back("digest_ha1");
   requested_columns.push_back("digest_realm");
   requested_columns.push_back("digest_qop");
-  requested_columns.push_back("known_preferred");
 
   std::map<std::string, std::string> columns;
   columns["digest_ha1"] = "somehash";
   columns["digest_realm"] = "themuppetshow.com";
   columns["digest_qop"] = "auth";
-  columns["known_preferred"] = "\x01"; // That's how thrift represents bools.
 
   std::vector<cass::ColumnOrSuperColumn> slice;
   make_slice(slice, columns);
@@ -983,7 +979,6 @@ TEST_F(CacheRequestTest, GetAuthVectorAllColsReturned)
   EXPECT_EQ("somehash", rec.result.ha1);
   EXPECT_EQ("themuppetshow.com", rec.result.realm);
   EXPECT_EQ("auth", rec.result.qop);
-  EXPECT_TRUE(rec.result.preferred);
 }
 
 
@@ -1009,7 +1004,6 @@ TEST_F(CacheRequestTest, GetAuthVectorNonDefaultableColsReturned)
   EXPECT_EQ("somehash", rec.result.ha1);
   EXPECT_EQ("", rec.result.realm);
   EXPECT_EQ("", rec.result.qop);
-  EXPECT_FALSE(rec.result.preferred);
 }
 
 
@@ -1018,7 +1012,6 @@ TEST_F(CacheRequestTest, GetAuthVectorHa1NotReturned)
   std::map<std::string, std::string> columns;
   columns["digest_realm"] = "themuppetshow.com";
   columns["digest_qop"] = "auth";
-  columns["known_preferred"] = "\x01"; // That's how thrift represents bools.
 
   std::vector<cass::ColumnOrSuperColumn> slice;
   make_slice(slice, columns);
@@ -1055,14 +1048,12 @@ TEST_F(CacheRequestTest, GetAuthVectorPublicIdRequested)
   requested_columns.push_back("digest_ha1");
   requested_columns.push_back("digest_realm");
   requested_columns.push_back("digest_qop");
-  requested_columns.push_back("known_preferred");
   requested_columns.push_back("public_id_gonzo");
 
   std::map<std::string, std::string> columns;
   columns["digest_ha1"] = "somehash";
   columns["digest_realm"] = "themuppetshow.com";
   columns["digest_qop"] = "auth";
-  columns["known_preferred"] = "\x01"; // That's how thrift represents bools.
   columns["public_id_gonzo"] = "";
 
   std::vector<cass::ColumnOrSuperColumn> slice;
@@ -1086,7 +1077,6 @@ TEST_F(CacheRequestTest, GetAuthVectorPublicIdRequested)
   EXPECT_EQ("somehash", rec.result.ha1);
   EXPECT_EQ("themuppetshow.com", rec.result.realm);
   EXPECT_EQ("auth", rec.result.qop);
-  EXPECT_TRUE(rec.result.preferred);
 }
 
 
@@ -1096,7 +1086,6 @@ TEST_F(CacheRequestTest, GetAuthVectorPublicIdRequestedNotReturned)
   columns["digest_ha1"] = "somehash";
   columns["digest_realm"] = "themuppetshow.com";
   columns["digest_qop"] = "auth";
-  columns["known_preferred"] = "\x01"; // That's how thrift represents bools.
 
   std::vector<cass::ColumnOrSuperColumn> slice;
   make_slice(slice, columns);
