@@ -23,8 +23,12 @@ then
   # /usr/share/clearwater/cassandra-schemas/replication_string.sh
   echo "CREATE KEYSPACE homestead_cache WITH REPLICATION =  $replication_str;
         USE homestead_cache;
-        CREATE TABLE impi (private_id text PRIMARY KEY, digest_ha1 text, digest_realm text, digest_qop text, known_preferred boolean) WITH COMPACT STORAGE AND read_repair_chance = 1.0;
+        CREATE TABLE impi (private_id text PRIMARY KEY, digest_ha1 text, digest_realm text, digest_qop text) WITH COMPACT STORAGE AND read_repair_chance = 1.0;
         CREATE TABLE impu (public_id text PRIMARY KEY, ims_subscription_xml text, is_registered boolean) WITH COMPACT STORAGE AND read_repair_chance = 1.0;" | /usr/share/clearwater/bin/run-in-signaling-namespace cqlsh
+  # We've removed the known_preferred key from newly-created copies of the
+  # schema but we can't alter existing copies because there might be downlevel
+  # Homestead nodes that still want to read/write it (even though the data
+  # stored there is never used).
 fi
 
 echo "USE homestead_cache; DESC TABLE impu" | /usr/share/clearwater/bin/run-in-signaling-namespace cqlsh | grep primary_ccf > /dev/null

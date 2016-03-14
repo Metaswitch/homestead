@@ -64,7 +64,6 @@ const static std::string ASSOC_PUBLIC_ID_COLUMN_PREFIX = "public_id_";
 const static std::string DIGEST_HA1_COLUMN_NAME      ="digest_ha1";
 const static std::string DIGEST_REALM_COLUMN_NAME    = "digest_realm";
 const static std::string DIGEST_QOP_COLUMN_NAME      = "digest_qop";
-const static std::string KNOWN_PREFERRED_COLUMN_NAME = "known_preferred";
 
 // Variables to store the singleton cache object.
 //
@@ -313,8 +312,6 @@ bool Cache::PutAuthVector::perform(CassandraStore::Client* client,
   columns[DIGEST_HA1_COLUMN_NAME]      = _auth_vector.ha1;
   columns[DIGEST_REALM_COLUMN_NAME]    = _auth_vector.realm;
   columns[DIGEST_QOP_COLUMN_NAME]      = _auth_vector.qop;
-  columns[KNOWN_PREFERRED_COLUMN_NAME] = _auth_vector.preferred ?
-                   CassandraStore::BOOLEAN_TRUE : CassandraStore::BOOLEAN_FALSE;
 
   client->put_columns(IMPI, _private_ids, columns, _timestamp, _ttl);
   return true;
@@ -679,7 +676,6 @@ bool Cache::GetAuthVector::perform(CassandraStore::Client* client,
   requested_columns.push_back(DIGEST_HA1_COLUMN_NAME);
   requested_columns.push_back(DIGEST_REALM_COLUMN_NAME);
   requested_columns.push_back(DIGEST_QOP_COLUMN_NAME);
-  requested_columns.push_back(KNOWN_PREFERRED_COLUMN_NAME);
 
   if (_public_id.length() > 0)
   {
@@ -714,12 +710,6 @@ bool Cache::GetAuthVector::perform(CassandraStore::Client* client,
     else if (col->name == DIGEST_QOP_COLUMN_NAME)
     {
       _auth_vector.qop = col->value;
-    }
-    else if (col->name == KNOWN_PREFERRED_COLUMN_NAME)
-    {
-      // Cassnadra booleans are byte string of length 1, with a value f 0
-      // (false) or 1 (true).
-      _auth_vector.preferred = (col->value == "\x01");
     }
     else if (col->name == public_id_col)
     {

@@ -49,10 +49,6 @@ struct DigestAuthVector : AuthVector
   std::string ha1;
   std::string realm;
   std::string qop;
-
-  // TODO. This field is no longer used and should be removed. See 
-  // https://github.com/Metaswitch/homestead/issues/43 for more details. 
-  bool preferred;
 };
 
 struct AKAAuthVector : AuthVector
