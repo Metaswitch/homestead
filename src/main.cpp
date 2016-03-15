@@ -671,7 +671,6 @@ int main(int argc, char**argv)
 
   // Start the alarm request agent
   AlarmReqAgent::get_instance().start();
-  AlarmState::clear_all("homestead");
 
   // Create an exception handler. The exception handler doesn't need
   // to quiesce the process before killing it.
