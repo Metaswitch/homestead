@@ -26,6 +26,7 @@ COMMON_SOURCES := accesslogger.cpp \
                   load_monitor.cpp \
                   logger.cpp \
                   log.cpp \
+                  pdlog.cpp \
                   realmmanager.cpp \
                   saslogger.cpp \
                   namespace_hop.cpp \
