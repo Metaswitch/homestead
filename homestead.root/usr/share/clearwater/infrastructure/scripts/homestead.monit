@@ -52,7 +52,7 @@ check process homestead_process with pidfile /var/run/homestead/homestead.pid
   if memory > 80% for 6 cycles then exec "/bin/bash -c '/usr/share/clearwater/bin/issue_alarm.py monit 1500.3; /etc/init.d/homestead abort'"
 
 # Clear any alarms if the process has been running long enough.
-check program homestead_uptime with path "/usr/share/clearwater/bin/check-uptime /var/run/homestead/homestead.pid monit 1500.1"
+check program homestead_uptime with path /usr/share/clearwater/infrastructure/scripts/check-homestead-uptime
   group homestead
   depends on homestead_process
   every 3 cycles
