@@ -67,7 +67,4 @@ then
 fi
 
 # Create Cassandra schema if Cassandra is installed.
-if dpkg-query -W -f='${Status}' cassandra | grep -iq installed
-then
-  /usr/share/clearwater/cassandra-schemas/homestead_cache.sh || /bin/true
-fi
+/usr/share/clearwater/cassandra-schemas/homestead_cache.sh || /bin/true
