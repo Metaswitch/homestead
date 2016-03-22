@@ -101,6 +101,8 @@ get_settings()
         impu_cache_ttl=0
         max_peers=2
         reg_max_expires=300
+        log_level=2
+        num_http_threads=$(($(grep processor /proc/cpuinfo | wc -l) * 50))
         . /etc/clearwater/config
 
         if [ -z $hss_reregistration_time ]
@@ -115,9 +117,6 @@ get_settings()
             hss_reregistration_time=1800
           fi
         fi
-
-        log_level=2
-        num_http_threads=$(($(grep processor /proc/cpuinfo | wc -l) * 50))
 
         # Derive server_name and sprout_http_name from other settings
         if [ -n "$scscf_uri" ]
