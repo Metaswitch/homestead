@@ -495,7 +495,6 @@ void signal_handler(int sig)
   exception_handler->handle_exception();
 
   CL_HOMESTEAD_CRASH.log(strsignal(sig));
-  closelog();
 
   // Dump a core.
   abort();
@@ -546,16 +545,13 @@ int main(int argc, char**argv)
   options.diameter_blacklist_duration = DiameterResolver::DEFAULT_BLACKLIST_DURATION;
   options.pidfile = "";
 
-  boost::filesystem::path p = argv[0];
-  // Copy the filename to a string so that we can be sure of its lifespan -
-  // the value passed to openlog must be valid for the duration of the program.
-  std::string filename = p.filename().c_str();
-  openlog(filename.c_str(), PDLOG_PID, PDLOG_LOCAL6);
+  // Initialise ENT logging before making "Started" log
+  PDLogStatic::init(argv[0]);
+
   CL_HOMESTEAD_STARTED.log();
 
   if (init_logging_options(argc, argv, options) != 0)
   {
-    closelog();
     return 1;
   }
 
@@ -587,7 +583,6 @@ int main(int argc, char**argv)
 
   if (init_options(argc, argv, options) != 0)
   {
-    closelog();
     return 1;
   }
 
@@ -646,7 +641,7 @@ int main(int argc, char**argv)
                                                                          ".1.2.826.0.1.1578918.9.5.15");
   // Must happen after all SNMP tables have been registered.
   init_snmp_handler_threads("homestead");
-  
+
   configure_cx_results_tables(mar_results_table,
                              sar_results_table,
                              uar_results_table,
@@ -709,7 +704,6 @@ int main(int argc, char**argv)
   if (rc != CassandraStore::OK)
   {
     CL_HOMESTEAD_CASSANDRA_CACHE_INIT_FAIL.log(rc);
-    closelog();
     TRC_ERROR("Failed to initialize the Cassandra cache with error code %d.", rc);
     TRC_STATUS("Homestead is shutting down");
     exit(2);
@@ -733,8 +727,8 @@ int main(int argc, char**argv)
   try
   {
     diameter_stack->initialize();
-    diameter_stack->configure(options.diameter_conf, 
-                              exception_handler, 
+    diameter_stack->configure(options.diameter_conf,
+                              exception_handler,
                               hss_comm_monitor,
                               realm_counter,
                               host_counter);
@@ -755,7 +749,6 @@ int main(int argc, char**argv)
   catch (Diameter::Stack::Exception& e)
   {
     CL_HOMESTEAD_DIAMETER_INIT_FAIL.log(e._func, e._rc);
-    closelog();
     TRC_ERROR("Failed to initialize Diameter stack - function %s, rc %d", e._func, e._rc);
     TRC_STATUS("Homestead is shutting down");
     exit(2);
@@ -824,7 +817,6 @@ int main(int argc, char**argv)
   catch (HttpStack::Exception& e)
   {
     CL_HOMESTEAD_HTTP_INIT_FAIL.log(e._func, e._rc);
-    closelog();
     TRC_ERROR("Failed to initialize HttpStack stack - function %s, rc %d", e._func, e._rc);
     TRC_STATUS("Homestead is shutting down");
     exit(2);
@@ -832,7 +824,7 @@ int main(int argc, char**argv)
 
   DiameterResolver* diameter_resolver = NULL;
   RealmManager* realm_manager = NULL;
-  
+
   if (hss_configured)
   {
     diameter_resolver = new DiameterResolver(dns_resolver,
@@ -920,7 +912,6 @@ int main(int argc, char**argv)
   delete load_monitor; load_monitor = NULL;
 
   SAS::term();
-  closelog();
 
   // Stop the alarm request agent
   AlarmReqAgent::get_instance().stop();
