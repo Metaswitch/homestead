@@ -122,8 +122,11 @@ get_settings()
         if [ -n "$scscf_uri" ]
         then
           server_name=$scscf_uri
+        elif [ -n "$scscf_prefix" ]
+        then
+          server_name="sip:$scscf_prefix.$sprout_hostname:$scscf;transport=TCP"
         else
-          server_name="sip:$(python /usr/share/clearwater/bin/bracket_ipv6_address.py $sprout_hostname):$scscf;transport=TCP"
+          server_name="sip:scscf.$sprout_hostname:$scscf;transport=TCP"
         fi
 
         sprout_http_name=$(python /usr/share/clearwater/bin/bracket_ipv6_address.py $sprout_hostname):9888
