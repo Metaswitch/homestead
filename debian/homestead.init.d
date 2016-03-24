@@ -118,13 +118,16 @@ get_settings()
 
         log_level=2
         num_http_threads=$(($(grep processor /proc/cpuinfo | wc -l) * 50))
-
+      
         # Derive server_name and sprout_http_name from other settings
         if [ -n "$scscf_uri" ]
         then
           server_name=$scscf_uri
+        elif [ -n "$scscf_prefix" ]
+        then
+          server_name="sip:$scscf_prefix.$sprout_hostname:$scscf;transport=TCP"
         else
-          server_name="sip:$(python /usr/share/clearwater/bin/bracket_ipv6_address.py $sprout_hostname):$scscf;transport=TCP"
+          server_name="sip:scscf.$sprout_hostname:$scscf;transport=TCP"
         fi
 
         sprout_http_name=$(python /usr/share/clearwater/bin/bracket_ipv6_address.py $sprout_hostname):9888
