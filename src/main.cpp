@@ -104,6 +104,7 @@ struct options
   int http_blacklist_duration;
   int diameter_blacklist_duration;
   std::string pidfile;
+  bool daemon;
 };
 
 // Enum for option types not assigned short-forms
@@ -124,7 +125,8 @@ enum OptionTypes
   HTTP_BLACKLIST_DURATION,
   DIAMETER_BLACKLIST_DURATION,
   FORCE_HSS_PEER,
-  PIDFILE
+  PIDFILE,
+  DAEMON
 };
 
 const static struct option long_opt[] =
@@ -162,6 +164,7 @@ const static struct option long_opt[] =
   {"http-blacklist-duration",     required_argument, NULL, HTTP_BLACKLIST_DURATION},
   {"diameter-blacklist-duration", required_argument, NULL, DIAMETER_BLACKLIST_DURATION},
   {"pidfile",                     required_argument, NULL, PIDFILE},
+  {"daemon",                      no_argument,       NULL, DAEMON},
   {NULL,                          0,                 NULL, 0},
 };
 
@@ -215,15 +218,15 @@ void usage(void)
        "     --exception-max-ttl <secs>\n"
        "                            The maximum time before the process exits if it hits an exception.\n"
        "                            The actual time is randomised.\n"
-       " --http-blacklist-duration <secs>\n"
+       "     --http-blacklist-duration <secs>\n"
        "                            The amount of time to blacklist an HTTP peer when it is unresponsive.\n"
-       " --diameter-blacklist-duration <secs>\n"
+       "     --diameter-blacklist-duration <secs>\n"
        "                            The amount of time to blacklist a Diameter peer when it is unresponsive.\n"
        " -F, --log-file <directory>\n"
        "                            Log to file in specified directory\n"
        " -L, --log-level N          Set log level to N (default: 4)\n"
-       " -d, --daemon               Run as daemon\n"
-       " --pidfile=<filename>       Write pidfile\n"
+       "     --daemon               Run as daemon\n"
+       "     --pidfile=<filename>   Write pidfile\n"
        " -h, --help                 Show this help screen\n");
 }
 
@@ -449,6 +452,10 @@ int init_options(int argc, char**argv, struct options& options)
       options.pidfile = std::string(optarg);
       break;
 
+    case DAEMON:
+      options.daemon = true;
+      break;
+
     case 'F':
     case 'L':
       // Ignore F and L - these are handled by init_logging_options
@@ -544,6 +551,7 @@ int main(int argc, char**argv)
   options.http_blacklist_duration = HttpResolver::DEFAULT_BLACKLIST_DURATION;
   options.diameter_blacklist_duration = DiameterResolver::DEFAULT_BLACKLIST_DURATION;
   options.pidfile = "";
+  options.daemon = false;
 
   // Initialise ENT logging before making "Started" log
   PDLogStatic::init(argv[0]);
@@ -584,6 +592,18 @@ int main(int argc, char**argv)
   if (init_options(argc, argv, options) != 0)
   {
     return 1;
+  }
+
+  if (options.daemon)
+  {
+    // Options parsed and validated, time to demonize before writing out our
+    // pidfile or spwaning threads.
+    int errnum = Utils::daemonize();
+    if (errnum != 0)
+    {
+      TRC_ERROR("Failed to convert to daemon, %d (%s)", errnum, strerror(errnum));
+      exit(0);
+    }
   }
 
   if (options.pidfile != "")
