@@ -869,6 +869,14 @@ int main(int argc, char**argv)
   cache->stop();
   cache->wait_stopped();
 
+  if (hss_configured)
+  {
+    realm_manager->stop();
+    delete realm_manager; realm_manager = NULL;
+    delete diameter_resolver; diameter_resolver = NULL;
+    delete dns_resolver; dns_resolver = NULL;
+  }
+
   try
   {
     diameter_stack->stop();
@@ -886,14 +894,6 @@ int main(int argc, char**argv)
   delete rtr_task; rtr_task = NULL;
 
   delete sprout_conn; sprout_conn = NULL;
-
-  if (hss_configured)
-  {
-    realm_manager->stop();
-    delete realm_manager; realm_manager = NULL;
-    delete diameter_resolver; diameter_resolver = NULL;
-    delete dns_resolver; dns_resolver = NULL;
-  }
 
   delete realm_counter; realm_counter = NULL;
   delete host_counter; host_counter = NULL;
