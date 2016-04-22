@@ -26,10 +26,11 @@ COMMON_SOURCES := accesslogger.cpp \
                   load_monitor.cpp \
                   logger.cpp \
                   log.cpp \
+                  namespace_hop.cpp \
                   pdlog.cpp \
                   realmmanager.cpp \
                   saslogger.cpp \
-                  namespace_hop.cpp \
+                  signalhandler.cpp \
                   sproutconnection.cpp \
                   statistic.cpp \
                   statisticsmanager.cpp \
