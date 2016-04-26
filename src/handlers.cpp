@@ -1050,6 +1050,7 @@ void ImpuRegDataTask::run()
 
   _impu = path.substr(prefix.length(), path.find_first_of("/", prefix.length()) - prefix.length());
   _impi = _req.param("private_id");
+  _provided_server_name = _req.param("server_name");
   TRC_DEBUG("Parsed HTTP request: private ID %s, public ID %s",
             _impi.c_str(), _impu.c_str());
 
@@ -1483,7 +1484,8 @@ void ImpuRegDataTask::send_server_assignment_request(Cx::ServerAssignmentType ty
                                   _dest_realm,
                                   _impi,
                                   _impu,
-                                  _server_name,
+                                  (_provided_server_name == "" ? _server_name :
+                                   _provided_server_name),
                                   type);
   DiameterTransaction* tsx =
     new DiameterTransaction(_dict,
