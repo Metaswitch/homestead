@@ -506,6 +506,7 @@ protected:
   RegistrationState _new_state;
   ChargingAddresses _charging_addrs;
   long _http_rc;
+  std::string _provided_server_name;
 };
 
 class ImpuIMSSubscriptionTask : public ImpuRegDataTask
