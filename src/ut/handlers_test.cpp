@@ -367,18 +367,37 @@ public:
     return sb.GetString();
   }
 
-  MockHttpStack::Request make_request(const std::string& req_type, bool use_impi)
+  MockHttpStack::Request make_request(const std::string& req_type,
+                                      bool use_impi,
+                                      bool use_server_name)
   {
+    std::string parameters = "";
+
+    if (use_impi)
+    {
+      parameters = "?private_id=" + IMPI;
+
+      if (use_server_name)
+      {
+        parameters.append("&server_name=" + SERVER_NAME);
+      }
+    }
+    else if (use_server_name)
+    {
+      parameters = "?server_name=" + SERVER_NAME;
+    }
+
     return MockHttpStack::Request(_httpstack,
                                   "/impu/" + IMPU + "/reg-data",
                                   "",
-                                  use_impi ? "?private_id=" + IMPI : "",
+                                  parameters,
                                   "{\"reqtype\": \"" + req_type +"\"}",
                                   htp_method_PUT);
   }
 
   void reg_data_template_with_deletion(std::string request_type,
                                        bool use_impi,
+                                       bool use_server_name,
                                        RegistrationState db_regstate,
                                        int expected_type,
                                        int db_ttl = 3600,
@@ -386,9 +405,10 @@ public:
                                        RegistrationState expected_new_state = RegistrationState::NOT_REGISTERED,
                                        CassandraStore::ResultCode cache_error = CassandraStore::OK)
   {
-    MockHttpStack::Request req = make_request(request_type, use_impi);
+    MockHttpStack::Request req = make_request(request_type, use_impi, use_server_name);
     reg_data_template(req,
                       use_impi,
+                      use_server_name,
                       false,
                       db_regstate,
                       expected_type,
@@ -404,6 +424,7 @@ public:
   // database delete or insert, and then verifies the response.
   void reg_data_template(MockHttpStack::Request& req,
                          bool use_impi,
+                         bool use_server_name,
                          bool new_binding,
                          RegistrationState db_regstate,
                          int expected_type,
@@ -480,7 +501,7 @@ public:
     EXPECT_EQ(IMPI, sar.impi());
     EXPECT_EQ(IMPU, sar.impu());
     EXPECT_TRUE(sar.server_name(test_str));
-    EXPECT_EQ(DEFAULT_SERVER_NAME, test_str);
+    EXPECT_EQ((use_server_name ? SERVER_NAME : DEFAULT_SERVER_NAME), test_str);
     EXPECT_TRUE(sar.server_assignment_type(test_i32));
 
     // Check that the SAR has the type expected by the caller.
@@ -2262,24 +2283,32 @@ TEST_F(HandlersTest, AkaNoIMPU)
 
 TEST_F(HandlersTest, IMSSubscriptionHSS_InitialRegister)
 {
-  MockHttpStack::Request req = make_request("reg", true);
-  reg_data_template(req, true, false, RegistrationState::NOT_REGISTERED, 1);
+  MockHttpStack::Request req = make_request("reg", true, true);
+  reg_data_template(req, true, true, false, RegistrationState::NOT_REGISTERED, 1);
+}
+
+// Initial registration (using the configured service name)
+
+TEST_F(HandlersTest, IMSSubscriptionHSS_InitialRegisterNoServerName)
+{
+  MockHttpStack::Request req = make_request("reg", true, false);
+  reg_data_template(req, true, false, false, RegistrationState::NOT_REGISTERED, 1);
 }
 
 // Initial registration with cache failure
 
 TEST_F(HandlersTest, IMSSubscriptionHSS_InitialRegisterCacheFail)
 {
-  MockHttpStack::Request req = make_request("reg", true);
-  reg_data_template(req, true, false, RegistrationState::NOT_REGISTERED, 1,  3600, "", RegistrationState::REGISTERED, false, CassandraStore::CONNECTION_ERROR);
+  MockHttpStack::Request req = make_request("reg", true, true);
+  reg_data_template(req, true, true, false, RegistrationState::NOT_REGISTERED, 1,  3600, "", RegistrationState::REGISTERED, false, CassandraStore::CONNECTION_ERROR);
 }
 
 // Initial registration from UNREGISTERED state
 
 TEST_F(HandlersTest, IMSSubscriptionHSS_InitialRegisterFromUnreg)
 {
-  MockHttpStack::Request req = make_request("reg", true);
-  reg_data_template(req, true, false, RegistrationState::UNREGISTERED, 1);
+  MockHttpStack::Request req = make_request("reg", true, true);
+  reg_data_template(req, true, true, false, RegistrationState::UNREGISTERED, 1);
 }
 
 // Re-registration when the database record is old enough (500s - less
@@ -2287,25 +2316,25 @@ TEST_F(HandlersTest, IMSSubscriptionHSS_InitialRegisterFromUnreg)
 
 TEST_F(HandlersTest, IMSSubscriptionHSS_ReregWithSAR)
 {
-  MockHttpStack::Request req = make_request("reg", true);
-  reg_data_template(req, true, false, RegistrationState::REGISTERED, 2, 500);
+  MockHttpStack::Request req = make_request("reg", true, true);
+  reg_data_template(req, true, true, false, RegistrationState::REGISTERED, 2, 500);
 }
 
 // Re-registration with a new binding.
 
 TEST_F(HandlersTest, IMSSubscriptionHSS_ReregNewBinding)
 {
-  MockHttpStack::Request req = make_request("reg", true);
-  reg_data_template(req, true, true, RegistrationState::REGISTERED, 1);
+  MockHttpStack::Request req = make_request("reg", true, true);
+  reg_data_template(req, true, true, true, RegistrationState::REGISTERED, 1);
 }
 
 // Re-registration with no new binding, but with cached responses not allowed.
 // This means homestead still sends a SAR.
 TEST_F(HandlersTest, IMSSubscriptionHSS_ReregCacheNotallowed)
 {
-  MockHttpStack::Request req = make_request("reg", true);
+  MockHttpStack::Request req = make_request("reg", true, true);
   req.add_header_to_incoming_req("Cache-control", "no-cache");
-  reg_data_template(req, true, false, RegistrationState::REGISTERED, 2);
+  reg_data_template(req, true, true, false, RegistrationState::REGISTERED, 2);
 }
 
 // Re-registration when the database record is not old enough to
@@ -2336,8 +2365,9 @@ TEST_F(HandlersTest, IMSSubscriptionCallHSSUnregisteredService)
 
 TEST_F(HandlersTest, IMSSubscriptionCallHSSNewUnregisteredService)
 {
-  MockHttpStack::Request req = make_request("call", true);
+  MockHttpStack::Request req = make_request("call", true, true);
   reg_data_template(req,
+                    true,
                     true,
                     false,
                     RegistrationState::NOT_REGISTERED,
@@ -2351,17 +2381,17 @@ TEST_F(HandlersTest, IMSSubscriptionCallHSSNewUnregisteredService)
 
 TEST_F(HandlersTest, IMSSubscriptionDeregHSS)
 {
-  reg_data_template_with_deletion("dereg-user", true, RegistrationState::REGISTERED, 5);
+  reg_data_template_with_deletion("dereg-user", true, true, RegistrationState::REGISTERED, 5);
 }
 
 TEST_F(HandlersTest, IMSSubscriptionDeregTimeout)
 {
-  reg_data_template_with_deletion("dereg-timeout", true, RegistrationState::REGISTERED, 4);
+  reg_data_template_with_deletion("dereg-timeout", true, true, RegistrationState::REGISTERED, 4);
 }
 
 TEST_F(HandlersTest, IMSSubscriptionDeregAdmin)
 {
-  reg_data_template_with_deletion("dereg-admin", true, RegistrationState::REGISTERED, 8);
+  reg_data_template_with_deletion("dereg-admin", true, true, RegistrationState::REGISTERED, 8);
 }
 
 // Test that if an IMPI is not explicitly provided on a deregistration
@@ -2369,19 +2399,19 @@ TEST_F(HandlersTest, IMSSubscriptionDeregAdmin)
 
 TEST_F(HandlersTest, IMSSubscriptionDeregUseCacheIMPI)
 {
-  reg_data_template_with_deletion("dereg-admin", false, RegistrationState::REGISTERED, 8);
+  reg_data_template_with_deletion("dereg-admin", false, true, RegistrationState::REGISTERED, 8);
 }
 
 // Test the cache failure path
 TEST_F(HandlersTest, IMSSubscriptionDeregHSSCacheFail)
 {
-  reg_data_template_with_deletion("dereg-user", true, RegistrationState::REGISTERED, 5, 3600, "", RegistrationState::NOT_REGISTERED, CassandraStore::CONNECTION_ERROR);
+  reg_data_template_with_deletion("dereg-user", true, true, RegistrationState::REGISTERED, 5, 3600, "", RegistrationState::NOT_REGISTERED, CassandraStore::CONNECTION_ERROR);
 }
 
 // Test the benign cache failure path
 TEST_F(HandlersTest, IMSSubscriptionDeregHSSCacheFailBenign)
 {
-  reg_data_template_with_deletion("dereg-user", true, RegistrationState::REGISTERED, 5, 3600, REGDATA_RESULT_DEREG, RegistrationState::NOT_REGISTERED, CassandraStore::NOT_FOUND);
+  reg_data_template_with_deletion("dereg-user", true, true, RegistrationState::REGISTERED, 5, 3600, REGDATA_RESULT_DEREG, RegistrationState::NOT_REGISTERED, CassandraStore::NOT_FOUND);
 }
 
 // Test the two authentication failure flows (which should only affect

@@ -280,7 +280,7 @@ protected:
   static Diameter::Stack* _diameter_stack;
   static std::string _dest_realm;
   static std::string _dest_host;
-  static std::string _server_name;
+  static std::string _configured_server_name;
   static Cx::Dictionary* _dict;
   static Cache* _cache;
   static HealthChecker* _health_checker;
@@ -506,6 +506,7 @@ protected:
   RegistrationState _new_state;
   ChargingAddresses _charging_addrs;
   long _http_rc;
+  std::string _provided_server_name;
 };
 
 class ImpuIMSSubscriptionTask : public ImpuRegDataTask
