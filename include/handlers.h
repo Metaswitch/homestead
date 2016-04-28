@@ -280,7 +280,7 @@ protected:
   static Diameter::Stack* _diameter_stack;
   static std::string _dest_realm;
   static std::string _dest_host;
-  static std::string _server_name;
+  static std::string _configured_server_name;
   static Cx::Dictionary* _dict;
   static Cache* _cache;
   static HealthChecker* _health_checker;
