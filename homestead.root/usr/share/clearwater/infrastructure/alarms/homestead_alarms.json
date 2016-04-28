@@ -18,7 +18,7 @@
                   "details": "Monit has detected that the Homestead process has failed. A restart will automatically be attempted. If this alarm does not clear, the Homestead process may have been stopped or an unrecoverable failure may have occurred.",
                   "description": "Homestead: Process failure.",
                   "cause": "The system has detected that the Homestead process has failed.",
-                  "effect": "In progress I-CSCF and S-CSCF SIP registrations on the reporting Homestead node are interrupted and may require retransmission by the SIP clients. If a single Homestead process failed then there is no significant effect to HSS communication capacity. If multiple Homestead processes fail then HSS communication capacity will be reduced or communication may be out of service.",
+                  "effect": "In progress registrations and calls on the reporting Homestead node are interrupted and Sprout may be required to retransmit requests to a different Homestead node. If a single Homestead process failed then there is no significant effect to HSS communication capacity. If multiple Homestead processes fail then HSS communication capacity will be reduced or communication may be out of service.",
                   "action": "Monitor for the alarm to clear and confirm the system is operating normally. Determine if the local Cassandra process has failed. If it has then make sure it also returns to service. If the failed Homestead node fails to return to service then contact your support representative."
                 }
             ]
@@ -33,7 +33,7 @@
                   "details": "Homestead communication to the local Cassandra has been restored.",
                   "description": "Homestead: Cassandra communication error cleared.",
                   "cause": "Homestead communication to the local Cassandra has been restored. The previously issued alarm has been cleared.",
-                  "effect": "Full capacity and availability of the connected HSSs has been restored for the I-CSCF and the S-CSCF.",
+                  "effect": "This Homestead node is providing full service again. If this alarm is clear on all Homestead nodes, then full capacity and availability of the connected HSSs has been restored for the I-CSCF and the S-CSCF.",
                   "action": "No action."
                 },
                 {

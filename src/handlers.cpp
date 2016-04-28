@@ -53,7 +53,7 @@ const std::string SIP_URI_PRE = "sip:";
 Diameter::Stack* HssCacheTask::_diameter_stack = NULL;
 std::string HssCacheTask::_dest_realm;
 std::string HssCacheTask::_dest_host;
-std::string HssCacheTask::_server_name;
+std::string HssCacheTask::_configured_server_name;
 Cx::Dictionary* HssCacheTask::_dict;
 Cache* HssCacheTask::_cache = NULL;
 StatisticsManager* HssCacheTask::_stats_manager = NULL;
@@ -89,7 +89,7 @@ void HssCacheTask::configure_diameter(Diameter::Stack* diameter_stack,
   _diameter_stack = diameter_stack;
   _dest_realm = dest_realm;
   _dest_host = dest_host;
-  _server_name = server_name;
+  _configured_server_name = server_name;
   _dict = dict;
 }
 
@@ -326,7 +326,7 @@ void ImpiTask::send_mar()
                                 _dest_host,
                                 _impi,
                                 _impu,
-                                _server_name,
+                                _configured_server_name,
                                 _scheme,
                                 _authorization);
   DiameterTransaction* tsx =
@@ -617,7 +617,7 @@ void ImpiRegistrationStatusTask::run()
     writer.String(JSON_RC.c_str());
     writer.Int(DIAMETER_SUCCESS);
     writer.String(JSON_SCSCF.c_str());
-    writer.String(_server_name.c_str());
+    writer.String(_configured_server_name.c_str());
     writer.EndObject();
     _req.add_content(sb.GetString());
     send_http_reply(HTTP_OK);
@@ -888,14 +888,14 @@ void ImpuLocationInfoTask::on_get_reg_data_success(CassandraStore::Operation* op
   ((Cache::GetRegData*)op)->get_xml(xml, ttl);
   if (!xml.empty())
   {
-    TRC_DEBUG("Got IMS subscription XML from cache - fake response for server %s", _server_name.c_str());
+    TRC_DEBUG("Got IMS subscription XML from cache - fake response for server %s", _configured_server_name.c_str());
     rapidjson::StringBuffer sb;
     rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
     writer.StartObject();
     writer.String(JSON_RC.c_str());
     writer.Int(DIAMETER_SUCCESS);
     writer.String(JSON_SCSCF.c_str());
-    writer.String(_server_name.c_str());
+    writer.String(_configured_server_name.c_str());
     writer.EndObject();
     _req.add_content(sb.GetString());
     send_http_reply(HTTP_OK);
@@ -1050,6 +1050,7 @@ void ImpuRegDataTask::run()
 
   _impu = path.substr(prefix.length(), path.find_first_of("/", prefix.length()) - prefix.length());
   _impi = _req.param("private_id");
+  _provided_server_name = _req.param("server_name");
   TRC_DEBUG("Parsed HTTP request: private ID %s, public ID %s",
             _impi.c_str(), _impu.c_str());
 
@@ -1483,7 +1484,8 @@ void ImpuRegDataTask::send_server_assignment_request(Cx::ServerAssignmentType ty
                                   _dest_realm,
                                   _impi,
                                   _impu,
-                                  _server_name,
+                                  (_provided_server_name == "" ? _configured_server_name :
+                                   _provided_server_name),
                                   type);
   DiameterTransaction* tsx =
     new DiameterTransaction(_dict,
