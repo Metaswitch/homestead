@@ -1043,6 +1043,24 @@ ImpuRegDataTask::RequestType ImpuRegDataTask::request_type_from_body(std::string
   return ret;
 }
 
+std::string ImpuRegDataTask::server_name_from_body(std::string body)
+{
+  rapidjson::Document document;
+  document.Parse<0>(body.c_str());
+
+  if (!document.IsObject() ||
+      !document.HasMember("server_name") ||
+      !document["server_name"].IsString())
+  {
+    TRC_DEBUG("Did not receive valid JSON with a 'server_name' element");
+    return "";
+  }
+  else
+  {
+    return document["server_name"].GetString();
+  }
+}
+
 void ImpuRegDataTask::run()
 {
   const std::string prefix = "/impu/";
@@ -1050,9 +1068,10 @@ void ImpuRegDataTask::run()
 
   _impu = path.substr(prefix.length(), path.find_first_of("/", prefix.length()) - prefix.length());
   _impi = _req.param("private_id");
-  _provided_server_name = _req.param("server_name");
-  TRC_DEBUG("Parsed HTTP request: private ID %s, public ID %s",
-            _impi.c_str(), _impu.c_str());
+  _provided_server_name = server_name_from_body(_req.get_rx_body());
+
+  TRC_DEBUG("Parsed HTTP request: private ID %s, public ID %s, server name %s",
+            _impi.c_str(), _impu.c_str(), _provided_server_name.c_str());
 
   htp_method method = _req.method();
 
