@@ -372,26 +372,23 @@ public:
                                       bool use_server_name)
   {
     std::string parameters = "";
+    std::string server_name = "";
 
     if (use_impi)
     {
       parameters = "?private_id=" + IMPI;
-
-      if (use_server_name)
-      {
-        parameters.append("&server_name=" + SERVER_NAME);
-      }
     }
-    else if (use_server_name)
+
+    if (use_server_name)
     {
-      parameters = "?server_name=" + SERVER_NAME;
+      server_name = ", \"server_name\": \"" + SERVER_NAME + "\"";
     }
 
     return MockHttpStack::Request(_httpstack,
                                   "/impu/" + IMPU + "/reg-data",
                                   "",
                                   parameters,
-                                  "{\"reqtype\": \"" + req_type +"\"}",
+                                  "{\"reqtype\": \"" + req_type +"\"" + server_name + "}",
                                   htp_method_PUT);
   }
 

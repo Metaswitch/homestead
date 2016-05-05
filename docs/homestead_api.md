@@ -69,7 +69,7 @@ RegistrationState may take the values REGISTERED, UNREGISTERED or NOT_REGISTERED
 
 Changes to registration state can be done by:
 
-`PUT /impu/<public ID>/reg-data[?private_id=<private ID>&server_name=<S-CSCF name>]`
+`PUT /impu/<public ID>/reg-data[?private_id=<private ID>]`
 
 The body of this PUT request is a JSON object, which has a mandatory "reqtype" field, specifying the type of SIP request this state change is based on. The response to a successful PUT request is the same as a GET request (200 OK with an XML body describing the current registration state).
 
@@ -80,7 +80,9 @@ The valid values of reqtype are:
 * `dereg-user`, `dereg-timeout`, `dereg-admin` - used to indicate that a deregistration (e.g. a REGISTER with `Expires: 0`, expiry of all bindings, or some other failure) has triggered this request. If a HSS is configured, Clearwater will delete any cached data for the subscriber (putting it in NOT_REGISTERED state) and send a Server-Assignment-Request with an appropriate type (USER_DEREGISTRATION, TIMEOUT_DEREGISTRATION or ADMINISTRATIVE_DEREGISTRATION). If a HSS is not configured, Clearwater will set the user to UNREGISTERED state.
 * `dereg-auth-failure` - used to indicate that a registration of a new binding has failed. This doesn't change any state on Homestead (as a registered user who fails to register a second binding shouldn't be de-registered, and an unregistered or not-registered user who fails to register is already in the right state) - it simply triggers a Server-Assignment-Request with Server-Assignment-Type AUTHENTICATION_FAILURE.
 
-These Server-Assignment-Types will specify a User-Name based on the `private_id` query parameter (if provided), or on the PrivateID element in the cached User-Data. It will be omitted if neither of these are available. It will also specify the Server-Name based on the `server_name` query parameter (if provided), or the value of the configured S-CSCF URI (in `/etc/clearwater/shared_config`).
+These Server-Assignment-Types will specify a User-Name based on the `private_id` query parameter (if provided), or on the PrivateID element in the cached User-Data. It will be omitted if neither of these are available.
+
+The body also has an optional `server_name` field, specifying the S-CSCF URI to use in the Server-Name on the Server-Assignment-Request. If this is missing then the Server-Name is set to the value of the configured S-CSCF URI (in `/etc/clearwater/shared_config`).
 
 The following error cases are possible:
 
