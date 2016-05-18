@@ -370,11 +370,6 @@ int init_options(int argc, char**argv, struct options& options)
           TRC_INFO("SAS set to %s\n", options.sas_server.c_str());
           TRC_INFO("System name is set to %s\n", options.sas_system_name.c_str());
         }
-        else
-        {
-          CL_HOMESTEAD_INVALID_SAS_OPTION.log();
-          TRC_WARNING("Invalid --sas option, SAS disabled\n");
-        }
       }
       break;
 
@@ -622,6 +617,12 @@ int main(int argc, char**argv)
   {
     TRC_STATUS("Access logging enabled to %s", options.access_log_directory.c_str());
     access_logger = new AccessLogger(options.access_log_directory);
+  }
+
+  if (options.sas_server == "0.0.0.0")
+  {
+    TRC_WARNING("SAS server option was invalid or not configured - SAS is disabled");
+    CL_HOMESTEAD_INVALID_SAS_OPTION.log();
   }
 
   // Create a DNS resolver and a SIP specific resolver.
