@@ -1,0 +1,8 @@
+{
+  "Ignore gnutls_global_init leaks"
+  Memcheck:Leak
+  ...
+  fun:gnutls_global_init
+  fun:fd_core_initialize
+  ...
+}
