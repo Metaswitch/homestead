@@ -93,6 +93,9 @@ homestead_LDFLAGS := ${COMMON_LDFLAGS} -lsas -lz
 # Test build also uses libcurl (to verify HttpStack operation)
 homestead_test_LDFLAGS := ${COMMON_LDFLAGS} -lcurl -ldl
 
+# Use valgrind suppression file for UT
+homestead_test_VALGRIND_ARGS := --suppressions=ut/homestead_test.supp
+
 # Add modules/cpp-common/src as a VPATH to pull in required common modules
 VPATH := ../modules/cpp-common/src ../modules/cpp-common/test_utils ut
 
