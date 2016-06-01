@@ -504,6 +504,7 @@ protected:
   std::string _type_param;
   RequestType _type;
   std::string _xml;
+  RegistrationState _original_state;
   RegistrationState _new_state;
   ChargingAddresses _charging_addrs;
   long _http_rc;
