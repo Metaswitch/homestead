@@ -1622,7 +1622,10 @@ void ImpuRegDataTask::put_in_cache()
       // Using a timestamp in the past for the UNREGISTERED case means that,
       // when we do the last-write-wins conflict resolution, we'll always make
       // the REGISTERED state win.
-      timestamp -= (_cfg->hss_reregistration_time * 2);
+      //
+      // Multiply by 1,000,000 - timestamps are in microseconds
+      int64_t diff = (int64_t)_cfg->hss_reregistration_time * 2 * 1000000;
+      timestamp = timestamp - diff;
     }
 
     Cache::PutRegData* put_reg_data = _cache->create_PutRegData(public_ids,
