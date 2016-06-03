@@ -1607,33 +1607,23 @@ void ImpuRegDataTask::put_in_cache()
     event.add_var_param(_charging_addrs.log_string());
     SAS::report_event(event);
 
-    int64_t timestamp = Cache::generate_timestamp();
-
-    if ((_original_state == RegistrationState::NOT_REGISTERED) &&
-        (_new_state == RegistrationState::UNREGISTERED))
-    {
-      // Force the timestamp to be at least two re-registration intervals in
-      // the past. This handles the case where:
-      // * there is a netsplit
-      // * user A registers in partition 1
-      // * someone calls user A in partition 2
-      // * the partitions rejoin
-      //
-      // Using a timestamp in the past for the UNREGISTERED case means that,
-      // when we do the last-write-wins conflict resolution, we'll always make
-      // the REGISTERED state win.
-      //
-      // Multiply by 1,000,000 - timestamps are in microseconds
-      int64_t diff = (int64_t)_cfg->hss_reregistration_time * 2 * 1000000;
-      timestamp = timestamp - diff;
-    }
-
     Cache::PutRegData* put_reg_data = _cache->create_PutRegData(public_ids,
-                                                                timestamp,
+                                                                Cache::generate_timestamp(),
                                                                 ttl);
     put_reg_data->with_xml(_xml);
 
-    if (_new_state != RegistrationState::UNCHANGED)
+    // Fix for https://github.com/Metaswitch/homestead/issues/345 - don't write
+    // the registration column when moving to unregistered state. This means
+    // that, if we're in a split-brain scenario, a registration in the other
+    // site will be honoured when the clusters rejoin, as there's no
+    // conflicting write to this column to overwrite it.
+    //
+    // We treat an empty value in this column as "unregistered" if we have some
+    // XML, so this doesn't affect any call flows.
+    bool moving_to_unregistered = (_original_state == RegistrationState::NOT_REGISTERED) &&
+                                  (_new_state == RegistrationState::UNREGISTERED);
+    if ((_new_state != RegistrationState::UNCHANGED) &&
+        !moving_to_unregistered)
     {
       put_reg_data->with_reg_state(_new_state);
     }

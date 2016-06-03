@@ -523,7 +523,8 @@ public:
         .WillOnce(Return(&mock_op3));
       EXPECT_CALL(mock_op3, with_xml(IMPU_IMS_SUBSCRIPTION))
         .WillOnce(ReturnRef(mock_op3));
-      if (expected_new_state != RegistrationState::UNCHANGED)
+      if ((expected_new_state != RegistrationState::UNCHANGED) &&
+          (expected_new_state != RegistrationState::UNREGISTERED))
       {
         EXPECT_CALL(mock_op3, with_reg_state(expected_new_state))
           .WillOnce(ReturnRef(mock_op3));
