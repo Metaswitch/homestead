@@ -1142,22 +1142,21 @@ void ImpuRegDataTask::on_get_reg_data_success(CassandraStore::Operation* op)
   Cache::GetRegData* get_reg_data = (Cache::GetRegData*)op;
   sas_log_get_reg_data_success(get_reg_data, trail());
 
-  RegistrationState old_state;
   std::vector<std::string> associated_impis;
   int32_t ttl = 0;
   get_reg_data->get_xml(_xml, ttl);
-  get_reg_data->get_registration_state(old_state, ttl);
+  get_reg_data->get_registration_state(_original_state, ttl);
   get_reg_data->get_associated_impis(associated_impis);
   get_reg_data->get_charging_addrs(_charging_addrs);
   bool new_binding = false;
   TRC_DEBUG("TTL for this database record is %d, IMS Subscription XML is %s, registration state is %s, and the charging addresses are %s",
             ttl,
             _xml.empty() ? "empty" : "not empty",
-            regstate_to_str(old_state).c_str(),
+            regstate_to_str(_original_state).c_str(),
             _charging_addrs.empty() ? "empty" : _charging_addrs.log_string().c_str());
 
   // By default, we should remain in the existing state.
-  _new_state = old_state;
+  _new_state = _original_state;
 
   // GET requests shouldn't change the state - just respond with what
   // we have in the database
@@ -1220,7 +1219,7 @@ void ImpuRegDataTask::on_get_reg_data_success(CassandraStore::Operation* op)
       // is an initial registration or a re-registration. If this subscriber
       // is already registered but is registering with a new binding, we
       // still need to tell the HSS.
-      if ((old_state == RegistrationState::REGISTERED) && (!new_binding))
+      if ((_original_state == RegistrationState::REGISTERED) && (!new_binding))
       {
         TRC_DEBUG("Handling re-registration");
         _new_state = RegistrationState::REGISTERED;
@@ -1265,7 +1264,7 @@ void ImpuRegDataTask::on_get_reg_data_success(CassandraStore::Operation* op)
       // (INVITE, PUBLISH, MESSAGE etc.).
       TRC_DEBUG("Handling call");
 
-      if (old_state == RegistrationState::NOT_REGISTERED)
+      if (_original_state == RegistrationState::NOT_REGISTERED)
       {
         // We don't know anything about this subscriber. Send a
         // Server-Assignment-Request to provide unregistered service for
@@ -1288,7 +1287,7 @@ void ImpuRegDataTask::on_get_reg_data_success(CassandraStore::Operation* op)
       // Sprout wants to deregister this subscriber (because of a
       // REGISTER with Expires: 0, a timeout of all bindings, a failed
       // app server, etc.).
-      if (old_state == RegistrationState::REGISTERED)
+      if (_original_state == RegistrationState::REGISTERED)
       {
         // Forget about this subscriber entirely and send an appropriate SAR.
         TRC_DEBUG("Handling deregistration");
@@ -1337,7 +1336,7 @@ void ImpuRegDataTask::on_get_reg_data_success(CassandraStore::Operation* op)
       // This message was based on a REGISTER request from Sprout. Check
       // the subscriber's state in Cassandra to determine whether this
       // is an initial registration or a re-registration.
-      switch (old_state)
+      switch (_original_state)
       {
       case RegistrationState::REGISTERED:
         // No state changes in the cache are required for a re-register -
@@ -1371,7 +1370,7 @@ void ImpuRegDataTask::on_get_reg_data_success(CassandraStore::Operation* op)
       // (INVITE, PUBLISH, MESSAGE etc.).
       TRC_DEBUG("Handling call");
 
-      if (old_state == RegistrationState::NOT_REGISTERED)
+      if (_original_state == RegistrationState::NOT_REGISTERED)
       {
         // We don't know anything about this subscriber so reject
         // the request.
@@ -1389,7 +1388,7 @@ void ImpuRegDataTask::on_get_reg_data_success(CassandraStore::Operation* op)
       // Sprout wants to deregister this subscriber (because of a
       // REGISTER with Expires: 0, a timeout of all bindings, a failed
       // app server, etc.).
-      if (old_state == RegistrationState::REGISTERED)
+      if (_original_state == RegistrationState::REGISTERED)
       {
         // Move the subscriber into unregistered state (but retain the
         // data, as it's not stored anywhere else).
@@ -1613,7 +1612,18 @@ void ImpuRegDataTask::put_in_cache()
                                                                 ttl);
     put_reg_data->with_xml(_xml);
 
-    if (_new_state != RegistrationState::UNCHANGED)
+    // Fix for https://github.com/Metaswitch/homestead/issues/345 - don't write
+    // the registration column when moving to unregistered state. This means
+    // that, if we're in a split-brain scenario, a registration in the other
+    // site will be honoured when the clusters rejoin, as there's no
+    // conflicting write to this column to overwrite it.
+    //
+    // We treat an empty value in this column as "unregistered" if we have some
+    // XML, so this doesn't affect any call flows.
+    bool moving_to_unregistered = (_original_state == RegistrationState::NOT_REGISTERED) &&
+                                  (_new_state == RegistrationState::UNREGISTERED);
+    if ((_new_state != RegistrationState::UNCHANGED) &&
+        !moving_to_unregistered)
     {
       put_reg_data->with_reg_state(_new_state);
     }
