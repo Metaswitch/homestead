@@ -57,7 +57,8 @@ homestead_test_SOURCES := ${COMMON_SOURCES} \
                           fakesnmp.cpp \
                           mockfreediameter.cpp \
                           mock_sas.cpp \
-                          chargingaddresses_test.cpp
+                          chargingaddresses_test.cpp \
+                          pthread_cond_var_helper.cpp
 
 COMMON_CPPFLAGS := -I../include \
                    -I../usr/include \

@@ -672,21 +672,21 @@ int main(int argc, char**argv)
 
   // Create Homesteads's alarm objects. Note that the alarm identifier strings must match those
   // in the alarm definition JSON file exactly.
+  AlarmManager* alarm_manager = new AlarmManager();
 
-  CommunicationMonitor* hss_comm_monitor = new CommunicationMonitor(new Alarm("homestead",
+  CommunicationMonitor* hss_comm_monitor = new CommunicationMonitor(new Alarm(alarm_manager,
+                                                                              "homestead",
                                                                               AlarmDef::HOMESTEAD_HSS_COMM_ERROR,
                                                                               AlarmDef::CRITICAL),
                                                                     "Homestead",
                                                                     "HSS");
 
-  CommunicationMonitor* cassandra_comm_monitor = new CommunicationMonitor(new Alarm("homestead",
+  CommunicationMonitor* cassandra_comm_monitor = new CommunicationMonitor(new Alarm(alarm_manager,
+                                                                                    "homestead",
                                                                                     AlarmDef::HOMESTEAD_CASSANDRA_COMM_ERROR,
                                                                                     AlarmDef::CRITICAL),
                                                                           "Homestead",
                                                                           "Cassandra");
-
-  // Start the alarm request agent
-  AlarmReqAgent::get_instance().start();
 
   // Create an exception handler. The exception handler doesn't need
   // to quiesce the process before killing it.
@@ -934,12 +934,10 @@ int main(int argc, char**argv)
 
   SAS::term();
 
-  // Stop the alarm request agent
-  AlarmReqAgent::get_instance().stop();
-
   // Delete Homestead's alarm objects
   delete hss_comm_monitor;
   delete cassandra_comm_monitor;
+  delete alarm_manager;
 
   signal(SIGTERM, SIG_DFL);
   sem_destroy(&term_sem);

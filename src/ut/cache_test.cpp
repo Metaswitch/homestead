@@ -105,7 +105,7 @@ class CacheInitializationTest : public ::testing::Test
 public:
   CacheInitializationTest()
   {
-    _cache.configure_connection("localhost", 1234, &_cm);
+    _cache.configure_connection("localhost", 1234, _cm);
     _cache.configure_workers(NULL, 1, 0); // Start with one worker thread.
   }
 
@@ -113,11 +113,14 @@ public:
   {
     _cache.stop();
     _cache.wait_stopped();
+    delete _cm; _cm = NULL;
+    delete _am; _am = NULL;
   }
 
   TestCache _cache;
   MockCassandraClient _client;
-  NiceMock<MockCommunicationMonitor> _cm;
+  AlarmManager* _am = new AlarmManager();
+  NiceMock<MockCommunicationMonitor>* _cm = new NiceMock<MockCommunicationMonitor>(_am);
 };
 
 
@@ -277,7 +280,7 @@ TEST_F(CacheRequestTest, PutRegDataMainline)
   EXPECT_CALL(_client,
               batch_mutate(MutationMap(expected), _));
   EXPECT_CALL(*trx, on_success(_));
-  EXPECT_CALL(_cm, inform_success(_));
+  EXPECT_CALL(*_cm, inform_success(_));
 
   execute_trx((CassandraStore::Operation*)put_reg_data, trx);
 }
@@ -311,7 +314,7 @@ TEST_F(CacheRequestTest, PutRegDataUnregistered)
   EXPECT_CALL(_client,
               batch_mutate(MutationMap(expected), _));
   EXPECT_CALL(*trx, on_success(_));
-  EXPECT_CALL(_cm, inform_success(_));
+  EXPECT_CALL(*_cm, inform_success(_));
 
   execute_trx((CassandraStore::Operation*)put_reg_data, trx);
 }
@@ -345,7 +348,7 @@ TEST_F(CacheRequestTest, NoTTLOnPut)
   EXPECT_CALL(_client,
               batch_mutate(MutationMap(expected), _));
   EXPECT_CALL(*trx, on_success(_));
-  EXPECT_CALL(_cm, inform_success(_));
+  EXPECT_CALL(*_cm, inform_success(_));
 
   execute_trx((CassandraStore::Operation*)put_reg_data, trx);
 }
@@ -384,7 +387,7 @@ TEST_F(CacheRequestTest, PutRegDataMultipleIDs)
   EXPECT_CALL(_client,
               batch_mutate(MutationMap(expected), _));
   EXPECT_CALL(*trx, on_success(_));
-  EXPECT_CALL(_cm, inform_success(_));
+  EXPECT_CALL(*_cm, inform_success(_));
 
   execute_trx((CassandraStore::Operation*)put_reg_data, trx);
 }
@@ -438,7 +441,7 @@ TEST_F(CacheRequestTest, PutRegDataNoChargingAddresses)
   EXPECT_CALL(_client,
               batch_mutate(MutationMap(expected), _));
   EXPECT_CALL(*trx, on_success(_));
-  EXPECT_CALL(_cm, inform_success(_));
+  EXPECT_CALL(*_cm, inform_success(_));
 
   execute_trx((CassandraStore::Operation*)put_reg_data, trx);
 }
@@ -461,7 +464,7 @@ TEST_F(CacheRequestTest, PutTransportEx)
   EXPECT_CALL(_client, batch_mutate(_, _)).Times(2).WillRepeatedly(Throw(te));
 
   EXPECT_CALL(*trx, on_failure(OperationHasResult(CassandraStore::CONNECTION_ERROR)));
-  EXPECT_CALL(_cm, inform_failure(_));
+  EXPECT_CALL(*_cm, inform_failure(_));
   execute_trx((CassandraStore::Operation*)put_reg_data, trx);
 }
 
@@ -477,7 +480,7 @@ TEST_F(CacheRequestTest, PutTransportGetClientEx)
   EXPECT_CALL(_client, batch_mutate(_, _)).Times(1).WillOnce(Throw(te));
 
   EXPECT_CALL(*trx, on_failure(OperationHasResult(CassandraStore::CONNECTION_ERROR)));
-  EXPECT_CALL(_cm, inform_failure(_));
+  EXPECT_CALL(*_cm, inform_failure(_));
   execute_trx((CassandraStore::Operation*)put_reg_data, trx);
 }
 
@@ -491,7 +494,7 @@ TEST_F(CacheRequestTest, PutInvalidRequestException)
   EXPECT_CALL(_client, batch_mutate(_, _)).WillOnce(Throw(ire));
 
   EXPECT_CALL(*trx, on_failure(OperationHasResult(CassandraStore::INVALID_REQUEST)));
-  EXPECT_CALL(_cm, inform_success(_));
+  EXPECT_CALL(*_cm, inform_success(_));
   execute_trx((CassandraStore::Operation*)put_reg_data, trx);
 }
 
@@ -506,7 +509,7 @@ TEST_F(CacheRequestTest, PutNotFoundException)
   EXPECT_CALL(_client, batch_mutate(_, _)).WillOnce(Throw(nfe));
 
   EXPECT_CALL(*trx, on_failure(OperationHasResult(CassandraStore::NOT_FOUND)));
-  EXPECT_CALL(_cm, inform_success(_));
+  EXPECT_CALL(*_cm, inform_success(_));
   execute_trx((CassandraStore::Operation*)put_reg_data, trx);
 }
 
@@ -521,7 +524,7 @@ TEST_F(CacheRequestTest, PutNoResultsException)
   EXPECT_CALL(_client, batch_mutate(_, _)).WillOnce(Throw(rnfe));
 
   EXPECT_CALL(*trx, on_failure(OperationHasResult(CassandraStore::NOT_FOUND)));
-  EXPECT_CALL(_cm, inform_success(_));
+  EXPECT_CALL(*_cm, inform_success(_));
   execute_trx((CassandraStore::Operation*)put_reg_data, trx);
 }
 
@@ -536,7 +539,7 @@ TEST_F(CacheRequestTest, PutUnknownException)
   EXPECT_CALL(_client, batch_mutate(_, _)).WillOnce(Throw(ex));
 
   EXPECT_CALL(*trx, on_failure(OperationHasResult(CassandraStore::UNKNOWN_ERROR)));
-  EXPECT_CALL(_cm, inform_success(_));
+  EXPECT_CALL(*_cm, inform_success(_));
   execute_trx((CassandraStore::Operation*)put_reg_data, trx);
 }
 
