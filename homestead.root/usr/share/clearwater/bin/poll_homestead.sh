@@ -35,6 +35,6 @@
 # as those licenses appear in the file LICENSE-OPENSSL.
 
 . /etc/clearwater/config
-http_ip=$(/usr/share/clearwater/bin/bracket_ipv6_address.py $local_ip)
+http_ip=$(/usr/share/clearwater/bin/bracket-ipv6-address $local_ip)
 /usr/share/clearwater/bin/poll-http $http_ip:8888
 exit $?

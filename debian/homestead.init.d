@@ -129,7 +129,7 @@ get_settings()
           server_name="sip:scscf.$sprout_hostname:$scscf;transport=TCP"
         fi
 
-        sprout_http_name=$(python /usr/share/clearwater/bin/bracket_ipv6_address.py $sprout_hostname):9888
+        sprout_http_name=$(/usr/share/clearwater/bin/bracket-ipv6-address $sprout_hostname):9888
 
         # Work out which features are enabled.
         if [ -d /etc/clearwater/features.d ]
