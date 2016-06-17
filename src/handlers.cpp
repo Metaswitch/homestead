@@ -728,6 +728,7 @@ void ImpiRegistrationStatusTask::on_uar_response(Diameter::Message& rsp)
 void ImpiRegistrationStatusTask::sas_log_hss_failure(int32_t result_code)
 {
   SAS::Event event(this->trail(), SASEvent::REG_STATUS_HSS_FAIL, 0);
+  event.add_static_param(result_code);
   SAS::report_event(event);
 }
 
@@ -861,6 +862,7 @@ void ImpuLocationInfoTask::on_lir_response(Diameter::Message& rsp)
 void ImpuLocationInfoTask::sas_log_hss_failure(int32_t result_code)
 {
   SAS::Event event(this->trail(), SASEvent::LOC_INFO_HSS_FAIL, 0);
+  event.add_static_param(result_code);
   SAS::report_event(event);
 }
 
@@ -1700,19 +1702,12 @@ void ImpuRegDataTask::on_sar_response(Diameter::Message& rsp)
       _http_rc = HTTP_SERVER_UNAVAILABLE;
       break;
       // LCOV_EXCL_STOP
-    case 5001:
-    {
-      TRC_INFO("Server-Assignment answer with result code %d - reject", result_code);
-      SAS::Event event(this->trail(), SASEvent::REG_DATA_HSS_FAIL, 0);
-      SAS::report_event(event);
-      _http_rc = HTTP_NOT_FOUND;
-    }
-    break;
     default:
       TRC_INFO("Server-Assignment answer with result code %d - reject", result_code);
       SAS::Event event(this->trail(), SASEvent::REG_DATA_HSS_FAIL, 0);
+      event.add_static_param(result_code);
       SAS::report_event(event);
-      _http_rc = HTTP_SERVER_ERROR;
+      _http_rc = (result_code == 5001) ? HTTP_NOT_FOUND : HTTP_SERVER_ERROR;
       break;
   }
 
