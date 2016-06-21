@@ -105,6 +105,7 @@ struct options
   int diameter_blacklist_duration;
   std::string pidfile;
   bool daemon;
+  bool sas_signaling_if;
 };
 
 // Enum for option types not assigned short-forms
@@ -125,6 +126,7 @@ enum OptionTypes
   HTTP_BLACKLIST_DURATION,
   DIAMETER_BLACKLIST_DURATION,
   FORCE_HSS_PEER,
+  SAS_USE_SIGNALING_IF,
   PIDFILE,
   DAEMON
 };
@@ -165,6 +167,7 @@ const static struct option long_opt[] =
   {"diameter-blacklist-duration", required_argument, NULL, DIAMETER_BLACKLIST_DURATION},
   {"pidfile",                     required_argument, NULL, PIDFILE},
   {"daemon",                      no_argument,       NULL, DAEMON},
+  {"sas-use-signaling-interface", no_argument,       NULL, SAS_USE_SIGNALING_IF},
   {NULL,                          0,                 NULL, 0},
 };
 
@@ -218,6 +221,9 @@ void usage(void)
        "     --exception-max-ttl <secs>\n"
        "                            The maximum time before the process exits if it hits an exception.\n"
        "                            The actual time is randomised.\n"
+       "     --sas-use-signaling-interface\n"
+       "                            Whether SAS traffic is to be dispatched over the signaling network\n"
+       "                            interface rather than the default management interface\n"
        "     --http-blacklist-duration <secs>\n"
        "                            The amount of time to blacklist an HTTP peer when it is unresponsive.\n"
        "     --diameter-blacklist-duration <secs>\n"
@@ -451,6 +457,10 @@ int init_options(int argc, char**argv, struct options& options)
       options.pidfile = std::string(optarg);
       break;
 
+    case SAS_USE_SIGNALING_IF:
+      options.sas_signaling_if = true;
+      break;
+
     case DAEMON:
     case 'F':
     case 'L':
@@ -548,6 +558,7 @@ int main(int argc, char**argv)
   options.diameter_blacklist_duration = DiameterResolver::DEFAULT_BLACKLIST_DURATION;
   options.pidfile = "";
   options.daemon = false;
+  options.sas_signaling_if = false;
 
   // Initialise ENT logging before making "Started" log
   PDLogStatic::init(argv[0]);
@@ -619,7 +630,8 @@ int main(int argc, char**argv)
             SASEvent::CURRENT_RESOURCE_BUNDLE,
             options.sas_server,
             sas_write,
-            create_connection_in_management_namespace);
+            options.sas_signaling_if ? create_connection_in_signaling_namespace
+                                     : create_connection_in_management_namespace);
 
   // Set up the statistics (Homestead specific and Diameter)
   snmp_setup("homestead");
