@@ -689,20 +689,20 @@ void ImpiRegistrationStatusTask::on_uar_response(Diameter::Message& rsp)
            (experimental_result_code == DIAMETER_ERROR_IDENTITIES_DONT_MATCH))
   {
     TRC_INFO("User unknown or public/private ID conflict - reject");
-    sas_log_hss_failure(experimental_result_code);
+    sas_log_hss_failure(result_code, experimental_result_code);
     send_http_reply(HTTP_NOT_FOUND);
   }
   else if ((result_code == DIAMETER_AUTHORIZATION_REJECTED) ||
            (experimental_result_code == DIAMETER_ERROR_ROAMING_NOT_ALLOWED))
   {
     TRC_INFO("Authorization rejected due to roaming not allowed - reject");
-    sas_log_hss_failure(result_code ? result_code : experimental_result_code);
+    sas_log_hss_failure(result_code, experimental_result_code);
     send_http_reply(HTTP_FORBIDDEN);
   }
   else if (result_code == DIAMETER_TOO_BUSY)
   {
     TRC_INFO("HSS busy - reject");
-    sas_log_hss_failure(result_code);
+    sas_log_hss_failure(result_code, experimental_result_code);
     send_http_reply(HTTP_GATEWAY_TIMEOUT);
   }
   else if (result_code == DIAMETER_UNABLE_TO_DELIVER)
@@ -719,16 +719,18 @@ void ImpiRegistrationStatusTask::on_uar_response(Diameter::Message& rsp)
   {
     TRC_INFO("User-Authorization answer with result %d/%d - reject",
              result_code, experimental_result_code);
-    sas_log_hss_failure(result_code ? result_code : experimental_result_code);
+    sas_log_hss_failure(result_code, experimental_result_code);
     send_http_reply(HTTP_SERVER_ERROR);
   }
   delete this;
 }
 
-void ImpiRegistrationStatusTask::sas_log_hss_failure(int32_t result_code)
+void ImpiRegistrationStatusTask::sas_log_hss_failure(int32_t result_code,
+                                                     int32_t experimental_result_code)
 {
   SAS::Event event(this->trail(), SASEvent::REG_STATUS_HSS_FAIL, 0);
   event.add_static_param(result_code);
+  event.add_static_param(experimental_result_code);
   SAS::report_event(event);
 }
 
@@ -830,13 +832,13 @@ void ImpuLocationInfoTask::on_lir_response(Diameter::Message& rsp)
            (experimental_result_code == DIAMETER_ERROR_IDENTITY_NOT_REGISTERED))
   {
     TRC_INFO("User unknown or public/private ID conflict - reject");
-    sas_log_hss_failure(experimental_result_code);
+    sas_log_hss_failure(result_code, experimental_result_code);
     send_http_reply(HTTP_NOT_FOUND);
   }
   else if (result_code == DIAMETER_TOO_BUSY)
   {
     TRC_INFO("HSS busy - reject");
-    sas_log_hss_failure(result_code);
+    sas_log_hss_failure(result_code, experimental_result_code);
     send_http_reply(HTTP_GATEWAY_TIMEOUT);
   }
   else if (result_code == DIAMETER_UNABLE_TO_DELIVER)
@@ -853,16 +855,18 @@ void ImpuLocationInfoTask::on_lir_response(Diameter::Message& rsp)
   {
     TRC_INFO("Location-Info answer with result %d/%d - reject",
              result_code, experimental_result_code);
-    sas_log_hss_failure(result_code ? result_code : experimental_result_code);
+    sas_log_hss_failure(result_code, experimental_result_code);
     send_http_reply(HTTP_SERVER_ERROR);
   }
   delete this;
 }
 
-void ImpuLocationInfoTask::sas_log_hss_failure(int32_t result_code)
+void ImpuLocationInfoTask::sas_log_hss_failure(int32_t result_code,
+                                               int32_t experimental_result_code)
 {
   SAS::Event event(this->trail(), SASEvent::LOC_INFO_HSS_FAIL, 0);
   event.add_static_param(result_code);
+  event.add_static_param(experimental_result_code);
   SAS::report_event(event);
 }
 
