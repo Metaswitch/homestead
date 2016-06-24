@@ -43,13 +43,13 @@ check process homestead_process with pidfile /var/run/homestead/homestead.pid
   group homestead
 
   # The start, stop and restart commands are linked to alarms
-  start program = "/bin/bash -c '/usr/share/clearwater/bin/issue_alarm.py monit 1500.3; /etc/init.d/homestead start'"
-  stop program = "/bin/bash -c '/usr/share/clearwater/bin/issue_alarm.py monit 1500.3; /etc/init.d/homestead stop'"
-  restart program = "/bin/bash -c '/usr/share/clearwater/bin/issue_alarm.py monit 1500.3; /etc/init.d/homestead restart'"
+  start program = "/bin/bash -c '/usr/share/clearwater/bin/issue-alarm monit 1500.3; /etc/init.d/homestead start'"
+  stop program = "/bin/bash -c '/usr/share/clearwater/bin/issue-alarm monit 1500.3; /etc/init.d/homestead stop'"
+  restart program = "/bin/bash -c '/usr/share/clearwater/bin/issue-alarm monit 1500.3; /etc/init.d/homestead restart'"
 
   # Check the service's resource usage, and abort the process if it's too high. This will
   # generate a core file and trigger diagnostics collection.
-  if memory > 80% for 6 cycles then exec "/bin/bash -c '/usr/share/clearwater/bin/issue_alarm.py monit 1500.3; /etc/init.d/homestead abort'"
+  if memory > 80% for 6 cycles then exec "/bin/bash -c '/usr/share/clearwater/bin/issue-alarm monit 1500.3; /etc/init.d/homestead abort'"
 
 # Clear any alarms if the process has been running long enough.
 check program homestead_uptime with path /usr/share/clearwater/infrastructure/scripts/check-homestead-uptime
@@ -65,7 +65,7 @@ check program poll_homestead with path "/usr/share/clearwater/bin/poll_homestead
   depends on homestead_process
 
   # Aborting generates a core file and triggers diagnostic collection.
-  if status != 0 for 2 cycles then exec "/bin/bash -c '/usr/share/clearwater/bin/issue_alarm.py monit 1500.3; /etc/init.d/homestead abort'"
+  if status != 0 for 2 cycles then exec "/bin/bash -c '/usr/share/clearwater/bin/issue-alarm monit 1500.3; /etc/init.d/homestead abort'"
 
 EOF
 chmod 0644 /etc/monit/conf.d/homestead.monit
