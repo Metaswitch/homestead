@@ -24,7 +24,7 @@ Description: Debugging symbols for homestead-libs
 
 Package: homestead
 Architecture: any
-Depends: clearwater-infrastructure, clearwater-tcp-scalability, clearwater-log-cleanup, homestead-libs, libboost-regex1.54.0, libzmq3, libcurl3-gnutls, gnutls-bin, clearwater-socket-factory, libboost-filesystem1.54.0, libsnmp30 (>= 5.7.2~dfsg-clearwater4), clearwater-cassandra
+Depends: clearwater-infrastructure, clearwater-tcp-scalability, clearwater-log-cleanup, homestead-libs, libboost-regex1.54.0, libzmq3, libcurl3-gnutls, gnutls-bin, clearwater-socket-factory, libboost-filesystem1.54.0, libsnmp30 (>= 5.7.2~dfsg-clearwater4), clearwater-cassandra, clearwater-monit
 Suggests: homestead-dbg, clearwater-logging, clearwater-snmp-alarm-agent
 Description: homestead, the HSS Cache/Gateway
 
