@@ -559,12 +559,12 @@ int main(int argc, char**argv)
     return 1;
   }
 
-  Utils.daemon_log_setup(argc,
-                         argv,
-                         options.daemon,
-                         options.log_directory,
-                         options.log_level,
-                         options.log_to_file);
+  Utils::daemon_log_setup(argc,
+                          argv,
+                          options.daemon,
+                          options.log_directory,
+                          options.log_level,
+                          options.log_to_file);
 
   std::stringstream options_ss;
   for (int ii = 0; ii < argc; ii++)
