@@ -249,6 +249,10 @@ int init_logging_options(int argc, char**argv, struct options& options)
       options.log_level = atoi(optarg);
       break;
 
+    case DAEMON:
+      options.daemon = true;
+      break;
+
     default:
       // Ignore other options at this point
       break;
@@ -448,9 +452,6 @@ int init_options(int argc, char**argv, struct options& options)
       break;
 
     case DAEMON:
-      options.daemon = true;
-      break;
-
     case 'F':
     case 'L':
       // Ignore F and L - these are handled by init_logging_options
@@ -558,21 +559,12 @@ int main(int argc, char**argv)
     return 1;
   }
 
-  Log::setLoggingLevel(options.log_level);
-
-  if ((options.log_to_file) && (options.log_directory != ""))
-  {
-    // Work out the program name from argv[0], stripping anything before the final slash.
-    char* prog_name = argv[0];
-    char* slash_ptr = rindex(argv[0], '/');
-    if (slash_ptr != NULL)
-    {
-      prog_name = slash_ptr + 1;
-    }
-    Log::setLogger(new Logger(options.log_directory, prog_name));
-  }
-
-  TRC_STATUS("Log level set to %d", options.log_level);
+  Utils.daemon_log_setup(argc,
+                         argv,
+                         options.daemon,
+                         options.log_directory,
+                         options.log_level,
+                         options.log_to_file);
 
   std::stringstream options_ss;
   for (int ii = 0; ii < argc; ii++)
@@ -587,18 +579,6 @@ int main(int argc, char**argv)
   if (init_options(argc, argv, options) != 0)
   {
     return 1;
-  }
-
-  if (options.daemon)
-  {
-    // Options parsed and validated, time to demonize before writing out our
-    // pidfile or spwaning threads.
-    int errnum = Utils::daemonize();
-    if (errnum != 0)
-    {
-      TRC_ERROR("Failed to convert to daemon, %d (%s)", errnum, strerror(errnum));
-      exit(0);
-    }
   }
 
   if (options.pidfile != "")
