@@ -393,7 +393,7 @@ public:
 
   void run();
   void on_uar_response(Diameter::Message& rsp);
-  void sas_log_hss_failure(int32_t result_code);
+  void sas_log_hss_failure(int32_t result_code,int32_t experimental_result_code);
 
   typedef HssCacheTask::DiameterTransaction<ImpiRegistrationStatusTask> DiameterTransaction;
 
@@ -424,7 +424,7 @@ public:
 
   void run();
   void on_lir_response(Diameter::Message& rsp);
-  void sas_log_hss_failure(int32_t result_code);
+  void sas_log_hss_failure(int32_t result_code,int32_t experimental_result_code);
   void query_cache_reg_data();
   void on_get_reg_data_success(CassandraStore::Operation* op);
   void on_get_reg_data_failure(CassandraStore::Operation* op,
