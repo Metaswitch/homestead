@@ -1687,8 +1687,9 @@ void ImpuRegDataTask::on_sar_response(Diameter::Message& rsp)
   Cx::ServerAssignmentAnswer saa(rsp);
   int32_t result_code = 0;
   saa.result_code(result_code);
+  int32_t experimental_result_code = saa.experimental_result_code();
   sar_results_tbl->increment(SNMP::DiameterAppId::BASE, result_code);
-  TRC_DEBUG("Received Server-Assignment answer with result code %d", result_code);
+  TRC_DEBUG("Received Server-Assignment answer with result code %d and experimental result code %d", result_code, experimental_result_code);
 
   switch (result_code)
   {
@@ -1710,6 +1711,7 @@ void ImpuRegDataTask::on_sar_response(Diameter::Message& rsp)
       TRC_INFO("Server-Assignment answer with result code %d - reject", result_code);
       SAS::Event event(this->trail(), SASEvent::REG_DATA_HSS_FAIL, 0);
       event.add_static_param(result_code);
+      event.add_static_param(experimental_result_code);
       SAS::report_event(event);
       _http_rc = (result_code == 5001) ? HTTP_NOT_FOUND : HTTP_SERVER_ERROR;
       break;
