@@ -10,8 +10,8 @@ quit_if_no_cassandra
 
 CQLSH="/usr/share/clearwater/bin/run-in-signaling-namespace cqlsh $cassandra_hostname"
 
-if [[ ! -e /var/lib/cassandra/data/homestead_provisiong ]] || \
-   [[ cassandra_hostname -ne "127.0.0.1" ]];
+if [[ ! -e /var/lib/cassandra/data/homestead_case ]] || \
+   [[ $cassandra_hostname != "127.0.0.1" ]];
 then
   # Wait for the cassandra cluster to come online
   count=0
