@@ -310,6 +310,45 @@ TEST_F(CxTest, MAATest)
   EXPECT_EQ("696e746567726974795f6b6579", maa_aka.integrity_key);
 }
 
+TEST_F(CxTest, MAATestNoAuthScheme)
+{
+  DigestAuthVector digest;
+  digest.ha1 = "ha1";
+  digest.realm = "realm";
+  digest.qop = "qop";
+
+  AKAAuthVector aka;
+  aka.challenge = "sure."; // Chosen to ensure that it will encode to
+                           // Base64 that needs to be padded with an
+                           // equals sign.
+  aka.response = "response";
+  aka.crypt_key = "crypt_key";
+  aka.integrity_key = "integrity_key";
+
+  Cx::MultimediaAuthAnswer maa(_cx_dict,
+                               _mock_stack,
+                               RESULT_CODE_SUCCESS,
+                               EMPTY_STRING,
+                               digest,
+                               aka);
+  launder_message(maa);
+  EXPECT_TRUE(maa.result_code(test_i32));
+  EXPECT_EQ(RESULT_CODE_SUCCESS, test_i32);
+  EXPECT_EQ(EMPTY_STRING, maa.sip_auth_scheme());
+
+  DigestAuthVector maa_digest = maa.digest_auth_vector();
+  EXPECT_EQ(digest.ha1, maa_digest.ha1);
+  EXPECT_EQ(digest.realm, maa_digest.realm);
+  EXPECT_EQ(digest.qop, maa_digest.qop);
+
+  // The AKA values should be decoded from base64/hex.
+  AKAAuthVector maa_aka = maa.aka_auth_vector();
+  EXPECT_EQ("c3VyZS4=", maa_aka.challenge);
+  EXPECT_EQ("726573706f6e7365", maa_aka.response);
+  EXPECT_EQ("63727970745f6b6579", maa_aka.crypt_key);
+  EXPECT_EQ("696e746567726974795f6b6579", maa_aka.integrity_key);
+}
+
 //
 // Server Assignment Requests
 //
