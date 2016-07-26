@@ -22,9 +22,20 @@ Depends: homestead-libs (= ${binary:Version})
 Recommends: gdb, libevent-dbg
 Description: Debugging symbols for homestead-libs
 
+Package: homestead-classic
+Architecture: any
+Depends: homestead, clearwater-cassandra
+Description: homestead, the HSS Cache/Gateway with databases
+
+Package: homestead-classic-dbg
+Architecture: any
+Depends: homestead-classic (= ${binary:Version})
+Recommends: homestead-dbg
+Description: Debugging symbols for homestead-classic, the HSS Cache/Gateway with databases
+
 Package: homestead
 Architecture: any
-Depends: clearwater-infrastructure, clearwater-tcp-scalability, clearwater-log-cleanup, homestead-libs, libboost-regex1.54.0, libzmq3, libcurl3-gnutls, gnutls-bin, clearwater-socket-factory, libboost-filesystem1.54.0, libsnmp30 (>= 5.7.2~dfsg-clearwater4), clearwater-cassandra, clearwater-monit
+Depends: clearwater-infrastructure, clearwater-tcp-scalability, clearwater-log-cleanup, homestead-libs, libboost-regex1.54.0, libzmq3, libcurl3-gnutls, gnutls-bin, clearwater-socket-factory, libboost-filesystem1.54.0, libsnmp30 (>= 5.7.2~dfsg-clearwater4), clearwater-monit
 Suggests: homestead-dbg, clearwater-logging, clearwater-snmp-alarm-agent
 Description: homestead, the HSS Cache/Gateway
 
