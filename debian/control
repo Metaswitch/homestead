@@ -29,6 +29,8 @@ Description: homestead, the HSS Cache/Gateway
 
 Package: homestead-node-dbg
 Architecture: any
+Section: debug
+Priority: extra
 Depends: homestead-node (= ${binary:Version})
 Recommends: homestead-dbg
 Description: Debugging symbols for homestead-node, the HSS Cache/Gateway
