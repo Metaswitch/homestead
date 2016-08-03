@@ -190,6 +190,7 @@ get_daemon_args()
                      --server-name=\"$server_name\"
                      --impu-cache-ttl=$impu_cache_ttl
                      --hss-reregistration-time=$hss_reregistration_time
+                     --reg-max-expires=$reg_max_expires
                      --sprout-http-name=$sprout_http_name
                      $scheme_args
                      $diameter_timeout_ms_arg

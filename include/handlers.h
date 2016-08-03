@@ -448,12 +448,15 @@ public:
   {
     Config(bool _hss_configured = true,
            int _hss_reregistration_time = 3600,
+           int _reg_max_expires = 300,
            int _diameter_timeout_ms = 200) :
       hss_configured(_hss_configured),
       hss_reregistration_time(_hss_reregistration_time),
+      reg_max_expires(_reg_max_expires),
       diameter_timeout_ms(_diameter_timeout_ms) {}
     bool hss_configured;
     int hss_reregistration_time;
+    int reg_max_expires;
     int diameter_timeout_ms;
   };
 
@@ -533,16 +536,19 @@ public:
     Config(Cache* _cache,
            Cx::Dictionary* _dict,
            SproutConnection* _sprout_conn,
-           int _hss_reregistration_time = 3600) :
+           int _hss_reregistration_time = 3600,
+           int _reg_max_expires = 300) :
       cache(_cache),
       dict(_dict),
       sprout_conn(_sprout_conn),
-      hss_reregistration_time(_hss_reregistration_time) {}
+      hss_reregistration_time(_hss_reregistration_time),
+      reg_max_expires(_reg_max_expires) {}
 
     Cache* cache;
     Cx::Dictionary* dict;
     SproutConnection* sprout_conn;
     int hss_reregistration_time;
+    int reg_max_expires;
   };
 
   RegistrationTerminationTask(const Diameter::Dictionary* dict,
@@ -588,16 +594,19 @@ public:
     Config(Cache* _cache,
            Cx::Dictionary* _dict,
            int _impu_cache_ttl = 0,
-           int _hss_reregistration_time = 3600) :
+           int _hss_reregistration_time = 3600,
+           int _reg_max_expires = 300) :
       cache(_cache),
       dict(_dict),
       impu_cache_ttl(_impu_cache_ttl),
-      hss_reregistration_time(_hss_reregistration_time) {}
+      hss_reregistration_time(_hss_reregistration_time),
+      reg_max_expires(_reg_max_expires) {}
 
     Cache* cache;
     Cx::Dictionary* dict;
     int impu_cache_ttl;
     int hss_reregistration_time;
+    int reg_max_expires;
   };
 
   PushProfileTask(const Diameter::Dictionary* dict,
