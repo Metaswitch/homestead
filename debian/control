@@ -24,7 +24,7 @@ Description: Debugging symbols for homestead-libs
 
 Package: homestead-node
 Architecture: any
-Depends: homestead, homestead-prov, homestead-cassandra
+Depends: homestead, homestead-prov, homestead-cassandra, homestead-prov-cassandra
 Description: Homestead, the HSS Cache/Gateway
 
 Package: homestead-node-dbg
