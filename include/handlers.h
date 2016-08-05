@@ -453,9 +453,7 @@ public:
       hss_configured(_hss_configured),
       hss_reregistration_time(_hss_reregistration_time),
       record_ttl(_record_ttl),
-      diameter_timeout_ms(_diameter_timeout_ms)
-    {
-    }
+      diameter_timeout_ms(_diameter_timeout_ms) {}
 
     bool hss_configured;
     int hss_reregistration_time;

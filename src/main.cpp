@@ -811,13 +811,10 @@ int main(int argc, char**argv)
                                        options.scheme_digest,
                                        options.scheme_aka,
                                        options.diameter_timeout_ms);
-
   ImpiRegistrationStatusTask::Config registration_status_handler_config(hss_configured,
                                                                         options.diameter_timeout_ms);
-
   ImpuLocationInfoTask::Config location_info_handler_config(hss_configured,
                                                             options.diameter_timeout_ms);
-
   ImpuRegDataTask::Config impu_handler_config(hss_configured,
                                               options.hss_reregistration_time,
                                               record_ttl,
