@@ -83,6 +83,7 @@ struct options
   std::string server_name;
   int impu_cache_ttl;
   int hss_reregistration_time;
+  int reg_max_expires;
   std::string sprout_http_name;
   std::string scheme_unknown;
   std::string scheme_digest;
@@ -128,7 +129,8 @@ enum OptionTypes
   FORCE_HSS_PEER,
   SAS_USE_SIGNALING_IF,
   PIDFILE,
-  DAEMON
+  DAEMON,
+  REG_MAX_EXPIRES
 };
 
 const static struct option long_opt[] =
@@ -148,6 +150,7 @@ const static struct option long_opt[] =
   {"server-name",                 required_argument, NULL, 's'},
   {"impu-cache-ttl",              required_argument, NULL, 'i'},
   {"hss-reregistration-time",     required_argument, NULL, 'I'},
+  {"reg-max-expires",             required_argument, NULL, REG_MAX_EXPIRES},
   {"sprout-http-name",            required_argument, NULL, 'j'},
   {"scheme-unknown",              required_argument, NULL, SCHEME_UNKNOWN},
   {"scheme-digest",               required_argument, NULL, SCHEME_DIGEST},
@@ -341,6 +344,11 @@ int init_options(int argc, char**argv, struct options& options)
     case 'I':
       TRC_INFO("HSS reregistration time: %s", optarg);
       options.hss_reregistration_time = atoi(optarg);
+      break;
+
+    case REG_MAX_EXPIRES:
+      TRC_INFO("Maximum registration expiry time: %s", optarg);
+      options.reg_max_expires = atoi(optarg);
       break;
 
     case 'j':
@@ -543,6 +551,7 @@ int main(int argc, char**argv)
   options.access_log_enabled = false;
   options.impu_cache_ttl = 0;
   options.hss_reregistration_time = 1800;
+  options.reg_max_expires = 300;
   options.sprout_http_name = "sprout-http-name.unknown";
   options.log_to_file = false;
   options.log_level = 0;
@@ -735,6 +744,12 @@ int main(int argc, char**argv)
   Diameter::SpawningHandler<PushProfileTask, PushProfileTask::Config>* ppr_task = NULL;
   Cx::Dictionary* dict = NULL;
 
+  // We need the record to last twice the HSS Re-registration
+  // time, or the max expiry of the registration, whichever one
+  // is longer. We pad the expiry to avoid small timing windows.
+  int record_ttl = std::max(2 * hss_reregistration_time,
+                            reg_max_expires + 10);
+
   Diameter::Stack* diameter_stack = Diameter::Stack::get_instance();
 
   try
@@ -747,8 +762,16 @@ int main(int argc, char**argv)
                               host_counter);
     dict = new Cx::Dictionary();
 
-    rtr_config = new RegistrationTerminationTask::Config(cache, dict, sprout_conn, options.hss_reregistration_time);
-    ppr_config = new PushProfileTask::Config(cache, dict, options.impu_cache_ttl, options.hss_reregistration_time);
+    rtr_config = new RegistrationTerminationTask::Config(cache,
+                                                         dict,
+                                                         sprout_conn,
+                                                         options.hss_reregistration_time);
+    ppr_config = new PushProfileTask::Config(cache,
+                                             dict,
+                                             options.impu_cache_ttl,
+                                             options.hss_reregistration_time,
+                                             record_ttl);
+
     rtr_task = new Diameter::SpawningHandler<RegistrationTerminationTask, RegistrationTerminationTask::Config>(dict, rtr_config);
     ppr_task = new Diameter::SpawningHandler<PushProfileTask, PushProfileTask::Config>(dict, ppr_config);
 
@@ -788,10 +811,17 @@ int main(int argc, char**argv)
                                        options.scheme_digest,
                                        options.scheme_aka,
                                        options.diameter_timeout_ms);
-  ImpiRegistrationStatusTask::Config registration_status_handler_config(hss_configured, options.diameter_timeout_ms);
-  ImpuLocationInfoTask::Config location_info_handler_config(hss_configured, options.diameter_timeout_ms);
-  ImpuRegDataTask::Config impu_handler_config(hss_configured, options.hss_reregistration_time, options.diameter_timeout_ms);
-  ImpuIMSSubscriptionTask::Config impu_handler_config_old(hss_configured, options.hss_reregistration_time, options.diameter_timeout_ms);
+  ImpiRegistrationStatusTask::Config registration_status_handler_config(hss_configured,
+                                                                        options.diameter_timeout_ms);
+  ImpuLocationInfoTask::Config location_info_handler_config(hss_configured,
+                                                            options.diameter_timeout_ms);
+  ImpuRegDataTask::Config impu_handler_config(hss_configured,
+                                              options.hss_reregistration_time,
+                                              record_ttl,
+                                              options.diameter_timeout_ms);
+  ImpuIMSSubscriptionTask::Config impu_handler_config_old(hss_configured,
+                                                          options.hss_reregistration_time,
+                                                          options.diameter_timeout_ms);
 
   HttpStackUtils::PingHandler ping_handler;
   HttpStackUtils::SpawningHandler<ImpiDigestTask, ImpiTask::Config> impi_digest_handler(&impi_handler_config);

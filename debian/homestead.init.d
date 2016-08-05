@@ -100,23 +100,11 @@ get_settings()
         scscf=5054
         impu_cache_ttl=0
         max_peers=2
+        hss_reregistration_time=1800
         reg_max_expires=300
         log_level=2
         num_http_threads=$(($(grep processor /proc/cpuinfo | wc -l) * 50))
         . /etc/clearwater/config
-
-        if [ -z $hss_reregistration_time ]
-        then
-          # Default hss_reregistration_time to max(1800, $reg_max_expires/2), so
-          # that homestead only discards expired registration data when sprout
-          # does (at the earliest).
-          hss_reregistration_time=$(( $reg_max_expires / 2 ))
-
-          if [ $hss_reregistration_time -lt 1800 ]
-          then
-            hss_reregistration_time=1800
-          fi
-        fi
 
         # Derive server_name and sprout_http_name from other settings
         if [ -n "$scscf_uri" ]
@@ -190,6 +178,7 @@ get_daemon_args()
                      --server-name=\"$server_name\"
                      --impu-cache-ttl=$impu_cache_ttl
                      --hss-reregistration-time=$hss_reregistration_time
+                     --reg-max-expires=$reg_max_expires
                      --sprout-http-name=$sprout_http_name
                      $scheme_args
                      $diameter_timeout_ms_arg

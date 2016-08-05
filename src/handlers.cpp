@@ -1204,7 +1204,7 @@ void ImpuRegDataTask::on_get_reg_data_success(CassandraStore::Operation* op)
         _cache->create_PutAssociatedPrivateID(public_ids,
                                               _impi,
                                               Cache::generate_timestamp(),
-                                              (2 * _cfg->hss_reregistration_time));
+                                              _cfg->record_ttl);
       CassandraStore::Transaction* tsx = new CacheTransaction;
 
       // TODO: Technically, we should be blocking our response until this PUT
@@ -1227,19 +1227,20 @@ void ImpuRegDataTask::on_get_reg_data_success(CassandraStore::Operation* op)
       // still need to tell the HSS.
       if ((_original_state == RegistrationState::REGISTERED) && (!new_binding))
       {
-        TRC_DEBUG("Handling re-registration");
+        int record_age = _cfg->record_ttl - ttl;
+        TRC_DEBUG("Handling re-registration with binding age of %d", record_age);
         _new_state = RegistrationState::REGISTERED;
 
-        // We set the record's TTL to be double the --hss-reregistration-time
-        // option - once half that time has elapsed, it's time to re-notify the
-        // HSS.
+        // We refresh the record's TTL everytime we receive an SAA from
+        // the HSS. As such once the record is older than the HSS Reregistration
+        // time, we need to send a new SAR to the HSS.
         //
         // Alternatively we need to notify the HSS if the HTTP request does not
         // allow cached responses.
-        if (ttl < _cfg->hss_reregistration_time)
+        if (record_age >= _cfg->hss_reregistration_time)
         {
           TRC_DEBUG("Sending re-registration to HSS as %d seconds have passed",
-                    _cfg->hss_reregistration_time);
+                    record_age, _cfg->hss_reregistration_time);
           send_server_assignment_request(Cx::ServerAssignmentType::RE_REGISTRATION);
         }
         else if (cache_not_allowed)
@@ -1542,13 +1543,7 @@ void ImpuRegDataTask::put_in_cache()
   int ttl;
   if (_cfg->hss_configured)
   {
-    // Set twice the HSS registration time - code elsewhere will check
-    // whether the TTL has passed the halfway point and do a
-    // RE_REGISTRATION request to the HSS. This is better than just
-    // setting the TTL to be the registration time, as it means there
-    // are no gaps where the data has expired but we haven't received
-    // a REGISTER yet.
-    ttl = (2 * _cfg->hss_reregistration_time);
+    ttl = _cfg->record_ttl;
   }
   else
   {
@@ -2333,11 +2328,10 @@ void PushProfileTask::update_reg_data()
       }
     }
 
-    // Create the cache request object and a SAS event simultaneously.
     Cache::PutRegData* put_reg_data =
       _cfg->cache->create_PutRegData(_impus,
                                      Cache::generate_timestamp(),
-                                     (2 * _cfg->hss_reregistration_time));
+                                     _cfg->record_ttl);
     SAS::Event event(this->trail(), SASEvent::CACHE_PUT_REG_DATA, 0);
 
     std::string impus_str = boost::algorithm::join(_impus, ", ");
