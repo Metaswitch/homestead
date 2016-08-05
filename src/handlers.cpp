@@ -1192,11 +1192,6 @@ void ImpuRegDataTask::on_get_reg_data_success(CassandraStore::Operation* op)
   // Split the processing depending on whether an HSS is configured.
   if (_cfg->hss_configured)
   {
-    // We need the record to last twice the HSS Re-registration
-    // time, or the max expiry of the registration, which ever one
-    // is longer.
-    int record_ttl = std::max(2 * _cfg->hss_reregistration_time, _cfg->reg_max_expires + 10);
-
     // If the subscriber is registering with a new binding, store
     // the private Id in the cache.
     if (new_binding)
@@ -1209,7 +1204,7 @@ void ImpuRegDataTask::on_get_reg_data_success(CassandraStore::Operation* op)
         _cache->create_PutAssociatedPrivateID(public_ids,
                                               _impi,
                                               Cache::generate_timestamp(),
-                                              record_ttl);
+                                              _cfg->record_ttl);
       CassandraStore::Transaction* tsx = new CacheTransaction;
 
       // TODO: Technically, we should be blocking our response until this PUT
@@ -1232,7 +1227,7 @@ void ImpuRegDataTask::on_get_reg_data_success(CassandraStore::Operation* op)
       // still need to tell the HSS.
       if ((_original_state == RegistrationState::REGISTERED) && (!new_binding))
       {
-        int record_age = record_ttl - ttl;
+        int record_age = _cfg->record_ttl - ttl;
         TRC_DEBUG("Handling re-registration with binding age of %d", record_age);
         _new_state = RegistrationState::REGISTERED;
 
@@ -1548,13 +1543,7 @@ void ImpuRegDataTask::put_in_cache()
   int ttl;
   if (_cfg->hss_configured)
   {
-    // Set twice the HSS registration time - code elsewhere will check
-    // whether the TTL has passed the halfway point and do a
-    // RE_REGISTRATION request to the HSS. This is better than just
-    // setting the TTL to be the registration time, as it means there
-    // are no gaps where the data has expired but we haven't received
-    // a REGISTER yet.
-    ttl = std::max(2 * _cfg->hss_reregistration_time, _cfg->reg_max_expires + 10);
+    ttl = _cfg->record_ttl;
   }
   else
   {
@@ -2339,12 +2328,10 @@ void PushProfileTask::update_reg_data()
       }
     }
 
-    // Create the cache request object and a SAS event simultaneously.
-    int ttl = std::max(2 * _cfg->hss_reregistration_time, _cfg->reg_max_expires + 10);
     Cache::PutRegData* put_reg_data =
       _cfg->cache->create_PutRegData(_impus,
                                      Cache::generate_timestamp(),
-                                     ttl);
+                                     _cfg->record_ttl);
     SAS::Event event(this->trail(), SASEvent::CACHE_PUT_REG_DATA, 0);
 
     std::string impus_str = boost::algorithm::join(_impus, ", ");

@@ -744,6 +744,12 @@ int main(int argc, char**argv)
   Diameter::SpawningHandler<PushProfileTask, PushProfileTask::Config>* ppr_task = NULL;
   Cx::Dictionary* dict = NULL;
 
+  // We need the record to last twice the HSS Re-registration
+  // time, or the max expiry of the registration, whichever one
+  // is longer. We pad the expiry to avoid small timing windows.
+  int record_ttl = std::max(2 * hss_reregistration_time,
+                            reg_max_expires + 10);
+
   Diameter::Stack* diameter_stack = Diameter::Stack::get_instance();
 
   try
@@ -759,13 +765,12 @@ int main(int argc, char**argv)
     rtr_config = new RegistrationTerminationTask::Config(cache,
                                                          dict,
                                                          sprout_conn,
-                                                         options.hss_reregistration_time,
-                                                         options.reg_max_expires);
+                                                         options.hss_reregistration_time);
     ppr_config = new PushProfileTask::Config(cache,
                                              dict,
                                              options.impu_cache_ttl,
                                              options.hss_reregistration_time,
-                                             options.reg_max_expires);
+                                             record_ttl);
 
     rtr_task = new Diameter::SpawningHandler<RegistrationTerminationTask, RegistrationTerminationTask::Config>(dict, rtr_config);
     ppr_task = new Diameter::SpawningHandler<PushProfileTask, PushProfileTask::Config>(dict, ppr_config);
@@ -806,10 +811,20 @@ int main(int argc, char**argv)
                                        options.scheme_digest,
                                        options.scheme_aka,
                                        options.diameter_timeout_ms);
-  ImpiRegistrationStatusTask::Config registration_status_handler_config(hss_configured, options.diameter_timeout_ms);
-  ImpuLocationInfoTask::Config location_info_handler_config(hss_configured, options.diameter_timeout_ms);
-  ImpuRegDataTask::Config impu_handler_config(hss_configured, options.hss_reregistration_time, options.diameter_timeout_ms);
-  ImpuIMSSubscriptionTask::Config impu_handler_config_old(hss_configured, options.hss_reregistration_time, options.diameter_timeout_ms);
+
+  ImpiRegistrationStatusTask::Config registration_status_handler_config(hss_configured,
+                                                                        options.diameter_timeout_ms);
+
+  ImpuLocationInfoTask::Config location_info_handler_config(hss_configured,
+                                                            options.diameter_timeout_ms);
+
+  ImpuRegDataTask::Config impu_handler_config(hss_configured,
+                                              options.hss_reregistration_time,
+                                              record_ttl,
+                                              options.diameter_timeout_ms);
+  ImpuIMSSubscriptionTask::Config impu_handler_config_old(hss_configured,
+                                                          options.hss_reregistration_time,
+                                                          options.diameter_timeout_ms);
 
   HttpStackUtils::PingHandler ping_handler;
   HttpStackUtils::SpawningHandler<ImpiDigestTask, ImpiTask::Config> impi_digest_handler(&impi_handler_config);
