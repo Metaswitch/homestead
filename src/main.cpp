@@ -747,8 +747,8 @@ int main(int argc, char**argv)
   // We need the record to last twice the HSS Re-registration
   // time, or the max expiry of the registration, whichever one
   // is longer. We pad the expiry to avoid small timing windows.
-  int record_ttl = std::max(2 * hss_reregistration_time,
-                            reg_max_expires + 10);
+  int record_ttl = std::max(2 * options.hss_reregistration_time,
+                            options.reg_max_expires + 10);
 
   Diameter::Stack* diameter_stack = Diameter::Stack::get_instance();
 
