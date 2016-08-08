@@ -25,7 +25,7 @@ Description: Debugging symbols for homestead-libs
 Package: homestead-node
 Architecture: any
 Depends: homestead, homestead-prov, clearwater-cassandra
-Description: homestead, the HSS Cache/Gateway
+Description: homestead, the HSS Cache/Gateway node
 
 Package: homestead-node-dbg
 Architecture: any
@@ -33,7 +33,7 @@ Section: debug
 Priority: extra
 Depends: homestead-node (= ${binary:Version})
 Recommends: homestead-dbg
-Description: Debugging symbols for homestead-node, the HSS Cache/Gateway
+Description: Debugging symbols for homestead-node, the HSS Cache/Gateway node
 
 Package: homestead
 Architecture: any
