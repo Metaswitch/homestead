@@ -20,6 +20,7 @@ COMMON_SOURCES := accesslogger.cpp \
                   handlers.cpp \
                   health_checker.cpp \
                   http_connection_pool.cpp \
+                  httpclient.cpp \
                   httpconnection.cpp \
                   httpresolver.cpp \
                   httpstack.cpp \
