@@ -355,65 +355,71 @@ void ImpiTask::on_mar_response(Diameter::Message& rsp)
             result_code, experimental_result_code, vendor_id);
 
   bool updating_assoc_public_ids = false;
-  switch (result_code)
-  {
-    case 2001:
-    {
-      std::string sip_auth_scheme = _maa->sip_auth_scheme();
-      if (sip_auth_scheme == _cfg->scheme_digest)
-      {
-        if (_cfg->impu_cache_ttl != 0)
-        {
-          TRC_DEBUG("Caching that private ID %s includes public ID %s",
-                    _impi.c_str(), _impu.c_str());
-          SAS::Event event(this->trail(), SASEvent::CACHE_PUT_ASSOC_IMPU, 0);
-          event.add_var_param(_impi);
-          event.add_var_param(_impu);
-          SAS::report_event(event);
 
-          CassandraStore::Operation* put_public_id =
-            _cache->create_PutAssociatedPublicID(_impi,
-                                                 _impu,
-                                                 Cache::generate_timestamp(),
-                                                 _cfg->impu_cache_ttl);
-          CassandraStore::Transaction* tsx = new CacheTransaction(this,
-                        &ImpiTask::on_put_assoc_impu_success,
-                        &ImpiTask::on_put_assoc_impu_failure);
-          _cache->do_async(put_public_id, tsx);
-          updating_assoc_public_ids = true;
-        }
-        else
-        {
-          send_reply(_maa->digest_auth_vector());
-        }
-      }
-      else if (sip_auth_scheme == _cfg->scheme_aka)
+  if (result_code == DIAMETER_SUCCESS)
+  {
+    std::string sip_auth_scheme = _maa->sip_auth_scheme();
+    if (sip_auth_scheme == _cfg->scheme_digest)
+    {
+      if (_cfg->impu_cache_ttl != 0)
       {
-        send_reply(_maa->aka_auth_vector());
+        TRC_DEBUG("Caching that private ID %s includes public ID %s",
+                  _impi.c_str(), _impu.c_str());
+        SAS::Event event(this->trail(), SASEvent::CACHE_PUT_ASSOC_IMPU, 0);
+        event.add_var_param(_impi);
+        event.add_var_param(_impu);
+        SAS::report_event(event);
+
+        CassandraStore::Operation* put_public_id =
+          _cache->create_PutAssociatedPublicID(_impi,
+                                               _impu,
+                                               Cache::generate_timestamp(),
+                                               _cfg->impu_cache_ttl);
+        CassandraStore::Transaction* tsx = new CacheTransaction(this,
+                      &ImpiTask::on_put_assoc_impu_success,
+                      &ImpiTask::on_put_assoc_impu_failure);
+        _cache->do_async(put_public_id, tsx);
+        updating_assoc_public_ids = true;
       }
       else
       {
-        send_http_reply(HTTP_NOT_FOUND);
+        send_reply(_maa->digest_auth_vector());
       }
     }
-    break;
-    case DIAMETER_UNABLE_TO_DELIVER:
-      // LCOV_EXCL_START - nothing interesting to UT.
-      // This may mean we don't have any Diameter connections. Another Homestead
-      // node might have Diameter connections (either to the HSS, or to an SLF
-      // which is able to talk to the HSS), and we should return a 503 so that
-      // Sprout tries a different Homestead.
-      send_http_reply(HTTP_SERVER_UNAVAILABLE);
-      break;
-      // LCOV_EXCL_STOP
-    default:
-      TRC_INFO("Multimedia-Auth answer with result code %d and experimental result code %d and vendor id %d - reject",
-               result_code, experimental_result_code, vendor_id);
-      SAS::Event event(this->trail(), SASEvent::NO_AV_HSS, 0);
-      SAS::report_event(event);
-      send_http_reply((experimental_result_code == DIAMETER_ERROR_USER_UNKNOWN &&
-                       vendor_id == VENDOR_ID_3GPP) ? HTTP_NOT_FOUND : HTTP_SERVER_ERROR);
-      break;
+    else if (sip_auth_scheme == _cfg->scheme_aka)
+    {
+      send_reply(_maa->aka_auth_vector());
+    }
+    else
+    {
+      send_http_reply(HTTP_NOT_FOUND);
+    }
+  }
+  else if (result_code == DIAMETER_UNABLE_TO_DELIVER)
+  {
+    // LCOV_EXCL_START - nothing interesting to UT.
+    // This may mean we don't have any Diameter connections. Another Homestead
+    // node might have Diameter connections (either to the HSS, or to an SLF
+    // which is able to talk to the HSS), and we should return a 503 so that
+    // Sprout tries a different Homestead.
+    send_http_reply(HTTP_SERVER_UNAVAILABLE);
+    // LCOV_EXCL_STOP
+  }
+  else if (experimental_result_code == DIAMETER_ERROR_USER_UNKNOWN &&
+           vendor_id == VENDOR_ID_3GPP)
+  {
+    TRC_INFO("Multimedia-Auth answer - user unknown");
+    SAS::Event event(this->trail(), SASEvent::NO_AV_HSS, 0);
+    SAS::report_event(event);
+    send_http_reply(HTTP_NOT_FOUND);
+  }
+  else
+  {
+    TRC_INFO("Multimedia-Auth answer with result code %d and experimental result code %d and vendor id %d - reject",
+             result_code, experimental_result_code, vendor_id);
+    SAS::Event event(this->trail(), SASEvent::NO_AV_HSS, 0);
+    SAS::report_event(event);
+    send_http_reply(HTTP_SERVER_ERROR);
   }
 
   // If not waiting for the assoicated IMPU put to succeed, tidy up now
@@ -1712,32 +1718,42 @@ void ImpuRegDataTask::on_sar_response(Diameter::Message& rsp)
   TRC_DEBUG("Received Server-Assignment answer with result code %d and experimental result code %d with vendor id %d",
             result_code, experimental_result_code);
 
-  switch (result_code)
+  if (result_code == DIAMETER_SUCCESS)
   {
-    case DIAMETER_SUCCESS:
-      // Get the charging addresses and user data.
-      saa.charging_addrs(_charging_addrs);
-      saa.user_data(_xml);
-      break;
-    case DIAMETER_UNABLE_TO_DELIVER:
-      // LCOV_EXCL_START - nothing interesting to UT.
-      // This may mean we don't have any Diameter connections. Another Homestead
-      // node might have Diameter connections (either to the HSS, or to an SLF
-      // which is able to talk to the HSS), and we should return a 503 so that
-      // Sprout tries a different Homestead.
-      _http_rc = HTTP_SERVER_UNAVAILABLE;
-      break;
-      // LCOV_EXCL_STOP
-    default:
-      TRC_INFO("Server-Assignment answer with result code %d and experimental result code %d with vendor id %d - reject",
-               result_code, experimental_result_code, vendor_id);
-      SAS::Event event(this->trail(), SASEvent::REG_DATA_HSS_FAIL, 0);
-      event.add_static_param(result_code);
-      event.add_static_param(experimental_result_code);
-      SAS::report_event(event);
-      _http_rc = (experimental_result_code == DIAMETER_ERROR_USER_UNKNOWN &&
-                  vendor_id == VENDOR_ID_3GPP) ? HTTP_NOT_FOUND : HTTP_SERVER_ERROR;
-      break;
+    // Get the charging addresses and user data.
+    saa.charging_addrs(_charging_addrs);
+    saa.user_data(_xml);
+  }
+  else if (result_code == DIAMETER_UNABLE_TO_DELIVER)
+  {
+    // LCOV_EXCL_START - nothing interesting to UT.
+    // This may mean we don't have any Diameter connections. Another Homestead
+    // node might have Diameter connections (either to the HSS, or to an SLF
+    // which is able to talk to the HSS), and we should return a 503 so that
+    // Sprout tries a different Homestead.
+    _http_rc = HTTP_SERVER_UNAVAILABLE;
+    // LCOV_EXCL_STOP
+  }
+  else if (experimental_result_code == DIAMETER_ERROR_USER_UNKNOWN &&
+           vendor_id == VENDOR_ID_3GPP)
+  {
+    TRC_INFO("Server-Assignment answer - user unknown",
+             result_code, experimental_result_code, vendor_id);
+    SAS::Event event(this->trail(), SASEvent::REG_DATA_HSS_FAIL, 0);
+    event.add_static_param(result_code);
+    event.add_static_param(experimental_result_code);
+    SAS::report_event(event);
+    _http_rc = HTTP_NOT_FOUND;
+  }
+  else
+  {
+    TRC_INFO("Server-Assignment answer with result code %d and experimental result code %d with vendor id %d - reject",
+             result_code, experimental_result_code, vendor_id);
+    SAS::Event event(this->trail(), SASEvent::REG_DATA_HSS_FAIL, 0);
+    event.add_static_param(result_code);
+    event.add_static_param(experimental_result_code);
+    SAS::report_event(event);
+    _http_rc = HTTP_SERVER_ERROR;
   }
 
   // Update the cache if required.

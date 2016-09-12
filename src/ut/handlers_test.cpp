@@ -512,7 +512,8 @@ public:
     Cx::ServerAssignmentAnswer saa(_cx_dict,
                                    _mock_stack,
                                    DIAMETER_SUCCESS,
-                                   0, 0,
+                                   0,
+                                   0,
                                    IMPU_IMS_SUBSCRIPTION,
                                    NO_CHARGING_ADDRESSES);
     if (!expect_deletion)
@@ -729,7 +730,8 @@ public:
       Cx::ServerAssignmentAnswer saa(_cx_dict,
                                      _mock_stack,
                                      DIAMETER_SUCCESS,
-                                     0, 0,
+                                     0,
+                                     0,
                                      IMPU_IMS_SUBSCRIPTION,
                                      NO_CHARGING_ADDRESSES);
 
@@ -2874,7 +2876,8 @@ TEST_F(HandlersTest, IMSSubscriptionOtherErrorCallReg)
   Cx::ServerAssignmentAnswer saa(_cx_dict,
                                  _mock_stack,
                                  0,
-                                 0, 0,
+                                 0,
+                                 0,
                                  "",
                                  NO_CHARGING_ADDRESSES);
 
@@ -4704,7 +4707,8 @@ TEST_F(HandlerStatsTest, IMSSubscriptionReregHSS)
   Cx::ServerAssignmentAnswer saa(_cx_dict,
                                  _mock_stack,
                                  DIAMETER_SUCCESS,
-                                 0, 0,
+                                 0,
+                                 0,
                                  IMS_SUBSCRIPTION,
                                  NO_CHARGING_ADDRESSES);
 
