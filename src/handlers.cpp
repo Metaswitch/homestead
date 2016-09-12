@@ -339,75 +339,87 @@ void ImpiTask::on_mar_response(Diameter::Message& rsp)
   _maa = new Cx::MultimediaAuthAnswer(rsp);
   int32_t result_code = 0;
   _maa->result_code(result_code);
-  mar_results_tbl->increment(SNMP::DiameterAppId::BASE, result_code);
-  TRC_DEBUG("Received Multimedia-Auth answer with result code %d", result_code);
+  int32_t experimental_result_code = 0;
+  uint32_t vendor_id = 0;
+  _maa->experimental_result(experimental_result_code, vendor_id);
+
+  if (result_code != 0)
+  {
+    mar_results_tbl->increment(SNMP::DiameterAppId::BASE, result_code);
+  }
+  else if (experimental_result_code != 0 && vendor_id == VENDOR_ID_3GPP)
+  {
+    mar_results_tbl->increment(SNMP::DiameterAppId::_3GPP, experimental_result_code);
+  }
+  TRC_DEBUG("Received Multimedia-Auth answer with result code %d and experimental result code %d with vendor id %d",
+            result_code, experimental_result_code, vendor_id);
 
   bool updating_assoc_public_ids = false;
-  switch (result_code)
-  {
-    case 2001:
-    {
-      std::string sip_auth_scheme = _maa->sip_auth_scheme();
-      if (sip_auth_scheme == _cfg->scheme_digest)
-      {
-        if (_cfg->impu_cache_ttl != 0)
-        {
-          TRC_DEBUG("Caching that private ID %s includes public ID %s",
-                    _impi.c_str(), _impu.c_str());
-          SAS::Event event(this->trail(), SASEvent::CACHE_PUT_ASSOC_IMPU, 0);
-          event.add_var_param(_impi);
-          event.add_var_param(_impu);
-          SAS::report_event(event);
 
-          CassandraStore::Operation* put_public_id =
-            _cache->create_PutAssociatedPublicID(_impi,
-                                                 _impu,
-                                                 Cache::generate_timestamp(),
-                                                 _cfg->impu_cache_ttl);
-          CassandraStore::Transaction* tsx = new CacheTransaction(this,
-                        &ImpiTask::on_put_assoc_impu_success,
-                        &ImpiTask::on_put_assoc_impu_failure);
-          _cache->do_async(put_public_id, tsx);
-          updating_assoc_public_ids = true;
-        }
-        else
-        {
-          send_reply(_maa->digest_auth_vector());
-        }
-      }
-      else if (sip_auth_scheme == _cfg->scheme_aka)
+  if (result_code == DIAMETER_SUCCESS)
+  {
+    std::string sip_auth_scheme = _maa->sip_auth_scheme();
+    if (sip_auth_scheme == _cfg->scheme_digest)
+    {
+      if (_cfg->impu_cache_ttl != 0)
       {
-        send_reply(_maa->aka_auth_vector());
+        TRC_DEBUG("Caching that private ID %s includes public ID %s",
+                  _impi.c_str(), _impu.c_str());
+        SAS::Event event(this->trail(), SASEvent::CACHE_PUT_ASSOC_IMPU, 0);
+        event.add_var_param(_impi);
+        event.add_var_param(_impu);
+        SAS::report_event(event);
+
+        CassandraStore::Operation* put_public_id =
+          _cache->create_PutAssociatedPublicID(_impi,
+                                               _impu,
+                                               Cache::generate_timestamp(),
+                                               _cfg->impu_cache_ttl);
+        CassandraStore::Transaction* tsx = new CacheTransaction(this,
+                      &ImpiTask::on_put_assoc_impu_success,
+                      &ImpiTask::on_put_assoc_impu_failure);
+        _cache->do_async(put_public_id, tsx);
+        updating_assoc_public_ids = true;
       }
       else
       {
-        send_http_reply(HTTP_NOT_FOUND);
+        send_reply(_maa->digest_auth_vector());
       }
     }
-    break;
-    case DIAMETER_UNABLE_TO_DELIVER:
-      // LCOV_EXCL_START - nothing interesting to UT.
-      // This may mean we don't have any Diameter connections. Another Homestead
-      // node might have Diameter connections (either to the HSS, or to an SLF
-      // which is able to talk to the HSS), and we should return a 503 so that
-      // Sprout tries a different Homestead.
-      send_http_reply(HTTP_SERVER_UNAVAILABLE);
-      break;
-      // LCOV_EXCL_STOP
-    case 5001:
+    else if (sip_auth_scheme == _cfg->scheme_aka)
     {
-      TRC_INFO("Multimedia-Auth answer with result code %d - reject", result_code);
-      SAS::Event event(this->trail(), SASEvent::NO_AV_HSS, 0);
-      SAS::report_event(event);
+      send_reply(_maa->aka_auth_vector());
+    }
+    else
+    {
       send_http_reply(HTTP_NOT_FOUND);
     }
-    break;
-    default:
-      TRC_INFO("Multimedia-Auth answer with result code %d - reject", result_code);
-      SAS::Event event(this->trail(), SASEvent::NO_AV_HSS, 0);
-      SAS::report_event(event);
-      send_http_reply(HTTP_SERVER_ERROR);
-      break;
+  }
+  else if (result_code == DIAMETER_UNABLE_TO_DELIVER)
+  {
+    // LCOV_EXCL_START - nothing interesting to UT.
+    // This may mean we don't have any Diameter connections. Another Homestead
+    // node might have Diameter connections (either to the HSS, or to an SLF
+    // which is able to talk to the HSS), and we should return a 503 so that
+    // Sprout tries a different Homestead.
+    send_http_reply(HTTP_SERVER_UNAVAILABLE);
+    // LCOV_EXCL_STOP
+  }
+  else if (experimental_result_code == DIAMETER_ERROR_USER_UNKNOWN &&
+           vendor_id == VENDOR_ID_3GPP)
+  {
+    TRC_INFO("Multimedia-Auth answer - user unknown");
+    SAS::Event event(this->trail(), SASEvent::NO_AV_HSS, 0);
+    SAS::report_event(event);
+    send_http_reply(HTTP_NOT_FOUND);
+  }
+  else
+  {
+    TRC_INFO("Multimedia-Auth answer with result code %d and experimental result code %d and vendor id %d - reject",
+             result_code, experimental_result_code, vendor_id);
+    SAS::Event event(this->trail(), SASEvent::NO_AV_HSS, 0);
+    SAS::report_event(event);
+    send_http_reply(HTTP_SERVER_ERROR);
   }
 
   // If not waiting for the assoicated IMPU put to succeed, tidy up now
@@ -634,12 +646,15 @@ void ImpiRegistrationStatusTask::on_uar_response(Diameter::Message& rsp)
   Cx::UserAuthorizationAnswer uaa(rsp);
   int32_t result_code = 0;
   uaa.result_code(result_code);
-  int32_t experimental_result_code = uaa.experimental_result_code();
+  int32_t experimental_result_code = 0;
+  uint32_t vendor_id = 0;
+  uaa.experimental_result(experimental_result_code, vendor_id);
   if (result_code != 0)
   {
     uar_results_tbl->increment(SNMP::DiameterAppId::BASE, result_code);
   }
-  else if (experimental_result_code != 0)
+  else if (experimental_result_code != 0 &&
+           vendor_id == VENDOR_ID_3GPP)
   {
     uar_results_tbl->increment(SNMP::DiameterAppId::_3GPP, experimental_result_code);
   }
@@ -780,20 +795,25 @@ void ImpuLocationInfoTask::on_lir_response(Diameter::Message& rsp)
   Cx::LocationInfoAnswer lia(rsp);
   int32_t result_code = 0;
   lia.result_code(result_code);
-  int32_t experimental_result_code = lia.experimental_result_code();
+  int32_t experimental_result_code = 0;
+  uint32_t vendor_id = 0;
+  lia.experimental_result(experimental_result_code, vendor_id);
   if (result_code != 0)
   {
     lir_results_tbl->increment(SNMP::DiameterAppId::BASE, result_code);
   }
-  else if (experimental_result_code != 0)
+  else if (experimental_result_code != 0 &&
+           vendor_id == VENDOR_ID_3GPP)
   {
     lir_results_tbl->increment(SNMP::DiameterAppId::_3GPP, experimental_result_code);
   }
-  TRC_DEBUG("Received Location-Info answer with result %d/%d",
-            result_code, experimental_result_code);
+  TRC_DEBUG("Received Location-Info answer with result %d/%d (vendor %d)",
+            result_code, experimental_result_code, vendor_id);
+
   if ((result_code == DIAMETER_SUCCESS) ||
-      (experimental_result_code == DIAMETER_UNREGISTERED_SERVICE) ||
-      (experimental_result_code == DIAMETER_ERROR_IDENTITY_NOT_REGISTERED))
+      (vendor_id == VENDOR_ID_3GPP &&
+       ((experimental_result_code == DIAMETER_UNREGISTERED_SERVICE) ||
+        (experimental_result_code == DIAMETER_ERROR_IDENTITY_NOT_REGISTERED))))
   {
     rapidjson::StringBuffer sb;
     rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
@@ -828,8 +848,9 @@ void ImpuLocationInfoTask::on_lir_response(Diameter::Message& rsp)
     _req.add_content(sb.GetString());
     send_http_reply(HTTP_OK);
   }
-  else if ((experimental_result_code == DIAMETER_ERROR_USER_UNKNOWN) ||
-           (experimental_result_code == DIAMETER_ERROR_IDENTITY_NOT_REGISTERED))
+  else if (vendor_id == VENDOR_ID_3GPP &&
+           ((experimental_result_code == DIAMETER_ERROR_USER_UNKNOWN) ||
+            (experimental_result_code == DIAMETER_ERROR_IDENTITY_NOT_REGISTERED)))
   {
     TRC_INFO("User unknown or public/private ID conflict - reject");
     sas_log_hss_failure(result_code, experimental_result_code);
@@ -853,8 +874,8 @@ void ImpuLocationInfoTask::on_lir_response(Diameter::Message& rsp)
   }
   else
   {
-    TRC_INFO("Location-Info answer with result %d/%d - reject",
-             result_code, experimental_result_code);
+    TRC_INFO("Location-Info answer with result %d/%d (vendor %d) - reject",
+             result_code, experimental_result_code, vendor_id);
     sas_log_hss_failure(result_code, experimental_result_code);
     send_http_reply(HTTP_SERVER_ERROR);
   }
@@ -1682,34 +1703,57 @@ void ImpuRegDataTask::on_sar_response(Diameter::Message& rsp)
   Cx::ServerAssignmentAnswer saa(rsp);
   int32_t result_code = 0;
   saa.result_code(result_code);
-  int32_t experimental_result_code = saa.experimental_result_code();
-  sar_results_tbl->increment(SNMP::DiameterAppId::BASE, result_code);
-  TRC_DEBUG("Received Server-Assignment answer with result code %d and experimental result code %d", result_code, experimental_result_code);
-
-  switch (result_code)
+  int32_t experimental_result_code = 0;
+  uint32_t vendor_id = 0;
+  saa.experimental_result(experimental_result_code, vendor_id);
+  if (result_code != 0)
   {
-    case 2001:
-      // Get the charging addresses and user data.
-      saa.charging_addrs(_charging_addrs);
-      saa.user_data(_xml);
-      break;
-    case DIAMETER_UNABLE_TO_DELIVER:
-      // LCOV_EXCL_START - nothing interesting to UT.
-      // This may mean we don't have any Diameter connections. Another Homestead
-      // node might have Diameter connections (either to the HSS, or to an SLF
-      // which is able to talk to the HSS), and we should return a 503 so that
-      // Sprout tries a different Homestead.
-      _http_rc = HTTP_SERVER_UNAVAILABLE;
-      break;
-      // LCOV_EXCL_STOP
-    default:
-      TRC_INFO("Server-Assignment answer with result code %d - reject", result_code);
-      SAS::Event event(this->trail(), SASEvent::REG_DATA_HSS_FAIL, 0);
-      event.add_static_param(result_code);
-      event.add_static_param(experimental_result_code);
-      SAS::report_event(event);
-      _http_rc = (result_code == 5001) ? HTTP_NOT_FOUND : HTTP_SERVER_ERROR;
-      break;
+    sar_results_tbl->increment(SNMP::DiameterAppId::BASE, result_code);
+  }
+  else if (experimental_result_code != 0 &&
+           vendor_id == VENDOR_ID_3GPP)
+  {
+    sar_results_tbl->increment(SNMP::DiameterAppId::_3GPP, experimental_result_code);
+  }
+  TRC_DEBUG("Received Server-Assignment answer with result code %d and experimental result code %d with vendor id %d",
+            result_code, experimental_result_code);
+
+  if (result_code == DIAMETER_SUCCESS)
+  {
+    // Get the charging addresses and user data.
+    saa.charging_addrs(_charging_addrs);
+    saa.user_data(_xml);
+  }
+  else if (result_code == DIAMETER_UNABLE_TO_DELIVER)
+  {
+    // LCOV_EXCL_START - nothing interesting to UT.
+    // This may mean we don't have any Diameter connections. Another Homestead
+    // node might have Diameter connections (either to the HSS, or to an SLF
+    // which is able to talk to the HSS), and we should return a 503 so that
+    // Sprout tries a different Homestead.
+    _http_rc = HTTP_SERVER_UNAVAILABLE;
+    // LCOV_EXCL_STOP
+  }
+  else if (experimental_result_code == DIAMETER_ERROR_USER_UNKNOWN &&
+           vendor_id == VENDOR_ID_3GPP)
+  {
+    TRC_INFO("Server-Assignment answer - user unknown",
+             result_code, experimental_result_code, vendor_id);
+    SAS::Event event(this->trail(), SASEvent::REG_DATA_HSS_FAIL, 0);
+    event.add_static_param(result_code);
+    event.add_static_param(experimental_result_code);
+    SAS::report_event(event);
+    _http_rc = HTTP_NOT_FOUND;
+  }
+  else
+  {
+    TRC_INFO("Server-Assignment answer with result code %d and experimental result code %d with vendor id %d - reject",
+             result_code, experimental_result_code, vendor_id);
+    SAS::Event event(this->trail(), SASEvent::REG_DATA_HSS_FAIL, 0);
+    event.add_static_param(result_code);
+    event.add_static_param(experimental_result_code);
+    SAS::report_event(event);
+    _http_rc = HTTP_SERVER_ERROR;
   }
 
   // Update the cache if required.

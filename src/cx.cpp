@@ -139,6 +139,7 @@ UserAuthorizationRequest::UserAuthorizationRequest(const Dictionary* dict,
 UserAuthorizationAnswer::UserAuthorizationAnswer(const Dictionary* dict,
                                                  Diameter::Stack* stack,
                                                  const int32_t& result_code,
+                                                 const uint32_t& vendor_id,
                                                  const int32_t& experimental_result_code,
                                                  const std::string& server_name,
                                                  const ServerCapabilities& capabs) :
@@ -155,6 +156,7 @@ UserAuthorizationAnswer::UserAuthorizationAnswer(const Dictionary* dict,
   else
   {
     Diameter::AVP experimental_result(dict->EXPERIMENTAL_RESULT);
+    experimental_result.add(Diameter::AVP(dict->VENDOR_ID).val_u32(vendor_id));
     experimental_result.add(Diameter::AVP(dict->EXPERIMENTAL_RESULT_CODE).val_i32(experimental_result_code));
     add(experimental_result);
   }
@@ -269,6 +271,7 @@ LocationInfoRequest::LocationInfoRequest(const Dictionary* dict,
 LocationInfoAnswer::LocationInfoAnswer(const Dictionary* dict,
                                        Diameter::Stack* stack,
                                        const int32_t& result_code,
+                                       const uint32_t& vendor_id,
                                        const int32_t& experimental_result_code,
                                        const std::string& server_name,
                                        const ServerCapabilities& capabs) :
@@ -285,6 +288,7 @@ LocationInfoAnswer::LocationInfoAnswer(const Dictionary* dict,
   else
   {
     Diameter::AVP experimental_result(dict->EXPERIMENTAL_RESULT);
+    experimental_result.add(Diameter::AVP(dict->VENDOR_ID).val_u32(vendor_id));
     experimental_result.add(Diameter::AVP(dict->EXPERIMENTAL_RESULT_CODE).val_i32(experimental_result_code));
     add(experimental_result);
   }
@@ -435,6 +439,8 @@ std::string MultimediaAuthRequest::sip_authorization() const
 MultimediaAuthAnswer::MultimediaAuthAnswer(const Dictionary* dict,
                                            Diameter::Stack* stack,
                                            const int32_t& result_code,
+                                           const uint32_t& vendor_id,
+                                           const int32_t& experimental_result_code,
                                            const std::string& scheme,
                                            const DigestAuthVector& digest_av,
                                            const AKAAuthVector& aka_av) :
@@ -444,7 +450,17 @@ MultimediaAuthAnswer::MultimediaAuthAnswer(const Dictionary* dict,
 
   // This method creates an MAA which is unrealistic for various reasons, but is useful for
   // testing our handlers code, which is currently all it is used for.
-  add(Diameter::AVP(dict->RESULT_CODE).val_i32(result_code));
+  if (result_code)
+  {
+    add(Diameter::AVP(dict->RESULT_CODE).val_i32(result_code));
+  }
+  else
+  {
+    Diameter::AVP experimental_result(dict->EXPERIMENTAL_RESULT);
+    experimental_result.add(Diameter::AVP(dict->EXPERIMENTAL_RESULT_CODE).val_i32(experimental_result_code));
+    experimental_result.add(Diameter::AVP(dict->VENDOR_ID).val_u32(vendor_id));
+    add(experimental_result);
+  }
   Diameter::AVP sip_auth_data_item(dict->SIP_AUTH_DATA_ITEM);
   if (!scheme.empty())
   {
@@ -683,6 +699,8 @@ ServerAssignmentRequest::ServerAssignmentRequest(const Dictionary* dict,
 ServerAssignmentAnswer::ServerAssignmentAnswer(const Dictionary* dict,
                                                Diameter::Stack* stack,
                                                const int32_t& result_code,
+                                               const uint32_t& vendor_id,
+                                               const int32_t& experimental_result_code,
                                                const std::string& ims_subscription,
                                                const ChargingAddresses& charging_addrs) :
                                                Diameter::Message(dict, dict->SERVER_ASSIGNMENT_ANSWER, stack)
@@ -691,8 +709,20 @@ ServerAssignmentAnswer::ServerAssignmentAnswer(const Dictionary* dict,
 
   // This method creates an SAA which is unrealistic for various reasons, but is useful for
   // testing our handlers code, which is currently all it is used for.
-  add(Diameter::AVP(dict->RESULT_CODE).val_i32(result_code));
+  if (result_code)
+  {
+    add(Diameter::AVP(dict->RESULT_CODE).val_i32(result_code));
+  }
+  else
+  {
+    Diameter::AVP experimental_result(dict->EXPERIMENTAL_RESULT);
+    experimental_result.add(Diameter::AVP(dict->EXPERIMENTAL_RESULT_CODE).val_i32(experimental_result_code));
+    experimental_result.add(Diameter::AVP(dict->VENDOR_ID).val_u32(vendor_id));
+    add(experimental_result);
+  }
+
   add(Diameter::AVP(dict->USER_DATA).val_str(ims_subscription));
+
   if (!charging_addrs.empty())
   {
     Diameter::AVP charging_information(dict->CHARGING_INFORMATION);

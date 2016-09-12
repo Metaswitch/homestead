@@ -512,6 +512,8 @@ public:
     Cx::ServerAssignmentAnswer saa(_cx_dict,
                                    _mock_stack,
                                    DIAMETER_SUCCESS,
+                                   0,
+                                   0,
                                    IMPU_IMS_SUBSCRIPTION,
                                    NO_CHARGING_ADDRESSES);
     if (!expect_deletion)
@@ -728,6 +730,8 @@ public:
       Cx::ServerAssignmentAnswer saa(_cx_dict,
                                      _mock_stack,
                                      DIAMETER_SUCCESS,
+                                     0,
+                                     0,
                                      IMPU_IMS_SUBSCRIPTION,
                                      NO_CHARGING_ADDRESSES);
 
@@ -885,6 +889,7 @@ public:
     Cx::UserAuthorizationAnswer uaa(_cx_dict,
                                     _mock_stack,
                                     hss_rc,
+                                    VENDOR_ID_3GPP,
                                     hss_experimental_rc,
                                     "",
                                     NO_CAPABILITIES);
@@ -926,6 +931,7 @@ public:
     Cx::LocationInfoAnswer lia(_cx_dict,
                                _mock_stack,
                                hss_rc,
+                               VENDOR_ID_3GPP,
                                hss_experimental_rc,
                                "",
                                NO_CAPABILITIES);
@@ -1245,7 +1251,8 @@ public:
 
     Cx::ServerAssignmentAnswer saa(_cx_dict,
                                    _mock_stack,
-                                   DIAMETER_ERROR_USER_UNKNOWN,
+                                   0,
+                                   VENDOR_ID_3GPP, DIAMETER_ERROR_USER_UNKNOWN,
                                    "",
                                    NO_CHARGING_ADDRESSES);
 
@@ -1319,6 +1326,8 @@ public:
     Cx::MultimediaAuthAnswer maa(_cx_dict,
                                  _mock_stack,
                                  DIAMETER_SUCCESS,
+                                 0,
+                                 0,
                                  SCHEME_DIGEST,
                                  digest,
                                  aka);
@@ -1737,6 +1746,8 @@ TEST_F(HandlersTest, DigestHSSNoIMPU)
   Cx::MultimediaAuthAnswer maa(_cx_dict,
                                _mock_stack,
                                DIAMETER_SUCCESS,
+                               0,
+                               0,
                                SCHEME_DIGEST,
                                digest,
                                aka);
@@ -1795,6 +1806,8 @@ TEST_F(HandlersTest, DigestHSSUserUnknown)
   // Build an MAA.
   Cx::MultimediaAuthAnswer maa(_cx_dict,
                                _mock_stack,
+                               0,
+                               VENDOR_ID_3GPP,
                                DIAMETER_ERROR_USER_UNKNOWN,
                                SCHEME_DIGEST,
                                digest,
@@ -1839,6 +1852,8 @@ TEST_F(HandlersTest, DigestHSSOtherError)
   Cx::MultimediaAuthAnswer maa(_cx_dict,
                                _mock_stack,
                                0,
+                               0,
+                               0,
                                SCHEME_DIGEST,
                                digest,
                                aka);
@@ -1882,6 +1897,8 @@ TEST_F(HandlersTest, DigestHSSUnkownScheme)
   Cx::MultimediaAuthAnswer maa(_cx_dict,
                                _mock_stack,
                                DIAMETER_SUCCESS,
+                               0,
+                               0,
                                SCHEME_UNKNOWN,
                                digest,
                                aka);
@@ -1925,6 +1942,8 @@ TEST_F(HandlersTest, DigestHSSAKAReturned)
   Cx::MultimediaAuthAnswer maa(_cx_dict,
                                _mock_stack,
                                DIAMETER_SUCCESS,
+                               0,
+                               0,
                                SCHEME_AKA,
                                digest,
                                aka);
@@ -2221,6 +2240,8 @@ TEST_F(HandlersTest, AvNoPublicIDHSSAKA)
   Cx::MultimediaAuthAnswer maa(_cx_dict,
                                _mock_stack,
                                DIAMETER_SUCCESS,
+                               0,
+                               0,
                                SCHEME_AKA,
                                digest,
                                aka);
@@ -2855,6 +2876,8 @@ TEST_F(HandlersTest, IMSSubscriptionOtherErrorCallReg)
   Cx::ServerAssignmentAnswer saa(_cx_dict,
                                  _mock_stack,
                                  0,
+                                 0,
+                                 0,
                                  "",
                                  NO_CHARGING_ADDRESSES);
 
@@ -3070,6 +3093,7 @@ TEST_F(HandlersTest, RegistrationStatus)
                                   _mock_stack,
                                   DIAMETER_SUCCESS,
                                   0,
+                                  0,
                                   SERVER_NAME,
                                   CAPABILITIES);
   EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
@@ -3108,6 +3132,7 @@ TEST_F(HandlersTest, RegistrationStatusPassesHealthCheck)
   Cx::UserAuthorizationAnswer uaa(_cx_dict,
                                   _mock_stack,
                                   DIAMETER_SUCCESS,
+                                  0,
                                   0,
                                   SERVER_NAME,
                                   CAPABILITIES);
@@ -3166,6 +3191,7 @@ TEST_F(HandlersTest, RegistrationStatusOptParamsSubseqRegCapabs)
   Cx::UserAuthorizationAnswer uaa(_cx_dict,
                                   _mock_stack,
                                   0,
+                                  VENDOR_ID_3GPP,
                                   DIAMETER_SUBSEQUENT_REGISTRATION,
                                   "",
                                   CAPABILITIES_WITH_SERVER_NAME);
@@ -3219,6 +3245,7 @@ TEST_F(HandlersTest, RegistrationStatusFirstRegNoCapabs)
   Cx::UserAuthorizationAnswer uaa(_cx_dict,
                                   _mock_stack,
                                   0,
+                                  VENDOR_ID_3GPP,
                                   DIAMETER_FIRST_REGISTRATION,
                                   "",
                                   NO_CAPABILITIES);
@@ -3349,6 +3376,7 @@ TEST_F(HandlersTest, LocationInfo)
                              _mock_stack,
                              DIAMETER_SUCCESS,
                              0,
+                             0,
                              SERVER_NAME,
                              CAPABILITIES);
   EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
@@ -3402,6 +3430,7 @@ TEST_F(HandlersTest, LocationInfoOptParamsUnregisteredService)
   Cx::LocationInfoAnswer lia(_cx_dict,
                              _mock_stack,
                              0,
+                             VENDOR_ID_3GPP,
                              DIAMETER_UNREGISTERED_SERVICE,
                              "",
                              CAPABILITIES_WITH_SERVER_NAME);
@@ -3443,6 +3472,7 @@ TEST_F(HandlersTest, LocationInfoUnregisteredError)
   Cx::LocationInfoAnswer lia(_cx_dict,
                              _mock_stack,
                              0,
+                             VENDOR_ID_3GPP,
                              DIAMETER_ERROR_IDENTITY_NOT_REGISTERED,
                              "",
                              NO_CAPABILITIES);
@@ -4554,6 +4584,8 @@ TEST_F(HandlerStatsTest, DigestHSS)
   Cx::MultimediaAuthAnswer maa(_cx_dict,
                                _mock_stack,
                                DIAMETER_SUCCESS,
+                               0,
+                               0,
                                SCHEME_DIGEST,
                                digest,
                                aka);
@@ -4675,6 +4707,8 @@ TEST_F(HandlerStatsTest, IMSSubscriptionReregHSS)
   Cx::ServerAssignmentAnswer saa(_cx_dict,
                                  _mock_stack,
                                  DIAMETER_SUCCESS,
+                                 0,
+                                 0,
                                  IMS_SUBSCRIPTION,
                                  NO_CHARGING_ADDRESSES);
 
@@ -4744,6 +4778,7 @@ TEST_F(HandlerStatsTest, RegistrationStatus)
                                   _mock_stack,
                                   DIAMETER_SUCCESS,
                                   0,
+                                  0,
                                   SERVER_NAME,
                                   CAPABILITIES);
   EXPECT_CALL(*_httpstack, send_reply(_, _, _));
@@ -4784,6 +4819,7 @@ TEST_F(HandlerStatsTest, LocationInfo)
   Cx::LocationInfoAnswer lia(_cx_dict,
                              _mock_stack,
                              DIAMETER_SUCCESS,
+                             0,
                              0,
                              SERVER_NAME,
                              CAPABILITIES);
@@ -4828,6 +4864,7 @@ TEST_F(HandlerStatsTest, LocationInfoOverload)
   Cx::LocationInfoAnswer lia(_cx_dict,
                              _mock_stack,
                              DIAMETER_TOO_BUSY,
+                             0,
                              0,
                              SERVER_NAME,
                              CAPABILITIES);
