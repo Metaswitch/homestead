@@ -42,11 +42,15 @@
 #include "test_interposer.hpp"
 #include "fakelogger.h"
 
+#include "mockhttpresolver.h"
+#include "mock_cassandra_connection_pool.h"
 #include "mock_cassandra_store.h"
 #include "mockcommunicationmonitor.h"
 #include "cass_test_utils.h"
 
 #include <cache.h>
+
+typedef MockHttpResolver MockCassandraResolver;
 
 using ::testing::PrintToString;
 using ::testing::Return;
@@ -82,14 +86,17 @@ const ChargingAddresses ECFS_CHARGING_ADDRS(CCF, ECFS);
 
 // The class under test.
 //
-// We don't test the Cache class directly as we need to override the get_client
-// and release_client methods to use MockCassandraClient.  However all other
-// methods are the real ones from Cache.
+// We don't test the Cache class directly as we need to use a
+// MockCassandraConnectionPool that we can use to return MockCassandraClients.
+// However all other methods are the real ones from Cache.
 class TestCache : public Cache
 {
 public:
-  MOCK_METHOD0(get_client, CassandraStore::Client*());
-  MOCK_METHOD0(release_client, void());
+  void set_conn_pool(CassandraConnectionPool* pool)
+  {
+    delete _conn_pool;
+    _conn_pool = pool;
+  }
 };
 
 //
@@ -105,8 +112,21 @@ class CacheInitializationTest : public ::testing::Test
 public:
   CacheInitializationTest()
   {
-    _cache.configure_connection("localhost", 1234, _cm);
+    _targets.push_back(create_target("10.0.0.1"));
+    _targets.push_back(create_target("10.0.0.2"));
+
+    _cache.set_conn_pool(_pool);
+    _cache.configure_connection("localhost", 1234, _cm, &_resolver);
     _cache.configure_workers(NULL, 1, 0); // Start with one worker thread.
+
+    // Each test should trigger exactly one lookup
+    EXPECT_CALL(_resolver, resolve_iter(_,_,_)).WillOnce(Return(new SimpleAddrIterator(_targets)));
+
+    // We expect connect(), is_connected() and set_keyspace() to be called in
+    // every test. By default, just mock them out so that we don't get warnings.
+    EXPECT_CALL(_client, set_keyspace(_)).Times(testing::AnyNumber());
+    EXPECT_CALL(_client, connect()).Times(testing::AnyNumber());
+    EXPECT_CALL(_client, is_connected()).Times(testing::AnyNumber()).WillRepeatedly(Return(false));
   }
 
   virtual ~CacheInitializationTest()
@@ -119,8 +139,21 @@ public:
 
   TestCache _cache;
   MockCassandraClient _client;
+  MockCassandraConnectionPool* _pool = new MockCassandraConnectionPool();
+  MockCassandraResolver _resolver;
   AlarmManager* _am = new AlarmManager();
   NiceMock<MockCommunicationMonitor>* _cm = new NiceMock<MockCommunicationMonitor>(_am);
+
+  std::vector<AddrInfo> _targets;
+
+  AddrInfo create_target(std::string address)
+  {
+    AddrInfo ai;
+    BaseResolver::parse_ip_target(address, ai.address);
+    ai.port = 1;
+    ai.transport = IPPROTO_TCP;
+    return ai;
+  }
 };
 
 
@@ -133,9 +166,13 @@ public:
   {
     sem_init(&_sem, 0, 0);
 
-    // By default the cache just serves up the mock client each time.
-    EXPECT_CALL(_cache, get_client()).WillRepeatedly(Return(&_client));
-    EXPECT_CALL(_cache, release_client()).WillRepeatedly(Return());
+    // By default the pool just serves up the mock client each time.
+    EXPECT_CALL(*_pool, create_connection(_)).WillRepeatedly(Return(&_client));
+    EXPECT_CALL(*_pool, release_connection(_,_)).WillRepeatedly(Return());
+
+    // In some tests we check for success() explicitly, but  this removes the
+    // warning for those where we don't
+    EXPECT_CALL(_resolver, success(_)).Times(testing::AnyNumber());
 
     _cache.start();
   }
@@ -208,8 +245,9 @@ public:
 
 TEST_F(CacheInitializationTest, Mainline)
 {
-  EXPECT_CALL(_cache, get_client()).Times(1).WillOnce(Return(&_client));
-  EXPECT_CALL(_cache, release_client()).Times(1);
+  EXPECT_CALL(*_pool, create_connection(_)).Times(1).WillOnce(Return(&_client));
+  EXPECT_CALL(*_pool, release_connection(_,false)).Times(1);
+  EXPECT_CALL(_client, connect()).Times(1);
 
   CassandraStore::ResultCode rc = _cache.connection_test();
   EXPECT_EQ(CassandraStore::OK, rc);
@@ -218,11 +256,24 @@ TEST_F(CacheInitializationTest, Mainline)
 }
 
 
-TEST_F(CacheInitializationTest, TransportException)
+TEST_F(CacheInitializationTest, OneTransportException)
 {
   apache::thrift::transport::TTransportException te;
-  EXPECT_CALL(_cache, get_client()).Times(1).WillOnce(Throw(te));
-  EXPECT_CALL(_cache, release_client()).Times(0);
+  EXPECT_CALL(*_pool, create_connection(_)).Times(2).WillRepeatedly(Return(&_client));
+  EXPECT_CALL(_client, connect()).Times(2).WillOnce(Throw(te)).WillRepeatedly(Return());
+  EXPECT_CALL(*_pool, release_connection(_,false)).Times(2);
+
+  CassandraStore::ResultCode rc = _cache.connection_test();
+  EXPECT_EQ(CassandraStore::OK, rc);
+}
+
+
+TEST_F(CacheInitializationTest, TwoTransportExceptions)
+{
+  apache::thrift::transport::TTransportException te;
+  EXPECT_CALL(*_pool, create_connection(_)).Times(2).WillRepeatedly(Return(&_client));
+  EXPECT_CALL(_client, connect()).Times(2).WillRepeatedly(Throw(te));
+  EXPECT_CALL(*_pool, release_connection(_,false)).Times(2);
 
   CassandraStore::ResultCode rc = _cache.connection_test();
   EXPECT_EQ(CassandraStore::CONNECTION_ERROR, rc);
@@ -232,8 +283,9 @@ TEST_F(CacheInitializationTest, TransportException)
 TEST_F(CacheInitializationTest, NotFoundException)
 {
   cass::NotFoundException nfe;
-  EXPECT_CALL(_cache, get_client()).Times(1).WillOnce(Throw(nfe));
-  EXPECT_CALL(_cache, release_client()).Times(0);
+  EXPECT_CALL(*_pool, create_connection(_)).Times(1).WillOnce(Return(&_client));
+  EXPECT_CALL(_client, set_keyspace(_)).Times(1).WillOnce(Throw(nfe));
+  EXPECT_CALL(*_pool, release_connection(_,false)).Times(1);
 
   CassandraStore::ResultCode rc = _cache.connection_test();
   EXPECT_EQ(CassandraStore::NOT_FOUND, rc);
@@ -243,8 +295,9 @@ TEST_F(CacheInitializationTest, NotFoundException)
 TEST_F(CacheInitializationTest, UnknownException)
 {
   CassandraStore::RowNotFoundException rnfe("muppets", "kermit");
-  EXPECT_CALL(_cache, get_client()).Times(1).WillOnce(Throw(rnfe));
-  EXPECT_CALL(_cache, release_client()).Times(0);
+  EXPECT_CALL(*_pool, create_connection(_)).Times(1).WillOnce(Return(&_client));
+  EXPECT_CALL(_client, set_keyspace(_)).Times(1).WillOnce(Throw(rnfe));
+  EXPECT_CALL(*_pool, release_connection(_,false)).Times(1);
 
   CassandraStore::ResultCode rc = _cache.connection_test();
   EXPECT_EQ(CassandraStore::UNKNOWN_ERROR, rc);
@@ -281,6 +334,7 @@ TEST_F(CacheRequestTest, PutRegDataMainline)
               batch_mutate(MutationMap(expected), _));
   EXPECT_CALL(*trx, on_success(_));
   EXPECT_CALL(*_cm, inform_success(_));
+  EXPECT_CALL(_resolver, success(_targets[0])).Times(1);
 
   execute_trx((CassandraStore::Operation*)put_reg_data, trx);
 }
@@ -315,6 +369,7 @@ TEST_F(CacheRequestTest, PutRegDataUnregistered)
               batch_mutate(MutationMap(expected), _));
   EXPECT_CALL(*trx, on_success(_));
   EXPECT_CALL(*_cm, inform_success(_));
+  EXPECT_CALL(_resolver, success(_targets[0])).Times(1);
 
   execute_trx((CassandraStore::Operation*)put_reg_data, trx);
 }
@@ -349,6 +404,7 @@ TEST_F(CacheRequestTest, NoTTLOnPut)
               batch_mutate(MutationMap(expected), _));
   EXPECT_CALL(*trx, on_success(_));
   EXPECT_CALL(*_cm, inform_success(_));
+  EXPECT_CALL(_resolver, success(_targets[0])).Times(1);
 
   execute_trx((CassandraStore::Operation*)put_reg_data, trx);
 }
@@ -388,6 +444,7 @@ TEST_F(CacheRequestTest, PutRegDataMultipleIDs)
               batch_mutate(MutationMap(expected), _));
   EXPECT_CALL(*trx, on_success(_));
   EXPECT_CALL(*_cm, inform_success(_));
+  EXPECT_CALL(_resolver, success(_targets[0])).Times(1);
 
   execute_trx((CassandraStore::Operation*)put_reg_data, trx);
 }
@@ -416,6 +473,7 @@ TEST_F(CacheRequestTest, PutRegDataNoXml)
   EXPECT_CALL(_client,
               batch_mutate(MutationMap(expected), _));
   EXPECT_CALL(*trx, on_success(_));
+  EXPECT_CALL(_resolver, success(_targets[0])).Times(1);
 
   execute_trx((CassandraStore::Operation*)put_reg_data, trx);
 }
@@ -442,6 +500,7 @@ TEST_F(CacheRequestTest, PutRegDataNoChargingAddresses)
               batch_mutate(MutationMap(expected), _));
   EXPECT_CALL(*trx, on_success(_));
   EXPECT_CALL(*_cm, inform_success(_));
+  EXPECT_CALL(_resolver, success(_targets[0])).Times(1);
 
   execute_trx((CassandraStore::Operation*)put_reg_data, trx);
 }
@@ -452,15 +511,44 @@ MATCHER_P(OperationHasResult, expected_rc, "")
   return (expected_rc == actual_rc);
 }
 
-TEST_F(CacheRequestTest, PutTransportEx)
+
+TEST_F(CacheRequestTest, PutOneTransportEx)
 {
   TestTransaction *trx = make_trx();
   Cache::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", 1000);
   put_reg_data->with_xml("<xml>");
 
   apache::thrift::transport::TTransportException te;
-  EXPECT_CALL(_cache, get_client()).Times(2).WillRepeatedly(Return(&_client));
-  EXPECT_CALL(_cache, release_client()).Times(2);
+  EXPECT_CALL(*_pool, create_connection(_)).Times(2).WillRepeatedly(Return(&_client));
+
+  {
+    testing::InSequence s;
+
+    EXPECT_CALL(_client, batch_mutate(_, _)).WillOnce(Throw(te)).RetiresOnSaturation();
+    EXPECT_CALL(_resolver, blacklist(_targets[0])).Times(1);
+    EXPECT_CALL(*_pool, release_connection(_, false)).Times(1).RetiresOnSaturation();
+    EXPECT_CALL(_client, batch_mutate(_, _)).WillOnce(Return());
+    EXPECT_CALL(_resolver, success(_targets[1])).Times(1);
+    EXPECT_CALL(*_pool, release_connection(_, true)).Times(1);
+  }
+
+  EXPECT_CALL(*trx, on_success(_));
+  EXPECT_CALL(*_cm, inform_success(_));
+  execute_trx((CassandraStore::Operation*)put_reg_data, trx);
+}
+
+
+TEST_F(CacheRequestTest, PutTwoTransportEx)
+{
+  TestTransaction *trx = make_trx();
+  Cache::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", 1000);
+  put_reg_data->with_xml("<xml>");
+
+  apache::thrift::transport::TTransportException te;
+  EXPECT_CALL(*_pool, create_connection(_)).Times(2).WillRepeatedly(Return(&_client));
+  EXPECT_CALL(_resolver, blacklist(_targets[0])).Times(1);
+  EXPECT_CALL(_resolver, blacklist(_targets[1])).Times(1);
+  EXPECT_CALL(*_pool, release_connection(_, false)).Times(2);
   EXPECT_CALL(_client, batch_mutate(_, _)).Times(2).WillRepeatedly(Throw(te));
 
   EXPECT_CALL(*trx, on_failure(OperationHasResult(CassandraStore::CONNECTION_ERROR)));
@@ -468,21 +556,48 @@ TEST_F(CacheRequestTest, PutTransportEx)
   execute_trx((CassandraStore::Operation*)put_reg_data, trx);
 }
 
-TEST_F(CacheRequestTest, PutTransportGetClientEx)
+
+TEST_F(CacheRequestTest, PutTransportConnectEx)
 {
   TestTransaction *trx = make_trx();
   Cache::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", 1000);
   put_reg_data->with_xml("<xml>");
 
   apache::thrift::transport::TTransportException te;
-  EXPECT_CALL(_cache, get_client()).Times(2).WillOnce(Return(&_client)).WillOnce(Throw(te));
-  EXPECT_CALL(_cache, release_client()).Times(2);
+  EXPECT_CALL(*_pool, create_connection(_)).Times(2).WillRepeatedly(Return(&_client));
+  EXPECT_CALL(*_pool, release_connection(_, false)).Times(2);
+  EXPECT_CALL(_client, connect()).Times(2).WillOnce(Throw(te)).WillRepeatedly(Return());
   EXPECT_CALL(_client, batch_mutate(_, _)).Times(1).WillOnce(Throw(te));
+  EXPECT_CALL(_resolver, blacklist(_targets[0])).Times(1);
+  EXPECT_CALL(_resolver, blacklist(_targets[1])).Times(1);
 
   EXPECT_CALL(*trx, on_failure(OperationHasResult(CassandraStore::CONNECTION_ERROR)));
   EXPECT_CALL(*_cm, inform_failure(_));
   execute_trx((CassandraStore::Operation*)put_reg_data, trx);
 }
+
+
+TEST_F(CacheRequestTest, PutTransportUnknownException)
+{
+  TestTransaction *trx = make_trx();
+  Cache::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", 1000);
+  put_reg_data->with_xml("<xml>");
+
+  apache::thrift::transport::TTransportException te;
+  std::string ex("Made up exception");
+
+  EXPECT_CALL(*_pool, create_connection(_)).Times(2).WillRepeatedly(Return(&_client));
+  EXPECT_CALL(*_pool, release_connection(_, false)).Times(1);
+  EXPECT_CALL(*_pool, release_connection(_, true)).Times(1);
+  EXPECT_CALL(_client, batch_mutate(_, _)).WillOnce(Throw(te)).WillOnce(Throw(ex));
+  EXPECT_CALL(_resolver, blacklist(_targets[0])).Times(1);
+  EXPECT_CALL(_resolver, success(_targets[1])).Times(1);
+
+  EXPECT_CALL(*trx, on_failure(OperationHasResult(CassandraStore::UNKNOWN_ERROR)));
+  EXPECT_CALL(*_cm, inform_success(_));
+  execute_trx((CassandraStore::Operation*)put_reg_data, trx);
+}
+
 
 TEST_F(CacheRequestTest, PutInvalidRequestException)
 {
@@ -493,6 +608,7 @@ TEST_F(CacheRequestTest, PutInvalidRequestException)
   cass::InvalidRequestException ire;
   EXPECT_CALL(_client, batch_mutate(_, _)).WillOnce(Throw(ire));
 
+  EXPECT_CALL(_resolver, success(_targets[0])).Times(1);
   EXPECT_CALL(*trx, on_failure(OperationHasResult(CassandraStore::INVALID_REQUEST)));
   EXPECT_CALL(*_cm, inform_success(_));
   execute_trx((CassandraStore::Operation*)put_reg_data, trx);
@@ -508,6 +624,7 @@ TEST_F(CacheRequestTest, PutNotFoundException)
   cass::NotFoundException nfe;
   EXPECT_CALL(_client, batch_mutate(_, _)).WillOnce(Throw(nfe));
 
+  EXPECT_CALL(_resolver, success(_targets[0])).Times(1);
   EXPECT_CALL(*trx, on_failure(OperationHasResult(CassandraStore::NOT_FOUND)));
   EXPECT_CALL(*_cm, inform_success(_));
   execute_trx((CassandraStore::Operation*)put_reg_data, trx);
@@ -523,6 +640,7 @@ TEST_F(CacheRequestTest, PutNoResultsException)
   CassandraStore::RowNotFoundException rnfe("muppets", "kermit");
   EXPECT_CALL(_client, batch_mutate(_, _)).WillOnce(Throw(rnfe));
 
+  EXPECT_CALL(_resolver, success(_targets[0])).Times(1);
   EXPECT_CALL(*trx, on_failure(OperationHasResult(CassandraStore::NOT_FOUND)));
   EXPECT_CALL(*_cm, inform_success(_));
   execute_trx((CassandraStore::Operation*)put_reg_data, trx);
@@ -538,6 +656,7 @@ TEST_F(CacheRequestTest, PutUnknownException)
   std::string ex("Made up exception");
   EXPECT_CALL(_client, batch_mutate(_, _)).WillOnce(Throw(ex));
 
+  EXPECT_CALL(_resolver, success(_targets[0])).Times(1);
   EXPECT_CALL(*trx, on_failure(OperationHasResult(CassandraStore::UNKNOWN_ERROR)));
   EXPECT_CALL(*_cm, inform_success(_));
   execute_trx((CassandraStore::Operation*)put_reg_data, trx);
@@ -550,6 +669,7 @@ TEST_F(CacheRequestTest, PutsHaveConsistencyLevelOne)
   Cache::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", 1000);
   put_reg_data->with_xml("<xml>");
 
+  EXPECT_CALL(_resolver, success(_targets[0])).Times(1);
   EXPECT_CALL(_client, batch_mutate(_, cass::ConsistencyLevel::ONE));
   EXPECT_CALL(*trx, on_success(_));
 
