@@ -635,6 +635,13 @@ AKAAuthVector MultimediaAuthAnswer::aka_auth_vector() const
   return aka_auth_vector;
 }
 
+AKAAuthVector MultimediaAuthAnswer::akav2_auth_vector() const
+{
+  AKAAuthVector av = aka_auth_vector();
+  av.version = 2;
+  return av;
+}
+
 std::string MultimediaAuthAnswer::hex(const uint8_t* data, size_t len)
 {
   static const char* const hex_lookup = "0123456789abcdef";

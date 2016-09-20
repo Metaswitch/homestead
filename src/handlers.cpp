@@ -230,7 +230,7 @@ void ImpiTask::get_av()
 {
   if (_impu.empty())
   {
-    if (_scheme == _cfg->scheme_aka)
+    if ((_scheme == _cfg->scheme_akav1) || (_scheme == _cfg->scheme_akav2))
     {
       // If the requested scheme is AKA, there's no point in looking up the cached public ID.
       // Even if we find it, we can't use it due to restrictions in the AKA protocol.
@@ -376,8 +376,8 @@ void ImpiTask::on_mar_response(Diameter::Message& rsp)
                                                Cache::generate_timestamp(),
                                                _cfg->impu_cache_ttl);
         CassandraStore::Transaction* tsx = new CacheTransaction(this,
-                      &ImpiTask::on_put_assoc_impu_success,
-                      &ImpiTask::on_put_assoc_impu_failure);
+                                                                &ImpiTask::on_put_assoc_impu_success,
+                                                                &ImpiTask::on_put_assoc_impu_failure);
         _cache->do_async(put_public_id, tsx);
         updating_assoc_public_ids = true;
       }
@@ -386,9 +386,13 @@ void ImpiTask::on_mar_response(Diameter::Message& rsp)
         send_reply(_maa->digest_auth_vector());
       }
     }
-    else if (sip_auth_scheme == _cfg->scheme_aka)
+    else if (sip_auth_scheme == _cfg->scheme_akav1)
     {
       send_reply(_maa->aka_auth_vector());
+    }
+    else if (sip_auth_scheme == _cfg->scheme_akav2)
+    {
+      send_reply(_maa->akav2_auth_vector());
     }
     else
     {
@@ -507,7 +511,11 @@ bool ImpiAvTask::parse_request()
   }
   else if (scheme == "aka")
   {
-    _scheme = _cfg->scheme_aka;
+    _scheme = _cfg->scheme_akav1;
+  }
+  else if (scheme == "aka2")
+  {
+    _scheme = _cfg->scheme_akav2;
   }
   else
   {
@@ -570,6 +578,8 @@ void ImpiAvTask::send_reply(const AKAAuthVector& av)
       writer.String(av.crypt_key.c_str());
       writer.String(JSON_INTEGRITYKEY.c_str());
       writer.String(av.integrity_key.c_str());
+      writer.String(JSON_VERSION.c_str());
+      writer.Int(av.version);
     }
     writer.EndObject();
   }

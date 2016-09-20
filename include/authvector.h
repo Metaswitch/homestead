@@ -59,6 +59,7 @@ struct AKAAuthVector : AuthVector
   std::string response;
   std::string crypt_key;
   std::string integrity_key;
+  int version = 1;
 };
 
 #endif

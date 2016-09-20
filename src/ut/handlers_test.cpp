@@ -127,6 +127,7 @@ public:
   static const std::string SCHEME_UNKNOWN;
   static const std::string SCHEME_DIGEST;
   static const std::string SCHEME_AKA;
+  static const std::string SCHEME_AKAV2;
   static const std::string SIP_AUTHORIZATION;
   static const std::string HTTP_PATH_REG_TRUE;
   static const std::string HTTP_PATH_REG_FALSE;
@@ -312,6 +313,8 @@ public:
         writer.String(av.crypt_key.c_str());
         writer.String(JSON_INTEGRITYKEY.c_str());
         writer.String(av.integrity_key.c_str());
+        writer.String(JSON_VERSION.c_str());
+        writer.Int(av.version);
       }
       writer.EndObject();
     }
@@ -1292,7 +1295,7 @@ public:
                                "?public_id=" + IMPU);
 
     // Set the IMPU Cache TTL based on whether the IMPU cache is enabled
-    ImpiTask::Config cfg(true, (impu_cache_enabled) ? 300 : 0, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
+    ImpiTask::Config cfg(true, (impu_cache_enabled) ? 300 : 0, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA, SCHEME_AKAV2);
     ImpiDigestTask* task = new ImpiDigestTask(req, &cfg, FAKE_TRAIL_ID);
 
     // Once the task's run function is called, expect a diameter message to be sent.
@@ -1444,6 +1447,7 @@ const std::string HandlersTest::DEREG_BODY_LIST2 = "{\"registrations\":[{\"prima
 const std::string HandlersTest::SCHEME_UNKNOWN = "Unknwon";
 const std::string HandlersTest::SCHEME_DIGEST = "SIP Digest";
 const std::string HandlersTest::SCHEME_AKA = "Digest-AKAv1-MD5";
+const std::string HandlersTest::SCHEME_AKAV2 = "Digest-AKAv2-SHA-256";
 const std::string HandlersTest::SIP_AUTHORIZATION = "Authorization";
 const std::deque<std::string> HandlersTest::NO_CFS = {};
 const std::deque<std::string> HandlersTest::ECFS = {"ecf1", "ecf"};
@@ -1620,7 +1624,7 @@ TEST_F(HandlersTest, DigestHSSTimeout)
                              "digest",
                              "?public_id=" + IMPU);
 
-  ImpiTask::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
+  ImpiTask::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA, SCHEME_AKAV2);
   ImpiDigestTask* task = new ImpiDigestTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the task's run function is called, expect a diameter message to be sent.
@@ -1666,7 +1670,7 @@ TEST_F(HandlersTest, DigestHSSConfigurableTimeout)
                              "?public_id=" + IMPU);
 
   // Set timeout to 300
-  ImpiTask::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA, 300);
+  ImpiTask::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA, SCHEME_AKAV2, 300);
   ImpiDigestTask* task = new ImpiDigestTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the task's run function is called, expect a diameter message to be sent.
@@ -1694,7 +1698,7 @@ TEST_F(HandlersTest, DigestHSSNoIMPU)
                              "digest",
                              "");
 
-  ImpiTask::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
+  ImpiTask::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA, SCHEME_AKAV2);
   ImpiDigestTask* task = new ImpiDigestTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the task's run function is called, expect to look for associated
@@ -1785,7 +1789,7 @@ TEST_F(HandlersTest, DigestHSSUserUnknown)
                              "digest",
                              "?public_id=" + IMPU);
 
-  ImpiTask::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
+  ImpiTask::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA, SCHEME_AKAV2);
   ImpiDigestTask* task = new ImpiDigestTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the task's run function is called, expect a diameter message to be sent.
@@ -1830,7 +1834,7 @@ TEST_F(HandlersTest, DigestHSSOtherError)
                              "digest",
                              "?public_id=" + IMPU);
 
-  ImpiTask::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
+  ImpiTask::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA, SCHEME_AKAV2);
   ImpiDigestTask* task = new ImpiDigestTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the task's run function is called, expect a diameter message to be sent.
@@ -1875,7 +1879,7 @@ TEST_F(HandlersTest, DigestHSSUnkownScheme)
                              "digest",
                              "?public_id=" + IMPU);
 
-  ImpiTask::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
+  ImpiTask::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA, SCHEME_AKAV2);
   ImpiDigestTask* task = new ImpiDigestTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the task's run function is called, expect a diameter message to be sent.
@@ -1920,7 +1924,7 @@ TEST_F(HandlersTest, DigestHSSAKAReturned)
                              "digest",
                              "?public_id=" + IMPU);
 
-  ImpiTask::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
+  ImpiTask::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA, SCHEME_AKAV2);
   ImpiDigestTask* task = new ImpiDigestTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the task's run function is called, expect a diameter message to be sent.
@@ -1964,7 +1968,7 @@ TEST_F(HandlersTest, DigestNoCachedIMPUs)
                              "/impi/" + IMPI,
                              "digest",
                              "");
-  ImpiTask::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
+  ImpiTask::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA, SCHEME_AKAV2);
   ImpiDigestTask* task = new ImpiDigestTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the task's run function is called, expect to look for associated
@@ -1998,7 +2002,7 @@ TEST_F(HandlersTest, DigestIMPUNotFound)
                              "digest",
                              "");
 
-  ImpiTask::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
+  ImpiTask::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA, SCHEME_AKAV2);
   ImpiDigestTask* task = new ImpiDigestTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the task's run function is called, expect to look for associated
@@ -2034,7 +2038,7 @@ TEST_F(HandlersTest, DigestNoIMPUCacheConnectionFailure)
                              "digest",
                              "");
 
-  ImpiTask::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
+  ImpiTask::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA, SCHEME_AKAV2);
   ImpiDigestTask* task = new ImpiDigestTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the task's run function is called, expect to look for associated
@@ -2069,7 +2073,7 @@ TEST_F(HandlersTest, DigestNoIMPUCacheFailure)
                              "digest",
                              "");
 
-  ImpiTask::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
+  ImpiTask::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA, SCHEME_AKAV2);
   ImpiDigestTask* task = new ImpiDigestTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the task's run function is called, expect to look for associated
@@ -2187,7 +2191,7 @@ TEST_F(HandlersTest, AvNoPublicIDHSSAKA)
                              "/impi/" + IMPI,
                              "av",
                              "?resync-auth=" + base64_encode(SIP_AUTHORIZATION));
-  ImpiTask::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
+  ImpiTask::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA, SCHEME_AKAV2);
   ImpiAvTask* task = new ImpiAvTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the task's run function is called, expect to look for associated
@@ -2259,6 +2263,64 @@ TEST_F(HandlersTest, AvNoPublicIDHSSAKA)
   encoded_aka.response = "726573706f6e7365";
   encoded_aka.crypt_key = "63727970745f6b6579";
   encoded_aka.integrity_key = "696e746567726974795f6b6579";
+  EXPECT_EQ(build_aka_json(encoded_aka), req.content());
+}
+
+TEST_F(HandlersTest, AvNoPublicIDHSSAKAv2)
+{
+  // This test should be identical to AvNoPublicIDHSSAKAv2 except that it uses AKAv2.
+  MockHttpStack::Request req(_httpstack,
+                             "/impi/" + IMPI,
+                             "aka2",
+                             "?impu=" + IMPU + "&resync-auth=" + base64_encode(SIP_AUTHORIZATION));
+
+  ImpiTask::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA, SCHEME_AKAV2);
+  ImpiAvTask* task = new ImpiAvTask(req, &cfg, FAKE_TRAIL_ID);
+
+  // Once the task's run function is called, expect a diameter message to be
+  // sent.
+  EXPECT_CALL(*_mock_stack, send(_, _, 200))
+    .Times(1)
+    .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
+  task->run();
+  ASSERT_FALSE(_caught_diam_tsx == NULL);
+
+  // Turn the caught Diameter msg structure into an MAR and check its contents.
+  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
+  Cx::MultimediaAuthRequest mar(msg);
+  EXPECT_EQ(SCHEME_AKAV2, mar.sip_auth_scheme());
+
+  DigestAuthVector digest;
+  AKAAuthVector aka;
+  aka.challenge = "challenge";
+  aka.response = "response";
+  aka.crypt_key = "crypt_key";
+  aka.integrity_key = "integrity_key";
+
+  // Build an MAA with an AKAv2 scheme specified.
+  Cx::MultimediaAuthAnswer maa(_cx_dict,
+                               _mock_stack,
+                               DIAMETER_SUCCESS,
+                               0,
+                               0,
+                               SCHEME_AKAV2,
+                               digest,
+                               aka);
+
+  // Once it receives the MAA, check that a successful HTTP response is sent.
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
+  _caught_diam_tsx->on_response(maa);
+  _caught_fd_msg = NULL;
+  delete _caught_diam_tsx; _caught_diam_tsx = NULL;
+
+  // Build the expected response and check it's correct. We need to first
+  // encode the values we sent earlier into base64 or hex. This is hardcoded.
+  AKAAuthVector encoded_aka;
+  encoded_aka.challenge = "Y2hhbGxlbmdl";
+  encoded_aka.response = "726573706f6e7365";
+  encoded_aka.crypt_key = "63727970745f6b6579";
+  encoded_aka.integrity_key = "696e746567726974795f6b6579";
+  encoded_aka.version = 2;
   EXPECT_EQ(build_aka_json(encoded_aka), req.content());
 }
 
@@ -4556,7 +4618,7 @@ TEST_F(HandlerStatsTest, DigestHSS)
                              "digest",
                              "?public_id=" + IMPU);
 
-  ImpiTask::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
+  ImpiTask::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA, SCHEME_AKAV2);
   ImpiDigestTask* task = new ImpiDigestTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the task's run function is called, expect a diameter message to be sent.
@@ -4621,7 +4683,7 @@ TEST_F(HandlerStatsTest, DigestHSSTimeout)
                              "digest",
                              "?public_id=" + IMPU);
 
-  ImpiTask::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA);
+  ImpiTask::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA, SCHEME_AKAV2);
   ImpiDigestTask* task = new ImpiDigestTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the task's run function is called, expect a diameter message to be sent.

@@ -89,6 +89,7 @@ const std::string JSON_CHALLENGE = "challenge";
 const std::string JSON_RESPONSE = "response";
 const std::string JSON_CRYPTKEY = "cryptkey";
 const std::string JSON_INTEGRITYKEY = "integritykey";
+const std::string JSON_VERSION = "version";
 const std::string JSON_RC = "result-code";
 const std::string JSON_SCSCF = "scscf";
 
@@ -298,20 +299,23 @@ public:
            int _impu_cache_ttl = 0,
            std::string _scheme_unknown = "Unknown",
            std::string _scheme_digest = "SIP Digest",
-           std::string _scheme_aka = "Digest-AKAv1-MD5",
+           std::string _scheme_akav1 = "Digest-AKAv1-MD5",
+           std::string _scheme_akav2 = "Digest-AKAv2-SHA-256",
            int _diameter_timeout_ms = 200) :
       query_cache_av(!_hss_configured),
       impu_cache_ttl(_impu_cache_ttl),
       scheme_unknown(_scheme_unknown),
       scheme_digest(_scheme_digest),
-      scheme_aka(_scheme_aka),
+      scheme_akav1(_scheme_akav1),
+      scheme_akav2(_scheme_akav2),
       diameter_timeout_ms(_diameter_timeout_ms) {}
 
     bool query_cache_av;
     int impu_cache_ttl;
     std::string scheme_unknown;
     std::string scheme_digest;
-    std::string scheme_aka;
+    std::string scheme_akav1;
+    std::string scheme_akav2;
     int diameter_timeout_ms;
   };
 

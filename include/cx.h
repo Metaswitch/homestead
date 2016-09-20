@@ -240,6 +240,7 @@ public:
   std::string sip_auth_scheme() const;
   DigestAuthVector digest_auth_vector() const;
   AKAAuthVector aka_auth_vector() const;
+  AKAAuthVector akav2_auth_vector() const;
 
 private:
   static std::string hex(const uint8_t* data, size_t len);
