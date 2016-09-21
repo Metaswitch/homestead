@@ -2266,9 +2266,10 @@ TEST_F(HandlersTest, AvNoPublicIDHSSAKA)
   EXPECT_EQ(build_aka_json(encoded_aka), req.content());
 }
 
-TEST_F(HandlersTest, AvNoPublicIDHSSAKAv2)
+TEST_F(HandlersTest, AvHSSAKAv2)
 {
-  // This test should be identical to AvNoPublicIDHSSAKAv2 except that it uses AKAv2.
+  // This test requests AKAv2 authentication and checks that it is handled
+  // correctly.
   MockHttpStack::Request req(_httpstack,
                              "/impi/" + IMPI,
                              "aka2",
@@ -2286,6 +2287,8 @@ TEST_F(HandlersTest, AvNoPublicIDHSSAKAv2)
   ASSERT_FALSE(_caught_diam_tsx == NULL);
 
   // Turn the caught Diameter msg structure into an MAR and check its contents.
+  // All we care about in this case is that the akav2 URL triggers the AKAv2
+  // auth scheme.
   Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
   Cx::MultimediaAuthRequest mar(msg);
   EXPECT_EQ(SCHEME_AKAV2, mar.sip_auth_scheme());
