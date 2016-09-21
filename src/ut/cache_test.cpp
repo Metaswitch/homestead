@@ -246,8 +246,9 @@ public:
 TEST_F(CacheInitializationTest, Mainline)
 {
   EXPECT_CALL(*_pool, create_connection(_)).Times(1).WillOnce(Return(&_client));
-  EXPECT_CALL(*_pool, release_connection(_,false)).Times(1);
+  EXPECT_CALL(*_pool, release_connection(_,true)).Times(1);
   EXPECT_CALL(_client, connect()).Times(1);
+  EXPECT_CALL(_resolver, success(_targets[0])).Times(1);
 
   CassandraStore::ResultCode rc = _cache.connection_test();
   EXPECT_EQ(CassandraStore::OK, rc);
@@ -261,7 +262,15 @@ TEST_F(CacheInitializationTest, OneTransportException)
   apache::thrift::transport::TTransportException te;
   EXPECT_CALL(*_pool, create_connection(_)).Times(2).WillRepeatedly(Return(&_client));
   EXPECT_CALL(_client, connect()).Times(2).WillOnce(Throw(te)).WillRepeatedly(Return());
-  EXPECT_CALL(*_pool, release_connection(_,false)).Times(2);
+
+  {
+    testing::InSequence s;
+
+    EXPECT_CALL(_resolver, blacklist(_targets[0])).Times(1);
+    EXPECT_CALL(*_pool, release_connection(_,false)).Times(1);
+    EXPECT_CALL(_resolver, success(_targets[1])).Times(1);
+    EXPECT_CALL(*_pool, release_connection(_,true)).Times(1);
+  }
 
   CassandraStore::ResultCode rc = _cache.connection_test();
   EXPECT_EQ(CassandraStore::OK, rc);
@@ -273,6 +282,8 @@ TEST_F(CacheInitializationTest, TwoTransportExceptions)
   apache::thrift::transport::TTransportException te;
   EXPECT_CALL(*_pool, create_connection(_)).Times(2).WillRepeatedly(Return(&_client));
   EXPECT_CALL(_client, connect()).Times(2).WillRepeatedly(Throw(te));
+  EXPECT_CALL(_resolver, blacklist(_targets[0])).Times(1);
+  EXPECT_CALL(_resolver, blacklist(_targets[1])).Times(1);
   EXPECT_CALL(*_pool, release_connection(_,false)).Times(2);
 
   CassandraStore::ResultCode rc = _cache.connection_test();
@@ -285,19 +296,47 @@ TEST_F(CacheInitializationTest, NotFoundException)
   cass::NotFoundException nfe;
   EXPECT_CALL(*_pool, create_connection(_)).Times(1).WillOnce(Return(&_client));
   EXPECT_CALL(_client, set_keyspace(_)).Times(1).WillOnce(Throw(nfe));
-  EXPECT_CALL(*_pool, release_connection(_,false)).Times(1);
+  EXPECT_CALL(_resolver, success(_targets[0])).Times(1);
+  EXPECT_CALL(*_pool, release_connection(_,true)).Times(1);
 
   CassandraStore::ResultCode rc = _cache.connection_test();
   EXPECT_EQ(CassandraStore::NOT_FOUND, rc);
 }
 
 
-TEST_F(CacheInitializationTest, UnknownException)
+TEST_F(CacheInitializationTest, RowNotFoundException)
 {
   CassandraStore::RowNotFoundException rnfe("muppets", "kermit");
   EXPECT_CALL(*_pool, create_connection(_)).Times(1).WillOnce(Return(&_client));
   EXPECT_CALL(_client, set_keyspace(_)).Times(1).WillOnce(Throw(rnfe));
-  EXPECT_CALL(*_pool, release_connection(_,false)).Times(1);
+  EXPECT_CALL(_resolver, success(_targets[0])).Times(1);
+  EXPECT_CALL(*_pool, release_connection(_,true)).Times(1);
+
+  CassandraStore::ResultCode rc = _cache.connection_test();
+  EXPECT_EQ(CassandraStore::NOT_FOUND, rc);
+}
+
+
+TEST_F(CacheInitializationTest, UnavailableException)
+{
+  cass::UnavailableException ue;
+  EXPECT_CALL(*_pool, create_connection(_)).Times(1).WillOnce(Return(&_client));
+  EXPECT_CALL(_client, set_keyspace(_)).Times(1).WillOnce(Throw(ue));
+  EXPECT_CALL(_resolver, success(_targets[0])).Times(1);
+  EXPECT_CALL(*_pool, release_connection(_,true)).Times(1);
+
+  CassandraStore::ResultCode rc = _cache.connection_test();
+  EXPECT_EQ(CassandraStore::UNAVAILABLE, rc);
+}
+
+
+TEST_F(CacheInitializationTest, UnknownException)
+{
+  std::string ex("Made up exception");
+  EXPECT_CALL(*_pool, create_connection(_)).Times(1).WillOnce(Return(&_client));
+  EXPECT_CALL(_client, set_keyspace(_)).Times(1).WillOnce(Throw(ex));
+  EXPECT_CALL(_resolver, success(_targets[0])).Times(1);
+  EXPECT_CALL(*_pool, release_connection(_,true)).Times(1);
 
   CassandraStore::ResultCode rc = _cache.connection_test();
   EXPECT_EQ(CassandraStore::UNKNOWN_ERROR, rc);
