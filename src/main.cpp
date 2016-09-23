@@ -706,10 +706,18 @@ int main(int argc, char**argv)
                                                  af,
                                                  options.http_blacklist_duration);
 
+  // Use a 30s black- and gray- list duration
+  CassandraResolver* cassandra_resolver = new CassandraResolver(dns_resolver,
+                                                                af,
+                                                                30,
+                                                                30,
+                                                                9160);
+
   Cache* cache = Cache::get_instance();
   cache->configure_connection(options.cassandra,
                               9160,
-                              cassandra_comm_monitor);
+                              cassandra_comm_monitor,
+                              cassandra_resolver);
   cache->configure_workers(exception_handler,
                            options.cache_threads,
                            0);
@@ -918,6 +926,7 @@ int main(int argc, char**argv)
     delete realm_manager; realm_manager = NULL;
     delete diameter_resolver; diameter_resolver = NULL;
     delete dns_resolver; dns_resolver = NULL;
+    delete cassandra_resolver; cassandra_resolver = NULL;
   }
 
   try
