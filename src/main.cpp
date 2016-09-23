@@ -706,9 +706,11 @@ int main(int argc, char**argv)
                                                  af,
                                                  options.http_blacklist_duration);
 
+  // Use a 30s black- and gray- list duration
   CassandraResolver* cassandra_resolver = new CassandraResolver(dns_resolver,
                                                                 af,
-                                                                options.http_blacklist_duration,
+                                                                30,
+                                                                30,
                                                                 9160);
 
   Cache* cache = Cache::get_instance();
