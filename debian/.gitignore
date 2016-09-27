@@ -6,4 +6,7 @@
 /homestead-dbg/
 /homestead-libs/
 /homestead-libs-dbg/
+/homestead-node/
+/homestead-node-dbg/
 /homestead/
+/homestead-cassandra/
