@@ -83,6 +83,7 @@ struct options
   std::string server_name;
   int impu_cache_ttl;
   int hss_reregistration_time;
+  int reg_max_expires;
   std::string sprout_http_name;
   std::string scheme_unknown;
   std::string scheme_digest;
@@ -105,6 +106,7 @@ struct options
   int diameter_blacklist_duration;
   std::string pidfile;
   bool daemon;
+  bool sas_signaling_if;
 };
 
 // Enum for option types not assigned short-forms
@@ -125,8 +127,10 @@ enum OptionTypes
   HTTP_BLACKLIST_DURATION,
   DIAMETER_BLACKLIST_DURATION,
   FORCE_HSS_PEER,
+  SAS_USE_SIGNALING_IF,
   PIDFILE,
-  DAEMON
+  DAEMON,
+  REG_MAX_EXPIRES
 };
 
 const static struct option long_opt[] =
@@ -146,6 +150,7 @@ const static struct option long_opt[] =
   {"server-name",                 required_argument, NULL, 's'},
   {"impu-cache-ttl",              required_argument, NULL, 'i'},
   {"hss-reregistration-time",     required_argument, NULL, 'I'},
+  {"reg-max-expires",             required_argument, NULL, REG_MAX_EXPIRES},
   {"sprout-http-name",            required_argument, NULL, 'j'},
   {"scheme-unknown",              required_argument, NULL, SCHEME_UNKNOWN},
   {"scheme-digest",               required_argument, NULL, SCHEME_DIGEST},
@@ -165,6 +170,7 @@ const static struct option long_opt[] =
   {"diameter-blacklist-duration", required_argument, NULL, DIAMETER_BLACKLIST_DURATION},
   {"pidfile",                     required_argument, NULL, PIDFILE},
   {"daemon",                      no_argument,       NULL, DAEMON},
+  {"sas-use-signaling-interface", no_argument,       NULL, SAS_USE_SIGNALING_IF},
   {NULL,                          0,                 NULL, 0},
 };
 
@@ -218,6 +224,9 @@ void usage(void)
        "     --exception-max-ttl <secs>\n"
        "                            The maximum time before the process exits if it hits an exception.\n"
        "                            The actual time is randomised.\n"
+       "     --sas-use-signaling-interface\n"
+       "                            Whether SAS traffic is to be dispatched over the signaling network\n"
+       "                            interface rather than the default management interface\n"
        "     --http-blacklist-duration <secs>\n"
        "                            The amount of time to blacklist an HTTP peer when it is unresponsive.\n"
        "     --diameter-blacklist-duration <secs>\n"
@@ -337,6 +346,11 @@ int init_options(int argc, char**argv, struct options& options)
       options.hss_reregistration_time = atoi(optarg);
       break;
 
+    case REG_MAX_EXPIRES:
+      TRC_INFO("Maximum registration expiry time: %s", optarg);
+      options.reg_max_expires = atoi(optarg);
+      break;
+
     case 'j':
       TRC_INFO("Sprout HTTP name: %s", optarg);
       options.sprout_http_name = std::string(optarg);
@@ -451,6 +465,10 @@ int init_options(int argc, char**argv, struct options& options)
       options.pidfile = std::string(optarg);
       break;
 
+    case SAS_USE_SIGNALING_IF:
+      options.sas_signaling_if = true;
+      break;
+
     case DAEMON:
     case 'F':
     case 'L':
@@ -533,6 +551,7 @@ int main(int argc, char**argv)
   options.access_log_enabled = false;
   options.impu_cache_ttl = 0;
   options.hss_reregistration_time = 1800;
+  options.reg_max_expires = 300;
   options.sprout_http_name = "sprout-http-name.unknown";
   options.log_to_file = false;
   options.log_level = 0;
@@ -548,6 +567,7 @@ int main(int argc, char**argv)
   options.diameter_blacklist_duration = DiameterResolver::DEFAULT_BLACKLIST_DURATION;
   options.pidfile = "";
   options.daemon = false;
+  options.sas_signaling_if = false;
 
   // Initialise ENT logging before making "Started" log
   PDLogStatic::init(argv[0]);
@@ -619,7 +639,8 @@ int main(int argc, char**argv)
             SASEvent::CURRENT_RESOURCE_BUNDLE,
             options.sas_server,
             sas_write,
-            create_connection_in_management_namespace);
+            options.sas_signaling_if ? create_connection_in_signaling_namespace
+                                     : create_connection_in_management_namespace);
 
   // Set up the statistics (Homestead specific and Diameter)
   snmp_setup("homestead");
@@ -685,10 +706,18 @@ int main(int argc, char**argv)
                                                  af,
                                                  options.http_blacklist_duration);
 
+  // Use a 30s black- and gray- list duration
+  CassandraResolver* cassandra_resolver = new CassandraResolver(dns_resolver,
+                                                                af,
+                                                                30,
+                                                                30,
+                                                                9160);
+
   Cache* cache = Cache::get_instance();
   cache->configure_connection(options.cassandra,
                               9160,
-                              cassandra_comm_monitor);
+                              cassandra_comm_monitor,
+                              cassandra_resolver);
   cache->configure_workers(exception_handler,
                            options.cache_threads,
                            0);
@@ -723,6 +752,12 @@ int main(int argc, char**argv)
   Diameter::SpawningHandler<PushProfileTask, PushProfileTask::Config>* ppr_task = NULL;
   Cx::Dictionary* dict = NULL;
 
+  // We need the record to last twice the HSS Re-registration
+  // time, or the max expiry of the registration, whichever one
+  // is longer. We pad the expiry to avoid small timing windows.
+  int record_ttl = std::max(2 * options.hss_reregistration_time,
+                            options.reg_max_expires + 10);
+
   Diameter::Stack* diameter_stack = Diameter::Stack::get_instance();
 
   try
@@ -735,8 +770,16 @@ int main(int argc, char**argv)
                               host_counter);
     dict = new Cx::Dictionary();
 
-    rtr_config = new RegistrationTerminationTask::Config(cache, dict, sprout_conn, options.hss_reregistration_time);
-    ppr_config = new PushProfileTask::Config(cache, dict, options.impu_cache_ttl, options.hss_reregistration_time);
+    rtr_config = new RegistrationTerminationTask::Config(cache,
+                                                         dict,
+                                                         sprout_conn,
+                                                         options.hss_reregistration_time);
+    ppr_config = new PushProfileTask::Config(cache,
+                                             dict,
+                                             options.impu_cache_ttl,
+                                             options.hss_reregistration_time,
+                                             record_ttl);
+
     rtr_task = new Diameter::SpawningHandler<RegistrationTerminationTask, RegistrationTerminationTask::Config>(dict, rtr_config);
     ppr_task = new Diameter::SpawningHandler<PushProfileTask, PushProfileTask::Config>(dict, ppr_config);
 
@@ -776,10 +819,17 @@ int main(int argc, char**argv)
                                        options.scheme_digest,
                                        options.scheme_aka,
                                        options.diameter_timeout_ms);
-  ImpiRegistrationStatusTask::Config registration_status_handler_config(hss_configured, options.diameter_timeout_ms);
-  ImpuLocationInfoTask::Config location_info_handler_config(hss_configured, options.diameter_timeout_ms);
-  ImpuRegDataTask::Config impu_handler_config(hss_configured, options.hss_reregistration_time, options.diameter_timeout_ms);
-  ImpuIMSSubscriptionTask::Config impu_handler_config_old(hss_configured, options.hss_reregistration_time, options.diameter_timeout_ms);
+  ImpiRegistrationStatusTask::Config registration_status_handler_config(hss_configured,
+                                                                        options.diameter_timeout_ms);
+  ImpuLocationInfoTask::Config location_info_handler_config(hss_configured,
+                                                            options.diameter_timeout_ms);
+  ImpuRegDataTask::Config impu_handler_config(hss_configured,
+                                              options.hss_reregistration_time,
+                                              record_ttl,
+                                              options.diameter_timeout_ms);
+  ImpuIMSSubscriptionTask::Config impu_handler_config_old(hss_configured,
+                                                          options.hss_reregistration_time,
+                                                          options.diameter_timeout_ms);
 
   HttpStackUtils::PingHandler ping_handler;
   HttpStackUtils::SpawningHandler<ImpiDigestTask, ImpiTask::Config> impi_digest_handler(&impi_handler_config);
@@ -876,6 +926,7 @@ int main(int argc, char**argv)
     delete realm_manager; realm_manager = NULL;
     delete diameter_resolver; diameter_resolver = NULL;
     delete dns_resolver; dns_resolver = NULL;
+    delete cassandra_resolver; cassandra_resolver = NULL;
   }
 
   try

@@ -56,6 +56,8 @@ const int32_t DIAMETER_UNABLE_TO_DELIVER = 3002;
 const int32_t DIAMETER_TOO_BUSY = 3004;
 const int32_t DIAMETER_AUTHORIZATION_REJECTED = 5003;
 const int32_t DIAMETER_UNABLE_TO_COMPLY = 5012;
+// 3GPP Vendor ID - RFC 5516
+const uint32_t VENDOR_ID_3GPP = 10415;
 // Experimental-Result-Code AVP constants
 const int32_t DIAMETER_FIRST_REGISTRATION = 2001;
 const int32_t DIAMETER_SUBSEQUENT_REGISTRATION = 2002;
@@ -393,7 +395,7 @@ public:
 
   void run();
   void on_uar_response(Diameter::Message& rsp);
-  void sas_log_hss_failure(int32_t result_code);
+  void sas_log_hss_failure(int32_t result_code,int32_t experimental_result_code);
 
   typedef HssCacheTask::DiameterTransaction<ImpiRegistrationStatusTask> DiameterTransaction;
 
@@ -424,7 +426,7 @@ public:
 
   void run();
   void on_lir_response(Diameter::Message& rsp);
-  void sas_log_hss_failure(int32_t result_code);
+  void sas_log_hss_failure(int32_t result_code,int32_t experimental_result_code);
   void query_cache_reg_data();
   void on_get_reg_data_success(CassandraStore::Operation* op);
   void on_get_reg_data_failure(CassandraStore::Operation* op,
@@ -448,12 +450,16 @@ public:
   {
     Config(bool _hss_configured = true,
            int _hss_reregistration_time = 3600,
+           int _record_ttl = 7200,
            int _diameter_timeout_ms = 200) :
       hss_configured(_hss_configured),
       hss_reregistration_time(_hss_reregistration_time),
+      record_ttl(_record_ttl),
       diameter_timeout_ms(_diameter_timeout_ms) {}
+
     bool hss_configured;
     int hss_reregistration_time;
+    int record_ttl;
     int diameter_timeout_ms;
   };
 
@@ -543,6 +549,7 @@ public:
     Cx::Dictionary* dict;
     SproutConnection* sprout_conn;
     int hss_reregistration_time;
+    int reg_max_expires;
   };
 
   RegistrationTerminationTask(const Diameter::Dictionary* dict,
@@ -588,16 +595,19 @@ public:
     Config(Cache* _cache,
            Cx::Dictionary* _dict,
            int _impu_cache_ttl = 0,
-           int _hss_reregistration_time = 3600) :
+           int _hss_reregistration_time = 3600,
+           int _record_ttl = 7200) :
       cache(_cache),
       dict(_dict),
       impu_cache_ttl(_impu_cache_ttl),
-      hss_reregistration_time(_hss_reregistration_time) {}
+      hss_reregistration_time(_hss_reregistration_time),
+      record_ttl(_record_ttl) {}
 
     Cache* cache;
     Cx::Dictionary* dict;
     int impu_cache_ttl;
     int hss_reregistration_time;
+    int record_ttl;
   };
 
   PushProfileTask(const Diameter::Dictionary* dict,

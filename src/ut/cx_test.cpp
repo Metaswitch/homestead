@@ -68,6 +68,7 @@ public:
   static const std::string EMPTY_STRING;
   static std::vector<std::string> EMPTY_STRING_VECTOR;
   static const int32_t RESULT_CODE_SUCCESS;
+  static const uint32_t VENDOR_ID_3GPP;
   static const int32_t EXPERIMENTAL_RESULT_CODE_SUCCESS;
   static const int32_t AUTH_SESSION_STATE;
   static const std::vector<std::string> IMPIS;
@@ -90,6 +91,7 @@ public:
 
   std::string test_str;
   int32_t test_i32;
+  uint32_t test_u32;
 
   static void SetUpTestCase()
   {
@@ -196,6 +198,7 @@ const std::string CxTest::EMPTY_STRING = "";
 std::vector<std::string> CxTest::EMPTY_STRING_VECTOR = {};
 const int32_t CxTest::RESULT_CODE_SUCCESS = 2001;
 const int32_t CxTest::EXPERIMENTAL_RESULT_CODE_SUCCESS = 5001;
+const uint32_t CxTest::VENDOR_ID_3GPP = 10415;
 const int32_t CxTest::AUTH_SESSION_STATE = 1;
 const std::vector<std::string> CxTest::IMPIS {"private_id1", "private_id2"};
 const Cx::ServerAssignmentType CxTest::TIMEOUT_DEREGISTRATION = Cx::TIMEOUT_DEREGISTRATION;
@@ -289,6 +292,8 @@ TEST_F(CxTest, MAATest)
   Cx::MultimediaAuthAnswer maa(_cx_dict,
                                _mock_stack,
                                RESULT_CODE_SUCCESS,
+                               0,
+                               0,
                                SIP_AUTH_SCHEME_AKA,
                                digest,
                                aka);
@@ -296,6 +301,47 @@ TEST_F(CxTest, MAATest)
   EXPECT_TRUE(maa.result_code(test_i32));
   EXPECT_EQ(RESULT_CODE_SUCCESS, test_i32);
   EXPECT_EQ(SIP_AUTH_SCHEME_AKA, maa.sip_auth_scheme());
+
+  DigestAuthVector maa_digest = maa.digest_auth_vector();
+  EXPECT_EQ(digest.ha1, maa_digest.ha1);
+  EXPECT_EQ(digest.realm, maa_digest.realm);
+  EXPECT_EQ(digest.qop, maa_digest.qop);
+
+  // The AKA values should be decoded from base64/hex.
+  AKAAuthVector maa_aka = maa.aka_auth_vector();
+  EXPECT_EQ("c3VyZS4=", maa_aka.challenge);
+  EXPECT_EQ("726573706f6e7365", maa_aka.response);
+  EXPECT_EQ("63727970745f6b6579", maa_aka.crypt_key);
+  EXPECT_EQ("696e746567726974795f6b6579", maa_aka.integrity_key);
+}
+
+TEST_F(CxTest, MAATestNoAuthScheme)
+{
+  DigestAuthVector digest;
+  digest.ha1 = "ha1";
+  digest.realm = "realm";
+  digest.qop = "qop";
+
+  AKAAuthVector aka;
+  aka.challenge = "sure."; // Chosen to ensure that it will encode to
+                           // Base64 that needs to be padded with an
+                           // equals sign.
+  aka.response = "response";
+  aka.crypt_key = "crypt_key";
+  aka.integrity_key = "integrity_key";
+
+  Cx::MultimediaAuthAnswer maa(_cx_dict,
+                               _mock_stack,
+                               RESULT_CODE_SUCCESS,
+                               0,
+                               0,
+                               EMPTY_STRING,
+                               digest,
+                               aka);
+  launder_message(maa);
+  EXPECT_TRUE(maa.result_code(test_i32));
+  EXPECT_EQ(RESULT_CODE_SUCCESS, test_i32);
+  EXPECT_EQ(EMPTY_STRING, maa.sip_auth_scheme());
 
   DigestAuthVector maa_digest = maa.digest_auth_vector();
   EXPECT_EQ(digest.ha1, maa_digest.ha1);
@@ -368,6 +414,8 @@ TEST_F(CxTest, SAATest)
   Cx::ServerAssignmentAnswer saa(_cx_dict,
                                  _mock_stack,
                                  RESULT_CODE_SUCCESS,
+                                 0,
+                                 0,
                                  IMS_SUBSCRIPTION,
                                  FULL_CHARGING_ADDRESSES);
   launder_message(saa);
@@ -386,6 +434,8 @@ TEST_F(CxTest, SAATestNoChargingAddresses)
   Cx::ServerAssignmentAnswer saa(_cx_dict,
                                  _mock_stack,
                                  RESULT_CODE_SUCCESS,
+                                 0,
+                                 0,
                                  IMS_SUBSCRIPTION,
                                  NO_CHARGING_ADDRESSES);
   launder_message(saa);
@@ -490,13 +540,14 @@ TEST_F(CxTest, UAATest)
   Cx::UserAuthorizationAnswer uaa(_cx_dict,
                                   _mock_stack,
                                   RESULT_CODE_SUCCESS,
+                                  VENDOR_ID_3GPP,
                                   EXPERIMENTAL_RESULT_CODE_SUCCESS,
                                   SERVER_NAME,
                                   CAPABILITIES);
   launder_message(uaa);
   EXPECT_TRUE(uaa.result_code(test_i32));
   EXPECT_EQ(RESULT_CODE_SUCCESS, test_i32);
-  EXPECT_FALSE(uaa.experimental_result_code());
+  EXPECT_FALSE(uaa.experimental_result(test_i32, test_u32));
   EXPECT_TRUE(uaa.server_name(test_str));
   EXPECT_EQ(SERVER_NAME, test_str);
   ServerCapabilities capabilities = uaa.server_capabilities();
@@ -511,12 +562,15 @@ TEST_F(CxTest, UAATestExperimentalResultCode)
   Cx::UserAuthorizationAnswer uaa(_cx_dict,
                                   _mock_stack,
                                   0,
+                                  VENDOR_ID_3GPP,
                                   EXPERIMENTAL_RESULT_CODE_SUCCESS,
                                   SERVER_NAME,
                                   CAPABILITIES);
   launder_message(uaa);
   EXPECT_FALSE(uaa.result_code(test_i32));
-  EXPECT_EQ(EXPERIMENTAL_RESULT_CODE_SUCCESS, uaa.experimental_result_code());
+  EXPECT_TRUE(uaa.experimental_result(test_i32, test_u32));
+  EXPECT_EQ(EXPERIMENTAL_RESULT_CODE_SUCCESS, test_i32);
+  EXPECT_EQ(VENDOR_ID_3GPP, test_u32);
   EXPECT_TRUE(uaa.server_name(test_str));
   EXPECT_EQ(SERVER_NAME, test_str);
   ServerCapabilities capabilities = uaa.server_capabilities();
@@ -532,12 +586,13 @@ TEST_F(CxTest, UAATestNoServerName)
                                   _mock_stack,
                                   RESULT_CODE_SUCCESS,
                                   0,
+                                  0,
                                   EMPTY_STRING,
                                   CAPABILITIES);
   launder_message(uaa);
   EXPECT_TRUE(uaa.result_code(test_i32));
   EXPECT_EQ(RESULT_CODE_SUCCESS, test_i32);
-  EXPECT_FALSE(uaa.experimental_result_code());
+  EXPECT_FALSE(uaa.experimental_result(test_i32, test_u32));
   EXPECT_FALSE(uaa.server_name(test_str));
   ServerCapabilities capabilities = uaa.server_capabilities();
   EXPECT_EQ(CAPABILITIES.mandatory_capabilities,
@@ -552,12 +607,13 @@ TEST_F(CxTest, UAATestNoCapabilities)
                                   _mock_stack,
                                   RESULT_CODE_SUCCESS,
                                   0,
+                                  0,
                                   SERVER_NAME,
                                   NO_CAPABILITIES);
   launder_message(uaa);
   EXPECT_TRUE(uaa.result_code(test_i32));
   EXPECT_EQ(RESULT_CODE_SUCCESS, test_i32);
-  EXPECT_FALSE(uaa.experimental_result_code());
+  EXPECT_FALSE(uaa.experimental_result(test_i32, test_u32));
   EXPECT_TRUE(uaa.server_name(test_str));
   EXPECT_EQ(SERVER_NAME, test_str);
   ServerCapabilities capabilities = uaa.server_capabilities();
@@ -573,12 +629,13 @@ TEST_F(CxTest, UAATestCapabilitiesWithServerName)
                              _mock_stack,
                              RESULT_CODE_SUCCESS,
                              0,
+                             0,
                              EMPTY_STRING,
                              CAPABILITIES_WITH_SERVER_NAME);
   launder_message(uaa);
   EXPECT_TRUE(uaa.result_code(test_i32));
   EXPECT_EQ(RESULT_CODE_SUCCESS, test_i32);
-  EXPECT_FALSE(uaa.experimental_result_code());
+  EXPECT_FALSE(uaa.experimental_result(test_i32, test_u32));
   EXPECT_FALSE(uaa.server_name(test_str));
   ServerCapabilities capabilities = uaa.server_capabilities();
   EXPECT_EQ(SERVER_NAME_IN_CAPAB, capabilities.server_name);
@@ -651,13 +708,14 @@ TEST_F(CxTest, LIATest)
   Cx::LocationInfoAnswer lia(_cx_dict,
                              _mock_stack,
                              RESULT_CODE_SUCCESS,
+                             VENDOR_ID_3GPP,
                              EXPERIMENTAL_RESULT_CODE_SUCCESS,
                              SERVER_NAME,
                              CAPABILITIES);
   launder_message(lia);
   EXPECT_TRUE(lia.result_code(test_i32));
   EXPECT_EQ(RESULT_CODE_SUCCESS, test_i32);
-  EXPECT_FALSE(lia.experimental_result_code());
+  EXPECT_FALSE(lia.experimental_result(test_i32, test_u32));
   EXPECT_TRUE(lia.server_name(test_str));
   EXPECT_EQ(SERVER_NAME, test_str);
   ServerCapabilities capabilities = lia.server_capabilities();
@@ -672,12 +730,15 @@ TEST_F(CxTest, LIATestExperimentalResultCode)
   Cx::LocationInfoAnswer lia(_cx_dict,
                              _mock_stack,
                              0,
+                             VENDOR_ID_3GPP,
                              EXPERIMENTAL_RESULT_CODE_SUCCESS,
                              SERVER_NAME,
                              CAPABILITIES);
   launder_message(lia);
   EXPECT_FALSE(lia.result_code(test_i32));
-  EXPECT_EQ(EXPERIMENTAL_RESULT_CODE_SUCCESS, lia.experimental_result_code());
+  EXPECT_TRUE(lia.experimental_result(test_i32, test_u32));
+  EXPECT_EQ(EXPERIMENTAL_RESULT_CODE_SUCCESS, test_i32);
+  EXPECT_EQ(VENDOR_ID_3GPP, test_u32);
   EXPECT_TRUE(lia.server_name(test_str));
   EXPECT_EQ(SERVER_NAME, test_str);
   ServerCapabilities capabilities = lia.server_capabilities();
@@ -693,12 +754,13 @@ TEST_F(CxTest, LIATestNoServerName)
                              _mock_stack,
                              RESULT_CODE_SUCCESS,
                              0,
+                             0,
                              EMPTY_STRING,
                              CAPABILITIES);
   launder_message(lia);
   EXPECT_TRUE(lia.result_code(test_i32));
   EXPECT_EQ(RESULT_CODE_SUCCESS, test_i32);
-  EXPECT_FALSE(lia.experimental_result_code());
+  EXPECT_FALSE(lia.experimental_result(test_i32, test_u32));
   EXPECT_FALSE(lia.server_name(test_str));
   ServerCapabilities capabilities = lia.server_capabilities();
   EXPECT_EQ(CAPABILITIES.mandatory_capabilities,
@@ -713,12 +775,13 @@ TEST_F(CxTest, LIATestNoCapabilities)
                              _mock_stack,
                              RESULT_CODE_SUCCESS,
                              0,
+                             0,
                              SERVER_NAME,
                              NO_CAPABILITIES);
   launder_message(lia);
   EXPECT_TRUE(lia.result_code(test_i32));
   EXPECT_EQ(RESULT_CODE_SUCCESS, test_i32);
-  EXPECT_FALSE(lia.experimental_result_code());
+  EXPECT_FALSE(lia.experimental_result(test_i32, test_u32));
   EXPECT_TRUE(lia.server_name(test_str));
   EXPECT_EQ(SERVER_NAME, test_str);
   ServerCapabilities capabilities = lia.server_capabilities();
@@ -734,12 +797,13 @@ TEST_F(CxTest, LIATestCapabilitiesWithServerName)
                              _mock_stack,
                              RESULT_CODE_SUCCESS,
                              0,
+                             0,
                              EMPTY_STRING,
                              CAPABILITIES_WITH_SERVER_NAME);
   launder_message(lia);
   EXPECT_TRUE(lia.result_code(test_i32));
   EXPECT_EQ(RESULT_CODE_SUCCESS, test_i32);
-  EXPECT_FALSE(lia.experimental_result_code());
+  EXPECT_FALSE(lia.experimental_result(test_i32, test_u32));
   EXPECT_FALSE(lia.server_name(test_str));
   ServerCapabilities capabilities = lia.server_capabilities();
   EXPECT_EQ(SERVER_NAME_IN_CAPAB, capabilities.server_name);

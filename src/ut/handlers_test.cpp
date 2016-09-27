@@ -429,11 +429,16 @@ public:
                          std::string expected_result = REGDATA_RESULT,
                          RegistrationState expected_new_state = RegistrationState::REGISTERED,
                          bool expect_deletion = false,
-                         CassandraStore::ResultCode cache_error = CassandraStore::OK)
+                         CassandraStore::ResultCode cache_error = CassandraStore::OK,
+                         int hss_reregistration_timeout = 3600,
+                         int reg_max_expires = 300,
+                         int record_ttl = 7200)
   {
     // Configure the task to use a HSS, and send a RE_REGISTRATION
     // SAR to the HSS every hour.
-    ImpuRegDataTask::Config cfg(true, 3600);
+    ImpuRegDataTask::Config cfg(true,
+                                hss_reregistration_timeout,
+                                record_ttl);
     ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
 
     // Once the request is processed by the task, we expect it to
@@ -470,7 +475,7 @@ public:
     MockCache::MockPutAssociatedPrivateID mock_op2;
     if (new_binding)
     {
-      EXPECT_CALL(*_cache, create_PutAssociatedPrivateID(IMPU_REG_SET, IMPI, _, 7200))
+      EXPECT_CALL(*_cache, create_PutAssociatedPrivateID(IMPU_REG_SET, IMPI, _, record_ttl))
         .WillOnce(Return(&mock_op2));
       EXPECT_DO_ASYNC(*_cache, mock_op2);
     }
@@ -507,6 +512,8 @@ public:
     Cx::ServerAssignmentAnswer saa(_cx_dict,
                                    _mock_stack,
                                    DIAMETER_SUCCESS,
+                                   0,
+                                   0,
                                    IMPU_IMS_SUBSCRIPTION,
                                    NO_CHARGING_ADDRESSES);
     if (!expect_deletion)
@@ -519,7 +526,7 @@ public:
       // Once we simulate the Diameter response, check that the
       // database is updated.
       MockCache::MockPutRegData mock_op3;
-      EXPECT_CALL(*_cache, create_PutRegData(IMPU_REG_SET, _, 7200))
+      EXPECT_CALL(*_cache, create_PutRegData(IMPU_REG_SET, _, record_ttl))
         .WillOnce(Return(&mock_op3));
       EXPECT_CALL(mock_op3, with_xml(IMPU_IMS_SUBSCRIPTION))
         .WillOnce(ReturnRef(mock_op3));
@@ -606,8 +613,10 @@ public:
   void reg_data_template_no_sar(std::string request_type,
                                 bool use_impi,
                                 RegistrationState db_regstate,
-                                int db_ttl = 3600,
-                                std::string expected_result = REGDATA_RESULT)
+                                int db_ttl = 7200,
+                                std::string expected_result = REGDATA_RESULT,
+                                int hss_reregistration_timeout = 3600,
+                                int record_ttl = 7200)
   {
     MockHttpStack::Request req(_httpstack,
                                "/impu/" + IMPU + "/reg-data",
@@ -618,7 +627,9 @@ public:
 
     // Configure the task to use a HSS, and send a RE_REGISTRATION
     // SAR to the HSS every hour.
-    ImpuRegDataTask::Config cfg(true, 3600);
+    ImpuRegDataTask::Config cfg(true,
+                                hss_reregistration_timeout,
+                                record_ttl);
     ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
 
     // Once the request is processed by the task, we expect it to
@@ -719,6 +730,8 @@ public:
       Cx::ServerAssignmentAnswer saa(_cx_dict,
                                      _mock_stack,
                                      DIAMETER_SUCCESS,
+                                     0,
+                                     0,
                                      IMPU_IMS_SUBSCRIPTION,
                                      NO_CHARGING_ADDRESSES);
 
@@ -876,6 +889,7 @@ public:
     Cx::UserAuthorizationAnswer uaa(_cx_dict,
                                     _mock_stack,
                                     hss_rc,
+                                    VENDOR_ID_3GPP,
                                     hss_experimental_rc,
                                     "",
                                     NO_CAPABILITIES);
@@ -917,6 +931,7 @@ public:
     Cx::LocationInfoAnswer lia(_cx_dict,
                                _mock_stack,
                                hss_rc,
+                               VENDOR_ID_3GPP,
                                hss_experimental_rc,
                                "",
                                NO_CAPABILITIES);
@@ -1236,7 +1251,8 @@ public:
 
     Cx::ServerAssignmentAnswer saa(_cx_dict,
                                    _mock_stack,
-                                   DIAMETER_ERROR_USER_UNKNOWN,
+                                   0,
+                                   VENDOR_ID_3GPP, DIAMETER_ERROR_USER_UNKNOWN,
                                    "",
                                    NO_CHARGING_ADDRESSES);
 
@@ -1310,6 +1326,8 @@ public:
     Cx::MultimediaAuthAnswer maa(_cx_dict,
                                  _mock_stack,
                                  DIAMETER_SUCCESS,
+                                 0,
+                                 0,
                                  SCHEME_DIGEST,
                                  digest,
                                  aka);
@@ -1728,6 +1746,8 @@ TEST_F(HandlersTest, DigestHSSNoIMPU)
   Cx::MultimediaAuthAnswer maa(_cx_dict,
                                _mock_stack,
                                DIAMETER_SUCCESS,
+                               0,
+                               0,
                                SCHEME_DIGEST,
                                digest,
                                aka);
@@ -1786,6 +1806,8 @@ TEST_F(HandlersTest, DigestHSSUserUnknown)
   // Build an MAA.
   Cx::MultimediaAuthAnswer maa(_cx_dict,
                                _mock_stack,
+                               0,
+                               VENDOR_ID_3GPP,
                                DIAMETER_ERROR_USER_UNKNOWN,
                                SCHEME_DIGEST,
                                digest,
@@ -1830,6 +1852,8 @@ TEST_F(HandlersTest, DigestHSSOtherError)
   Cx::MultimediaAuthAnswer maa(_cx_dict,
                                _mock_stack,
                                0,
+                               0,
+                               0,
                                SCHEME_DIGEST,
                                digest,
                                aka);
@@ -1873,6 +1897,8 @@ TEST_F(HandlersTest, DigestHSSUnkownScheme)
   Cx::MultimediaAuthAnswer maa(_cx_dict,
                                _mock_stack,
                                DIAMETER_SUCCESS,
+                               0,
+                               0,
                                SCHEME_UNKNOWN,
                                digest,
                                aka);
@@ -1916,6 +1942,8 @@ TEST_F(HandlersTest, DigestHSSAKAReturned)
   Cx::MultimediaAuthAnswer maa(_cx_dict,
                                _mock_stack,
                                DIAMETER_SUCCESS,
+                               0,
+                               0,
                                SCHEME_AKA,
                                digest,
                                aka);
@@ -2212,6 +2240,8 @@ TEST_F(HandlersTest, AvNoPublicIDHSSAKA)
   Cx::MultimediaAuthAnswer maa(_cx_dict,
                                _mock_stack,
                                DIAMETER_SUCCESS,
+                               0,
+                               0,
                                SCHEME_AKA,
                                digest,
                                aka);
@@ -2327,20 +2357,42 @@ TEST_F(HandlersTest, IMSSubscriptionHSS_ReregNewBinding)
 }
 
 // Re-registration with no new binding, but with cached responses not allowed.
-// This means homestead still sends a SAR.
+// This means homestead still sends a SAR. We need the cache to be valid, i.e.
+// more than 3600.
 TEST_F(HandlersTest, IMSSubscriptionHSS_ReregCacheNotallowed)
 {
   MockHttpStack::Request req = make_request("reg", true, true);
   req.add_header_to_incoming_req("Cache-control", "no-cache");
-  reg_data_template(req, true, true, false, RegistrationState::REGISTERED, 2);
+  reg_data_template(req, true, true, false, RegistrationState::REGISTERED, 2, 7200);
 }
 
 // Re-registration when the database record is not old enough to
 // trigger a new SAR.
-
 TEST_F(HandlersTest, IMSSubscriptionHSS_ReregWithoutSAR)
 {
   reg_data_template_no_sar("reg", true, RegistrationState::REGISTERED);
+}
+
+// Re-registration when configured to always send a SAR - i.e.
+// hss_reregistration_timeout = 0. The ttl on the record is
+// expected to be 310
+TEST_F(HandlersTest, IMSSubscriptionHSS_ReregWithSARAlways)
+{
+  MockHttpStack::Request req = make_request("reg", true, true);
+  reg_data_template(req,
+                    true,
+                    true,
+                    false,
+                    RegistrationState::REGISTERED,
+                    2,
+                    310,
+                    REGDATA_RESULT,
+                    RegistrationState::REGISTERED,
+                    false,
+                    CassandraStore::OK,
+                    0,
+                    300,
+                    310);
 }
 
 // Call to a registered subscriber
@@ -2824,6 +2876,8 @@ TEST_F(HandlersTest, IMSSubscriptionOtherErrorCallReg)
   Cx::ServerAssignmentAnswer saa(_cx_dict,
                                  _mock_stack,
                                  0,
+                                 0,
+                                 0,
                                  "",
                                  NO_CHARGING_ADDRESSES);
 
@@ -3039,6 +3093,7 @@ TEST_F(HandlersTest, RegistrationStatus)
                                   _mock_stack,
                                   DIAMETER_SUCCESS,
                                   0,
+                                  0,
                                   SERVER_NAME,
                                   CAPABILITIES);
   EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
@@ -3077,6 +3132,7 @@ TEST_F(HandlersTest, RegistrationStatusPassesHealthCheck)
   Cx::UserAuthorizationAnswer uaa(_cx_dict,
                                   _mock_stack,
                                   DIAMETER_SUCCESS,
+                                  0,
                                   0,
                                   SERVER_NAME,
                                   CAPABILITIES);
@@ -3135,6 +3191,7 @@ TEST_F(HandlersTest, RegistrationStatusOptParamsSubseqRegCapabs)
   Cx::UserAuthorizationAnswer uaa(_cx_dict,
                                   _mock_stack,
                                   0,
+                                  VENDOR_ID_3GPP,
                                   DIAMETER_SUBSEQUENT_REGISTRATION,
                                   "",
                                   CAPABILITIES_WITH_SERVER_NAME);
@@ -3188,6 +3245,7 @@ TEST_F(HandlersTest, RegistrationStatusFirstRegNoCapabs)
   Cx::UserAuthorizationAnswer uaa(_cx_dict,
                                   _mock_stack,
                                   0,
+                                  VENDOR_ID_3GPP,
                                   DIAMETER_FIRST_REGISTRATION,
                                   "",
                                   NO_CAPABILITIES);
@@ -3318,6 +3376,7 @@ TEST_F(HandlersTest, LocationInfo)
                              _mock_stack,
                              DIAMETER_SUCCESS,
                              0,
+                             0,
                              SERVER_NAME,
                              CAPABILITIES);
   EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
@@ -3371,6 +3430,7 @@ TEST_F(HandlersTest, LocationInfoOptParamsUnregisteredService)
   Cx::LocationInfoAnswer lia(_cx_dict,
                              _mock_stack,
                              0,
+                             VENDOR_ID_3GPP,
                              DIAMETER_UNREGISTERED_SERVICE,
                              "",
                              CAPABILITIES_WITH_SERVER_NAME);
@@ -3412,6 +3472,7 @@ TEST_F(HandlersTest, LocationInfoUnregisteredError)
   Cx::LocationInfoAnswer lia(_cx_dict,
                              _mock_stack,
                              0,
+                             VENDOR_ID_3GPP,
                              DIAMETER_ERROR_IDENTITY_NOT_REGISTERED,
                              "",
                              NO_CAPABILITIES);
@@ -4523,6 +4584,8 @@ TEST_F(HandlerStatsTest, DigestHSS)
   Cx::MultimediaAuthAnswer maa(_cx_dict,
                                _mock_stack,
                                DIAMETER_SUCCESS,
+                               0,
+                               0,
                                SCHEME_DIGEST,
                                digest,
                                aka);
@@ -4595,7 +4658,7 @@ TEST_F(HandlerStatsTest, IMSSubscriptionReregHSS)
                              "{\"reqtype\": \"reg\"}",
                              htp_method_PUT);
 
-  ImpuRegDataTask::Config cfg(true, 1800);
+  ImpuRegDataTask::Config cfg(true, 1800, 3600);
   ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the task's run function is called, expect to lookup IMS
@@ -4644,6 +4707,8 @@ TEST_F(HandlerStatsTest, IMSSubscriptionReregHSS)
   Cx::ServerAssignmentAnswer saa(_cx_dict,
                                  _mock_stack,
                                  DIAMETER_SUCCESS,
+                                 0,
+                                 0,
                                  IMS_SUBSCRIPTION,
                                  NO_CHARGING_ADDRESSES);
 
@@ -4713,6 +4778,7 @@ TEST_F(HandlerStatsTest, RegistrationStatus)
                                   _mock_stack,
                                   DIAMETER_SUCCESS,
                                   0,
+                                  0,
                                   SERVER_NAME,
                                   CAPABILITIES);
   EXPECT_CALL(*_httpstack, send_reply(_, _, _));
@@ -4753,6 +4819,7 @@ TEST_F(HandlerStatsTest, LocationInfo)
   Cx::LocationInfoAnswer lia(_cx_dict,
                              _mock_stack,
                              DIAMETER_SUCCESS,
+                             0,
                              0,
                              SERVER_NAME,
                              CAPABILITIES);
@@ -4797,6 +4864,7 @@ TEST_F(HandlerStatsTest, LocationInfoOverload)
   Cx::LocationInfoAnswer lia(_cx_dict,
                              _mock_stack,
                              DIAMETER_TOO_BUSY,
+                             0,
                              0,
                              SERVER_NAME,
                              CAPABILITIES);

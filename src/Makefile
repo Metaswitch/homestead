@@ -8,6 +8,7 @@ COMMON_SOURCES := accesslogger.cpp \
                   baseresolver.cpp \
                   base64.cpp \
                   cache.cpp \
+                  cassandra_connection_pool.cpp \
                   cassandra_store.cpp \
                   communicationmonitor.cpp \
                   counter.cpp \
@@ -19,8 +20,10 @@ COMMON_SOURCES := accesslogger.cpp \
                   exception_handler.cpp \
                   handlers.cpp \
                   health_checker.cpp \
+                  http_connection_pool.cpp \
+                  httpclient.cpp \
                   httpconnection.cpp \
-                  httpresolver.cpp \
+                  a_record_resolver.cpp \
                   httpstack.cpp \
                   httpstack_utils.cpp \
                   load_monitor.cpp \

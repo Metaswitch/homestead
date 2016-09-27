@@ -131,6 +131,7 @@ public:
   UserAuthorizationAnswer(const Dictionary* dict,
                           Diameter::Stack* stack,
                           const int32_t& result_code,
+                          const uint32_t& vendor_id,
                           const int32_t& experimental_result_code,
                           const std::string& scscf,
                           const ServerCapabilities& capabs);
@@ -178,6 +179,7 @@ public:
   LocationInfoAnswer(const Dictionary* dict,
                      Diameter::Stack* stack,
                      const int32_t& result_code,
+                     const uint32_t& vendor_id,
                      const int32_t& experimental_result_code,
                      const std::string& scscf,
                      const ServerCapabilities& capabs);
@@ -228,6 +230,8 @@ public:
   MultimediaAuthAnswer(const Dictionary* dict,
                        Diameter::Stack* stack,
                        const int32_t& result_code,
+                       const uint32_t& vendor_id,
+                       const int32_t& experimental_result_code,
                        const std::string& scheme,
                        const DigestAuthVector& digest_av,
                        const AKAAuthVector& aka_av);
@@ -296,6 +300,8 @@ public:
   ServerAssignmentAnswer(const Dictionary* dict,
                          Diameter::Stack* stack,
                          const int32_t& result_code,
+                         const uint32_t& vendor_id,
+                         const int32_t& experimental_result_code,
                          const std::string& ims_subscription,
                          const ChargingAddresses& charging_addrs);
   inline ServerAssignmentAnswer(Diameter::Message& msg) : Diameter::Message(msg) {};
