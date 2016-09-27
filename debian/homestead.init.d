@@ -164,6 +164,7 @@ get_daemon_args()
         [ -z "$init_token_rate" ] || init_token_rate_arg="--init-token-rate=$init_token_rate"
         [ -z "$min_token_rate" ] || min_token_rate_arg="--min-token-rate=$min_token_rate"
         [ -z "$exception_max_ttl" ] || exception_max_ttl_arg="--exception-max-ttl=$exception_max_ttl"
+        [ -z "$cassandra_hostname" ] || cassandra_arg="--cassandra=$cassandra_hostname"
 
         DAEMON_ARGS="--localhost=$local_ip
                      --home-domain=$home_domain
@@ -171,6 +172,7 @@ get_daemon_args()
                      --dns-server=$signaling_dns_server
                      --http=$local_ip
                      --http-threads=$num_http_threads
+                     $cassandra_arg
                      $dest_realm
                      --dest-host=$hss_hostname
                      --hss-peer=$force_hss_peer
