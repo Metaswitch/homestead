@@ -1495,7 +1495,7 @@ TEST_F(HandlersTest, DigestCache)
                              "digest",
                              "?public_id=" + IMPU);
 
-  ImpiTask::Config cfg(false);
+  ImpiTask::Config cfg(false, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA, SCHEME_AKAV2);
   ImpiDigestTask* task = new ImpiDigestTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the task's run function is called, expect to lookup an auth
@@ -1539,7 +1539,7 @@ TEST_F(HandlersTest, DigestCacheNotFound)
                              "digest",
                              "?public_id=" + IMPU);
 
-  ImpiTask::Config cfg(false);
+  ImpiTask::Config cfg(false, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA, SCHEME_AKAV2);
   ImpiDigestTask* task = new ImpiDigestTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the task's run function is called, expect to lookup an auth
@@ -1573,7 +1573,7 @@ TEST_F(HandlersTest, DigestCacheFailure)
                              "digest",
                              "?public_id=" + IMPU);
 
-  ImpiTask::Config cfg(false);
+  ImpiTask::Config cfg(false, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA, SCHEME_AKAV2);
   ImpiDigestTask* task = new ImpiDigestTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the task's run function is called, expect to lookup an auth
@@ -2107,7 +2107,7 @@ TEST_F(HandlersTest, AvCache)
                              "av",
                              "?impu=" + IMPU);
 
-  ImpiTask::Config cfg(false);
+  ImpiTask::Config cfg(false, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA, SCHEME_AKAV2);
   ImpiAvTask* task = new ImpiAvTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the task's run function is called, expect to lookup an auth
@@ -2148,7 +2148,7 @@ TEST_F(HandlersTest, AvEmptyQoP)
                              "av",
                              "?impu=" + IMPU);
 
-  ImpiTask::Config cfg(false);
+  ImpiTask::Config cfg(false, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA, SCHEME_AKAV2);
   ImpiAvTask* task = new ImpiAvTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the task's run function is called, expect to lookup an auth
@@ -2336,7 +2336,7 @@ TEST_F(HandlersTest, AuthInvalidScheme)
                              "invalid",
                              "");
 
-  ImpiTask::Config cfg(true);
+  ImpiTask::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA, SCHEME_AKAV2);
   ImpiAvTask* task = new ImpiAvTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the task's run function is called, expect a 404 HTTP response.
@@ -2353,7 +2353,7 @@ TEST_F(HandlersTest, AkaNoIMPU)
                              "aka",
                              "");
 
-  ImpiTask::Config cfg(true);
+  ImpiTask::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA, SCHEME_AKAV2);
   ImpiAvTask* task = new ImpiAvTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the task's run function is called, expect a 404 HTTP response.
@@ -4508,7 +4508,7 @@ TEST_F(HandlerStatsTest, DigestCache)
                              "digest",
                              "?public_id=" + IMPU);
 
-  ImpiTask::Config cfg(false);
+  ImpiTask::Config cfg(false, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA, SCHEME_AKAV2);
   ImpiDigestTask* task = new ImpiDigestTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Handler does a cache digest lookup.
@@ -4550,7 +4550,7 @@ TEST_F(HandlerStatsTest, DigestCacheFailure)
                              "digest",
                              "?public_id=" + IMPU);
 
-  ImpiTask::Config cfg(false);
+  ImpiTask::Config cfg(false, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA, SCHEME_AKAV2);
   ImpiDigestTask* task = new ImpiDigestTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Handler does a cache digest lookup.
@@ -4588,7 +4588,7 @@ TEST_F(HandlerStatsTest, DigestCacheConnectionFailure)
                              "digest",
                              "?public_id=" + IMPU);
 
-  ImpiTask::Config cfg(false);
+  ImpiTask::Config cfg(false, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA, SCHEME_AKAV2);
   ImpiDigestTask* task = new ImpiDigestTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Handler does a cache digest lookup.

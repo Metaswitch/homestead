@@ -295,12 +295,12 @@ class ImpiTask : public HssCacheTask
 public:
   struct Config
   {
-    Config(bool _hss_configured = true,
-           int _impu_cache_ttl = 0,
-           std::string _scheme_unknown = "Unknown",
-           std::string _scheme_digest = "SIP Digest",
-           std::string _scheme_akav1 = "Digest-AKAv1-MD5",
-           std::string _scheme_akav2 = "Digest-AKAv2-SHA-256",
+    Config(bool _hss_configured,
+           int _impu_cache_ttl,
+           std::string _scheme_unknown,
+           std::string _scheme_digest,
+           std::string _scheme_akav1,
+           std::string _scheme_akav2,
            int _diameter_timeout_ms = 200) :
       query_cache_av(!_hss_configured),
       impu_cache_ttl(_impu_cache_ttl),

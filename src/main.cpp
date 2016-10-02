@@ -156,8 +156,8 @@ const static struct option long_opt[] =
   {"sprout-http-name",            required_argument, NULL, 'j'},
   {"scheme-unknown",              required_argument, NULL, SCHEME_UNKNOWN},
   {"scheme-digest",               required_argument, NULL, SCHEME_DIGEST},
-  {"scheme-akav1",                  required_argument, NULL, SCHEME_AKAV1},
-  {"scheme-akav2",                  required_argument, NULL, SCHEME_AKAV2},
+  {"scheme-akav1",                required_argument, NULL, SCHEME_AKAV1},
+  {"scheme-akav2",                required_argument, NULL, SCHEME_AKAV2},
   {"access-log",                  required_argument, NULL, 'a'},
   {"sas",                         required_argument, NULL, SAS_CONFIG},
   {"diameter-timeout-ms",         required_argument, NULL, DIAMETER_TIMEOUT_MS},
@@ -379,7 +379,6 @@ int init_options(int argc, char**argv, struct options& options)
       options.scheme_akav2 = std::string(optarg);
       break;
 
-
     case 'a':
       TRC_INFO("Access log: %s", optarg);
       options.access_log_enabled = true;
@@ -554,10 +553,6 @@ int main(int argc, char**argv)
   options.force_hss_peer = "";
   options.max_peers = 2;
   options.server_name = "sip:server-name.unknown";
-  options.scheme_unknown = "Unknown";
-  options.scheme_digest = "SIP Digest";
-  options.scheme_akav1 = "Digest-AKAv1-MD5";
-  options.scheme_akav2 = "Digest-AKAv2-SHA-256";
   options.access_log_enabled = false;
   options.impu_cache_ttl = 0;
   options.hss_reregistration_time = 1800;
