@@ -104,6 +104,12 @@ get_settings()
         reg_max_expires=300
         log_level=2
         num_http_threads=$(($(grep processor /proc/cpuinfo | wc -l) * 50))
+
+        hss_mar_scheme_unknown="Unknown"
+        hss_mar_scheme_digest="SIP Digest"
+        hss_mar_scheme_akav1="Digest-AKAv1-MD5"
+        hss_mar_scheme_akav2="Digest-AKAv2-SHA-256"
+
         . /etc/clearwater/config
 
         # Derive server_name and sprout_http_name from other settings
@@ -152,9 +158,7 @@ get_daemon_args()
           diameter_timeout_ms=$(( ($target_latency_us + 499)/500 ))
         fi
 
-        [ "$hss_mar_lowercase_unknown" != "Y" ] || scheme_args="--scheme-unknown=unknown"
-        [ "$hss_mar_force_digest" != "Y" ] || scheme_args="--scheme-unknown=\"SIP Digest\" --scheme-digest=\"SIP Digest\" --scheme-aka=\"SIP Digest\""
-        [ "$hss_mar_force_aka" != "Y" ] || scheme_args="--scheme-unknown=Digest-AKAv1-MD5 --scheme-digest=Digest-AKAv1-MD5 --scheme-aka=Digest-AKAv1-MD5"
+        
         [ "$sas_use_signaling_interface" != "Y" ] || sas_signaling_if_arg="--sas-use-signaling-interface"
 
         [ -z "$diameter_timeout_ms" ] || diameter_timeout_ms_arg="--diameter-timeout-ms=$diameter_timeout_ms"
@@ -182,7 +186,10 @@ get_daemon_args()
                      --hss-reregistration-time=$hss_reregistration_time
                      --reg-max-expires=$reg_max_expires
                      --sprout-http-name=$sprout_http_name
-                     $scheme_args
+                     --scheme-unknown=\"$hss_mar_scheme_unknown\"
+                     --scheme-digest=\"$hss_mar_scheme_digest\"
+                     --scheme-akav1=\"$hss_mar_scheme_akav1\"
+                     --scheme-akav2=\"$hss_mar_scheme_akav2\"
                      $diameter_timeout_ms_arg
                      $target_latency_us_arg
                      $max_tokens_arg

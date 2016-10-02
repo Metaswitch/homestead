@@ -87,7 +87,8 @@ struct options
   std::string sprout_http_name;
   std::string scheme_unknown;
   std::string scheme_digest;
-  std::string scheme_aka;
+  std::string scheme_akav1;
+  std::string scheme_akav2;
   bool access_log_enabled;
   std::string access_log_directory;
   bool log_to_file;
@@ -114,7 +115,8 @@ enum OptionTypes
 {
   SCHEME_UNKNOWN = 128, // start after the ASCII set ends to avoid conflicts
   SCHEME_DIGEST,
-  SCHEME_AKA,
+  SCHEME_AKAV1,
+  SCHEME_AKAV2,
   SAS_CONFIG,
   DIAMETER_TIMEOUT_MS,
   ALARMS_ENABLED,
@@ -154,7 +156,8 @@ const static struct option long_opt[] =
   {"sprout-http-name",            required_argument, NULL, 'j'},
   {"scheme-unknown",              required_argument, NULL, SCHEME_UNKNOWN},
   {"scheme-digest",               required_argument, NULL, SCHEME_DIGEST},
-  {"scheme-aka",                  required_argument, NULL, SCHEME_AKA},
+  {"scheme-akav1",                required_argument, NULL, SCHEME_AKAV1},
+  {"scheme-akav2",                required_argument, NULL, SCHEME_AKAV2},
   {"access-log",                  required_argument, NULL, 'a'},
   {"sas",                         required_argument, NULL, SAS_CONFIG},
   {"diameter-timeout-ms",         required_argument, NULL, DIAMETER_TIMEOUT_MS},
@@ -366,9 +369,14 @@ int init_options(int argc, char**argv, struct options& options)
       options.scheme_digest = std::string(optarg);
       break;
 
-    case SCHEME_AKA:
-      TRC_INFO("Scheme AKA: %s", optarg);
-      options.scheme_aka = std::string(optarg);
+    case SCHEME_AKAV1:
+      TRC_INFO("Scheme AKAv1: %s", optarg);
+      options.scheme_akav1 = std::string(optarg);
+      break;
+
+    case SCHEME_AKAV2:
+      TRC_INFO("Scheme AKAv2: %s", optarg);
+      options.scheme_akav2 = std::string(optarg);
       break;
 
     case 'a':
@@ -545,9 +553,6 @@ int main(int argc, char**argv)
   options.force_hss_peer = "";
   options.max_peers = 2;
   options.server_name = "sip:server-name.unknown";
-  options.scheme_unknown = "Unknown";
-  options.scheme_digest = "SIP Digest";
-  options.scheme_aka = "Digest-AKAv1-MD5";
   options.access_log_enabled = false;
   options.impu_cache_ttl = 0;
   options.hss_reregistration_time = 1800;
@@ -817,7 +822,8 @@ int main(int argc, char**argv)
                                        options.impu_cache_ttl,
                                        options.scheme_unknown,
                                        options.scheme_digest,
-                                       options.scheme_aka,
+                                       options.scheme_akav1,
+                                       options.scheme_akav2,
                                        options.diameter_timeout_ms);
   ImpiRegistrationStatusTask::Config registration_status_handler_config(hss_configured,
                                                                         options.diameter_timeout_ms);

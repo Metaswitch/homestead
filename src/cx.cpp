@@ -37,6 +37,7 @@
 #include "cx.h"
 
 #include "log.h"
+#include "base64.h"
 
 #include <string>
 #include <sstream>
@@ -591,7 +592,7 @@ AKAAuthVector MultimediaAuthAnswer::aka_auth_vector() const
     {
       size_t len;
       const uint8_t* data = sip_authenticate_avp->val_os(len);
-      aka_auth_vector.challenge = base64(data, len);
+      aka_auth_vector.challenge = base64_encode(data, len);
       TRC_DEBUG("Found SIP-Authenticate (challenge) %s",
                 aka_auth_vector.challenge.c_str());
     }
@@ -603,7 +604,7 @@ AKAAuthVector MultimediaAuthAnswer::aka_auth_vector() const
     {
       size_t len;
       const uint8_t* data = sip_authorization_avp->val_os(len);
-      aka_auth_vector.response = hex(data, len);
+      aka_auth_vector.response = Utils::hex(data, len);
       TRC_DEBUG("Found SIP-Authorization (response) %s",
                 aka_auth_vector.response.c_str());
     }
@@ -615,7 +616,7 @@ AKAAuthVector MultimediaAuthAnswer::aka_auth_vector() const
     {
       size_t len;
       const uint8_t* data = confidentiality_key_avp->val_os(len);
-      aka_auth_vector.crypt_key = hex(data, len);
+      aka_auth_vector.crypt_key = Utils::hex(data, len);
       TRC_DEBUG("Found Confidentiality-Key %s",
                 aka_auth_vector.crypt_key.c_str());
     }
@@ -627,7 +628,7 @@ AKAAuthVector MultimediaAuthAnswer::aka_auth_vector() const
     {
       size_t len;
       const uint8_t* data = integrity_key_avp->val_os(len);
-      aka_auth_vector.integrity_key = hex(data, len);
+      aka_auth_vector.integrity_key = Utils::hex(data, len);
       TRC_DEBUG("Found Integrity-Key %s",
                 aka_auth_vector.integrity_key.c_str());
     }
@@ -635,34 +636,11 @@ AKAAuthVector MultimediaAuthAnswer::aka_auth_vector() const
   return aka_auth_vector;
 }
 
-std::string MultimediaAuthAnswer::hex(const uint8_t* data, size_t len)
+AKAAuthVector MultimediaAuthAnswer::akav2_auth_vector() const
 {
-  static const char* const hex_lookup = "0123456789abcdef";
-  std::string result;
-  result.reserve(2 * len);
-  for (size_t ii = 0; ii < len; ++ii)
-  {
-    const uint8_t b = data[ii];
-    result.push_back(hex_lookup[b >> 4]);
-    result.push_back(hex_lookup[b & 0x0f]);
-  }
-  return result;
-}
-
-std::string MultimediaAuthAnswer::base64(const uint8_t* data, size_t len)
-{
-  std::stringstream os;
-  std::copy(boost::archive::iterators::base64_from_binary<boost::archive::iterators::transform_width<const uint8_t*,6,8> >(data),
-            boost::archive::iterators::base64_from_binary<boost::archive::iterators::transform_width<const uint8_t*,6,8> >(data + len),
-            boost::archive::iterators::ostream_iterator<char>(os));
-
-  // Properly encoded Base64 should be a multiple of 4 characters long
-  // (with 4 ASCII characters for each 3 bytes). If it is less than
-  // that, add extra equals signs until it's a multiple of 4.
-  std::string base64 = os.str();
-  int extra_equals = ((-1 * base64.length()) % 4);
-  std::string suffix(extra_equals, '=');
-  return base64 + suffix;
+  AKAAuthVector av = aka_auth_vector();
+  av.version = 2;
+  return av;
 }
 
 ServerAssignmentRequest::ServerAssignmentRequest(const Dictionary* dict,
