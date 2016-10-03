@@ -1867,6 +1867,21 @@ void ImpuRegDataTask::on_del_impu_failure(CassandraStore::Operation* op, Cassand
 }
 
 //
+// Version of the reg-data task that is read only (for use on the management
+// interface).
+//
+void ImpuReadRegDataTask::run()
+{
+  if (_req.method() != htp_method_GET)
+  {
+    TRC_DEBUG("Reject non-GET for ImpuReadRegDataTask");
+    send_http_reply(HTTP_BADMETHOD);
+  }
+
+  ImpuRegDataTask::run();
+}
+
+//
 // IMPU IMS Subscription handling for URLs of the form
 // "/impu/<public ID>". Deprecated.
 //
