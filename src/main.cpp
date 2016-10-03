@@ -880,6 +880,9 @@ int main(int argc, char**argv)
     exit(2);
   }
 
+  HttpStackUtils::SpawningHandler<ImpuReadRegDataTask, ImpuRegDataTask::Config>
+    impu_read_reg_data_handler(&impu_handler_config);
+
   HttpStack* http_stack_mgmt = new HttpStack(options.http_threads,
                                              exception_handler,
                                              access_logger,
@@ -890,6 +893,8 @@ int main(int argc, char**argv)
     http_stack_mgmt->bind_unix_socket(HTTP_MGMT_SOCKET_PATH);
     http_stack_mgmt->register_handler("^/ping$",
                                       &ping_handler);
+    http_stack_mgmt->register_handler("^/impu/[^/]*/reg-data$",
+                                      &impu_read_reg_data_handler);
     http_stack_mgmt->start();
   }
   catch (HttpStack::Exception& e)
