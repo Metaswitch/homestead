@@ -178,6 +178,7 @@ const static struct option long_opt[] =
 };
 
 static std::string options_description = "l:r:c:H:t:u:S:D:d:p:s:i:I:a:F:L:h";
+static const std::string HTTP_MGMT_SOCKET_PATH = "/tmp/homestead-http-mgmt-socket";
 
 void usage(void)
 {
@@ -645,7 +646,7 @@ int main(int argc, char**argv)
             options.sas_server,
             sas_write,
             options.sas_signaling_if ? create_connection_in_signaling_namespace
-                                     : create_connection_in_management_namespace);
+            : create_connection_in_management_namespace);
 
   // Set up the statistics (Homestead specific and Diameter)
   snmp_setup("homestead");
@@ -653,7 +654,7 @@ int main(int argc, char**argv)
   SNMP::CounterTable* realm_counter = SNMP::CounterTable::create("H_diameter_invalid_dest_realm",
                                                                  ".1.2.826.0.1.1578918.9.5.8");
   SNMP::CounterTable* host_counter = SNMP::CounterTable::create("H_diameter_invalid_dest_host",
-                                                                 ".1.2.826.0.1.1578918.9.5.9");
+                                                                ".1.2.826.0.1.1578918.9.5.9");
   SNMP::CxCounterTable* mar_results_table = SNMP::CxCounterTable::create("cx_mar_results",
                                                                          ".1.2.826.0.1.1578918.9.5.10");
   SNMP::CxCounterTable* sar_results_table = SNMP::CxCounterTable::create("cx_sar_results",
@@ -670,11 +671,11 @@ int main(int argc, char**argv)
   init_snmp_handler_threads("homestead");
 
   configure_cx_results_tables(mar_results_table,
-                             sar_results_table,
-                             uar_results_table,
-                             lir_results_table,
-                             ppr_results_table,
-                             rtr_results_table);
+                              sar_results_table,
+                              uar_results_table,
+                              lir_results_table,
+                              ppr_results_table,
+                              rtr_results_table);
 
   // Create Homesteads's alarm objects. Note that the alarm identifier strings must match those
   // in the alarm definition JSON file exactly.
@@ -844,38 +845,60 @@ int main(int argc, char**argv)
   HttpStackUtils::SpawningHandler<ImpuRegDataTask, ImpuRegDataTask::Config> impu_reg_data_handler(&impu_handler_config);
   HttpStackUtils::SpawningHandler<ImpuIMSSubscriptionTask, ImpuIMSSubscriptionTask::Config> impu_ims_sub_handler(&impu_handler_config_old);
 
-  HttpStack* http_stack = new HttpStack(options.http_threads,
-                                        exception_handler,
-                                        access_logger,
-                                        load_monitor,
-                                        stats_manager);
+  HttpStack* http_stack_sig = new HttpStack(options.http_threads,
+                                            exception_handler,
+                                            access_logger,
+                                            load_monitor,
+                                            stats_manager);
   try
   {
-    http_stack->initialize();
-    http_stack->bind_tcp_socket(options.http_address,
-                                options.http_port);
-    http_stack->register_handler("^/ping$",
-                                    &ping_handler);
-    http_stack->register_handler("^/impi/[^/]*/digest$",
-                                    &impi_digest_handler);
-    http_stack->register_handler("^/impi/[^/]*/av",
-                                    &impi_av_handler);
-    http_stack->register_handler("^/impi/[^/]*/registration-status$",
-                                    &impi_reg_status_handler);
-    http_stack->register_handler("^/impu/[^/]*/location$",
-                                    &impu_loc_info_handler);
-    http_stack->register_handler("^/impu/[^/]*/reg-data$",
-                                    &impu_reg_data_handler);
-    http_stack->register_handler("^/impu/",
-                                    &impu_ims_sub_handler);
-    http_stack->start();
+    http_stack_sig->initialize();
+    http_stack_sig->bind_tcp_socket(options.http_address,
+                                    options.http_port);
+    http_stack_sig->register_handler("^/ping$",
+                                     &ping_handler);
+    http_stack_sig->register_handler("^/impi/[^/]*/digest$",
+                                     &impi_digest_handler);
+    http_stack_sig->register_handler("^/impi/[^/]*/av",
+                                     &impi_av_handler);
+    http_stack_sig->register_handler("^/impi/[^/]*/registration-status$",
+                                     &impi_reg_status_handler);
+    http_stack_sig->register_handler("^/impu/[^/]*/location$",
+                                     &impu_loc_info_handler);
+    http_stack_sig->register_handler("^/impu/[^/]*/reg-data$",
+                                     &impu_reg_data_handler);
+    http_stack_sig->register_handler("^/impu/",
+                                     &impu_ims_sub_handler);
+    http_stack_sig->start();
   }
   catch (HttpStack::Exception& e)
   {
     CL_HOMESTEAD_HTTP_INIT_FAIL.log(e._func, e._rc);
-    TRC_ERROR("Failed to initialize HttpStack stack - function %s, rc %d", e._func, e._rc);
+    TRC_ERROR("Failed to initialize signaling HttpStack stack - function %s, rc %d",
+              e._func, e._rc);
     TRC_STATUS("Homestead is shutting down");
     exit(2);
+  }
+
+  HttpStack* http_stack_mgmt = new HttpStack(options.http_threads,
+                                             exception_handler,
+                                             access_logger,
+                                             load_monitor);
+  try
+  {
+    http_stack_mgmt->initialize();
+    http_stack_mgmt->bind_unix_socket(HTTP_MGMT_SOCKET_PATH);
+    http_stack_mgmt->register_handler("^/ping$",
+                                      &ping_handler);
+    http_stack_mgmt->start();
+  }
+  catch (HttpStack::Exception& e)
+  {
+    CL_HOMESTEAD_HTTP_INIT_FAIL.log(e._func, e._rc);
+    TRC_ERROR("Failed to initialize management HttpStack stack - function %s, rc %d",
+              e._func, e._rc);
+    TRC_STATUS("Homestead is shutting down");
+    exit(3);
   }
 
   DiameterResolver* diameter_resolver = NULL;
@@ -913,13 +936,26 @@ int main(int argc, char**argv)
 
   try
   {
-    http_stack->stop();
-    http_stack->wait_stopped();
+    http_stack_sig->stop();
+    http_stack_sig->wait_stopped();
   }
   catch (HttpStack::Exception& e)
   {
     CL_HOMESTEAD_HTTP_STOP_FAIL.log(e._func, e._rc);
-    TRC_ERROR("Failed to stop HttpStack stack - function %s, rc %d", e._func, e._rc);
+    TRC_ERROR("Failed to stop signaling HttpStack stack - function %s, rc %d",
+              e._func, e._rc);
+  }
+
+  try
+  {
+    http_stack_mgmt->stop();
+    http_stack_mgmt->wait_stopped();
+  }
+  catch (HttpStack::Exception& e)
+  {
+    CL_HOMESTEAD_HTTP_STOP_FAIL.log(e._func, e._rc);
+    TRC_ERROR("Failed to stop management HttpStack stack - function %s, rc %d",
+              e._func, e._rc);
   }
 
   cache->stop();
@@ -962,7 +998,8 @@ int main(int argc, char**argv)
   delete ppr_results_table; ppr_results_table = NULL;
   delete rtr_results_table; rtr_results_table = NULL;
 
-  delete http_stack; http_stack = NULL;
+  delete http_stack_sig; http_stack_sig = NULL;
+  delete http_stack_mgmt; http_stack_mgmt = NULL;
   hc->stop_thread();
   delete hc; hc = NULL;
   delete exception_handler; exception_handler = NULL;
