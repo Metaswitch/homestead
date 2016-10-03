@@ -803,7 +803,7 @@ int main(int argc, char**argv)
     exit(2);
   }
 
-  HttpStack* http_stack = HttpStack::get_instance();
+  HttpStack* http_stack = new HttpStack();
   HssCacheTask::configure_diameter(diameter_stack,
                                    options.dest_realm.empty() ? options.home_domain : options.dest_realm,
                                    options.dest_host == "0.0.0.0" ? "" : options.dest_host,
@@ -963,6 +963,7 @@ int main(int argc, char**argv)
   delete ppr_results_table; ppr_results_table = NULL;
   delete rtr_results_table; rtr_results_table = NULL;
 
+  delete http_stack; http_stack = NULL;
   hc->stop_thread();
   delete hc; hc = NULL;
   delete exception_handler; exception_handler = NULL;
