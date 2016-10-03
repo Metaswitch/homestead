@@ -803,7 +803,6 @@ int main(int argc, char**argv)
     exit(2);
   }
 
-  HttpStack* http_stack = new HttpStack();
   HssCacheTask::configure_diameter(diameter_stack,
                                    options.dest_realm.empty() ? options.home_domain : options.dest_realm,
                                    options.dest_host == "0.0.0.0" ? "" : options.dest_host,
@@ -845,16 +844,16 @@ int main(int argc, char**argv)
   HttpStackUtils::SpawningHandler<ImpuRegDataTask, ImpuRegDataTask::Config> impu_reg_data_handler(&impu_handler_config);
   HttpStackUtils::SpawningHandler<ImpuIMSSubscriptionTask, ImpuIMSSubscriptionTask::Config> impu_ims_sub_handler(&impu_handler_config_old);
 
+  HttpStack* http_stack = new HttpStack(options.http_threads,
+                                        exception_handler,
+                                        access_logger,
+                                        load_monitor,
+                                        stats_manager);
   try
   {
     http_stack->initialize();
-    http_stack->configure(options.http_address,
-                          options.http_port,
-                          options.http_threads,
-                          exception_handler,
-                          access_logger,
-                          load_monitor,
-                          stats_manager);
+    http_stack->bind_tcp_socket(options.http_address,
+                                options.http_port);
     http_stack->register_handler("^/ping$",
                                     &ping_handler);
     http_stack->register_handler("^/impi/[^/]*/digest$",
