@@ -587,6 +587,27 @@ public:
   {
     return new DissociateImplicitRegistrationSetFromImpi(impus, impis, timestamp);
   }
+
+  ///
+  /// TODO
+  ///
+  class ListImpus : public CassandraStore::Operation
+  {
+  public:
+    ListImpus() {}
+    virtual ~ListImpus() {}
+
+    std::vector<std::string>& get_impus_ref() { return _impus; }
+
+  protected:
+    bool perform(CassandraStore::Client* client, SAS::TrailId trail);
+    std::vector<std::string> _impus;
+  };
+
+  virtual ListImpus* create_ListImpus()
+  {
+    return new ListImpus();
+  }
 };
 
 #endif

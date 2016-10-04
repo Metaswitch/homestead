@@ -995,3 +995,35 @@ bool Cache::DissociateImplicitRegistrationSetFromImpi::perform(CassandraStore::C
 
   return true;
 }
+
+//
+// Operation that lists all the IMPUs in the impu table.
+//
+
+// The maximum number of IMPUs to request (and therefore return) on each
+// database query.
+const int MAX_IMPUS_TO_RETURN = 1000;
+
+bool Cache::ListImpus::perform(CassandraStore::Client* client, SAS::TrailId trail)
+{
+  std::vector<KeySlice> key_slices;
+
+  ColumnParent cparent;
+  cparent.__set_column_family("impu");
+
+  SlicePredicate sp;
+  sp.__set_column_names({});
+
+  KeyRange kr;
+  kr.__set_start_key("");
+  kr.__set_count(MAX_IMPUS_TO_RETURN);
+
+  client->get_range_slices(key_slices, cparent, sp, kr, ConsistencyLevel::ONE);
+
+  for (const KeySlice& key_slice: key_slices)
+  {
+    _impus.push_back(key_slice.key);
+  }
+
+  return true;
+}

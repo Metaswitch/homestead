@@ -92,6 +92,7 @@ const std::string JSON_INTEGRITYKEY = "integritykey";
 const std::string JSON_VERSION = "version";
 const std::string JSON_RC = "result-code";
 const std::string JSON_SCSCF = "scscf";
+const std::string JSON_IMPUS = "impus";
 
 // HTTP query string field names
 const std::string AUTH_FIELD_NAME = "resync-auth";
@@ -656,6 +657,30 @@ private:
                                CassandraStore::ResultCode error,
                                std::string& text);
   void send_ppa(const std::string result_code);
+};
+
+class ImpuListTask : public HssCacheTask
+{
+public:
+  struct Config {};
+
+  ImpuListTask(HttpStack::Request& req, const Config* cfg, SAS::TrailId trail) :
+    HssCacheTask(req, trail), _cfg(cfg)
+  {}
+
+  virtual ~ImpuListTask() {};
+
+  virtual void run();
+
+  void on_list_impu_success(CassandraStore::Operation* op);
+  void on_list_impu_failure(CassandraStore::Operation* op,
+                            CassandraStore::ResultCode error,
+                            std::string& text);
+
+  typedef HssCacheTask::CacheTransaction<ImpuListTask> CacheTransaction;
+
+protected:
+  const Config* _cfg;
 };
 
 void configure_cx_results_tables(SNMP::CxCounterTable* mar_results_table,
