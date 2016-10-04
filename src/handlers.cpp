@@ -2487,6 +2487,63 @@ void PushProfileTask::send_ppa(const std::string result_code)
   delete this;
 }
 
+void ImpuListTask::run()
+{
+  if (_req.method() != htp_method_GET)
+  {
+    send_http_reply(HTTP_BADMETHOD);
+    delete this;
+    return;
+  }
+
+  CassandraStore::Operation* list_impus = _cache->create_ListImpus();
+  CassandraStore::Transaction* tsx =
+    new CacheTransaction(this,
+                         &ImpuListTask::on_list_impu_success,
+                         &ImpuListTask::on_list_impu_failure);
+  _cache->do_async(list_impus, tsx);
+}
+
+void ImpuListTask::on_list_impu_success(CassandraStore::Operation* op)
+{
+  Cache::ListImpus* list_impus = (Cache::ListImpus*)op;
+  std::vector<std::string>& impus = list_impus->get_impus_ref();
+  TRC_DEBUG("Listing impus returned %d results", impus.size());
+
+  rapidjson::StringBuffer sb;
+  rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
+
+  writer.StartObject();
+  {
+    writer.String(JSON_IMPUS.c_str());
+    writer.StartArray();
+    {
+      for (const std::string& impu: impus)
+      {
+        writer.String(impu.c_str());
+      }
+    }
+    writer.EndArray();
+  }
+  writer.EndObject();
+
+  _req.add_content(sb.GetString());
+  send_http_reply(HTTP_OK);
+
+  delete this;
+  return;
+}
+
+void ImpuListTask::on_list_impu_failure(CassandraStore::Operation* op,
+                                        CassandraStore::ResultCode error,
+                                        std::string& text)
+{
+  TRC_INFO("Could not list impus. Error: %d (%s)", error, text.c_str());
+  send_http_reply(HTTP_SERVER_ERROR);
+  delete this;
+  return;
+}
+
 void configure_cx_results_tables(SNMP::CxCounterTable* mar_results_table,
                                  SNMP::CxCounterTable* sar_results_table,
                                  SNMP::CxCounterTable* uar_results_table,
