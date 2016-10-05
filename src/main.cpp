@@ -178,7 +178,9 @@ const static struct option long_opt[] =
 };
 
 static std::string options_description = "l:r:c:H:t:u:S:D:d:p:s:i:I:a:F:L:h";
+
 static const std::string HTTP_MGMT_SOCKET_PATH = "/tmp/homestead-http-mgmt-socket";
+static const int NUM_HTTP_MGMT_THREADS = 5;
 
 void usage(void)
 {
@@ -885,7 +887,7 @@ int main(int argc, char**argv)
   HttpStackUtils::SpawningHandler<ImpuReadRegDataTask, ImpuRegDataTask::Config>
     impu_read_reg_data_handler(&impu_handler_config);
 
-  HttpStack* http_stack_mgmt = new HttpStack(options.http_threads,
+  HttpStack* http_stack_mgmt = new HttpStack(NUM_HTTP_MGMT_THREADS,
                                              exception_handler,
                                              access_logger,
                                              load_monitor);
