@@ -1876,6 +1876,8 @@ void ImpuReadRegDataTask::run()
   {
     TRC_DEBUG("Reject non-GET for ImpuReadRegDataTask");
     send_http_reply(HTTP_BADMETHOD);
+    delete this;
+    return;
   }
 
   ImpuRegDataTask::run();
