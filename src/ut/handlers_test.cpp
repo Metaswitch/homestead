@@ -1378,6 +1378,36 @@ public:
     EXPECT_EQ(build_digest_json(digest), req.content());
   }
 
+
+  // Utility method that, when given an IMPU reg data task performs the actions to
+  // retrieve the IMS subscription.
+  void perform_get_ims_subscription(MockHttpStack::Request& req,
+                                    ImpuRegDataTask* task)
+  {
+    MockCache::MockGetRegData mock_op;
+    EXPECT_CALL(*_cache, create_GetRegData(IMPU))
+      .WillOnce(Return(&mock_op));
+    EXPECT_DO_ASYNC(*_cache, mock_op);
+    task->run();
+
+    CassandraStore::Transaction* t = mock_op.get_trx();
+    ASSERT_FALSE(t == NULL);
+    EXPECT_CALL(mock_op, get_xml(_, _)).Times(AtLeast(1))
+      .WillRepeatedly(SetArgReferee<0>(IMPU_IMS_SUBSCRIPTION));
+    EXPECT_CALL(mock_op, get_registration_state(_, _)).Times(AtLeast(1))
+      .WillRepeatedly(SetArgReferee<0>(RegistrationState::REGISTERED));
+    EXPECT_CALL(mock_op, get_associated_impis(_)).Times(AtLeast(1));
+    EXPECT_CALL(mock_op, get_charging_addrs(_)).Times(AtLeast(1))
+      .WillRepeatedly(SetArgReferee<0>(NO_CHARGING_ADDRESSES));
+
+    // HTTP response is sent straight back - no state is changed.
+    EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
+    t->on_success(&mock_op);
+
+    // Build the expected response and check it's correct
+    EXPECT_EQ(REGDATA_RESULT, req.content());
+  }
+
   static void ignore_stats(bool ignore)
   {
     if (ignore)
@@ -2824,28 +2854,7 @@ TEST_F(HandlersTest, IMSSubscriptionGet)
   ImpuRegDataTask::Config cfg(true, 3600);
   ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
 
-  MockCache::MockGetRegData mock_op;
-  EXPECT_CALL(*_cache, create_GetRegData(IMPU))
-    .WillOnce(Return(&mock_op));
-  EXPECT_DO_ASYNC(*_cache, mock_op);
-  task->run();
-
-  CassandraStore::Transaction* t = mock_op.get_trx();
-  ASSERT_FALSE(t == NULL);
-  EXPECT_CALL(mock_op, get_xml(_, _)).Times(AtLeast(1))
-    .WillRepeatedly(SetArgReferee<0>(IMPU_IMS_SUBSCRIPTION));
-  EXPECT_CALL(mock_op, get_registration_state(_, _)).Times(AtLeast(1))
-    .WillRepeatedly(SetArgReferee<0>(RegistrationState::REGISTERED));
-  EXPECT_CALL(mock_op, get_associated_impis(_)).Times(AtLeast(1));
-  EXPECT_CALL(mock_op, get_charging_addrs(_)).Times(AtLeast(1))
-    .WillRepeatedly(SetArgReferee<0>(NO_CHARGING_ADDRESSES));
-
-  // HTTP response is sent straight back - no state is changed.
-  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
-  t->on_success(&mock_op);
-
-  // Build the expected response and check it's correct
-  EXPECT_EQ(REGDATA_RESULT, req.content());
+  perform_get_ims_subscription(req, task);
 }
 
 // Test error handling
@@ -3056,6 +3065,37 @@ TEST_F(HandlersTest, IMSSubscriptionCacheFailure)
   mock_op._cass_status = CassandraStore::UNKNOWN_ERROR;
   mock_op._cass_error_text = "error";
   t->on_failure(&mock_op);
+}
+
+TEST_F(HandlersTest, ReadRegDataSuccess)
+{
+  MockHttpStack::Request req(_httpstack,
+                             "/impu/" + IMPU + "/reg-data",
+                             "",
+                             "",
+                             "",
+                             htp_method_GET);
+  ImpuRegDataTask::Config cfg(true, 3600);
+  ImpuReadRegDataTask* task = new ImpuReadRegDataTask(req, &cfg, FAKE_TRAIL_ID);
+
+  perform_get_ims_subscription(req, task);
+}
+
+TEST_F(HandlersTest, ReadRegDataBadMethod)
+{
+  // Try to PUT to the read only API.
+  MockHttpStack::Request req(_httpstack,
+                             "/impu/" + IMPU + "/reg-data",
+                             "",
+                             "",
+                             "",
+                             htp_method_PUT);
+  ImpuRegDataTask::Config cfg(true, 3600);
+  ImpuReadRegDataTask* task = new ImpuReadRegDataTask(req, &cfg, FAKE_TRAIL_ID);
+
+  // This gets a 405 Bad Method.
+  EXPECT_CALL(*_httpstack, send_reply(_, 405, _));
+  task->run();
 }
 
 TEST_F(HandlersTest, RegistrationStatusHSSTimeout)
@@ -4809,7 +4849,6 @@ TEST_F(HandlerStatsTest, IMSSubscriptionReregHSS)
   t->on_success(&mock_op2);
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
 }
-
 
 TEST_F(HandlerStatsTest, RegistrationStatus)
 {
