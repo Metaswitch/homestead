@@ -588,9 +588,13 @@ public:
     return new DissociateImplicitRegistrationSetFromImpi(impus, impis, timestamp);
   }
 
+  /// Get all the IMPUs for which Homestead has data in its cache.
   ///
-  /// TODO
-  ///
+  /// - When an HSS is in use, this lists all subscribers for which homestead is
+  /// storing data learned from the HSS (which in practise is all subscribers
+  /// that are assigned to this S-CSCF in the HSS).
+  /// - When subscribers are locally provisioned this returns all provisioned
+  /// subscribers.
   class ListImpus : public CassandraStore::Operation
   {
   public:
