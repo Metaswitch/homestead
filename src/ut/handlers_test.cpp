@@ -4941,3 +4941,113 @@ TEST_F(HandlerStatsTest, LocationInfoOverload)
   _caught_diam_tsx->on_response(lia);
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
 }
+
+//
+// Tests related to listing IMPUs.
+//
+
+TEST_F(HandlersTest, ListImpusNonePresent)
+{
+  MockHttpStack::Request req(_httpstack, "/impu/", "");
+
+  ImpuListTask::Config cfg;
+  ImpuListTask* task = new ImpuListTask(req, &cfg, FAKE_TRAIL_ID);
+
+  MockCache::MockListImpus mock_op;
+  EXPECT_CALL(*_cache, create_ListImpus()).WillOnce(Return(&mock_op));
+  EXPECT_DO_ASYNC(*_cache, mock_op);
+  task->run();
+
+  std::vector<std::string> impus_to_return;
+  CassandraStore::Transaction* t = mock_op.get_trx();
+  ASSERT_FALSE(t == NULL);
+  EXPECT_CALL(mock_op, get_impus_ref())
+    .Times(AtLeast(1)).WillRepeatedly(ReturnRef(impus_to_return));
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
+
+  t->on_success(&mock_op);
+
+  EXPECT_EQ("{\"impus\":[]}", req.content());
+}
+
+TEST_F(HandlersTest, ListImpusOnePresent)
+{
+  MockHttpStack::Request req(_httpstack, "/impu/", "");
+
+  ImpuListTask::Config cfg;
+  ImpuListTask* task = new ImpuListTask(req, &cfg, FAKE_TRAIL_ID);
+
+  MockCache::MockListImpus mock_op;
+  EXPECT_CALL(*_cache, create_ListImpus()).WillOnce(Return(&mock_op));
+  EXPECT_DO_ASYNC(*_cache, mock_op);
+  task->run();
+
+  std::vector<std::string> impus_to_return = {"kermit"};
+  CassandraStore::Transaction* t = mock_op.get_trx();
+  ASSERT_FALSE(t == NULL);
+  EXPECT_CALL(mock_op, get_impus_ref())
+    .Times(AtLeast(1)).WillRepeatedly(ReturnRef(impus_to_return));
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
+
+  t->on_success(&mock_op);
+
+  EXPECT_EQ("{\"impus\":[\"kermit\"]}", req.content());
+}
+
+TEST_F(HandlersTest, ListImpusTwoPresent)
+{
+  MockHttpStack::Request req(_httpstack, "/impu/", "");
+
+  ImpuListTask::Config cfg;
+  ImpuListTask* task = new ImpuListTask(req, &cfg, FAKE_TRAIL_ID);
+
+  MockCache::MockListImpus mock_op;
+  EXPECT_CALL(*_cache, create_ListImpus()).WillOnce(Return(&mock_op));
+  EXPECT_DO_ASYNC(*_cache, mock_op);
+  task->run();
+
+  std::vector<std::string> impus_to_return = {"kermit", "gonzo"};
+  CassandraStore::Transaction* t = mock_op.get_trx();
+  ASSERT_FALSE(t == NULL);
+  EXPECT_CALL(mock_op, get_impus_ref())
+    .Times(AtLeast(1)).WillRepeatedly(ReturnRef(impus_to_return));
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
+
+  t->on_success(&mock_op);
+
+  EXPECT_EQ("{\"impus\":[\"kermit\",\"gonzo\"]}", req.content());
+}
+
+TEST_F(HandlersTest, ListImpusDatabaseError)
+{
+  MockHttpStack::Request req(_httpstack, "/impu/", "");
+
+  ImpuListTask::Config cfg;
+  ImpuListTask* task = new ImpuListTask(req, &cfg, FAKE_TRAIL_ID);
+
+  MockCache::MockListImpus mock_op;
+  EXPECT_CALL(*_cache, create_ListImpus()).WillOnce(Return(&mock_op));
+  EXPECT_DO_ASYNC(*_cache, mock_op);
+  task->run();
+
+  std::vector<std::string> impus_to_return = {"kermit", "gonzo"};
+  CassandraStore::Transaction* t = mock_op.get_trx();
+  ASSERT_FALSE(t == NULL);
+  EXPECT_CALL(*_httpstack, send_reply(_, 500, _));
+
+  t->on_failure(&mock_op);
+
+  EXPECT_EQ("", req.content());
+}
+
+TEST_F(HandlersTest, ListImpusWrongMethod)
+{
+  MockHttpStack::Request req(_httpstack, "/impu/", "", "", "", htp_method_PUT);
+
+  ImpuListTask::Config cfg;
+  ImpuListTask* task = new ImpuListTask(req, &cfg, FAKE_TRAIL_ID);
+
+  EXPECT_CALL(*_httpstack, send_reply(_, 405, _));
+  task->run();
+  EXPECT_EQ("", req.content());
+}
