@@ -257,7 +257,7 @@ do_run()
 
         setup_environment
         get_daemon_args
-        eval $namespace_prefix start-stop-daemon --start --quiet --pidfile $PIDFILE --exec $DAEMON --chuid $NAME --chdir $HOME -- $DAEMON_ARGS -pidfile=$PIDFILE \
+        eval $namespace_prefix start-stop-daemon --start --quiet --pidfile $PIDFILE --exec $DAEMON --chuid $NAME --chdir $HOME -- $DAEMON_ARGS --pidfile=$PIDFILE \
                 || return 2
 }
 
