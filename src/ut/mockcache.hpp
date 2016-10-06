@@ -119,6 +119,7 @@ public:
                DissociateImplicitRegistrationSetFromImpi*(const std::vector<std::string>& impus,
                                                           const std::vector<std::string>& impis,
                                                           int64_t timestamp));
+  MOCK_METHOD0(create_ListImpus, ListImpus*());
 
   // Mock request objects.
   //
@@ -232,6 +233,13 @@ public:
   {
     MockDissociateImplicitRegistrationSetFromImpi() : DissociateImplicitRegistrationSetFromImpi({}, "", 0) {}
     virtual ~MockDissociateImplicitRegistrationSetFromImpi() {}
+  };
+
+  class MockListImpus : public ListImpus, public MockOperationMixin
+  {
+    MockListImpus() : ListImpus() {}
+    virtual ~MockListImpus() {}
+    MOCK_METHOD0(get_impus_ref, std::vector<std::string>&());
   };
 };
 
