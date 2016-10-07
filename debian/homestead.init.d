@@ -158,7 +158,7 @@ get_daemon_args()
           diameter_timeout_ms=$(( ($target_latency_us + 499)/500 ))
         fi
 
-        
+
         [ "$sas_use_signaling_interface" != "Y" ] || sas_signaling_if_arg="--sas-use-signaling-interface"
 
         [ -z "$diameter_timeout_ms" ] || diameter_timeout_ms_arg="--diameter-timeout-ms=$diameter_timeout_ms"
@@ -257,7 +257,7 @@ do_run()
 
         setup_environment
         get_daemon_args
-        eval $namespace_prefix start-stop-daemon --start --quiet --exec $DAEMON --chuid $NAME --chdir $HOME -- $DAEMON_ARGS \
+        eval $namespace_prefix start-stop-daemon --start --quiet --pidfile $PIDFILE --exec $DAEMON --chuid $NAME --chdir $HOME -- $DAEMON_ARGS --pidfile=$PIDFILE \
                 || return 2
 }
 
