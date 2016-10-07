@@ -1026,7 +1026,7 @@ bool Cache::ListImpus::perform(CassandraStore::Client* client, SAS::TrailId trai
   // present). So if we ask for both and get either back, then the row does
   // really exists (and is not an artifact of a deleted row).
   SlicePredicate sp;
-  sp.__set_column_names({REG_STATE_COLUMN_NAME, EXISTS_COLUMN_NAME});
+  sp.__set_column_names({IMS_SUB_XML_COLUMN_NAME});
 
   KeyRange kr;
   kr.__set_start_key(""); // Start from the beginning.
