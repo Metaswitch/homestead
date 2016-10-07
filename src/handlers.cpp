@@ -1325,7 +1325,7 @@ void ImpuRegDataTask::on_get_reg_data_success(CassandraStore::Operation* op)
       // Sprout wants to deregister this subscriber (because of a
       // REGISTER with Expires: 0, a timeout of all bindings, a failed
       // app server, etc.).
-      if (_original_state == RegistrationState::REGISTERED)
+      if (_original_state != RegistrationState::NOT_REGISTERED)
       {
         // Forget about this subscriber entirely and send an appropriate SAR.
         TRC_DEBUG("Handling deregistration");
