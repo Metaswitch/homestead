@@ -611,7 +611,7 @@ public:
     ListImpus() {}
     virtual ~ListImpus() {}
 
-    virtual std::vector<std::string>& get_impus_reference() { return _impus; }
+    virtual const std::vector<std::string>& get_impus_reference() { return _impus; }
 
   protected:
     bool perform(CassandraStore::Client* client, SAS::TrailId trail);
