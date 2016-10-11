@@ -1921,7 +1921,7 @@ TEST_F(CacheRequestTest, ListImpusNoResults)
   CassandraStore::Operation* op = _cache.create_ListImpus();
 
   std::vector<cass::KeySlice> result;
-  std::vector<std::string> requested_columns = {"_exists", "is_registered"};
+  std::vector<std::string> requested_columns = {"ims_subscription_xml"};
   EXPECT_CALL(_client,
               get_range_slices(_,
                                ColumnPathForTable("impu"),
@@ -1937,54 +1937,6 @@ TEST_F(CacheRequestTest, ListImpusNoResults)
   EXPECT_TRUE(rec.impus.empty());
 }
 
-// Tests listing IMPUs when there there is on IMPU, that has been dynamically
-// created rather than configured.
-TEST_F(CacheRequestTest, ListImpusOneResultRegistered)
-{
-  ListImpusRecorder rec;
-  RecordingTransaction* trx = make_rec_trx(&rec);
-  CassandraStore::Operation* op = _cache.create_ListImpus();
-
-  std::vector<cass::KeySlice> result(1);
-  result[0].key = "Kermit";
-  // Set the "is_registered" column to make the subscriber appear registered.
-  make_slice(result[0].columns, {{"is_registered", "\x01"}});
-
-  EXPECT_CALL(_client, get_range_slices(_, _, _, _, _))
-    .WillOnce(SetArgReferee<0>(result));
-  EXPECT_CALL(*trx, on_success(_))
-    .WillOnce(Invoke(trx, &RecordingTransaction::record_result));
-
-  execute_trx(op, trx);
-
-  EXPECT_EQ(1, rec.impus.size());
-  EXPECT_EQ("Kermit", rec.impus[0]);
-}
-
-// Tests listing IMPUs when there there is on IMPU, that has been configured but
-// is NOT registered.
-TEST_F(CacheRequestTest, ListImpusOneResultConfigured)
-{
-  ListImpusRecorder rec;
-  RecordingTransaction* trx = make_rec_trx(&rec);
-  CassandraStore::Operation* op = _cache.create_ListImpus();
-
-  std::vector<cass::KeySlice> result(1);
-  result[0].key = "Kermit";
-  // Set the _exists column to show the subscriber is configured.
-  make_slice(result[0].columns, {{"_exists", ""}});
-
-  EXPECT_CALL(_client, get_range_slices(_, _, _, _, _))
-    .WillOnce(SetArgReferee<0>(result));
-  EXPECT_CALL(*trx, on_success(_))
-    .WillOnce(Invoke(trx, &RecordingTransaction::record_result));
-
-  execute_trx(op, trx);
-
-  EXPECT_EQ(1, rec.impus.size());
-  EXPECT_EQ("Kermit", rec.impus[0]);
-}
-
 // Listing multiple IMPUs.
 TEST_F(CacheRequestTest, ListImpusTwoResults)
 {
@@ -1994,9 +1946,9 @@ TEST_F(CacheRequestTest, ListImpusTwoResults)
 
   std::vector<cass::KeySlice> result(2);
   result[0].key = "Kermit1";
-  make_slice(result[0].columns, {{"is_registered", "\x01"}});
+  make_slice(result[0].columns, {{"ims_subscription_xml", "<xml/>"}});
   result[1].key = "Kermit2";
-  make_slice(result[1].columns, {{"is_registered", "\x01"}});
+  make_slice(result[1].columns, {{"ims_subscription_xml", "<xml/>"}});
 
   EXPECT_CALL(_client, get_range_slices(_, _, _, _, _))
     .WillOnce(SetArgReferee<0>(result));
@@ -2021,11 +1973,11 @@ TEST_F(CacheRequestTest, ListImpusResultHasDeletedEntries)
 
   std::vector<cass::KeySlice> result(3);
   result[0].key = "Kermit";
-  make_slice(result[0].columns, {{"is_registered", "\x01"}});
+  make_slice(result[0].columns, {{"ims_subscription_xml", "<xml/>"}});
   result[1].key = "Gonzo";
   // Result [1] does not have any columns.
   result[2].key = "Miss Piggy";
-  make_slice(result[2].columns, {{"is_registered", "\x01"}});
+  make_slice(result[2].columns, {{"ims_subscription_xml", "<xml/>"}});
 
   EXPECT_CALL(_client, get_range_slices(_, _, _, _, _))
     .WillOnce(SetArgReferee<0>(result));
