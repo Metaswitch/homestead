@@ -2559,6 +2559,12 @@ TEST_F(HandlersTest, IMSSubscriptionDeregHSSCacheFailBenign)
   reg_data_template_with_deletion("dereg-user", true, true, RegistrationState::REGISTERED, 5, 3600, REGDATA_RESULT_DEREG, RegistrationState::NOT_REGISTERED, CassandraStore::NOT_FOUND);
 }
 
+// Test that an unregistered user is deregistered with the HSS.
+TEST_F(HandlersTest, IMSSubscriptionDeregUnregSub)
+{
+  reg_data_template_with_deletion("dereg-user", true, true, RegistrationState::UNREGISTERED, 5);
+}
+
 // Test the two authentication failure flows (which should only affect
 // the HSS and not the database). In particular, doing one of these
 // for a registered subscriber should keep them in registered state
