@@ -2509,7 +2509,7 @@ void ImpuListTask::run()
 void ImpuListTask::on_list_impu_success(CassandraStore::Operation* op)
 {
   Cache::ListImpus* list_impus = (Cache::ListImpus*)op;
-  std::vector<std::string>& impus = list_impus->get_impus_ref();
+  std::vector<std::string>& impus = list_impus->get_impus_reference();
   TRC_DEBUG("Listing impus returned %d results", impus.size());
 
   rapidjson::StringBuffer sb;

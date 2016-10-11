@@ -1019,12 +1019,12 @@ bool Cache::ListImpus::perform(CassandraStore::Client* client, SAS::TrailId trai
   //
   // In Cassandra, deleted rows appear like rows with no columns. So we need to
   // ask for a column we know should exist (to determine if the row exists or
-  // not). The only column that must exists is the subscription XML, but this is
-  // large so we don't want to retrieve it for every subscriber. However, each
-  // row will have either been provisioned (meaning `_exists` will be present)
-  // or will have been created by registration (meaning `is_registered` will be
-  // present). So if we ask for both and get either back, then the row does
-  // really exists (and is not an artifact of a deleted row).
+  // not). The only column that must exists is the subscription XML so fetch
+  // this.
+  //
+  // TODO: The XML column contains a lot of data so it would be better to
+  // instead write an `_exists` column to cassandra and use that to determine if
+  // the row is present.
   SlicePredicate sp;
   sp.__set_column_names({IMS_SUB_XML_COLUMN_NAME});
 

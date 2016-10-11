@@ -588,20 +588,30 @@ public:
     return new DissociateImplicitRegistrationSetFromImpi(impus, impis, timestamp);
   }
 
-  /// Get all the IMPUs for which Homestead has data in its cache.
+  /// List the IMPUs for which Homestead has data in its cache.
   ///
-  /// - When an HSS is in use, this lists all subscribers for which homestead is
-  /// storing data learned from the HSS (which in practise is all subscribers
-  /// that are assigned to this S-CSCF in the HSS).
-  /// - When subscribers are locally provisioned this returns all provisioned
-  /// subscribers.
+  /// -  When an HSS is in use, this lists all subscribers for which homestead
+  ///    is storing data learned from the HSS (which in practise is all
+  ///    subscribers that are assigned to this S-CSCF in the HSS).
+  /// -  When subscribers are locally provisioned this returns all provisioned
+  ///    subscribers.
+  ///
+  /// This operation returns results in pseudo-random order (determined by the
+  /// cassandra partitioner).
+  ///
+  /// This operation returns at most 1000 results. Because of the way cassandra
+  /// stores data internally and because of how this is accessed over thrift,
+  /// the operation is not guaranteed to return all rows, even if there are
+  /// fewer than 1000 in the database. However rows will never be missed out
+  /// (e.g. if only 800 are returned, they will be the first 800 in the
+  /// pseudo-random order).
   class ListImpus : public CassandraStore::Operation
   {
   public:
     ListImpus() {}
     virtual ~ListImpus() {}
 
-    virtual std::vector<std::string>& get_impus_ref() { return _impus; }
+    virtual std::vector<std::string>& get_impus_reference() { return _impus; }
 
   protected:
     bool perform(CassandraStore::Client* client, SAS::TrailId trail);

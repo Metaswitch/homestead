@@ -648,7 +648,7 @@ int main(int argc, char**argv)
             options.sas_server,
             sas_write,
             options.sas_signaling_if ? create_connection_in_signaling_namespace
-            : create_connection_in_management_namespace);
+                                     : create_connection_in_management_namespace);
 
   // Set up the statistics (Homestead specific and Diameter)
   snmp_setup("homestead");

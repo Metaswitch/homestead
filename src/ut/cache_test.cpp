@@ -1907,11 +1907,11 @@ class ListImpusRecorder : public ResultRecorderInterface
 public:
   void save(CassandraStore::Operation* op)
   {
-    impus = dynamic_cast<Cache::ListImpus*>(op)->get_impus_ref();
+    impus = dynamic_cast<Cache::ListImpus*>(op)->get_impus_reference();
   }
+
   std::vector<std::string> impus;
 };
-
 
 // Tests listing IMPUs when there aren't any in the database.
 TEST_F(CacheRequestTest, ListImpusNoResults)

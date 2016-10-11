@@ -239,7 +239,7 @@ public:
   {
     MockListImpus() : ListImpus() {}
     virtual ~MockListImpus() {}
-    MOCK_METHOD0(get_impus_ref, std::vector<std::string>&());
+    MOCK_METHOD0(get_impus_reference, std::vector<std::string>&());
   };
 };
 

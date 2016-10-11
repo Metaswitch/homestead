@@ -5000,7 +5000,7 @@ TEST_F(HandlersTest, ListImpusNonePresent)
   std::vector<std::string> impus_to_return;
   CassandraStore::Transaction* t = mock_op.get_trx();
   ASSERT_FALSE(t == NULL);
-  EXPECT_CALL(mock_op, get_impus_ref())
+  EXPECT_CALL(mock_op, get_impus_reference())
     .Times(AtLeast(1)).WillRepeatedly(ReturnRef(impus_to_return));
   EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
 
@@ -5024,7 +5024,7 @@ TEST_F(HandlersTest, ListImpusOnePresent)
   std::vector<std::string> impus_to_return = {"kermit"};
   CassandraStore::Transaction* t = mock_op.get_trx();
   ASSERT_FALSE(t == NULL);
-  EXPECT_CALL(mock_op, get_impus_ref())
+  EXPECT_CALL(mock_op, get_impus_reference())
     .Times(AtLeast(1)).WillRepeatedly(ReturnRef(impus_to_return));
   EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
 
@@ -5048,7 +5048,7 @@ TEST_F(HandlersTest, ListImpusTwoPresent)
   std::vector<std::string> impus_to_return = {"kermit", "gonzo"};
   CassandraStore::Transaction* t = mock_op.get_trx();
   ASSERT_FALSE(t == NULL);
-  EXPECT_CALL(mock_op, get_impus_ref())
+  EXPECT_CALL(mock_op, get_impus_reference())
     .Times(AtLeast(1)).WillRepeatedly(ReturnRef(impus_to_return));
   EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
 
