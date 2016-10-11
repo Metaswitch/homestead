@@ -1897,4 +1897,111 @@ TEST_F(CacheRequestTest, DissociateImplicitRegistrationSetFromWrongImpi)
   EXPECT_TRUE(log.contains("not all the provided IMPIs are associated with the IMPU"));
 }
 
+//
+// Tests for listing IMPUs in the cache.
+//
 
+// Helper class to save off the IMPUs retrieved from the database.
+class ListImpusRecorder : public ResultRecorderInterface
+{
+public:
+  void save(CassandraStore::Operation* op)
+  {
+    impus = dynamic_cast<Cache::ListImpus*>(op)->get_impus_reference();
+  }
+
+  std::vector<std::string> impus;
+};
+
+// Tests listing IMPUs when there aren't any in the database.
+TEST_F(CacheRequestTest, ListImpusNoResults)
+{
+  ListImpusRecorder rec;
+  RecordingTransaction* trx = make_rec_trx(&rec);
+  CassandraStore::Operation* op = _cache.create_ListImpus();
+
+  std::vector<cass::KeySlice> result;
+  std::vector<std::string> requested_columns = {"ims_subscription_xml"};
+  EXPECT_CALL(_client,
+              get_range_slices(_,
+                               ColumnPathForTable("impu"),
+                               SpecificColumns(requested_columns),
+                               KeysInRange("", ""),
+                               _))
+    .WillOnce(SetArgReferee<0>(result));
+  EXPECT_CALL(*trx, on_success(_))
+    .WillOnce(Invoke(trx, &RecordingTransaction::record_result));
+
+  execute_trx(op, trx);
+
+  EXPECT_TRUE(rec.impus.empty());
+}
+
+// Listing multiple IMPUs.
+TEST_F(CacheRequestTest, ListImpusTwoResults)
+{
+  ListImpusRecorder rec;
+  RecordingTransaction* trx = make_rec_trx(&rec);
+  CassandraStore::Operation* op = _cache.create_ListImpus();
+
+  std::vector<cass::KeySlice> result(2);
+  result[0].key = "Kermit1";
+  make_slice(result[0].columns, {{"ims_subscription_xml", "<xml/>"}});
+  result[1].key = "Kermit2";
+  make_slice(result[1].columns, {{"ims_subscription_xml", "<xml/>"}});
+
+  EXPECT_CALL(_client, get_range_slices(_, _, _, _, _))
+    .WillOnce(SetArgReferee<0>(result));
+  EXPECT_CALL(*trx, on_success(_))
+    .WillOnce(Invoke(trx, &RecordingTransaction::record_result));
+
+  execute_trx(op, trx);
+
+  // Two IMPUs are returned and they are returned in the same order.
+  EXPECT_EQ(2, rec.impus.size());
+  EXPECT_EQ("Kermit1", rec.impus[0]);
+  EXPECT_EQ("Kermit2", rec.impus[1]);
+}
+
+// Listing IMPUs where some of the rows have no columns (suggesting they have
+// been deleted buy Cassandra hasn't aged out the row yet).
+TEST_F(CacheRequestTest, ListImpusResultHasDeletedEntries)
+{
+  ListImpusRecorder rec;
+  RecordingTransaction* trx = make_rec_trx(&rec);
+  CassandraStore::Operation* op = _cache.create_ListImpus();
+
+  std::vector<cass::KeySlice> result(3);
+  result[0].key = "Kermit";
+  make_slice(result[0].columns, {{"ims_subscription_xml", "<xml/>"}});
+  result[1].key = "Gonzo";
+  // Result [1] does not have any columns.
+  result[2].key = "Miss Piggy";
+  make_slice(result[2].columns, {{"ims_subscription_xml", "<xml/>"}});
+
+  EXPECT_CALL(_client, get_range_slices(_, _, _, _, _))
+    .WillOnce(SetArgReferee<0>(result));
+  EXPECT_CALL(*trx, on_success(_))
+    .WillOnce(Invoke(trx, &RecordingTransaction::record_result));
+
+  execute_trx(op, trx);
+
+  // Only two results are returned.
+  EXPECT_EQ(2, rec.impus.size());
+}
+
+// Check that the cache requests 1000 rows from Cassandra.
+TEST_F(CacheRequestTest, ListImpusMaxCountSpecified)
+{
+  ListImpusRecorder rec;
+  RecordingTransaction* trx = make_rec_trx(&rec);
+  CassandraStore::Operation* op = _cache.create_ListImpus();
+
+  std::vector<cass::KeySlice> result;
+  EXPECT_CALL(_client, get_range_slices(_, _, _, KeyRangeWithCount(1000), _))
+    .WillOnce(SetArgReferee<0>(result));
+  EXPECT_CALL(*trx, on_success(_))
+    .WillOnce(Invoke(trx, &RecordingTransaction::record_result));
+
+  execute_trx(op, trx);
+}

@@ -65,6 +65,9 @@ const static std::string DIGEST_HA1_COLUMN_NAME      ="digest_ha1";
 const static std::string DIGEST_REALM_COLUMN_NAME    = "digest_realm";
 const static std::string DIGEST_QOP_COLUMN_NAME      = "digest_qop";
 
+// Column name marking rows created by homestead-prov
+const static std::string EXISTS_COLUMN_NAME = "_exists";
+
 // Variables to store the singleton cache object.
 //
 // Must create this after the constants above so that they have been
@@ -992,6 +995,54 @@ bool Cache::DissociateImplicitRegistrationSetFromImpi::perform(CassandraStore::C
 
   // Perform the batch deletion we've built up
   client->delete_columns(to_delete, _timestamp);
+
+  return true;
+}
+
+//
+// Operation that lists all the IMPUs in the impu table.
+//
+
+// The maximum number of IMPUs to request (and therefore return) on each
+// database query.
+const int MAX_IMPUS_TO_RETURN = 1000;
+
+bool Cache::ListImpus::perform(CassandraStore::Client* client, SAS::TrailId trail)
+{
+  std::vector<KeySlice> key_slices;
+
+  // Specify what column family (table) we want to work on.
+  ColumnParent cparent;
+  cparent.__set_column_family(IMPU);
+
+  // Specify what columns we want. We ask for the reg_state and _exists columns.
+  //
+  // In Cassandra, deleted rows appear like rows with no columns. So we need to
+  // ask for a column we know should exist (to determine if the row exists or
+  // not). The only column that must exists is the subscription XML so fetch
+  // this.
+  //
+  // TODO: The XML column contains a lot of data so it would be better to
+  // instead write an `_exists` column to cassandra and use that to determine if
+  // the row is present.
+  SlicePredicate sp;
+  sp.__set_column_names({IMS_SUB_XML_COLUMN_NAME});
+
+  KeyRange kr;
+  kr.__set_start_key(""); // Start from the beginning.
+  kr.__set_end_key("");   // No end.
+  kr.__set_count(MAX_IMPUS_TO_RETURN);
+
+  client->get_range_slices(key_slices, cparent, sp, kr, ConsistencyLevel::ONE);
+
+  for (const KeySlice& key_slice: key_slices)
+  {
+    // Only report an IMPU if some of its columns exist (see comment above).
+    if (!key_slice.columns.empty())
+    {
+      _impus.push_back(key_slice.key);
+    }
+  }
 
   return true;
 }
