@@ -35,6 +35,19 @@ Depends: homestead-node (= ${binary:Version})
 Recommends: homestead-dbg
 Description: Debugging symbols for homestead-node, the HSS Cache/Gateway node
 
+Package: homestead-cx-node
+Architecture: any
+Depends: homestead (= ${binary:Version}), homestead-cassandra
+Description: Homestead, the HSS Cache/Gateway node
+
+Package: homestead-cx-node-dbg
+Architecture: any
+Section: debug
+Priority: extra
+Depends: homestead-cx-node (= ${binary:Version})
+Recommends: homestead-dbg
+Description: Debugging symbols for homestead-cx-node, the HSS Cache/Gateway node
+
 Package: homestead
 Architecture: any
 Depends: clearwater-infrastructure, clearwater-tcp-scalability, clearwater-log-cleanup, homestead-libs, libboost-regex1.54.0, libzmq3, libcurl3-gnutls, gnutls-bin, clearwater-socket-factory, libboost-filesystem1.54.0, libsnmp30 (>= 5.7.2~dfsg-clearwater4), clearwater-monit, clearwater-nginx
