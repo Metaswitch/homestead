@@ -577,11 +577,6 @@ int main(int argc, char**argv)
   options.daemon = false;
   options.sas_signaling_if = false;
 
-  // Initialise ENT logging before making "Started" log
-  PDLogStatic::init(argv[0]);
-
-  CL_HOMESTEAD_STARTED.log();
-
   if (init_logging_options(argc, argv, options) != 0)
   {
     return 1;
@@ -593,6 +588,10 @@ int main(int argc, char**argv)
                           options.log_directory,
                           options.log_level,
                           options.log_to_file);
+
+  // We should now have a connection to syslog so we can write the started ENT
+  // log.
+  CL_HOMESTEAD_STARTED.log();
 
   std::stringstream options_ss;
   for (int ii = 0; ii < argc; ii++)
