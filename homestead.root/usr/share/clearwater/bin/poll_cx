@@ -35,10 +35,11 @@ set -ue
 
 . /etc/clearwater/config
 
-if [ $# -ne 0 ]
-then
-  echo "Usage: poll_cx"
-  exit 1
-fi
+output=$(/usr/share/clearwater/bin/poll_cx.py "${hss_server_error_tolerance:-20}")
 
-/usr/share/clearwater/bin/poll_cx.py "${hss_server_error_tolerance:-20}"
+if [ "$output" = "All requests failing? True" ]
+then
+  exit 3
+else
+  exit 0
+fi

@@ -277,11 +277,11 @@ _log.info("First check returned {}".format(result))
 
 if result:
 
-    # Don't trust the first run.  Do it again amd only return true if this run
+    # Don't trust the first run.  Do it again amd only output true if this run
     # also returns true
     result = are_all_requests_failing()
     _log.info("Second check returned {}".format(result))
 
 print "All requests failing? {}".format(result)
 
-exit(result)
+exit(0)
