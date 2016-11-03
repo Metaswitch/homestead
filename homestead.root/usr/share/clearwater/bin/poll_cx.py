@@ -213,11 +213,11 @@ def SAR_responses():
     # Determine the head of the segment of the table we are going to read
     sar_segment_head = table_segment_head % 11
 
-    # Get the successes and client and server errors for the BASE responses
+    # Get the successes and client and server errors for the BASE responses and
+    # add them to the successes and client and server errors for the _3GPP responses
     (total_successes, total_client_errors, total_server_errors) = \
-                           count_responses(sar_segment_head + ".0", [2001], [])
-
-    # 3GPP response stats aren't currently maintained for SARs
+        map(operator.add, count_responses(sar_segment_head + ".0", [2001], []), \
+                          count_responses(sar_segment_head + ".1", [], [5001]))
 
     # Add the count of timeouts to the server error count
     total_server_errors += count_timeouts(sar_segment_head)
@@ -235,11 +235,11 @@ def MAR_responses():
     # Determine the head of the segment of the table we are going to read
     mar_segment_head = table_segment_head % 10
 
-    # Get the successes and client and server errors for the BASE responses
+    # Get the successes and client and server errors for the BASE responses and
+    # add them to the successes and client and server errors for the _3GPP responses
     (total_successes, total_client_errors, total_server_errors) = \
-                       count_responses(mar_segment_head + ".0", [2001], [5001])
-
-    # 3GPP response stats aren't currently maintained for MARs
+        map(operator.add, count_responses(mar_segment_head + ".0", [2001], []), \
+                          count_responses(mar_segment_head + ".1", [], [5001]))
 
     # Add the count of timeouts to the server error count
     total_server_errors += count_timeouts(mar_segment_head)

@@ -951,6 +951,105 @@ public:
     EXPECT_EQ("", req.content());
   }
 
+  static void sa_error_template(int32_t hss_rc, int32_t hss_experimental_rc, int32_t http_rc)
+  {
+    MockHttpStack::Request req(_httpstack,
+                               "/impu/" + IMPU + "/reg-data",
+                               "",
+                               "?private_id=" + IMPI,
+                               "{\"reqtype\": \"call\"}",
+                               htp_method_PUT);
+    req.method();
+    ImpuRegDataTask::Config cfg(true, 3600);
+    ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
+
+    MockCache::MockGetRegData mock_op;
+    EXPECT_CALL(*_cache, create_GetRegData(IMPU))
+      .WillOnce(Return(&mock_op));
+    EXPECT_DO_ASYNC(*_cache, mock_op);
+    task->run();
+
+    CassandraStore::Transaction* t = mock_op.get_trx();
+    ASSERT_FALSE(t == NULL);
+    EXPECT_CALL(mock_op, get_xml(_, _)).Times(AtLeast(1))
+      .WillRepeatedly(SetArgReferee<0>(IMPU_IMS_SUBSCRIPTION));
+    EXPECT_CALL(mock_op, get_registration_state(_, _)).Times(AtLeast(1))
+      .WillRepeatedly(SetArgReferee<0>(RegistrationState::NOT_REGISTERED));
+    EXPECT_CALL(mock_op, get_associated_impis(_)).Times(AtLeast(1))
+      .WillRepeatedly(SetArgReferee<0>(IMPI_IN_VECTOR));
+    EXPECT_CALL(mock_op, get_charging_addrs(_)).Times(AtLeast(1))
+      .WillRepeatedly(SetArgReferee<0>(NO_CHARGING_ADDRESSES));
+
+    EXPECT_CALL(*_mock_stack, send(_, _, 200))
+      .Times(1)
+      .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
+    std::string error_text = "error";
+    t->on_success(&mock_op);
+
+    ASSERT_FALSE(_caught_diam_tsx == NULL);
+    Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
+    Cx::ServerAssignmentRequest sar(msg);
+
+    Cx::ServerAssignmentAnswer saa(_cx_dict,
+                                   _mock_stack,
+                                   hss_rc,
+                                   VENDOR_ID_3GPP,
+                                   hss_experimental_rc,
+                                   "",
+                                   NO_CHARGING_ADDRESSES);
+
+    EXPECT_CALL(*_httpstack, send_reply(_, http_rc, _));
+    _caught_diam_tsx->on_response(saa);
+
+    delete _caught_diam_tsx; _caught_diam_tsx = NULL;
+    _caught_fd_msg = NULL;
+  }
+
+  static void ma_error_template(int32_t hss_rc, int32_t hss_experimental_rc, int32_t http_rc)
+  {
+    // This test tests an Impi Digest task case with an HSS configured, but
+    // the HSS returns an error. Start by building the HTTP
+    // request which will invoke an HSS lookup.
+    MockHttpStack::Request req(_httpstack,
+                               "/impi/" + IMPI,
+                               "digest",
+                               "?public_id=" + IMPU);
+
+    ImpiTask::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA, SCHEME_AKAV2);
+    ImpiDigestTask* task = new ImpiDigestTask(req, &cfg, FAKE_TRAIL_ID);
+
+    // Once the task's run function is called, expect a diameter message to be sent.
+    // We don't bother checking the contents of this message since this is done in
+    // previous tests.
+    EXPECT_CALL(*_mock_stack, send(_, _, 200))
+      .Times(1)
+      .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
+    task->run();
+    ASSERT_FALSE(_caught_diam_tsx == NULL);
+
+    DigestAuthVector digest;
+    digest.ha1 = "ha1";
+    digest.realm = "realm";
+    digest.qop = "qop";
+    AKAAuthVector aka;
+
+    // Build an MAA.
+    Cx::MultimediaAuthAnswer maa(_cx_dict,
+                                 _mock_stack,
+                                 hss_rc,
+                                 VENDOR_ID_3GPP,
+                                 hss_experimental_rc,
+                                 SCHEME_DIGEST,
+                                 digest,
+                                 aka);
+
+    // Once the handler recieves the MAA, expect a 500 HTTP response.
+    EXPECT_CALL(*_httpstack, send_reply(_, http_rc, _));
+    _caught_diam_tsx->on_response(maa);
+    fd_msg_free(_caught_fd_msg); _caught_fd_msg = NULL;
+    delete _caught_diam_tsx; _caught_diam_tsx = NULL;
+  }
+
   void rtr_template(int32_t dereg_reason,
                     std::string http_path,
                     std::string body,
@@ -1856,47 +1955,9 @@ TEST_F(HandlersTest, DigestHSSUserUnknown)
 
 TEST_F(HandlersTest, DigestHSSOtherError)
 {
-  // This test tests an Impi Digest task case with an HSS configured, but
-  // the HSS returns an error. Start by building the HTTP
-  // request which will invoke an HSS lookup.
-  MockHttpStack::Request req(_httpstack,
-                             "/impi/" + IMPI,
-                             "digest",
-                             "?public_id=" + IMPU);
-
-  ImpiTask::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA, SCHEME_AKAV2);
-  ImpiDigestTask* task = new ImpiDigestTask(req, &cfg, FAKE_TRAIL_ID);
-
-  // Once the task's run function is called, expect a diameter message to be sent.
-  // We don't bother checking the contents of this message since this is done in
-  // previous tests.
-  EXPECT_CALL(*_mock_stack, send(_, _, 200))
-    .Times(1)
-    .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
-  task->run();
-  ASSERT_FALSE(_caught_diam_tsx == NULL);
-
-  DigestAuthVector digest;
-  digest.ha1 = "ha1";
-  digest.realm = "realm";
-  digest.qop = "qop";
-  AKAAuthVector aka;
-
-  // Build an MAA.
-  Cx::MultimediaAuthAnswer maa(_cx_dict,
-                               _mock_stack,
-                               0,
-                               0,
-                               0,
-                               SCHEME_DIGEST,
-                               digest,
-                               aka);
-
-  // Once the handler recieves the MAA, expect a 500 HTTP response.
-  EXPECT_CALL(*_httpstack, send_reply(_, 500, _));
-  _caught_diam_tsx->on_response(maa);
-  fd_msg_free(_caught_fd_msg); _caught_fd_msg = NULL;
-  delete _caught_diam_tsx; _caught_diam_tsx = NULL;
+  ma_error_template(0, 0, 500);
+  ma_error_template(DIAMETER_AUTHORIZATION_REJECTED, 0, 500);
+  ma_error_template(0, DIAMETER_ERROR_ROAMING_NOT_ALLOWED, 500);
 }
 
 TEST_F(HandlersTest, DigestHSSUnkownScheme)
@@ -2916,56 +2977,9 @@ TEST_F(HandlersTest, IMSSubscriptionUserUnknownDeregCacheFail)
 
 TEST_F(HandlersTest, IMSSubscriptionOtherErrorCallReg)
 {
-  MockHttpStack::Request req(_httpstack,
-                             "/impu/" + IMPU + "/reg-data",
-                             "",
-                             "?private_id=" + IMPI,
-                             "{\"reqtype\": \"call\"}",
-                             htp_method_PUT);
-  req.method();
-  ImpuRegDataTask::Config cfg(true, 3600);
-  ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
-
-  MockCache::MockGetRegData mock_op;
-  EXPECT_CALL(*_cache, create_GetRegData(IMPU))
-    .WillOnce(Return(&mock_op));
-  EXPECT_DO_ASYNC(*_cache, mock_op);
-  task->run();
-
-  CassandraStore::Transaction* t = mock_op.get_trx();
-  ASSERT_FALSE(t == NULL);
-  EXPECT_CALL(mock_op, get_xml(_, _)).Times(AtLeast(1))
-    .WillRepeatedly(SetArgReferee<0>(IMPU_IMS_SUBSCRIPTION));
-  EXPECT_CALL(mock_op, get_registration_state(_, _)).Times(AtLeast(1))
-    .WillRepeatedly(SetArgReferee<0>(RegistrationState::NOT_REGISTERED));
-  EXPECT_CALL(mock_op, get_associated_impis(_)).Times(AtLeast(1))
-    .WillRepeatedly(SetArgReferee<0>(IMPI_IN_VECTOR));
-  EXPECT_CALL(mock_op, get_charging_addrs(_)).Times(AtLeast(1))
-    .WillRepeatedly(SetArgReferee<0>(NO_CHARGING_ADDRESSES));
-
-  EXPECT_CALL(*_mock_stack, send(_, _, 200))
-    .Times(1)
-    .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
-  std::string error_text = "error";
-  t->on_success(&mock_op);
-
-  ASSERT_FALSE(_caught_diam_tsx == NULL);
-  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
-  Cx::ServerAssignmentRequest sar(msg);
-
-  Cx::ServerAssignmentAnswer saa(_cx_dict,
-                                 _mock_stack,
-                                 0,
-                                 0,
-                                 0,
-                                 "",
-                                 NO_CHARGING_ADDRESSES);
-
-  EXPECT_CALL(*_httpstack, send_reply(_, 500, _));
-  _caught_diam_tsx->on_response(saa);
-
-  delete _caught_diam_tsx; _caught_diam_tsx = NULL;
-  _caught_fd_msg = NULL;
+  sa_error_template(0, 0, 500);
+  sa_error_template(DIAMETER_AUTHORIZATION_REJECTED, 0, 500);
+  sa_error_template(0, DIAMETER_ERROR_ROAMING_NOT_ALLOWED, 500);
 }
 
 // Cache not found failures should translate into a 404 Not Found errors
@@ -3398,6 +3412,8 @@ TEST_F(HandlersTest, RegistrationStatusDiameterBusy)
 
 TEST_F(HandlersTest, RegistrationStatusOtherError)
 {
+  registration_status_error_template(DIAMETER_COMMAND_UNSUPPORTED, 0, 500);
+  registration_status_error_template(0, DIAMETER_UNREGISTERED_SERVICE, 500);
   registration_status_error_template(0, 0, 500);
 }
 
@@ -3611,6 +3627,8 @@ TEST_F(HandlersTest, LocationInfoDiameterBusy)
 
 TEST_F(HandlersTest, LocationInfoOtherError)
 {
+  location_info_error_template(DIAMETER_AUTHORIZATION_REJECTED, 0, 500);
+  location_info_error_template(0, DIAMETER_ERROR_ROAMING_NOT_ALLOWED, 500);
   location_info_error_template(0, 0, 500);
 }
 

@@ -73,7 +73,6 @@ check program poll_homestead with path "/usr/share/clearwater/bin/poll_homestead
 check program poll_cx with path "/usr/share/clearwater/bin/poll_cx"
   group homestead
   depends on homestead_process, snmpd_process
-  every 6 cycles
 
   # Aborting generates a core file and triggers diagnostic collection.  However, we don't want to
   # do this so frequently that it flushes old diags out if the underlying problem is that
@@ -81,7 +80,11 @@ check program poll_cx with path "/usr/share/clearwater/bin/poll_cx"
   #
   # Use a specific exit code to ensure that we only restart homestead if we have
   # positively determined that all requests are failing.
-  if status = 3 then exec "/bin/bash -c '/usr/share/clearwater/bin/issue_alarm.py monit 1500.3; /usr/share/clearwater/bin/stop_or_abort homestead 86400'"
+  #
+  # (Check for 2 cycles to get round monit's limitation of effectively checking exit codes one cycle
+  # late.  If you don't wait for at least 2 consecutive cycles, you can end up with monit erroneously
+  # killing homestead twice)
+  if status = 3 for 2 cycles then exec "/bin/bash -c '/usr/share/clearwater/bin/issue_alarm.py monit 1500.3; /usr/share/clearwater/bin/stop_or_abort homestead 86400'"
 
 EOF
 chmod 0644 /etc/monit/conf.d/homestead.monit

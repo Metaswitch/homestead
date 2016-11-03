@@ -343,14 +343,6 @@ void ImpiTask::on_mar_response(Diameter::Message& rsp)
   uint32_t vendor_id = 0;
   _maa->experimental_result(experimental_result_code, vendor_id);
 
-  if (result_code != 0)
-  {
-    mar_results_tbl->increment(SNMP::DiameterAppId::BASE, result_code);
-  }
-  else if (experimental_result_code != 0 && vendor_id == VENDOR_ID_3GPP)
-  {
-    mar_results_tbl->increment(SNMP::DiameterAppId::_3GPP, experimental_result_code);
-  }
   TRC_DEBUG("Received Multimedia-Auth answer with result code %d and experimental result code %d with vendor id %d",
             result_code, experimental_result_code, vendor_id);
 
@@ -398,6 +390,7 @@ void ImpiTask::on_mar_response(Diameter::Message& rsp)
     {
       send_http_reply(HTTP_NOT_FOUND);
     }
+    mar_results_tbl->increment(SNMP::DiameterAppId::BASE, result_code);
   }
   else if (result_code == DIAMETER_UNABLE_TO_DELIVER)
   {
@@ -407,6 +400,7 @@ void ImpiTask::on_mar_response(Diameter::Message& rsp)
     // which is able to talk to the HSS), and we should return a 503 so that
     // Sprout tries a different Homestead.
     send_http_reply(HTTP_SERVER_UNAVAILABLE);
+    mar_results_tbl->increment(SNMP::DiameterAppId::BASE, result_code);
     // LCOV_EXCL_STOP
   }
   else if (experimental_result_code == DIAMETER_ERROR_USER_UNKNOWN &&
@@ -416,6 +410,7 @@ void ImpiTask::on_mar_response(Diameter::Message& rsp)
     SAS::Event event(this->trail(), SASEvent::NO_AV_HSS, 0);
     SAS::report_event(event);
     send_http_reply(HTTP_NOT_FOUND);
+    mar_results_tbl->increment(SNMP::DiameterAppId::_3GPP, experimental_result_code);
   }
   else
   {
@@ -424,6 +419,15 @@ void ImpiTask::on_mar_response(Diameter::Message& rsp)
     SAS::Event event(this->trail(), SASEvent::NO_AV_HSS, 0);
     SAS::report_event(event);
     send_http_reply(HTTP_SERVER_ERROR);
+
+    if (result_code != 0)
+    {
+      mar_results_tbl->increment(SNMP::DiameterAppId::BASE, result_code);
+    }
+    else if (experimental_result_code != 0 && vendor_id == VENDOR_ID_3GPP)
+    {
+      mar_results_tbl->increment(SNMP::DiameterAppId::_3GPP, experimental_result_code);
+    }
   }
 
   // If not waiting for the assoicated IMPU put to succeed, tidy up now
@@ -659,15 +663,6 @@ void ImpiRegistrationStatusTask::on_uar_response(Diameter::Message& rsp)
   int32_t experimental_result_code = 0;
   uint32_t vendor_id = 0;
   uaa.experimental_result(experimental_result_code, vendor_id);
-  if (result_code != 0)
-  {
-    uar_results_tbl->increment(SNMP::DiameterAppId::BASE, result_code);
-  }
-  else if (experimental_result_code != 0 &&
-           vendor_id == VENDOR_ID_3GPP)
-  {
-    uar_results_tbl->increment(SNMP::DiameterAppId::_3GPP, experimental_result_code);
-  }
   TRC_DEBUG("Received User-Authorization answer with result %d/%d",
             result_code, experimental_result_code);
   if ((result_code == DIAMETER_SUCCESS) ||
@@ -709,6 +704,15 @@ void ImpiRegistrationStatusTask::on_uar_response(Diameter::Message& rsp)
     {
       _health_checker->health_check_passed();
     }
+
+    if (result_code == DIAMETER_SUCCESS)
+    {
+      uar_results_tbl->increment(SNMP::DiameterAppId::BASE, result_code);
+    }
+    else
+    {
+      uar_results_tbl->increment(SNMP::DiameterAppId::_3GPP, experimental_result_code);
+    }
   }
   else if ((experimental_result_code == DIAMETER_ERROR_USER_UNKNOWN) ||
            (experimental_result_code == DIAMETER_ERROR_IDENTITIES_DONT_MATCH))
@@ -716,6 +720,7 @@ void ImpiRegistrationStatusTask::on_uar_response(Diameter::Message& rsp)
     TRC_INFO("User unknown or public/private ID conflict - reject");
     sas_log_hss_failure(result_code, experimental_result_code);
     send_http_reply(HTTP_NOT_FOUND);
+    uar_results_tbl->increment(SNMP::DiameterAppId::_3GPP, experimental_result_code);
   }
   else if ((result_code == DIAMETER_AUTHORIZATION_REJECTED) ||
            (experimental_result_code == DIAMETER_ERROR_ROAMING_NOT_ALLOWED))
@@ -723,12 +728,22 @@ void ImpiRegistrationStatusTask::on_uar_response(Diameter::Message& rsp)
     TRC_INFO("Authorization rejected due to roaming not allowed - reject");
     sas_log_hss_failure(result_code, experimental_result_code);
     send_http_reply(HTTP_FORBIDDEN);
+
+    if (result_code == DIAMETER_AUTHORIZATION_REJECTED)
+    {
+      uar_results_tbl->increment(SNMP::DiameterAppId::BASE, result_code);
+    }
+    else
+    {
+      uar_results_tbl->increment(SNMP::DiameterAppId::_3GPP, experimental_result_code);
+    }
   }
   else if (result_code == DIAMETER_TOO_BUSY)
   {
     TRC_INFO("HSS busy - reject");
     sas_log_hss_failure(result_code, experimental_result_code);
     send_http_reply(HTTP_GATEWAY_TIMEOUT);
+    uar_results_tbl->increment(SNMP::DiameterAppId::BASE, result_code);
   }
   else if (result_code == DIAMETER_UNABLE_TO_DELIVER)
   {
@@ -738,6 +753,7 @@ void ImpiRegistrationStatusTask::on_uar_response(Diameter::Message& rsp)
     // which is able to talk to the HSS), and we should return a 503 so that
     // Sprout tries a different Homestead.
     send_http_reply(HTTP_SERVER_UNAVAILABLE);
+    uar_results_tbl->increment(SNMP::DiameterAppId::BASE, result_code);
     // LCOV_EXCL_STOP
   }
   else
@@ -746,6 +762,15 @@ void ImpiRegistrationStatusTask::on_uar_response(Diameter::Message& rsp)
              result_code, experimental_result_code);
     sas_log_hss_failure(result_code, experimental_result_code);
     send_http_reply(HTTP_SERVER_ERROR);
+
+    if (result_code != 0)
+    {
+      uar_results_tbl->increment(SNMP::DiameterAppId::BASE, result_code);
+    }
+    else if (experimental_result_code != 0 && vendor_id == VENDOR_ID_3GPP)
+    {
+      uar_results_tbl->increment(SNMP::DiameterAppId::_3GPP, experimental_result_code);
+    }
   }
   delete this;
 }
@@ -808,15 +833,6 @@ void ImpuLocationInfoTask::on_lir_response(Diameter::Message& rsp)
   int32_t experimental_result_code = 0;
   uint32_t vendor_id = 0;
   lia.experimental_result(experimental_result_code, vendor_id);
-  if (result_code != 0)
-  {
-    lir_results_tbl->increment(SNMP::DiameterAppId::BASE, result_code);
-  }
-  else if (experimental_result_code != 0 &&
-           vendor_id == VENDOR_ID_3GPP)
-  {
-    lir_results_tbl->increment(SNMP::DiameterAppId::_3GPP, experimental_result_code);
-  }
   TRC_DEBUG("Received Location-Info answer with result %d/%d (vendor %d)",
             result_code, experimental_result_code, vendor_id);
 
@@ -857,20 +873,30 @@ void ImpuLocationInfoTask::on_lir_response(Diameter::Message& rsp)
     writer.EndObject();
     _req.add_content(sb.GetString());
     send_http_reply(HTTP_OK);
+
+    if (result_code == DIAMETER_SUCCESS)
+    {
+      lir_results_tbl->increment(SNMP::DiameterAppId::BASE, result_code);
+    }
+    else
+    {
+      lir_results_tbl->increment(SNMP::DiameterAppId::_3GPP, experimental_result_code);
+    }
   }
   else if (vendor_id == VENDOR_ID_3GPP &&
-           ((experimental_result_code == DIAMETER_ERROR_USER_UNKNOWN) ||
-            (experimental_result_code == DIAMETER_ERROR_IDENTITY_NOT_REGISTERED)))
+           (experimental_result_code == DIAMETER_ERROR_USER_UNKNOWN))
   {
     TRC_INFO("User unknown or public/private ID conflict - reject");
     sas_log_hss_failure(result_code, experimental_result_code);
     send_http_reply(HTTP_NOT_FOUND);
+    lir_results_tbl->increment(SNMP::DiameterAppId::_3GPP, experimental_result_code);
   }
   else if (result_code == DIAMETER_TOO_BUSY)
   {
     TRC_INFO("HSS busy - reject");
     sas_log_hss_failure(result_code, experimental_result_code);
     send_http_reply(HTTP_GATEWAY_TIMEOUT);
+    lir_results_tbl->increment(SNMP::DiameterAppId::BASE, result_code);
   }
   else if (result_code == DIAMETER_UNABLE_TO_DELIVER)
   {
@@ -880,6 +906,7 @@ void ImpuLocationInfoTask::on_lir_response(Diameter::Message& rsp)
     // which is able to talk to the HSS), and we should return a 503 so that
     // Sprout tries a different Homestead.
     send_http_reply(HTTP_SERVER_UNAVAILABLE);
+    lir_results_tbl->increment(SNMP::DiameterAppId::BASE, result_code);
     // LCOV_EXCL_STOP
   }
   else
@@ -888,6 +915,16 @@ void ImpuLocationInfoTask::on_lir_response(Diameter::Message& rsp)
              result_code, experimental_result_code, vendor_id);
     sas_log_hss_failure(result_code, experimental_result_code);
     send_http_reply(HTTP_SERVER_ERROR);
+
+    if (result_code != 0)
+    {
+      lir_results_tbl->increment(SNMP::DiameterAppId::BASE, result_code);
+    }
+    else if ((vendor_id == VENDOR_ID_3GPP) &&
+             (experimental_result_code != 0))
+    {
+      lir_results_tbl->increment(SNMP::DiameterAppId::_3GPP, experimental_result_code);
+    }
   }
   delete this;
 }
@@ -1716,15 +1753,6 @@ void ImpuRegDataTask::on_sar_response(Diameter::Message& rsp)
   int32_t experimental_result_code = 0;
   uint32_t vendor_id = 0;
   saa.experimental_result(experimental_result_code, vendor_id);
-  if (result_code != 0)
-  {
-    sar_results_tbl->increment(SNMP::DiameterAppId::BASE, result_code);
-  }
-  else if (experimental_result_code != 0 &&
-           vendor_id == VENDOR_ID_3GPP)
-  {
-    sar_results_tbl->increment(SNMP::DiameterAppId::_3GPP, experimental_result_code);
-  }
   TRC_DEBUG("Received Server-Assignment answer with result code %d and experimental result code %d with vendor id %d",
             result_code, experimental_result_code);
 
@@ -1733,6 +1761,7 @@ void ImpuRegDataTask::on_sar_response(Diameter::Message& rsp)
     // Get the charging addresses and user data.
     saa.charging_addrs(_charging_addrs);
     saa.user_data(_xml);
+    sar_results_tbl->increment(SNMP::DiameterAppId::BASE, result_code);
   }
   else if (result_code == DIAMETER_UNABLE_TO_DELIVER)
   {
@@ -1742,6 +1771,7 @@ void ImpuRegDataTask::on_sar_response(Diameter::Message& rsp)
     // which is able to talk to the HSS), and we should return a 503 so that
     // Sprout tries a different Homestead.
     _http_rc = HTTP_SERVER_UNAVAILABLE;
+    sar_results_tbl->increment(SNMP::DiameterAppId::BASE, result_code);
     // LCOV_EXCL_STOP
   }
   else if (experimental_result_code == DIAMETER_ERROR_USER_UNKNOWN &&
@@ -1754,6 +1784,7 @@ void ImpuRegDataTask::on_sar_response(Diameter::Message& rsp)
     event.add_static_param(experimental_result_code);
     SAS::report_event(event);
     _http_rc = HTTP_NOT_FOUND;
+    sar_results_tbl->increment(SNMP::DiameterAppId::_3GPP, experimental_result_code);
   }
   else
   {
@@ -1764,6 +1795,16 @@ void ImpuRegDataTask::on_sar_response(Diameter::Message& rsp)
     event.add_static_param(experimental_result_code);
     SAS::report_event(event);
     _http_rc = HTTP_SERVER_ERROR;
+
+    if (result_code != 0)
+    {
+      sar_results_tbl->increment(SNMP::DiameterAppId::BASE, result_code);
+    }
+    else if (experimental_result_code != 0 &&
+             vendor_id == VENDOR_ID_3GPP)
+    {
+      sar_results_tbl->increment(SNMP::DiameterAppId::_3GPP, experimental_result_code);
+    }
   }
 
   // Update the cache if required.
