@@ -3412,8 +3412,6 @@ TEST_F(HandlersTest, RegistrationStatusDiameterBusy)
 
 TEST_F(HandlersTest, RegistrationStatusOtherError)
 {
-  registration_status_error_template(DIAMETER_COMMAND_UNSUPPORTED, 0, 500);
-  registration_status_error_template(0, DIAMETER_UNREGISTERED_SERVICE, 500);
   registration_status_error_template(0, 0, 500);
 }
 
@@ -3627,8 +3625,6 @@ TEST_F(HandlersTest, LocationInfoDiameterBusy)
 
 TEST_F(HandlersTest, LocationInfoOtherError)
 {
-  location_info_error_template(DIAMETER_AUTHORIZATION_REJECTED, 0, 500);
-  location_info_error_template(0, DIAMETER_ERROR_ROAMING_NOT_ALLOWED, 500);
   location_info_error_template(0, 0, 500);
 }
 
