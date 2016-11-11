@@ -67,6 +67,25 @@ check program poll_homestead with path "/usr/share/clearwater/bin/poll_homestead
   # Aborting generates a core file and triggers diagnostic collection.
   if status != 0 for 2 cycles then exec "/bin/bash -c '/usr/share/clearwater/bin/issue-alarm monit 1500.3; /etc/init.d/homestead abort'"
 
+
+# Check the Diameter interface. This depends on the Homestead process (and so won't run
+# unless the Homestead process is running)
+check program check_cx_health with path "/usr/share/clearwater/bin/check_cx_health"
+  group homestead
+  depends on homestead_process, snmpd_process
+
+  # Aborting generates a core file and triggers diagnostic collection.  However, we don't want to
+  # do this so frequently that it flushes old diags out if the underlying problem is that
+  # the HSS has been switched off.  Only do a core generating stoppage once per day.
+  #
+  # Use a specific exit code to ensure that we only restart homestead if we have
+  # positively determined that all requests are failing.
+  #
+  # (Check for 2 cycles to get round monit's limitation of effectively checking exit codes one cycle
+  # late.  If you don't wait for at least 2 consecutive cycles, you can end up with monit erroneously
+  # killing homestead twice)
+  if status = 3 for 2 cycles then exec "/bin/bash -c '/usr/share/clearwater/bin/issue_alarm.py monit 1500.3; /usr/share/clearwater/bin/stop_or_abort homestead cx_health 86400'"
+
 EOF
 chmod 0644 /etc/monit/conf.d/homestead.monit
 

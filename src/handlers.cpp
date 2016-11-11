@@ -343,6 +343,9 @@ void ImpiTask::on_mar_response(Diameter::Message& rsp)
   uint32_t vendor_id = 0;
   _maa->experimental_result(experimental_result_code, vendor_id);
 
+  // IMS mandates that exactly one of result code or experimental result code
+  // will be set, so we can unambiguously assume that, if one is set, then the
+  // other one won't be.
   if (result_code != 0)
   {
     mar_results_tbl->increment(SNMP::DiameterAppId::BASE, result_code);
@@ -659,6 +662,10 @@ void ImpiRegistrationStatusTask::on_uar_response(Diameter::Message& rsp)
   int32_t experimental_result_code = 0;
   uint32_t vendor_id = 0;
   uaa.experimental_result(experimental_result_code, vendor_id);
+
+  // IMS mandates that exactly one of result code or experimental result code
+  // will be set, so we can unambiguously assume that, if one is set, then the
+  // other one won't be.
   if (result_code != 0)
   {
     uar_results_tbl->increment(SNMP::DiameterAppId::BASE, result_code);
@@ -808,6 +815,10 @@ void ImpuLocationInfoTask::on_lir_response(Diameter::Message& rsp)
   int32_t experimental_result_code = 0;
   uint32_t vendor_id = 0;
   lia.experimental_result(experimental_result_code, vendor_id);
+
+  // IMS mandates that exactly one of result code or experimental result code
+  // will be set, so we can unambiguously assume that, if one is set, then the
+  // other one won't be.
   if (result_code != 0)
   {
     lir_results_tbl->increment(SNMP::DiameterAppId::BASE, result_code);
@@ -1716,6 +1727,10 @@ void ImpuRegDataTask::on_sar_response(Diameter::Message& rsp)
   int32_t experimental_result_code = 0;
   uint32_t vendor_id = 0;
   saa.experimental_result(experimental_result_code, vendor_id);
+
+  // IMS mandates that exactly one of result code or experimental result code
+  // will be set, so we can unambiguously assume that, if one is set, then the
+  // other one won't be.
   if (result_code != 0)
   {
     sar_results_tbl->increment(SNMP::DiameterAppId::BASE, result_code);
