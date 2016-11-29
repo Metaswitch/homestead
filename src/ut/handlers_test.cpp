@@ -552,7 +552,7 @@ public:
 
       if (cache_error != CassandraStore::OK)
       {
-        EXPECT_CALL(*_httpstack, send_reply(_, 500, _));
+        EXPECT_CALL(*_httpstack, send_reply(_, 503, _));
         mock_op3._cass_status = CassandraStore::CONNECTION_ERROR;
         mock_op3._cass_error_text = "Connection error";
         t->on_failure(&mock_op3);
@@ -581,11 +581,11 @@ public:
 
       if (cache_error != CassandraStore::OK)
       {
-        // Send in a Cassandra error response to the Delete and expect a 500 Internal Server error response,
-        // unless its a benign "Not found" response
+        // Send in a Cassandra error response to the Delete and expect a
+        // 503 error response, unless it's a benign "Not found" response
         if (cache_error != CassandraStore::NOT_FOUND)
         {
-          EXPECT_CALL(*_httpstack, send_reply(_, 500, _));
+          EXPECT_CALL(*_httpstack, send_reply(_, 503, _));
         }
         else
         {
