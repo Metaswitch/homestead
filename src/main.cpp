@@ -192,7 +192,7 @@ void usage(void)
        " -H, --http <address>       Set HTTP bind address (default: 0.0.0.0)\n"
        " -t, --http-threads N       Number of HTTP threads (default: 1)\n"
        " -u, --cache-threads N      Number of cache threads (default: 10)\n"
-       " -S, --cassandra <address>  Set the IP address or FQDN of the Cassandra database (default: localhost)"
+       " -S, --cassandra <address>  Set the IP address or FQDN of the Cassandra database (default: 127.0.0.1 or [::1])"
        " -D, --dest-realm <name>    Set Destination-Realm on Cx messages\n"
        " -d, --dest-host <name>     Set Destination-Host on Cx messages\n"
        "     --hss-peer <name>      IP address of HSS to connect to (rather than resolving Destination-Realm/Destination-Host)\n"
@@ -550,7 +550,7 @@ int main(int argc, char**argv)
   options.http_port = 8888;
   options.http_threads = 1;
   options.cache_threads = 10;
-  options.cassandra = "localhost";
+  options.cassandra = "";
   options.dest_realm = "";
   options.dest_host = "dest-host.unknown";
   options.force_hss_peer = "";
@@ -719,6 +719,18 @@ int main(int argc, char**argv)
                                                                 30,
                                                                 30,
                                                                 9160);
+  // Default the cassandra hostname to the loopback IP
+  if (options.cassandra == "")
+  {
+    if (af == AF_INET6)
+    {
+      options.cassandra = "[::1]";
+    }
+    else
+    {
+      options.cassandra = "127.0.0.1";
+    }
+  }
 
   Cache* cache = Cache::get_instance();
   cache->configure_connection(options.cassandra,
