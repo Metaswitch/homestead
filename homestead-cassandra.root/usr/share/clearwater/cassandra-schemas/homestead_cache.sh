@@ -8,6 +8,8 @@ cassandra_hostname="127.0.0.1"
 
 quit_if_no_cassandra
 
+echo "Adding Cassandra schemas..."
+
 CQLSH="/usr/share/clearwater/bin/run-in-signaling-namespace cqlsh $cassandra_hostname"
 
 if [[ ! -e /var/lib/cassandra/data/homestead_cache ]] || \
@@ -20,7 +22,7 @@ then
   while [ $? -ne 0 ]; do
     ((count++))
     if [ $count -gt 120 ]; then
-      echo "Cassandra isn't responsive, unable to add schemas"
+      echo "Cassandra isn't responsive, unable to add schemas yet"
       exit 1
     fi
 
