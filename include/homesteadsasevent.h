@@ -45,6 +45,7 @@ namespace SASEvent
   // Homestead events
   //----------------------------------------------------------------------------
   const int INVALID_SCHEME = HOMESTEAD_BASE + 0x0000;
+  const int UNSUPPORTED_SCHEME = HOMESTEAD_BASE + 0x0001;
   const int NO_IMPU_AKA = HOMESTEAD_BASE + 0x0010;
   const int NO_AV_CACHE = HOMESTEAD_BASE + 0x0020;
   const int NO_AV_HSS = HOMESTEAD_BASE + 0x0030;

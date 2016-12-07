@@ -399,6 +399,10 @@ void ImpiTask::on_mar_response(Diameter::Message& rsp)
     }
     else
     {
+      TRC_DEBUG("Unsupported auth scheme: %s", sip_auth_scheme.c_str());
+      SAS::Event event(this->trail(), SASEvent::UNSUPPORTED_SCHEME, 0);
+      event.add_var_param(sip_auth_scheme);
+      SAS::report_event(event);
       send_http_reply(HTTP_NOT_FOUND);
     }
   }
