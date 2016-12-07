@@ -15,7 +15,7 @@ if [[ ! -e /var/lib/cassandra/data/homestead_cache ]] || \
 then
   # Wait for the cassandra cluster to come online
   count=0
-  /usr/share/clearwater/bin/poll_cassandra.sh --no-grace-period
+  /usr/share/clearwater/bin/poll_cassandra.sh --no-grace-period > /dev/null 2>&1
 
   while [ $? -ne 0 ]; do
     ((count++))
@@ -25,7 +25,8 @@ then
     fi
 
     sleep 1
-    /usr/share/clearwater/bin/poll_cassandra.sh --no-grace-period
+    /usr/share/clearwater/bin/poll_cassandra.sh --no-grace-period > /dev/null 2>&1
+
   done
 
   # replication_str is set up by
