@@ -26,4 +26,4 @@ Responses:
   }
   ```
   
-  * 500 if Homestead failed to contact Cassandra.
+  * 500 if Homestead has been unable to contact Cassandra.
