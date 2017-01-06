@@ -62,7 +62,8 @@ homestead_test_SOURCES := ${COMMON_SOURCES} \
                           chargingaddresses_test.cpp \
                           pthread_cond_var_helper.cpp
 
-COMMON_CPPFLAGS := -I../include \
+COMMON_CPPFLAGS := -Wno-write-strings \
+                   -I../include \
                    -I../usr/include \
                    -I../modules/cpp-common/include \
                    -I../modules/cpp-common/test_utils \
@@ -80,6 +81,7 @@ COMMON_LDFLAGS := -L../usr/lib \
                   -lfdproto \
                   -levhtp \
                   -levent_pthreads \
+                  -levent_openssl \
                   -levent \
                   -lcares \
                   -lboost_regex \
@@ -88,6 +90,8 @@ COMMON_LDFLAGS := -L../usr/lib \
                   -lcurl \
                   -lc \
                   -lboost_filesystem \
+                  -lssl \
+                  -lcrypto \
                   $(shell net-snmp-config --netsnmp-agent-libs)
 
 # Only use the real SAS library in the production build.
