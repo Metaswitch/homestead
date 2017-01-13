@@ -50,7 +50,7 @@ Description: Debugging symbols for homestead-cx-node, the HSS Cache/Gateway node
 
 Package: homestead
 Architecture: any
-Depends: clearwater-infrastructure, clearwater-tcp-scalability, clearwater-log-cleanup, homestead-libs, libboost-regex1.54.0, libzmq3, libcurl3-gnutls, gnutls-bin, clearwater-socket-factory, libboost-filesystem1.54.0, libsnmp30 (>= 5.7.2~dfsg-clearwater6), clearwater-monit, clearwater-nginx, clearwater-snmpd
+Depends: clearwater-infrastructure, clearwater-tcp-scalability, clearwater-log-cleanup, homestead-libs, libboost-regex1.54.0, libzmq3, libcurl3-gnutls, gnutls-bin, clearwater-socket-factory, libboost-filesystem1.54.0, libsnmp30 (>= 5.7.2~dfsg-clearwater7), clearwater-monit, clearwater-nginx, clearwater-snmpd
 Suggests: homestead-dbg, clearwater-logging, clearwater-snmp-alarm-agent
 Description: Homestead, the HSS Cache/Gateway
 
