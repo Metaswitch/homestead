@@ -84,7 +84,7 @@ check program check_cx_health with path "/usr/share/clearwater/bin/check_cx_heal
   # (Check for 2 cycles to get round monit's limitation of effectively checking exit codes one cycle
   # late.  If you don't wait for at least 2 consecutive cycles, you can end up with monit erroneously
   # killing homestead twice)
-  if status = 3 for 2 cycles then exec "/bin/bash -c '/usr/share/clearwater/bin/issue_alarm.py monit 1500.3; /usr/share/clearwater/bin/stop_or_abort homestead cx_health 86400'"
+  if status = 3 for 2 cycles then exec "/bin/bash -c '/usr/share/clearwater/bin/issue-alarm monit 1500.3; /usr/share/clearwater/bin/stop_or_abort homestead cx_health 86400'"
 
 EOF
 chmod 0644 /etc/monit/conf.d/homestead.monit
