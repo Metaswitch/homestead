@@ -1684,7 +1684,7 @@ TEST_F(HandlersTest, DigestHSSTimeout)
   digest.qop = "qop";
   AKAAuthVector aka;
 
-  EXPECT_CALL(*_httpstack, send_reply(_, 504, _));
+  EXPECT_CALL(*_httpstack, send_reply(_, 503, _));
   _caught_diam_tsx->on_timeout();
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
 }
@@ -1713,7 +1713,7 @@ TEST_F(HandlersTest, DigestHSSConfigurableTimeout)
 
   // Turn the caught Diameter msg structure into a MAR.
   Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
-  EXPECT_CALL(*_httpstack, send_reply(_, 504, _));
+  EXPECT_CALL(*_httpstack, send_reply(_, 503, _));
   _caught_diam_tsx->on_timeout();
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
 }
@@ -3125,8 +3125,8 @@ TEST_F(HandlersTest, RegistrationStatusHSSTimeout)
   task->run();
   ASSERT_FALSE(_caught_diam_tsx == NULL);
 
-  // Expect a 504 response once we notify the task about the timeout error.
-  EXPECT_CALL(*_httpstack, send_reply(_, 504, _));
+  // Expect a 503 response once we notify the task about the timeout error.
+  EXPECT_CALL(*_httpstack, send_reply(_, 503, _));
   _caught_diam_tsx->on_timeout();
   fd_msg_free(_caught_fd_msg); _caught_fd_msg = NULL;
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
@@ -3152,9 +3152,9 @@ TEST_F(HandlersTest, RegistrationStatusHSSTimeoutFailsHealthCheck)
   task->run();
   ASSERT_FALSE(_caught_diam_tsx == NULL);
 
-  // Expect a 504 response once we notify the task about the timeout
+  // Expect a 503 response once we notify the task about the timeout
   // error. This should not trigger the health-checker.
-  EXPECT_CALL(*_httpstack, send_reply(_, 504, _));
+  EXPECT_CALL(*_httpstack, send_reply(_, 503, _));
   EXPECT_CALL(*hc, health_check_passed()).Times(0);
   _caught_diam_tsx->on_timeout();
 
