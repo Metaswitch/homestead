@@ -110,7 +110,14 @@ void HssCacheTask::configure_stats(StatisticsManager* stats_manager)
 
 void HssCacheTask::on_diameter_timeout()
 {
-  send_http_reply(HTTP_GATEWAY_TIMEOUT);
+  // Although a Diameter timeout indicates that a downstream server has failed,
+  // we send a 503 response rather than a 504.
+  // This is because the request hasn't yet been retried, and it's possible that
+  // another homestead node may be able to complete the request. By sending a
+  // 503 response, we ensure that the request will be retried by the client if
+  // possible.
+  TRC_ERROR("Diameter timeout - respond with HTTP 503");
+  send_http_reply(HTTP_SERVER_UNAVAILABLE);
   delete this;
 }
 
