@@ -3,7 +3,7 @@
 cassandra_hostname="127.0.0.1"
 
 . /etc/clearwater/config
-
+. /usr/share/clearwater/utils/check-root-permissions 1
 . /usr/share/clearwater/cassandra_schema_utils.sh
 
 quit_if_no_cassandra
@@ -44,35 +44,14 @@ then
         CREATE TABLE IF NOT EXISTS impu (
           public_id text PRIMARY KEY,
           ims_subscription_xml text,
-          is_registered boolean)
+          is_registered boolean,
+          primary_ccf text,
+          secondary_ccf text,
+          primary_ecf text,
+          secondary_ecf text)
+          WITH COMPACT STORAGE AND read_repair_chance = 1.0;
+        CREATE TABLE IF NOT EXISTS impi_mapping (
+          private_id text PRIMARY KEY,
+          unused text)
           WITH COMPACT STORAGE AND read_repair_chance = 1.0;" | $CQLSH
-  # We've removed the known_preferred key from newly-created copies of the
-  # schema but we can't alter existing copies because there might be downlevel
-  # Homestead nodes that still want to read/write it (even though the data
-  # stored there is never used).
 fi
-
-echo "USE homestead_cache; DESC TABLE impu" | $CQLSH | grep primary_ccf > /dev/null
-if [ $? != 0 ]; then
-  echo "USE homestead_cache;
-        ALTER TABLE impu ADD primary_ccf text;
-        ALTER TABLE impu ADD secondary_ccf text;
-        ALTER TABLE impu ADD primary_ecf text;
-        ALTER TABLE impu ADD secondary_ecf text;" | $CQLSH
-fi
-
-if [[ ! -e /var/lib/cassandra/data/homestead_cache/impi_mapping ]];
-then
-  echo "USE homestead_cache;
-        CREATE TABLE IF NOT EXISTS impi_mapping (private_id text PRIMARY KEY, unused text) WITH COMPACT STORAGE AND read_repair_chance = 1.0;" | $CQLSH
-fi
-
-if [ -z "$speculative_retry_value" ]
-then
-  speculative_retry_value="50ms"
-fi
-
-echo "USE homestead_cache;
-      ALTER TABLE impu WITH speculative_retry = '$speculative_retry_value';
-      ALTER TABLE impi_mapping WITH speculative_retry = '$speculative_retry_value';
-      ALTER TABLE impi WITH speculative_retry = '$speculative_retry_value';" | $CQLSH
