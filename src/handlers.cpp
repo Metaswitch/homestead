@@ -686,8 +686,10 @@ void ImpiRegistrationStatusTask::on_uar_response(Diameter::Message& rsp)
   {
     uar_results_tbl->increment(SNMP::DiameterAppId::_3GPP, experimental_result_code);
   }
+
   TRC_DEBUG("Received User-Authorization answer with result %d/%d",
             result_code, experimental_result_code);
+
   if ((result_code == DIAMETER_SUCCESS) ||
       (experimental_result_code == DIAMETER_FIRST_REGISTRATION) ||
       (experimental_result_code == DIAMETER_SUBSEQUENT_REGISTRATION))
@@ -698,6 +700,7 @@ void ImpiRegistrationStatusTask::on_uar_response(Diameter::Message& rsp)
     writer.String(JSON_RC.c_str());
     writer.Int(result_code ? result_code : experimental_result_code);
     std::string server_name;
+
     // If the HSS returned a server_name, return that. If not, return the
     // server capabilities, even if none are returned by the HSS.
     if (uaa.server_name(server_name))
@@ -720,9 +723,12 @@ void ImpiRegistrationStatusTask::on_uar_response(Diameter::Message& rsp)
 
       server_capabilities.write_capabilities(&writer);
     }
+
     writer.EndObject();
+
     _req.add_content(sb.GetString());
     send_http_reply(HTTP_OK);
+
     if (_health_checker)
     {
       _health_checker->health_check_passed();
@@ -876,6 +882,16 @@ void ImpuLocationInfoTask::on_lir_response(Diameter::Message& rsp)
 
       server_capabilities.write_capabilities(&writer);
     }
+
+    // If the HSS returned a wildcarded public user identity, add this to
+    // the response.
+    // !KH1! - to add in the message parsing here.
+    if (false)
+    {
+      writer.String(JSON_WILDCARD.c_str());
+      writer.String("AVP");
+    }
+
     writer.EndObject();
     _req.add_content(sb.GetString());
     send_http_reply(HTTP_OK);
@@ -1098,6 +1114,7 @@ ImpuRegDataTask::RequestType ImpuRegDataTask::request_type_from_body(std::string
   {
     ret = RequestType::DEREG_AUTH_TIMEOUT;
   }
+
   TRC_DEBUG("New value of _type is %d", ret);
   return ret;
 }
@@ -1120,6 +1137,24 @@ std::string ImpuRegDataTask::server_name_from_body(std::string body)
   }
 }
 
+std::string ImpuRegDataTask::wildcard_from_body(std::string body)
+{
+  rapidjson::Document document;
+  document.Parse<0>(body.c_str());
+
+  if (!document.IsObject() ||
+      !document.HasMember("wildcard") ||
+      !document["wildcard"].IsString())
+  {
+    TRC_DEBUG("Did not receive valid JSON with a 'wildcard' element");
+    return "";
+  }
+  else
+  {
+    return document["wildcard"].GetString();
+  }
+}
+
 void ImpuRegDataTask::run()
 {
   const std::string prefix = "/impu/";
@@ -1128,6 +1163,7 @@ void ImpuRegDataTask::run()
   _impu = path.substr(prefix.length(), path.find_first_of("/", prefix.length()) - prefix.length());
   _impi = _req.param("private_id");
   _provided_server_name = server_name_from_body(_req.get_rx_body());
+  _wildcard = wildcard_from_body(_req.get_rx_body());
 
   TRC_DEBUG("Parsed HTTP request: private ID %s, public ID %s, server name %s",
             _impi.c_str(), _impu.c_str(), _provided_server_name.c_str());

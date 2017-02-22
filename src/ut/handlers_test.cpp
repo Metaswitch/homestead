@@ -95,6 +95,7 @@ public:
   static const std::string DEST_HOST;
   static const std::string DEFAULT_SERVER_NAME;
   static const std::string SERVER_NAME;
+  static const std::string WILDCARD;
   static const std::string IMPI;
   static const std::string IMPU;
   static std::vector<std::string> IMPU_IN_VECTOR;
@@ -322,7 +323,10 @@ public:
     return sb.GetString();
   }
 
-  static std::string build_icscf_json(int32_t rc, std::string scscf, ServerCapabilities capabs)
+  static std::string build_icscf_json(int32_t rc,
+                                      std::string scscf,
+                                      ServerCapabilities capabs,
+                                      std::string wildcard)
   {
     rapidjson::StringBuffer sb;
     rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
@@ -366,16 +370,27 @@ public:
       }
       writer.EndArray();
     }
+
+    if (!wildcard.empty())
+    {
+      // !KH1!
+      // Temporarily commented out as this requires the LIA parsing code
+      //writer.String(JSON_WILDCARD.c_str());
+      //writer.String(wildcard.c_str());
+    }
+
     writer.EndObject();
     return sb.GetString();
   }
 
   MockHttpStack::Request make_request(const std::string& req_type,
                                       bool use_impi,
-                                      bool use_server_name)
+                                      bool use_server_name,
+                                      bool use_wildcard)
   {
     std::string parameters = "";
     std::string server_name = "";
+    std::string wildcard = "";
 
     if (use_impi)
     {
@@ -387,17 +402,23 @@ public:
       server_name = ", \"server_name\": \"" + SERVER_NAME + "\"";
     }
 
+    if (use_wildcard)
+    {
+      wildcard = ", \"wildcard\": \"" + WILDCARD + "\"";
+    }
+
     return MockHttpStack::Request(_httpstack,
                                   "/impu/" + IMPU + "/reg-data",
                                   "",
                                   parameters,
-                                  "{\"reqtype\": \"" + req_type +"\"" + server_name + "}",
+                                  "{\"reqtype\": \"" + req_type +"\"" + server_name + wildcard + "}",
                                   htp_method_PUT);
   }
 
   void reg_data_template_with_deletion(std::string request_type,
                                        bool use_impi,
                                        bool use_server_name,
+                                       bool use_wildcard,
                                        RegistrationState db_regstate,
                                        int expected_type,
                                        int db_ttl = 3600,
@@ -405,7 +426,10 @@ public:
                                        RegistrationState expected_new_state = RegistrationState::NOT_REGISTERED,
                                        CassandraStore::ResultCode cache_error = CassandraStore::OK)
   {
-    MockHttpStack::Request req = make_request(request_type, use_impi, use_server_name);
+    MockHttpStack::Request req = make_request(request_type,
+                                              use_impi,
+                                              use_server_name,
+                                              use_wildcard);
     reg_data_template(req,
                       use_impi,
                       use_server_name,
@@ -1426,6 +1450,7 @@ const std::string HandlersTest::DEST_REALM = "dest-realm";
 const std::string HandlersTest::DEST_HOST = "dest-host";
 const std::string HandlersTest::DEFAULT_SERVER_NAME = "sprout";
 const std::string HandlersTest::SERVER_NAME = "scscf";
+const std::string HandlersTest::WILDCARD = "sip:im!.*!@scscf";
 const std::string HandlersTest::IMPI = "_impi@example.com";
 const std::string HandlersTest::IMPU = "sip:impu@example.com";
 const std::string HandlersTest::IMPU2 = "sip:impu2@example.com";
@@ -2406,7 +2431,7 @@ TEST_F(HandlersTest, AkaNoIMPU)
 
 TEST_F(HandlersTest, IMSSubscriptionHSS_InitialRegister)
 {
-  MockHttpStack::Request req = make_request("reg", true, true);
+  MockHttpStack::Request req = make_request("reg", true, true, true);
   reg_data_template(req, true, true, false, RegistrationState::NOT_REGISTERED, 1);
 }
 
@@ -2414,7 +2439,7 @@ TEST_F(HandlersTest, IMSSubscriptionHSS_InitialRegister)
 
 TEST_F(HandlersTest, IMSSubscriptionHSS_InitialRegisterNoServerName)
 {
-  MockHttpStack::Request req = make_request("reg", true, false);
+  MockHttpStack::Request req = make_request("reg", true, false, true);
   reg_data_template(req, true, false, false, RegistrationState::NOT_REGISTERED, 1);
 }
 
@@ -2422,7 +2447,7 @@ TEST_F(HandlersTest, IMSSubscriptionHSS_InitialRegisterNoServerName)
 
 TEST_F(HandlersTest, IMSSubscriptionHSS_InitialRegisterCacheFail)
 {
-  MockHttpStack::Request req = make_request("reg", true, true);
+  MockHttpStack::Request req = make_request("reg", true, true, true);
   reg_data_template(req, true, true, false, RegistrationState::NOT_REGISTERED, 1,  3600, "", RegistrationState::REGISTERED, false, CassandraStore::CONNECTION_ERROR);
 }
 
@@ -2430,7 +2455,7 @@ TEST_F(HandlersTest, IMSSubscriptionHSS_InitialRegisterCacheFail)
 
 TEST_F(HandlersTest, IMSSubscriptionHSS_InitialRegisterFromUnreg)
 {
-  MockHttpStack::Request req = make_request("reg", true, true);
+  MockHttpStack::Request req = make_request("reg", true, true, true);
   reg_data_template(req, true, true, false, RegistrationState::UNREGISTERED, 1);
 }
 
@@ -2439,7 +2464,7 @@ TEST_F(HandlersTest, IMSSubscriptionHSS_InitialRegisterFromUnreg)
 
 TEST_F(HandlersTest, IMSSubscriptionHSS_ReregWithSAR)
 {
-  MockHttpStack::Request req = make_request("reg", true, true);
+  MockHttpStack::Request req = make_request("reg", true, true, true);
   reg_data_template(req, true, true, false, RegistrationState::REGISTERED, 2, 500);
 }
 
@@ -2447,7 +2472,7 @@ TEST_F(HandlersTest, IMSSubscriptionHSS_ReregWithSAR)
 
 TEST_F(HandlersTest, IMSSubscriptionHSS_ReregNewBinding)
 {
-  MockHttpStack::Request req = make_request("reg", true, true);
+  MockHttpStack::Request req = make_request("reg", true, true, true);
   reg_data_template(req, true, true, true, RegistrationState::REGISTERED, 1);
 }
 
@@ -2456,7 +2481,7 @@ TEST_F(HandlersTest, IMSSubscriptionHSS_ReregNewBinding)
 // more than 3600.
 TEST_F(HandlersTest, IMSSubscriptionHSS_ReregCacheNotallowed)
 {
-  MockHttpStack::Request req = make_request("reg", true, true);
+  MockHttpStack::Request req = make_request("reg", true, true, true);
   req.add_header_to_incoming_req("Cache-control", "no-cache");
   reg_data_template(req, true, true, false, RegistrationState::REGISTERED, 2, 7200);
 }
@@ -2473,7 +2498,7 @@ TEST_F(HandlersTest, IMSSubscriptionHSS_ReregWithoutSAR)
 // expected to be 310
 TEST_F(HandlersTest, IMSSubscriptionHSS_ReregWithSARAlways)
 {
-  MockHttpStack::Request req = make_request("reg", true, true);
+  MockHttpStack::Request req = make_request("reg", true, true, true);
   reg_data_template(req,
                     true,
                     true,
@@ -2510,7 +2535,7 @@ TEST_F(HandlersTest, IMSSubscriptionCallHSSUnregisteredService)
 
 TEST_F(HandlersTest, IMSSubscriptionCallHSSNewUnregisteredService)
 {
-  MockHttpStack::Request req = make_request("call", true, true);
+  MockHttpStack::Request req = make_request("call", true, true, true);
   reg_data_template(req,
                     true,
                     true,
@@ -2526,17 +2551,17 @@ TEST_F(HandlersTest, IMSSubscriptionCallHSSNewUnregisteredService)
 
 TEST_F(HandlersTest, IMSSubscriptionDeregHSS)
 {
-  reg_data_template_with_deletion("dereg-user", true, true, RegistrationState::REGISTERED, 5);
+  reg_data_template_with_deletion("dereg-user", true, true, true, RegistrationState::REGISTERED, 5);
 }
 
 TEST_F(HandlersTest, IMSSubscriptionDeregTimeout)
 {
-  reg_data_template_with_deletion("dereg-timeout", true, true, RegistrationState::REGISTERED, 4);
+  reg_data_template_with_deletion("dereg-timeout", true, true, true, RegistrationState::REGISTERED, 4);
 }
 
 TEST_F(HandlersTest, IMSSubscriptionDeregAdmin)
 {
-  reg_data_template_with_deletion("dereg-admin", true, true, RegistrationState::REGISTERED, 8);
+  reg_data_template_with_deletion("dereg-admin", true, true, true, RegistrationState::REGISTERED, 8);
 }
 
 // Test that if an IMPI is not explicitly provided on a deregistration
@@ -2544,25 +2569,25 @@ TEST_F(HandlersTest, IMSSubscriptionDeregAdmin)
 
 TEST_F(HandlersTest, IMSSubscriptionDeregUseCacheIMPI)
 {
-  reg_data_template_with_deletion("dereg-admin", false, true, RegistrationState::REGISTERED, 8);
+  reg_data_template_with_deletion("dereg-admin", false, true, true, RegistrationState::REGISTERED, 8);
 }
 
 // Test the cache failure path
 TEST_F(HandlersTest, IMSSubscriptionDeregHSSCacheFail)
 {
-  reg_data_template_with_deletion("dereg-user", true, true, RegistrationState::REGISTERED, 5, 3600, "", RegistrationState::NOT_REGISTERED, CassandraStore::CONNECTION_ERROR);
+  reg_data_template_with_deletion("dereg-user", true, true, true, RegistrationState::REGISTERED, 5, 3600, "", RegistrationState::NOT_REGISTERED, CassandraStore::CONNECTION_ERROR);
 }
 
 // Test the benign cache failure path
 TEST_F(HandlersTest, IMSSubscriptionDeregHSSCacheFailBenign)
 {
-  reg_data_template_with_deletion("dereg-user", true, true, RegistrationState::REGISTERED, 5, 3600, REGDATA_RESULT_DEREG, RegistrationState::NOT_REGISTERED, CassandraStore::NOT_FOUND);
+  reg_data_template_with_deletion("dereg-user", true, true, true, RegistrationState::REGISTERED, 5, 3600, REGDATA_RESULT_DEREG, RegistrationState::NOT_REGISTERED, CassandraStore::NOT_FOUND);
 }
 
 // Test that an unregistered user is deregistered with the HSS.
 TEST_F(HandlersTest, IMSSubscriptionDeregUnregSub)
 {
-  reg_data_template_with_deletion("dereg-user", true, true, RegistrationState::UNREGISTERED, 5);
+  reg_data_template_with_deletion("dereg-user", true, true, true, RegistrationState::UNREGISTERED, 5);
 }
 
 // Test the two authentication failure flows (which should only affect
@@ -3213,7 +3238,7 @@ TEST_F(HandlersTest, RegistrationStatus)
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
 
   // Build the expected JSON response and check it's correct.
-  EXPECT_EQ(build_icscf_json(DIAMETER_SUCCESS, SERVER_NAME, CAPABILITIES), req.content());
+  EXPECT_EQ(build_icscf_json(DIAMETER_SUCCESS, SERVER_NAME, CAPABILITIES, ""), req.content());
 }
 
 // 200 OK responses to the /impi/X/registration-status URL should
@@ -3312,7 +3337,7 @@ TEST_F(HandlersTest, RegistrationStatusOptParamsSubseqRegCapabs)
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
 
   // Build the expected JSON response and check it's correct.
-  EXPECT_EQ(build_icscf_json(DIAMETER_SUBSEQUENT_REGISTRATION, "", CAPABILITIES_WITH_SERVER_NAME), req.content());
+  EXPECT_EQ(build_icscf_json(DIAMETER_SUBSEQUENT_REGISTRATION, "", CAPABILITIES_WITH_SERVER_NAME, ""), req.content());
 }
 
 TEST_F(HandlersTest, RegistrationStatusFirstRegNoCapabs)
@@ -3366,7 +3391,7 @@ TEST_F(HandlersTest, RegistrationStatusFirstRegNoCapabs)
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
 
   // Build the expected JSON response and check it's correct.
-  EXPECT_EQ(build_icscf_json(DIAMETER_FIRST_REGISTRATION, "", NO_CAPABILITIES), req.content());
+  EXPECT_EQ(build_icscf_json(DIAMETER_FIRST_REGISTRATION, "", NO_CAPABILITIES, ""), req.content());
 }
 
 // The following tests all test HSS error response cases, and use a template
@@ -3417,7 +3442,7 @@ TEST_F(HandlersTest, RegistrationStatusNoHSS)
   task->run();
 
   // Build the expected JSON response and check it's correct.
-  EXPECT_EQ(build_icscf_json(DIAMETER_SUCCESS, DEFAULT_SERVER_NAME, NO_CAPABILITIES), req.content());
+  EXPECT_EQ(build_icscf_json(DIAMETER_SUCCESS, DEFAULT_SERVER_NAME, NO_CAPABILITIES, ""), req.content());
 }
 
 // 200 OK responses to the /impi/X/registration-status URL should
@@ -3497,7 +3522,58 @@ TEST_F(HandlersTest, LocationInfo)
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
 
   // Build the expected JSON response and check it's correct.
-  EXPECT_EQ(build_icscf_json(DIAMETER_SUCCESS, SERVER_NAME, CAPABILITIES), req.content());
+  EXPECT_EQ(build_icscf_json(DIAMETER_SUCCESS, SERVER_NAME, CAPABILITIES, ""), req.content());
+}
+
+TEST_F(HandlersTest, LocationInfoWithWildcard)
+{
+  // This test tests a Location Info with a wildcarded public user identity.
+
+  // Build the HTTP request which will invoke an LIR to be sent to the HSS.
+  MockHttpStack::Request req(_httpstack,
+                             "/impu/" + IMPU + "/",
+                             "location",
+                             "");
+
+  ImpuLocationInfoTask::Config cfg(true);
+  ImpuLocationInfoTask* task = new ImpuLocationInfoTask(req, &cfg, FAKE_TRAIL_ID);
+
+  // Once the task's run function is called, expect a diameter message to be
+  // sent.
+  EXPECT_CALL(*_mock_stack, send(_, _, 200))
+    .Times(1)
+    .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
+  task->run();
+  ASSERT_FALSE(_caught_diam_tsx == NULL);
+
+  // Turn the caught Diameter msg structure into a LIR and check its contents.
+  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
+  Cx::LocationInfoRequest lir(msg);
+  EXPECT_TRUE(lir.get_str_from_avp(_cx_dict->DESTINATION_REALM, test_str));
+  EXPECT_EQ(DEST_REALM, test_str);
+  EXPECT_TRUE(lir.get_str_from_avp(_cx_dict->DESTINATION_HOST, test_str));
+  EXPECT_EQ(DEST_HOST, test_str);
+  EXPECT_EQ(IMPU, lir.impu());
+  EXPECT_FALSE(lir.originating(test_i32));
+  EXPECT_FALSE(lir.auth_type(test_i32));
+
+  // Build an LIA and expect a successful HTTP response.
+  // !KH1! - The LIA needs to have the wildcard parsing in it.
+  Cx::LocationInfoAnswer lia(_cx_dict,
+                             _mock_stack,
+                             DIAMETER_SUCCESS,
+                             0,
+                             0,
+                             SERVER_NAME,
+                             CAPABILITIES);
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
+
+  _caught_diam_tsx->on_response(lia);
+  _caught_fd_msg = NULL;
+  delete _caught_diam_tsx; _caught_diam_tsx = NULL;
+
+  // Build the expected JSON response and check it's correct.
+  EXPECT_EQ(build_icscf_json(DIAMETER_SUCCESS, SERVER_NAME, CAPABILITIES, WILDCARD), req.content());
 }
 
 TEST_F(HandlersTest, LocationInfoOptParamsUnregisteredService)
@@ -3551,7 +3627,7 @@ TEST_F(HandlersTest, LocationInfoOptParamsUnregisteredService)
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
 
   // Build the expected JSON response and check it's correct.
-  EXPECT_EQ(build_icscf_json(DIAMETER_UNREGISTERED_SERVICE, "", CAPABILITIES_WITH_SERVER_NAME), req.content());
+  EXPECT_EQ(build_icscf_json(DIAMETER_UNREGISTERED_SERVICE, "", CAPABILITIES_WITH_SERVER_NAME, ""), req.content());
 }
 
 TEST_F(HandlersTest, LocationInfoUnregisteredError)
@@ -3648,7 +3724,7 @@ TEST_F(HandlersTest, LocationInfoNoHSS)
   t->on_success(&mock_op);
 
   // Build the expected JSON response and check it's correct.
-  EXPECT_EQ(build_icscf_json(DIAMETER_SUCCESS, DEFAULT_SERVER_NAME, NO_CAPABILITIES), req.content());
+  EXPECT_EQ(build_icscf_json(DIAMETER_SUCCESS, DEFAULT_SERVER_NAME, NO_CAPABILITIES, ""), req.content());
 }
 
 TEST_F(HandlersTest, LocationInfoNoHSSNoSubscriber)
