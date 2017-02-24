@@ -373,10 +373,8 @@ public:
 
     if (!wildcard.empty())
     {
-      // !KH1!
-      // Temporarily commented out as this requires the LIA parsing code
-      //writer.String(JSON_WILDCARD.c_str());
-      //writer.String(wildcard.c_str());
+      writer.String(JSON_WILDCARD.c_str());
+      writer.String(wildcard.c_str());
     }
 
     writer.EndObject();
@@ -3558,14 +3556,14 @@ TEST_F(HandlersTest, LocationInfoWithWildcard)
   EXPECT_FALSE(lir.auth_type(test_i32));
 
   // Build an LIA and expect a successful HTTP response.
-  // !KH1! - The LIA needs to have the wildcard parsing in it.
   Cx::LocationInfoAnswer lia(_cx_dict,
                              _mock_stack,
                              DIAMETER_SUCCESS,
                              0,
                              0,
                              SERVER_NAME,
-                             CAPABILITIES);
+                             CAPABILITIES,
+                             WILDCARD);
   EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
 
   _caught_diam_tsx->on_response(lia);

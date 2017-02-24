@@ -859,6 +859,7 @@ void ImpuLocationInfoTask::on_lir_response(Diameter::Message& rsp)
     writer.String(JSON_RC.c_str());
     writer.Int(result_code ? result_code : experimental_result_code);
     std::string server_name;
+    std::string wildcarded_pub_id;
 
     // If the HSS returned a server_name, return that. If not, return the
     // server capabilities, even if none are returned by the HSS.
@@ -885,11 +886,11 @@ void ImpuLocationInfoTask::on_lir_response(Diameter::Message& rsp)
 
     // If the HSS returned a wildcarded public user identity, add this to
     // the response.
-    // !KH1! - to add in the message parsing here.
-    if (false)
+    if (lia.wildcarded_pub_id(wildcarded_pub_id))
     {
+      TRC_DEBUG("Got Wildcarded-Public-Id %s", wildcarded_pub_id.c_str());
       writer.String(JSON_WILDCARD.c_str());
-      writer.String("AVP");
+      writer.String(wildcarded_pub_id.c_str());
     }
 
     writer.EndObject();

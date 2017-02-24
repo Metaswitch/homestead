@@ -94,6 +94,7 @@ public:
   const Diameter::Dictionary::AVP SECONDARY_CHARGING_COLLECTION_FUNCTION_NAME;
   const Diameter::Dictionary::AVP PRIMARY_EVENT_CHARGING_FUNCTION_NAME;
   const Diameter::Dictionary::AVP SECONDARY_EVENT_CHARGING_FUNCTION_NAME;
+  const Diameter::Dictionary::AVP WILDCARDED_PUBLIC_IDENTITY;
 };
 
 class UserAuthorizationRequest : public Diameter::Message
@@ -182,13 +183,21 @@ public:
                      const uint32_t& vendor_id,
                      const int32_t& experimental_result_code,
                      const std::string& scscf,
-                     const ServerCapabilities& capabs);
+                     const ServerCapabilities& capabs,
+                     const std::string& wildcarded_pub_id = "");
   inline LocationInfoAnswer(Diameter::Message& msg) : Diameter::Message(msg) {};
 
   inline bool server_name(std::string& str) const
   {
     return get_str_from_avp(((Cx::Dictionary*)dict())->SERVER_NAME, str);
   }
+
+  inline bool wildcarded_pub_id(std::string& str) const
+  {
+    return get_str_from_avp(((Cx::Dictionary*)dict())->
+                            WILDCARDED_PUBLIC_IDENTITY, str);
+  }
+
   ServerCapabilities server_capabilities() const;
 };
 
