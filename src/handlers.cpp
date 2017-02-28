@@ -1592,6 +1592,8 @@ void ImpuRegDataTask::on_get_reg_data_failure(CassandraStore::Operation* op,
 
 void ImpuRegDataTask::send_server_assignment_request(Cx::ServerAssignmentType type)
 {
+  // Save off the server assignment type to be used later.
+  _server_assignment_type = type;
   Cx::ServerAssignmentRequest sar(_dict,
                                   _diameter_stack,
                                   _dest_host,
@@ -1600,7 +1602,8 @@ void ImpuRegDataTask::send_server_assignment_request(Cx::ServerAssignmentType ty
                                   _impu,
                                   (_provided_server_name == "" ? _configured_server_name :
                                    _provided_server_name),
-                                  type);
+                                  type,
+                                  _wildcard);
   DiameterTransaction* tsx =
     new DiameterTransaction(_dict,
                             this,
@@ -1817,6 +1820,50 @@ void ImpuRegDataTask::on_sar_response(Diameter::Message& rsp)
     SAS::report_event(event);
     _http_rc = HTTP_NOT_FOUND;
   }
+  // An SAA received with this experimental result code may be updating the
+  // wildcarded public identity. If it is, an updated SAR should be resent, but
+  // if it isn't, treat it as an error.
+  else if (experimental_result_code == DIAMETER_ERROR_IN_ASSIGNMENT_TYPE)
+  {
+    const std::string current_wildcard = _wildcard;
+    saa.wildcarded_public_identity(_wildcard);
+    if (current_wildcard == _wildcard)
+    {
+      if (_wildcard.empty())
+      {
+        TRC_INFO("Server-Assignment answer with result code %d and experimental "
+                 "result code DIAMETER_ERROR_IN_ASSIGNMENT_TYPE, with vendor id "
+                 "%d and assignment type %d - reject",
+                 result_code, vendor_id, _server_assignment_type);
+        SAS::Event event(this->trail(), SASEvent::REG_DATA_HSS_FAIL_ASSIGNMENT_TYPE, 0);
+        event.add_static_param(result_code);
+        event.add_static_param(experimental_result_code);
+        event.add_static_param(_server_assignment_type);
+        SAS::report_event(event);
+        _http_rc = HTTP_SERVER_ERROR;
+      }
+      else
+      {
+        TRC_INFO("Server-Assignment answer with result code %d, experimental "
+                 "result code DIAMETER_ERROR_IN_ASSIGNMENT_TYPE, vendor id %d "
+                 "and assignment type %d received. Sent to update wildcarded "
+                 "public id, but this is already correctly set so does not need "
+                 "updating - reject",
+                 result_code, vendor_id, _server_assignment_type);
+        SAS::Event event(this->trail(), SASEvent::REG_DATA_HSS_FAIL_WILDCARD, 0);
+        SAS::report_event(event);
+        _http_rc = HTTP_SERVER_ERROR;
+      }
+    }
+    else
+    {
+      send_server_assignment_request(_server_assignment_type);
+      SAS::Event event(this->trail(), SASEvent::REG_DATA_RESENT_SAR, 0);
+      SAS::report_event(event);
+      // Another SAA is expected, so we can stop processing this SAA now.
+      return;
+    }
+  }
   else
   {
     TRC_INFO("Server-Assignment answer with result code %d and experimental result code %d with vendor id %d - reject",
@@ -1830,7 +1877,7 @@ void ImpuRegDataTask::on_sar_response(Diameter::Message& rsp)
 
   // Update the cache if required.
   bool pending_cache_op = false;
-  if ((result_code == 2001) &&
+  if ((result_code == DIAMETER_SUCCESS) &&
       (!is_deregistration_request(_type)) &&
       (!is_auth_failure_request(_type)))
   {

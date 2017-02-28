@@ -66,6 +66,7 @@ const int32_t DIAMETER_ERROR_USER_UNKNOWN = 5001;
 const int32_t DIAMETER_ERROR_IDENTITIES_DONT_MATCH = 5002;
 const int32_t DIAMETER_ERROR_IDENTITY_NOT_REGISTERED = 5003;
 const int32_t DIAMETER_ERROR_ROAMING_NOT_ALLOWED = 5004;
+const int32_t DIAMETER_ERROR_IN_ASSIGNMENT_TYPE = 5007;
 
 // Result-Code AVP strings used in set_result_code function
 const std::string DIAMETER_REQ_SUCCESS = "DIAMETER_SUCCESS";
@@ -523,6 +524,7 @@ protected:
   long _http_rc;
   std::string _provided_server_name;
   std::string _wildcard;
+  Cx::ServerAssignmentType _server_assignment_type;
 };
 
 class ImpuReadRegDataTask : public ImpuRegDataTask

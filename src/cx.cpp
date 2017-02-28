@@ -93,7 +93,8 @@ Dictionary::Dictionary() :
   PRIMARY_CHARGING_COLLECTION_FUNCTION_NAME("3GPP", "Primary-Charging-Collection-Function-Name"),
   SECONDARY_CHARGING_COLLECTION_FUNCTION_NAME("3GPP", "Secondary-Charging-Collection-Function-Name"),
   PRIMARY_EVENT_CHARGING_FUNCTION_NAME("3GPP", "Primary-Event-Charging-Function-Name"),
-  SECONDARY_EVENT_CHARGING_FUNCTION_NAME("3GPP", "Secondary-Event-Charging-Function-Name")
+  SECONDARY_EVENT_CHARGING_FUNCTION_NAME("3GPP", "Secondary-Event-Charging-Function-Name"),
+  WILDCARDED_PUBLIC_IDENTITY("3GPP", "Wildcarded-Public-Identity")
 {
 }
 
@@ -643,6 +644,22 @@ AKAAuthVector MultimediaAuthAnswer::akav2_auth_vector() const
   return av;
 }
 
+bool ServerAssignmentRequest::include_wildcard_on_sar(const Cx::ServerAssignmentType type)
+{
+  switch (type)
+  {
+    case Cx::ServerAssignmentType::UNREGISTERED_USER:
+    case Cx::ServerAssignmentType::NO_ASSIGNMENT:
+    case Cx::ServerAssignmentType::TIMEOUT_DEREGISTRATION_STORE_SERVER_NAME:
+    case Cx::ServerAssignmentType::ADMINISTRATIVE_DEREGISTRATION:
+    case Cx::ServerAssignmentType::DEREGISTRATION_TOO_MUCH_DATA:
+    case Cx::ServerAssignmentType::TIMEOUT_DEREGISTRATION:
+      return true;
+    default:
+      return false;
+  }
+}
+
 ServerAssignmentRequest::ServerAssignmentRequest(const Dictionary* dict,
                                                  Diameter::Stack* stack,
                                                  const std::string& dest_host,
@@ -650,7 +667,8 @@ ServerAssignmentRequest::ServerAssignmentRequest(const Dictionary* dict,
                                                  const std::string& impi,
                                                  const std::string& impu,
                                                  const std::string& server_name,
-                                                 const Cx::ServerAssignmentType type) :
+                                                 const Cx::ServerAssignmentType type,
+                                                 const std::string& wildcard) :
                                                  Diameter::Message(dict, dict->SERVER_ASSIGNMENT_REQUEST, stack)
 {
   TRC_DEBUG("Building Server-Assignment request for %s/%s", impi.c_str(), impu.c_str());
@@ -672,6 +690,10 @@ ServerAssignmentRequest::ServerAssignmentRequest(const Dictionary* dict,
   add(Diameter::AVP(dict->SERVER_NAME).val_str(server_name));
   add(Diameter::AVP(dict->SERVER_ASSIGNMENT_TYPE).val_i32(type));
   add(Diameter::AVP(dict->USER_DATA_ALREADY_AVAILABLE).val_i32(0));
+  if (!wildcard.empty() && include_wildcard_on_sar(type))
+  {
+    add(Diameter::AVP(dict->WILDCARDED_PUBLIC_IDENTITY).val_str(wildcard));
+  }
 }
 
 ServerAssignmentAnswer::ServerAssignmentAnswer(const Dictionary* dict,
