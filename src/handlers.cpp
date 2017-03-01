@@ -1203,7 +1203,11 @@ void ImpuRegDataTask::run()
   // We must always get the data from the cache - even if we're doing
   // a deregistration, we'll need to use the existing private ID, and
   // need to return the iFCs to Sprout.
+  get_reg_data();
+}
 
+void ImpuRegDataTask::get_reg_data()
+{
   TRC_DEBUG ("Try to find IMS Subscription information in the cache");
   SAS::Event event(this->trail(), SASEvent::CACHE_GET_REG_DATA, 0);
   event.add_var_param(_impu);
@@ -1819,8 +1823,9 @@ void ImpuRegDataTask::on_sar_response(Diameter::Message& rsp)
     _http_rc = HTTP_NOT_FOUND;
   }
   // An SAA received with this experimental result code may be updating the
-  // wildcarded public identity. If it is, an updated SAR should be resent, but
-  // if it isn't, treat it as an error.
+  // wildcarded public identity. If it is, then return to searching the cache
+  // with the new wildcarded public identity and proceed from there. But if it
+  // isn't, treat it as an error.
   else if (experimental_result_code == DIAMETER_ERROR_IN_ASSIGNMENT_TYPE)
   {
     const std::string current_wildcard = (_hss_wildcard.empty() ? _sprout_wildcard : _hss_wildcard);
@@ -1842,14 +1847,13 @@ void ImpuRegDataTask::on_sar_response(Diameter::Message& rsp)
     }
     else
     {
-      // Krista
-
-      // old - need to change completely
-      // send_server_assignment_request((Cx::ServerAssignmentType)type);
-      // SAS::Event event(this->trail(), SASEvent::REG_DATA_RESENT_SAR, 0);
-      // SAS::report_event(event);
-
-      // Another SAA is expected, so we can stop processing this SAA now.
+      // Return to search the cache with the new wildcarded public identity, and
+      // continue the processing from there (possibly send SAR, send http
+      // response, etc.)
+      SAS::Event event(this->trail(), SASEvent::REG_DATA_HSS_UPDATED_WILDCARD, 0);
+      SAS::report_event(event);
+      get_reg_data();
+      // Since processing has been redone, we can stop processing this SAA now.
       return;
     }
   }

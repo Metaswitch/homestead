@@ -475,6 +475,7 @@ public:
   {}
   virtual ~ImpuRegDataTask() {};
   virtual void run();
+  void get_reg_data();
   void on_get_reg_data_success(CassandraStore::Operation* op);
   void on_get_reg_data_failure(CassandraStore::Operation* op,
                                CassandraStore::ResultCode error,

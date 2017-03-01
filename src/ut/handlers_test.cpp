@@ -2431,7 +2431,7 @@ TEST_F(HandlersTest, AkaNoIMPU)
 
 TEST_F(HandlersTest, IMSSubscriptionHSS_InitialRegister)
 {
-  MockHttpStack::Request req = make_request("reg", true, true, true);
+  MockHttpStack::Request req = make_request("reg", true, true, false);
   reg_data_template(req, true, true, false, RegistrationState::NOT_REGISTERED, 1);
 }
 
@@ -2439,7 +2439,7 @@ TEST_F(HandlersTest, IMSSubscriptionHSS_InitialRegister)
 
 TEST_F(HandlersTest, IMSSubscriptionHSS_InitialRegisterNoServerName)
 {
-  MockHttpStack::Request req = make_request("reg", true, false, true);
+  MockHttpStack::Request req = make_request("reg", true, false, false);
   reg_data_template(req, true, false, false, RegistrationState::NOT_REGISTERED, 1);
 }
 
@@ -2447,7 +2447,7 @@ TEST_F(HandlersTest, IMSSubscriptionHSS_InitialRegisterNoServerName)
 
 TEST_F(HandlersTest, IMSSubscriptionHSS_InitialRegisterCacheFail)
 {
-  MockHttpStack::Request req = make_request("reg", true, true, true);
+  MockHttpStack::Request req = make_request("reg", true, true, false);
   reg_data_template(req, true, true, false, RegistrationState::NOT_REGISTERED, 1,  3600, "", RegistrationState::REGISTERED, false, CassandraStore::CONNECTION_ERROR);
 }
 
@@ -2455,7 +2455,7 @@ TEST_F(HandlersTest, IMSSubscriptionHSS_InitialRegisterCacheFail)
 
 TEST_F(HandlersTest, IMSSubscriptionHSS_InitialRegisterFromUnreg)
 {
-  MockHttpStack::Request req = make_request("reg", true, true, true);
+  MockHttpStack::Request req = make_request("reg", true, true, false);
   reg_data_template(req, true, true, false, RegistrationState::UNREGISTERED, 1);
 }
 
@@ -2464,7 +2464,7 @@ TEST_F(HandlersTest, IMSSubscriptionHSS_InitialRegisterFromUnreg)
 
 TEST_F(HandlersTest, IMSSubscriptionHSS_ReregWithSAR)
 {
-  MockHttpStack::Request req = make_request("reg", true, true, true);
+  MockHttpStack::Request req = make_request("reg", true, true, false);
   reg_data_template(req, true, true, false, RegistrationState::REGISTERED, 2, 500);
 }
 
@@ -2472,7 +2472,7 @@ TEST_F(HandlersTest, IMSSubscriptionHSS_ReregWithSAR)
 
 TEST_F(HandlersTest, IMSSubscriptionHSS_ReregNewBinding)
 {
-  MockHttpStack::Request req = make_request("reg", true, true, true);
+  MockHttpStack::Request req = make_request("reg", true, true, false);
   reg_data_template(req, true, true, true, RegistrationState::REGISTERED, 1);
 }
 
@@ -2481,7 +2481,7 @@ TEST_F(HandlersTest, IMSSubscriptionHSS_ReregNewBinding)
 // more than 3600.
 TEST_F(HandlersTest, IMSSubscriptionHSS_ReregCacheNotallowed)
 {
-  MockHttpStack::Request req = make_request("reg", true, true, true);
+  MockHttpStack::Request req = make_request("reg", true, true, false);
   req.add_header_to_incoming_req("Cache-control", "no-cache");
   reg_data_template(req, true, true, false, RegistrationState::REGISTERED, 2, 7200);
 }
@@ -2498,7 +2498,7 @@ TEST_F(HandlersTest, IMSSubscriptionHSS_ReregWithoutSAR)
 // expected to be 310
 TEST_F(HandlersTest, IMSSubscriptionHSS_ReregWithSARAlways)
 {
-  MockHttpStack::Request req = make_request("reg", true, true, true);
+  MockHttpStack::Request req = make_request("reg", true, true, false);
   reg_data_template(req,
                     true,
                     true,
@@ -2535,7 +2535,7 @@ TEST_F(HandlersTest, IMSSubscriptionCallHSSUnregisteredService)
 
 TEST_F(HandlersTest, IMSSubscriptionCallHSSNewUnregisteredService)
 {
-  MockHttpStack::Request req = make_request("call", true, true, true);
+  MockHttpStack::Request req = make_request("call", true, true, false);
   reg_data_template(req,
                     true,
                     true,
@@ -2551,17 +2551,17 @@ TEST_F(HandlersTest, IMSSubscriptionCallHSSNewUnregisteredService)
 
 TEST_F(HandlersTest, IMSSubscriptionDeregHSS)
 {
-  reg_data_template_with_deletion("dereg-user", true, true, true, RegistrationState::REGISTERED, 5);
+  reg_data_template_with_deletion("dereg-user", true, true, false, RegistrationState::REGISTERED, 5);
 }
 
 TEST_F(HandlersTest, IMSSubscriptionDeregTimeout)
 {
-  reg_data_template_with_deletion("dereg-timeout", true, true, true, RegistrationState::REGISTERED, 4);
+  reg_data_template_with_deletion("dereg-timeout", true, true, false, RegistrationState::REGISTERED, 4);
 }
 
 TEST_F(HandlersTest, IMSSubscriptionDeregAdmin)
 {
-  reg_data_template_with_deletion("dereg-admin", true, true, true, RegistrationState::REGISTERED, 8);
+  reg_data_template_with_deletion("dereg-admin", true, true, false, RegistrationState::REGISTERED, 8);
 }
 
 // Test that if an IMPI is not explicitly provided on a deregistration
@@ -2569,25 +2569,25 @@ TEST_F(HandlersTest, IMSSubscriptionDeregAdmin)
 
 TEST_F(HandlersTest, IMSSubscriptionDeregUseCacheIMPI)
 {
-  reg_data_template_with_deletion("dereg-admin", false, true, true, RegistrationState::REGISTERED, 8);
+  reg_data_template_with_deletion("dereg-admin", false, true, false, RegistrationState::REGISTERED, 8);
 }
 
 // Test the cache failure path
 TEST_F(HandlersTest, IMSSubscriptionDeregHSSCacheFail)
 {
-  reg_data_template_with_deletion("dereg-user", true, true, true, RegistrationState::REGISTERED, 5, 3600, "", RegistrationState::NOT_REGISTERED, CassandraStore::CONNECTION_ERROR);
+  reg_data_template_with_deletion("dereg-user", true, true, false, RegistrationState::REGISTERED, 5, 3600, "", RegistrationState::NOT_REGISTERED, CassandraStore::CONNECTION_ERROR);
 }
 
 // Test the benign cache failure path
 TEST_F(HandlersTest, IMSSubscriptionDeregHSSCacheFailBenign)
 {
-  reg_data_template_with_deletion("dereg-user", true, true, true, RegistrationState::REGISTERED, 5, 3600, REGDATA_RESULT_DEREG, RegistrationState::NOT_REGISTERED, CassandraStore::NOT_FOUND);
+  reg_data_template_with_deletion("dereg-user", true, true, false, RegistrationState::REGISTERED, 5, 3600, REGDATA_RESULT_DEREG, RegistrationState::NOT_REGISTERED, CassandraStore::NOT_FOUND);
 }
 
 // Test that an unregistered user is deregistered with the HSS.
 TEST_F(HandlersTest, IMSSubscriptionDeregUnregSub)
 {
-  reg_data_template_with_deletion("dereg-user", true, true, true, RegistrationState::UNREGISTERED, 5);
+  reg_data_template_with_deletion("dereg-user", true, true, false, RegistrationState::UNREGISTERED, 5);
 }
 
 // Test the two authentication failure flows (which should only affect
