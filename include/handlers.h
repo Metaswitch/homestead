@@ -490,6 +490,8 @@ public:
   typedef HssCacheTask::CacheTransaction<ImpuRegDataTask> CacheTransaction;
   typedef HssCacheTask::DiameterTransaction<ImpuRegDataTask> DiameterTransaction;
 
+  std::string search_term();
+
 protected:
 
   // Represents the possible types of request that can be made in the
@@ -523,8 +525,8 @@ protected:
   ChargingAddresses _charging_addrs;
   long _http_rc;
   std::string _provided_server_name;
-  std::string _wildcard;
-  Cx::ServerAssignmentType _server_assignment_type;
+  std::string _sprout_wildcard;
+  std::string _hss_wildcard;
 };
 
 class ImpuReadRegDataTask : public ImpuRegDataTask

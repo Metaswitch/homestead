@@ -317,6 +317,10 @@ public:
   {
     return get_str_from_avp(((Cx::Dictionary*)dict())->WILDCARDED_PUBLIC_IDENTITY, str);
   }
+  inline bool server_assignment_type(int32_t& i32) const
+  {
+    return get_i32_from_avp(((Cx::Dictionary*)dict())->SERVER_ASSIGNMENT_TYPE, i32);
+  }
 
   void charging_addrs(ChargingAddresses& charging_addrs) const;
 };

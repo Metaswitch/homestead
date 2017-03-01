@@ -1163,7 +1163,7 @@ void ImpuRegDataTask::run()
   _impu = path.substr(prefix.length(), path.find_first_of("/", prefix.length()) - prefix.length());
   _impi = _req.param("private_id");
   _provided_server_name = server_name_from_body(_req.get_rx_body());
-  _wildcard = wildcard_from_body(_req.get_rx_body());
+  _sprout_wildcard = wildcard_from_body(_req.get_rx_body());
 
   TRC_DEBUG("Parsed HTTP request: private ID %s, public ID %s, server name %s",
             _impi.c_str(), _impu.c_str(), _provided_server_name.c_str());
@@ -1208,7 +1208,7 @@ void ImpuRegDataTask::run()
   SAS::Event event(this->trail(), SASEvent::CACHE_GET_REG_DATA, 0);
   event.add_var_param(_impu);
   SAS::report_event(event);
-  CassandraStore::Operation* get_reg_data = _cache->create_GetRegData(_impu);
+  CassandraStore::Operation* get_reg_data = _cache->create_GetRegData(search_term());
   CassandraStore::Transaction* tsx =
     new CacheTransaction(this,
                          &ImpuRegDataTask::on_get_reg_data_success,
@@ -1592,8 +1592,6 @@ void ImpuRegDataTask::on_get_reg_data_failure(CassandraStore::Operation* op,
 
 void ImpuRegDataTask::send_server_assignment_request(Cx::ServerAssignmentType type)
 {
-  // Save off the server assignment type to be used later.
-  _server_assignment_type = type;
   Cx::ServerAssignmentRequest sar(_dict,
                                   _diameter_stack,
                                   _dest_host,
@@ -1603,7 +1601,7 @@ void ImpuRegDataTask::send_server_assignment_request(Cx::ServerAssignmentType ty
                                   (_provided_server_name == "" ? _configured_server_name :
                                    _provided_server_name),
                                   type,
-                                  _wildcard);
+                                  (_hss_wildcard.empty() ? _sprout_wildcard : _hss_wildcard));
   DiameterTransaction* tsx =
     new DiameterTransaction(_dict,
                             this,
@@ -1825,41 +1823,32 @@ void ImpuRegDataTask::on_sar_response(Diameter::Message& rsp)
   // if it isn't, treat it as an error.
   else if (experimental_result_code == DIAMETER_ERROR_IN_ASSIGNMENT_TYPE)
   {
-    const std::string current_wildcard = _wildcard;
-    saa.wildcarded_public_identity(_wildcard);
-    if (current_wildcard == _wildcard)
+    const std::string current_wildcard = (_hss_wildcard.empty() ? _sprout_wildcard : _hss_wildcard);
+    saa.wildcarded_public_identity(_hss_wildcard);
+    if (current_wildcard == _hss_wildcard)
     {
-      if (_wildcard.empty())
-      {
-        TRC_INFO("Server-Assignment answer with result code %d and experimental "
-                 "result code DIAMETER_ERROR_IN_ASSIGNMENT_TYPE, with vendor id "
-                 "%d and assignment type %d - reject",
-                 result_code, vendor_id, _server_assignment_type);
-        SAS::Event event(this->trail(), SASEvent::REG_DATA_HSS_FAIL_ASSIGNMENT_TYPE, 0);
-        event.add_static_param(result_code);
-        event.add_static_param(experimental_result_code);
-        event.add_static_param(_server_assignment_type);
-        SAS::report_event(event);
-        _http_rc = HTTP_SERVER_ERROR;
-      }
-      else
-      {
-        TRC_INFO("Server-Assignment answer with result code %d, experimental "
-                 "result code DIAMETER_ERROR_IN_ASSIGNMENT_TYPE, vendor id %d "
-                 "and assignment type %d received. Sent to update wildcarded "
-                 "public id, but this is already correctly set so does not need "
-                 "updating - reject",
-                 result_code, vendor_id, _server_assignment_type);
-        SAS::Event event(this->trail(), SASEvent::REG_DATA_HSS_FAIL_WILDCARD, 0);
-        SAS::report_event(event);
-        _http_rc = HTTP_SERVER_ERROR;
-      }
+      int type;
+      saa.server_assignment_type(type);
+      TRC_INFO("Server-Assignment answer with result code %d and experimental "
+               "result code DIAMETER_ERROR_IN_ASSIGNMENT_TYPE, with vendor id "
+               "%d and assignment type %d - reject",
+               result_code, vendor_id, type);
+      SAS::Event event(this->trail(), SASEvent::REG_DATA_HSS_FAIL_ASSIGNMENT_TYPE, 0);
+      event.add_static_param(result_code);
+      event.add_static_param(experimental_result_code);
+      event.add_static_param(type);
+      SAS::report_event(event);
+      _http_rc = HTTP_SERVER_ERROR;
     }
     else
     {
-      send_server_assignment_request(_server_assignment_type);
-      SAS::Event event(this->trail(), SASEvent::REG_DATA_RESENT_SAR, 0);
-      SAS::report_event(event);
+      // Krista
+
+      // old - need to change completely
+      // send_server_assignment_request((Cx::ServerAssignmentType)type);
+      // SAS::Event event(this->trail(), SASEvent::REG_DATA_RESENT_SAR, 0);
+      // SAS::report_event(event);
+
       // Another SAA is expected, so we can stop processing this SAA now.
       return;
     }
@@ -1937,6 +1926,28 @@ void ImpuRegDataTask::on_sar_response(Diameter::Message& rsp)
     delete this;
   }
   return;
+}
+
+std::string ImpuRegDataTask::search_term()
+{
+  // Search for registered data using the public ids below in the following order
+  // of preference: wildcarded public id sent from the HSS, wildcarded public id
+  // sent from sprout, public id sent from sprout.
+  if (!_hss_wildcard.empty())
+  {
+    printf("searchng with hss wc\n\n\n");
+    return _hss_wildcard;
+  }
+  else if (!_sprout_wildcard.empty())
+  {
+    printf("searching with sprout wc\n\n\n");
+    return _sprout_wildcard;
+  }
+  else
+  {
+    printf("searching with impu\n\n\n");
+    return _impu;
+  }
 }
 
 void ImpuRegDataTask::on_del_impu_benign(CassandraStore::Operation* op, bool not_found)
@@ -2017,7 +2028,7 @@ void ImpuIMSSubscriptionTask::run()
   }
 
   TRC_DEBUG("Try to find IMS Subscription information in the cache");
-  CassandraStore::Operation* get_reg_data = _cache->create_GetRegData(_impu);
+  CassandraStore::Operation* get_reg_data = _cache->create_GetRegData(search_term());
   CassandraStore::Transaction* tsx =
     new CacheTransaction(this,
                          &ImpuRegDataTask::on_get_reg_data_success,
