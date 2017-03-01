@@ -184,7 +184,7 @@ public:
                      const int32_t& experimental_result_code,
                      const std::string& scscf,
                      const ServerCapabilities& capabs,
-                     const std::string& wildcarded_pub_id = "");
+                     const std::string& wildcarded_public_identity = "");
   inline LocationInfoAnswer(Diameter::Message& msg) : Diameter::Message(msg) {};
 
   inline bool server_name(std::string& str) const
@@ -192,7 +192,7 @@ public:
     return get_str_from_avp(((Cx::Dictionary*)dict())->SERVER_NAME, str);
   }
 
-  inline bool wildcarded_pub_id(std::string& str) const
+  inline bool wildcarded_public_identity(std::string& str) const
   {
     return get_str_from_avp(((Cx::Dictionary*)dict())->
                             WILDCARDED_PUBLIC_IDENTITY, str);
