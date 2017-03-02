@@ -639,18 +639,14 @@ public:
   // in to a task and then verifies the response.
   void reg_data_template_no_sar(std::string request_type,
                                 bool use_impi,
+                                bool use_wildcard,
                                 RegistrationState db_regstate,
                                 int db_ttl = 7200,
                                 std::string expected_result = REGDATA_RESULT,
                                 int hss_reregistration_timeout = 3600,
                                 int record_ttl = 7200)
   {
-    MockHttpStack::Request req(_httpstack,
-                               "/impu/" + IMPU + "/reg-data",
-                               "",
-                               use_impi ? "?private_id=" + IMPI : "",
-                               "{\"reqtype\": \"" + request_type +"\"}",
-                               htp_method_PUT);
+    MockHttpStack::Request req = make_request(request_type, use_impi, false, use_wildcard);
 
     // Configure the task to use a HSS, and send a RE_REGISTRATION
     // SAR to the HSS every hour.
@@ -662,7 +658,7 @@ public:
     // Once the request is processed by the task, we expect it to
     // look up the subscriber's data in Cassandra.
     MockCache::MockGetRegData mock_op;
-    EXPECT_CALL(*_cache, create_GetRegData(IMPU))
+    EXPECT_CALL(*_cache, create_GetRegData(use_wildcard ? WILDCARD : IMPU))
       .WillOnce(Return(&mock_op));
     EXPECT_DO_ASYNC(*_cache, mock_op);
     task->run();
@@ -2435,6 +2431,13 @@ TEST_F(HandlersTest, IMSSubscriptionHSS_InitialRegister)
   reg_data_template(req, true, true, false, RegistrationState::NOT_REGISTERED, 1);
 }
 
+// Initial registration with wildcarded public identity
+// Krista
+TEST_F(HandlersTest, IMSSubscriptionRegisterWithWildcard)
+{
+  reg_data_template_no_sar("reg", true, true, RegistrationState::REGISTERED);
+}
+
 // Initial registration (using the configured service name)
 
 TEST_F(HandlersTest, IMSSubscriptionHSS_InitialRegisterNoServerName)
@@ -2490,7 +2493,7 @@ TEST_F(HandlersTest, IMSSubscriptionHSS_ReregCacheNotallowed)
 // trigger a new SAR.
 TEST_F(HandlersTest, IMSSubscriptionHSS_ReregWithoutSAR)
 {
-  reg_data_template_no_sar("reg", true, RegistrationState::REGISTERED);
+  reg_data_template_no_sar("reg", true, false, RegistrationState::REGISTERED);
 }
 
 // Re-registration when configured to always send a SAR - i.e.
@@ -2519,7 +2522,7 @@ TEST_F(HandlersTest, IMSSubscriptionHSS_ReregWithSARAlways)
 
 TEST_F(HandlersTest, IMSSubscriptionCallHSS)
 {
-  reg_data_template_no_sar("call", true, RegistrationState::REGISTERED);
+  reg_data_template_no_sar("call", true, false, RegistrationState::REGISTERED);
 }
 
 // Call to an unregistered subscriber (one whose data is already
@@ -2527,7 +2530,7 @@ TEST_F(HandlersTest, IMSSubscriptionCallHSS)
 
 TEST_F(HandlersTest, IMSSubscriptionCallHSSUnregisteredService)
 {
-  reg_data_template_no_sar("call", true, RegistrationState::UNREGISTERED, 3600, REGDATA_RESULT_UNREG);
+  reg_data_template_no_sar("call", true, false, RegistrationState::UNREGISTERED, 3600, REGDATA_RESULT_UNREG);
 }
 
 // Call to a not-registered subscriber (one whose data is not already
