@@ -1527,8 +1527,6 @@ void ImpuRegDataTask::on_get_reg_data_failure(CassandraStore::Operation* op,
                                               CassandraStore::ResultCode error,
                                               std::string& text)
 {
-  printf("I cover this");
-
   TRC_DEBUG("IMS subscription cache query failed: %u, %s", error, text.c_str());
   SAS::Event event(this->trail(), SASEvent::NO_REG_DATA_CACHE, 0);
   SAS::report_event(event);
