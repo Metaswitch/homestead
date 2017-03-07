@@ -690,8 +690,12 @@ ServerAssignmentRequest::ServerAssignmentRequest(const Dictionary* dict,
   add(Diameter::AVP(dict->SERVER_NAME).val_str(server_name));
   add(Diameter::AVP(dict->SERVER_ASSIGNMENT_TYPE).val_i32(type));
   add(Diameter::AVP(dict->USER_DATA_ALREADY_AVAILABLE).val_i32(0));
+  printf("wildcard.empty(): %d\n", wildcard.empty());
+  printf("type: %d\n", type);
+  printf("include_wildcard_on_sar: %d\n", include_wildcard_on_sar(type));
   if (!wildcard.empty() && include_wildcard_on_sar(type))
   {
+    printf("adding wildcard into SAR\n");
     add(Diameter::AVP(dict->WILDCARDED_PUBLIC_IDENTITY).val_str(wildcard));
   }
 }
@@ -702,7 +706,8 @@ ServerAssignmentAnswer::ServerAssignmentAnswer(const Dictionary* dict,
                                                const uint32_t& vendor_id,
                                                const int32_t& experimental_result_code,
                                                const std::string& ims_subscription,
-                                               const ChargingAddresses& charging_addrs) :
+                                               const ChargingAddresses& charging_addrs,
+                                               const std::string& wildcard) :
                                                Diameter::Message(dict, dict->SERVER_ASSIGNMENT_ANSWER, stack)
 {
   TRC_DEBUG("Building Server-Assignment answer");
@@ -751,6 +756,11 @@ ServerAssignmentAnswer::ServerAssignmentAnswer(const Dictionary* dict,
                                val_str(charging_addrs.ecfs[1]));
     }
     add(charging_information);
+  }
+
+  if (!wildcard.empty())
+  {
+    add(Diameter::AVP(dict->WILDCARDED_PUBLIC_IDENTITY).val_str(wildcard));
   }
 }
 

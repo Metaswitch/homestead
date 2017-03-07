@@ -306,7 +306,8 @@ public:
                          const uint32_t& vendor_id,
                          const int32_t& experimental_result_code,
                          const std::string& ims_subscription,
-                         const ChargingAddresses& charging_addrs);
+                         const ChargingAddresses& charging_addrs,
+                         const std::string& wildcard = "");
   inline ServerAssignmentAnswer(Diameter::Message& msg) : Diameter::Message(msg) {};
 
   inline bool user_data(std::string& str) const

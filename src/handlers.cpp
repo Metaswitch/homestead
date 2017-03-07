@@ -956,6 +956,7 @@ void ImpuLocationInfoTask::query_cache_reg_data()
 void ImpuLocationInfoTask::on_get_reg_data_success(CassandraStore::Operation* op)
 {
   sas_log_get_reg_data_success((Cache::GetRegData*)op, trail());
+  printf("confirm we had success\n");
 
   // GetRegData returns success even if no entry was found, but the XML will be blank in this case.
   std::string xml;
@@ -963,6 +964,7 @@ void ImpuLocationInfoTask::on_get_reg_data_success(CassandraStore::Operation* op
   ((Cache::GetRegData*)op)->get_xml(xml, ttl);
   if (!xml.empty())
   {
+    printf("wooo found the stuff\n");
     TRC_DEBUG("Got IMS subscription XML from cache - fake response for server %s", _configured_server_name.c_str());
     rapidjson::StringBuffer sb;
     rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
@@ -1208,9 +1210,10 @@ void ImpuRegDataTask::run()
 
 void ImpuRegDataTask::get_reg_data()
 {
-  TRC_DEBUG ("Try to find IMS Subscription information in the cache");
+  TRC_DEBUG("Try to find IMS Subscription information in the cache");
+  printf("we are going through here\n");
   SAS::Event event(this->trail(), SASEvent::CACHE_GET_REG_DATA, 0);
-  event.add_var_param(_impu);
+  event.add_var_param(search_term());
   SAS::report_event(event);
   CassandraStore::Operation* get_reg_data = _cache->create_GetRegData(search_term());
   CassandraStore::Transaction* tsx =
@@ -1567,6 +1570,7 @@ void ImpuRegDataTask::on_get_reg_data_failure(CassandraStore::Operation* op,
                                               CassandraStore::ResultCode error,
                                               std::string& text)
 {
+  printf("on get reg data failure\n");
   TRC_DEBUG("IMS subscription cache query failed: %u, %s", error, text.c_str());
   SAS::Event event(this->trail(), SASEvent::NO_REG_DATA_CACHE, 0);
   SAS::report_event(event);
@@ -1780,6 +1784,8 @@ void ImpuRegDataTask::on_sar_response(Diameter::Message& rsp)
   uint32_t vendor_id = 0;
   saa.experimental_result(experimental_result_code, vendor_id);
 
+  printf("in func \"on_sar_response\"\n");
+
   // IMS mandates that exactly one of result code or experimental result code
   // will be set, so we can unambiguously assume that, if one is set, then the
   // other one won't be.
@@ -1797,12 +1803,14 @@ void ImpuRegDataTask::on_sar_response(Diameter::Message& rsp)
 
   if (result_code == DIAMETER_SUCCESS)
   {
+    printf("CCC\n");
     // Get the charging addresses and user data.
     saa.charging_addrs(_charging_addrs);
     saa.user_data(_xml);
   }
   else if (result_code == DIAMETER_UNABLE_TO_DELIVER)
   {
+    printf("BBB\n");
     // LCOV_EXCL_START - nothing interesting to UT.
     // This may mean we don't have any Diameter connections. Another Homestead
     // node might have Diameter connections (either to the HSS, or to an SLF
@@ -1814,6 +1822,7 @@ void ImpuRegDataTask::on_sar_response(Diameter::Message& rsp)
   else if (experimental_result_code == DIAMETER_ERROR_USER_UNKNOWN &&
            vendor_id == VENDOR_ID_3GPP)
   {
+    printf("AAA\n");
     TRC_INFO("Server-Assignment answer - user unknown",
              result_code, experimental_result_code, vendor_id);
     SAS::Event event(this->trail(), SASEvent::REG_DATA_HSS_FAIL, 0);
@@ -1828,10 +1837,17 @@ void ImpuRegDataTask::on_sar_response(Diameter::Message& rsp)
   // isn't, treat it as an error.
   else if (experimental_result_code == DIAMETER_ERROR_IN_ASSIGNMENT_TYPE)
   {
+    printf("ok we got the saa and it had the expected return code\n");
+    printf("deciding if wildcard has changed:\n");
+    printf("hss wc: %s\n", _hss_wildcard.c_str());
+    printf("sprout wc: %s\n", _sprout_wildcard.c_str());
     const std::string current_wildcard = (_hss_wildcard.empty() ? _sprout_wildcard : _hss_wildcard);
     saa.wildcarded_public_identity(_hss_wildcard);
+    printf("current wc: %s\n", current_wildcard.c_str());
+    printf("new hss wc: %s\n", _hss_wildcard.c_str());
     if (current_wildcard == _hss_wildcard)
     {
+      printf("got error and no update\n");
       int type;
       saa.server_assignment_type(type);
       TRC_INFO("Server-Assignment answer with result code %d and experimental "
@@ -1847,11 +1863,13 @@ void ImpuRegDataTask::on_sar_response(Diameter::Message& rsp)
     }
     else
     {
+      printf("got error and updated wc\n");
       // Return to search the cache with the new wildcarded public identity, and
       // continue the processing from there (possibly send SAR, send http
       // response, etc.)
       SAS::Event event(this->trail(), SASEvent::REG_DATA_HSS_UPDATED_WILDCARD, 0);
       SAS::report_event(event);
+      printf("gonna go back to looking for data\n");
       get_reg_data();
       // Since processing has been redone, we can stop processing this SAA now.
       return;
@@ -1867,6 +1885,9 @@ void ImpuRegDataTask::on_sar_response(Diameter::Message& rsp)
     SAS::report_event(event);
     _http_rc = HTTP_SERVER_ERROR;
   }
+
+  printf("I didn't return");
+
 
   // Update the cache if required.
   bool pending_cache_op = false;
@@ -1937,6 +1958,10 @@ std::string ImpuRegDataTask::search_term()
   // Search for registered data using the public ids below in the following order
   // of preference: wildcarded public id sent from the HSS, wildcarded public id
   // sent from sprout, public id sent from sprout.
+  printf("deciding what to search with\n");
+  printf("hss wc: %s\n", _hss_wildcard.c_str());
+  printf("sprout wc: %s\n", _sprout_wildcard.c_str());
+  printf("impu: %s\n", _impu.c_str());
   if (!_hss_wildcard.empty())
   {
     printf("searchng with hss wc\n\n\n");
