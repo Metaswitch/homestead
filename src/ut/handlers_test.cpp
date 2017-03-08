@@ -402,7 +402,7 @@ public:
 
     if (use_wildcard)
     {
-      wildcard = ", \"wildcard\": \"" + WILDCARD + "\"";
+      wildcard = ", \"wildcard-identity\": \"" + WILDCARD + "\"";
     }
 
     return MockHttpStack::Request(_httpstack,

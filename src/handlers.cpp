@@ -1144,15 +1144,15 @@ std::string ImpuRegDataTask::wildcard_from_body(std::string body)
   document.Parse<0>(body.c_str());
 
   if (!document.IsObject() ||
-      !document.HasMember("wildcard") ||
-      !document["wildcard"].IsString())
+      !document.HasMember("wildcard-identity") ||
+      !document["wildcard-identity"].IsString())
   {
-    TRC_DEBUG("Did not receive valid JSON with a 'wildcard' element");
+    TRC_DEBUG("Did not receive valid JSON with a 'wildcard-identity' element");
     return "";
   }
   else
   {
-    return document["wildcard"].GetString();
+    return document["wildcard-identity"].GetString();
   }
 }
 
