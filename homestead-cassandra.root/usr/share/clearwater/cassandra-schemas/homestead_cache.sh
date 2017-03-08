@@ -55,3 +55,10 @@ then
           unused text)
           WITH COMPACT STORAGE AND read_repair_chance = 1.0;" | $CQLSH
 fi
+
+# Temporarily (while using 2.1.15) disable retrying at a configurable level
+# for the cache.
+echo "USE homestead_cache;
+      ALTER TABLE impu WITH speculative_retry = '99.0PERCENTILE';
+      ALTER TABLE impi_mapping WITH speculative_retry = '99.0PERCENTILE';
+      ALTER TABLE impi WITH speculative_retry = '99.0PERCENTILE';" | $CQLSH
