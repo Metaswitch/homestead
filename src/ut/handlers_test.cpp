@@ -642,7 +642,7 @@ void reg_data_template_with_wildcard(MockHttpStack::Request& req,
                                      bool use_wildcard,
                                      bool wildcard_correct,
                                      bool error_unrelated_to_wc,
-                                     bool expect_wc_on_sar,  // Can only added to SAR for some types.
+                                     bool expect_wc_on_sar,  // Wildcard only added to some SAR types.
                                      RegistrationState db_regstate = RegistrationState::NOT_REGISTERED,
                                      int expected_type = 1,
                                      int db_ttl = 7200,
