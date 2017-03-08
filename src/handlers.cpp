@@ -1164,7 +1164,7 @@ void ImpuRegDataTask::run()
   _impu = path.substr(prefix.length(), path.find_first_of("/", prefix.length()) - prefix.length());
   _impi = _req.param("private_id");
   _provided_server_name = server_name_from_body(_req.get_rx_body());
-  _wildcard = wildcard_from_body(_req.get_rx_body());
+  _wildcard_identity = wildcard_from_body(_req.get_rx_body());
 
   TRC_DEBUG("Parsed HTTP request: private ID %s, public ID %s, server name %s",
             _impi.c_str(), _impu.c_str(), _provided_server_name.c_str());

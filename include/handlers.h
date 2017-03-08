@@ -93,7 +93,7 @@ const std::string JSON_VERSION = "version";
 const std::string JSON_RC = "result-code";
 const std::string JSON_SCSCF = "scscf";
 const std::string JSON_IMPUS = "impus";
-const std::string JSON_WILDCARD = "wildcard_identity";
+const std::string JSON_WILDCARD = "wildcard-identity";
 
 // HTTP query string field names
 const std::string AUTH_FIELD_NAME = "resync-auth";
@@ -522,7 +522,7 @@ protected:
   ChargingAddresses _charging_addrs;
   long _http_rc;
   std::string _provided_server_name;
-  std::string _wildcard;
+  std::string _wildcard_identity;
 };
 
 class ImpuReadRegDataTask : public ImpuRegDataTask

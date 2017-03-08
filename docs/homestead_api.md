@@ -82,7 +82,7 @@ The valid values of reqtype are:
 
 The body also has an optional `server_name` field, specifying the S-CSCF URI to use in the Server-Name on the Server-Assignment-Request. If this is missing then the Server-Name is set to the value of the configured S-CSCF URI (in `/etc/clearwater/shared_config`).
 
-The body also has another optional `wildcard-identity` field, specifying what wildcarded public user identity is associated with the public ID. This is only added if the if the `reqtype` is either `call` or `dereg-user`, and it is used in the Wildcarded-Public-Identity AVP in the Server-Assignment-Request. If this field is missing then the Wildcarded-Public-Identity AVP is not set.
+The body also has another optional `wildcard-identity` field, specifying what wildcarded public user identity is associated with the public ID. This is only used by Homestead if the `reqtype` is either `call` or `dereg-user`, and it is used in the Wildcarded-Public-Identity AVP in the Server-Assignment-Request. If this field is missing then the Wildcarded-Public-Identity AVP is not set.
 
 The Server-Assignment-Requests will specify a User-Name based on the `private_id` query parameter (if provided), or on the PrivateID element in the cached User-Data. It will be omitted if neither of these are available.
 
