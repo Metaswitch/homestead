@@ -635,22 +635,17 @@ public:
     delete _caught_diam_tsx; _caught_diam_tsx = NULL;
   }
 
-
-
-// Krista
 // Test function for the case where we have a HSS, and a wildcarded public id.
 // Feeds a request in to a task, checks for one or more SARs, checks for a
 // resulting database delete or insert, and then verifies the response.
 void reg_data_template_with_wildcard(MockHttpStack::Request& req,
-                                     bool use_impi,
-                                     bool use_server_name,
                                      bool use_wildcard,
                                      bool wildcard_correct,
-                                     bool new_binding,
                                      bool error_unrelated_to_wc,
-                                     RegistrationState db_regstate,
-                                     int expected_type,
-                                     int db_ttl = 3600,
+                                     bool expect_wc_on_sar,  // Can only added to SAR for some types.
+                                     RegistrationState db_regstate = RegistrationState::NOT_REGISTERED,
+                                     int expected_type = 1,
+                                     int db_ttl = 7200,
                                      std::string expected_result = REGDATA_RESULT,
                                      RegistrationState expected_new_state = RegistrationState::REGISTERED,
                                      bool expect_deletion = false,
@@ -684,26 +679,11 @@ void reg_data_template_with_wildcard(MockHttpStack::Request& req,
   EXPECT_CALL(mock_op, get_charging_addrs(_)).Times(AtLeast(1))
     .WillRepeatedly(SetArgReferee<0>(NO_CHARGING_ADDRESSES));
 
-  // If we have the new_binding flag set, return a list of associated IMPIs
-  // not containing the IMPI specified on the request. Add IMPI to the list
-  // if this isn't a new binding.
+  // This isn't a new biding, so add IMPI to the list of associated IMPIs.
   std::vector<std::string> associated_identities = ASSOCIATED_IDENTITIES;
-  if (!new_binding)
-  {
-    associated_identities.push_back(IMPI);
-  }
+  associated_identities.push_back(IMPI);
   EXPECT_CALL(mock_op, get_associated_impis(_)).Times(AtLeast(1))
     .WillRepeatedly(SetArgReferee<0>(associated_identities));
-
-  // If this is a new binding, we expect to put the new associated
-  // IMPI in the cache.
-  MockCache::MockPutAssociatedPrivateID mock_op2;
-  if (new_binding)
-  {
-    EXPECT_CALL(*_cache, create_PutAssociatedPrivateID(IMPU_REG_SET, IMPI, _, record_ttl))
-      .WillOnce(Return(&mock_op2));
-    EXPECT_DO_ASYNC(*_cache, mock_op2);
-  }
 
   // A Server-Assignment-Request should be generated for this
   // test. Check for it, and check that its properties are as expected.
@@ -713,11 +693,6 @@ void reg_data_template_with_wildcard(MockHttpStack::Request& req,
 
   t->on_success(&mock_op);
 
-  if ((new_binding) && (use_impi))
-  {
-    t = mock_op2.get_trx();
-    ASSERT_FALSE(t == NULL);
-  }
   ASSERT_FALSE(_caught_diam_tsx == NULL);
   Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
   Cx::ServerAssignmentRequest sar(msg);
@@ -728,27 +703,24 @@ void reg_data_template_with_wildcard(MockHttpStack::Request& req,
   EXPECT_EQ(IMPI, sar.impi());
   EXPECT_EQ(IMPU, sar.impu());
   EXPECT_TRUE(sar.server_name(test_str));
-  EXPECT_EQ((use_server_name ? SERVER_NAME : DEFAULT_SERVER_NAME), test_str);
+  EXPECT_EQ(SERVER_NAME, test_str);
   EXPECT_TRUE(sar.server_assignment_type(test_i32));
-  if (use_wildcard)
+  if (use_wildcard && expect_wc_on_sar)
   {
+    // Wildcard AVP only added to certian SAR req types. (see cx.cpp)
     std::string wildcard_on_sar;
     sar.get_str_from_avp(_cx_dict->WILDCARDED_PUBLIC_IDENTITY, wildcard_on_sar);
-    printf("\nwildcard on sar: %s\n", wildcard_on_sar.c_str());
     std::string expected_wildcard = (use_wildcard ? WILDCARD : "");
     EXPECT_TRUE(sar.get_str_from_avp(_cx_dict->WILDCARDED_PUBLIC_IDENTITY, test_str));
-    printf("\n\nwildcard on SAR: %s", test_str.c_str());
     EXPECT_EQ(expected_wildcard, test_str);
   }
   else
   {
-    printf("checking no wildcard on SAR\n");
     ASSERT_FALSE(sar.get_str_from_avp(_cx_dict->WILDCARDED_PUBLIC_IDENTITY, test_str));
   }
 
   // Check that the SAR has the type expected by the caller.
   EXPECT_EQ(expected_type, test_i32);
-  printf("check SAR has expected type\n");
 
   // Create the expected SAA.
   std::string wildcard_on_saa = "";
@@ -756,20 +728,21 @@ void reg_data_template_with_wildcard(MockHttpStack::Request& req,
   int32_t result_code = 0;
   if (error_unrelated_to_wc)
   {
-    printf("sending back error\n");
     experimental_result_code = DIAMETER_ERROR_IN_ASSIGNMENT_TYPE;
+    if (use_wildcard)
+    {
+      wildcard_on_saa = WILDCARD;
+    }
   }
   else
   {
     if (!wildcard_correct)
     {
-      printf("going to put new wildcard on SAA\n");
       wildcard_on_saa = NEW_WILDCARD;
       experimental_result_code = DIAMETER_ERROR_IN_ASSIGNMENT_TYPE;
     }
     else
     {
-      printf("sending back success\n");
       result_code = DIAMETER_SUCCESS;
     }
   }
@@ -783,7 +756,6 @@ void reg_data_template_with_wildcard(MockHttpStack::Request& req,
                                  wildcard_on_saa);
   if (expect_update)
   {
-    printf("expecting update\n");
     // This is a request where we expect the database to be
     // updated - check that it is updated with the expected state
     // for this test, and that the TTL is twice the configured HSS
@@ -822,7 +794,6 @@ void reg_data_template_with_wildcard(MockHttpStack::Request& req,
   }
   else if (expect_deletion)
   {
-    printf("expecting deletion\n");
     // This is a request where we expect fields to be deleted from
     // the database after the SAA. Check that they are.
 
@@ -853,13 +824,14 @@ void reg_data_template_with_wildcard(MockHttpStack::Request& req,
     EXPECT_TRUE(experimental_result_code == DIAMETER_ERROR_IN_ASSIGNMENT_TYPE);
     if(wildcard_on_saa == NEW_WILDCARD)
     {
-      printf("Expect second lookup in cache\n");
+      // Set registration state to registered so the registration data is mock
+      // found in the cache.
+      db_regstate = RegistrationState::REGISTERED;
       // Have updated the wildcard - expect another look up in Cassandra.
       MockCache::MockGetRegData mock_op;
       EXPECT_CALL(*_cache, create_GetRegData(NEW_WILDCARD))
         .WillOnce(Return(&mock_op));
       EXPECT_DO_ASYNC(*_cache, mock_op);
-      task->run();
 
       // Have the cache return the values passed in for this test.
       EXPECT_CALL(mock_op, get_xml(_, _)).Times(AtLeast(1))
@@ -871,43 +843,24 @@ void reg_data_template_with_wildcard(MockHttpStack::Request& req,
       EXPECT_CALL(mock_op, get_charging_addrs(_)).Times(AtLeast(1))
         .WillRepeatedly(SetArgReferee<0>(NO_CHARGING_ADDRESSES));
 
-      // If we have the new_binding flag set, return a list of associated IMPIs
-      // not containing the IMPI specified on the request. Add IMPI to the list
-      // if this isn't a new binding.
-      if (!new_binding)
-      {
-        associated_identities.push_back(IMPI);
-      }
+      // This isn't a new binding, so add IMPI to the list of associated IMPIs.
+      associated_identities.push_back(IMPI);
       EXPECT_CALL(mock_op, get_associated_impis(_)).Times(AtLeast(1))
         .WillRepeatedly(SetArgReferee<0>(associated_identities));
 
-      // If this is a new binding, we expect to put the new associated
-      // IMPI in the cache.
-      MockCache::MockPutAssociatedPrivateID mock_op2;
-      if (new_binding)
-      {
-        EXPECT_CALL(*_cache, create_PutAssociatedPrivateID(IMPU_REG_SET, IMPI, _, record_ttl))
-          .WillOnce(Return(&mock_op2));
-        EXPECT_DO_ASYNC(*_cache, mock_op2);
-      }
-
-
-
+      // Send in the SAA, and catch the cache search and http response sent to
+      // sprout.
       _caught_diam_tsx->on_response(saa);
-
       t = mock_op.get_trx();
       ASSERT_FALSE(t == NULL);
-
       EXPECT_CALL(*_httpstack, send_reply(_, HTTP_OK, _));
       t->on_success(&mock_op);
 
       // Build the expected response and check it's correct.
       EXPECT_EQ(expected_result, req.content());
-
     }
     else
     {
-      printf("not going back into cache\n");
       EXPECT_CALL(*_httpstack, send_reply(_, 500, _));
       _caught_diam_tsx->on_response(saa);
     }
@@ -916,10 +869,6 @@ void reg_data_template_with_wildcard(MockHttpStack::Request& req,
   _caught_fd_msg = NULL;
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
 }
-
-
-
-
 
   // Test function for the case where we have a HSS, but we're making a
   // request that doesn't require a SAR or database hit. Feeds a request
@@ -2719,39 +2668,44 @@ TEST_F(HandlersTest, IMSSubscriptionHSS_InitialRegister)
   reg_data_template(req, true, true, false, RegistrationState::NOT_REGISTERED, 1);
 }
 
-//KRISTA - wildcard tests
-
 // Initial registration with wildcarded public identity
+
 TEST_F(HandlersTest, IMSSubscriptionRegisterWithWildcard)
 {
   reg_data_template_no_sar("reg", true, true, RegistrationState::REGISTERED);
 }
 
 // 5007 error on SAA, unrelated to wildcards
+
 TEST_F(HandlersTest, SAAAssignmentErrorNoWildcard)
 {
   MockHttpStack::Request req = make_request("reg", true, true, false);
-  reg_data_template_with_wildcard(req, true, true, false, true, false, true, RegistrationState::NOT_REGISTERED, 1);
+  reg_data_template_with_wildcard(req, false, true, true, false);
 }
 
 // 5007 error on SAA, unrelated to wildcards
+
 TEST_F(HandlersTest, SAAAssignmentErrorGoodWildcard)
 {
-  // Issue - sending in reg (even if wildcard is present it isn't included on
-  // registers). So it's not on the SAR.
   MockHttpStack::Request req = make_request("reg", true, true, true);
-  reg_data_template_with_wildcard(req, true, true, true, true, false, true, RegistrationState::NOT_REGISTERED, 1);
+  reg_data_template_with_wildcard(req, true, true, true, false);
 }
 
 // 5007 error due to absence of wildcard on SAR
+
 TEST_F(HandlersTest, SAAAssignmentErrorMissingWildcard)
 {
   MockHttpStack::Request req = make_request("reg", true, true, false);
-  reg_data_template_with_wildcard(req, true, true, false, false, false, false, RegistrationState::NOT_REGISTERED, 1);
+  reg_data_template_with_wildcard(req, false, false, false, false);
 }
 
+// 5007 error due to incorrect wildcard on SAR
 
-
+TEST_F(HandlersTest, SAAAssignmentErrorIncorrectWildcard)
+{
+  MockHttpStack::Request req = make_request("reg", true, true, true);
+  reg_data_template_with_wildcard(req, true, false, false, false);
+}
 
 // Initial registration (using the configured service name)
 
