@@ -93,7 +93,8 @@ Dictionary::Dictionary() :
   PRIMARY_CHARGING_COLLECTION_FUNCTION_NAME("3GPP", "Primary-Charging-Collection-Function-Name"),
   SECONDARY_CHARGING_COLLECTION_FUNCTION_NAME("3GPP", "Secondary-Charging-Collection-Function-Name"),
   PRIMARY_EVENT_CHARGING_FUNCTION_NAME("3GPP", "Primary-Event-Charging-Function-Name"),
-  SECONDARY_EVENT_CHARGING_FUNCTION_NAME("3GPP", "Secondary-Event-Charging-Function-Name")
+  SECONDARY_EVENT_CHARGING_FUNCTION_NAME("3GPP", "Secondary-Event-Charging-Function-Name"),
+  WILDCARDED_PUBLIC_IDENTITY("3GPP", "Wildcarded-Public-Identity")
 {
 }
 
@@ -275,7 +276,8 @@ LocationInfoAnswer::LocationInfoAnswer(const Dictionary* dict,
                                        const uint32_t& vendor_id,
                                        const int32_t& experimental_result_code,
                                        const std::string& server_name,
-                                       const ServerCapabilities& capabs) :
+                                       const ServerCapabilities& capabs,
+                                       const std::string& wildcarded_public_identity) :
                                        Diameter::Message(dict, dict->USER_AUTHORIZATION_ANSWER, stack)
 {
   TRC_DEBUG("Building Location-Info answer");
@@ -325,6 +327,11 @@ LocationInfoAnswer::LocationInfoAnswer(const Dictionary* dict,
     }
   }
   add(server_capabilities);
+
+  if (!wildcarded_public_identity.empty())
+  {
+    add(Diameter::AVP(dict->WILDCARDED_PUBLIC_IDENTITY).val_str(wildcarded_public_identity));
+  }
 }
 
 ServerCapabilities LocationInfoAnswer::server_capabilities() const
