@@ -2741,111 +2741,6 @@ TEST_F(HandlersTest, IMSSubscriptionNoHSSUnknownCall)
   _caught_fd_msg = NULL;
 }
 
-// Verify that the old interface (without /reg-data in the URL) still works
-
-TEST_F(HandlersTest, LegacyIMSSubscriptionNoHSS)
-{
-  MockHttpStack::Request req(_httpstack,
-                             "/impu/" + IMPU,
-                             "",
-                             "?private_id=" + IMPI);
-  ImpuIMSSubscriptionTask::Config cfg(false, 3600);
-  ImpuIMSSubscriptionTask* task = new ImpuIMSSubscriptionTask(req, &cfg, FAKE_TRAIL_ID);
-
-  MockCache::MockGetRegData mock_op;
-  EXPECT_CALL(*_cache, create_GetRegData(IMPU))
-    .WillOnce(Return(&mock_op));
-  EXPECT_DO_ASYNC(*_cache, mock_op);
-  task->run();
-
-  CassandraStore::Transaction* t = mock_op.get_trx();
-  ASSERT_FALSE(t == NULL);
-  EXPECT_CALL(mock_op, get_xml(_, _)).Times(AtLeast(1))
-    .WillRepeatedly(SetArgReferee<0>(IMS_SUBSCRIPTION));
-  EXPECT_CALL(mock_op, get_registration_state(_, _)).Times(AtLeast(1))
-    .WillRepeatedly(SetArgReferee<0>(RegistrationState::REGISTERED));
-  EXPECT_CALL(mock_op, get_associated_impis(_)).Times(AtLeast(1));
-  EXPECT_CALL(mock_op, get_charging_addrs(_)).Times(AtLeast(1))
-    .WillRepeatedly(SetArgReferee<0>(NO_CHARGING_ADDRESSES));
-  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
-  t->on_success(&mock_op);
-
-  // Build the expected response and check it's correct
-  EXPECT_EQ(IMS_SUBSCRIPTION, req.content());
-
-  _caught_diam_tsx = NULL;
-  _caught_fd_msg = NULL;
-}
-
-TEST_F(HandlersTest, LegacyIMSSubscriptionNoHSS_NotFound)
-{
-  MockHttpStack::Request req(_httpstack,
-                             "/impu/" + IMPU,
-                             "",
-                             "?private_id=" + IMPI);
-  ImpuIMSSubscriptionTask::Config cfg(false, 3600);
-  ImpuIMSSubscriptionTask* task = new ImpuIMSSubscriptionTask(req, &cfg, FAKE_TRAIL_ID);
-
-  MockCache::MockGetRegData mock_op;
-  EXPECT_CALL(*_cache, create_GetRegData(IMPU))
-    .WillOnce(Return(&mock_op));
-  EXPECT_DO_ASYNC(*_cache, mock_op);
-  task->run();
-
-  CassandraStore::Transaction* t = mock_op.get_trx();
-  ASSERT_FALSE(t == NULL);
-  EXPECT_CALL(mock_op, get_xml(_, _)).Times(AtLeast(1))
-    .WillRepeatedly(SetArgReferee<0>(""));
-  EXPECT_CALL(mock_op, get_registration_state(_, _)).Times(AtLeast(1))
-    .WillRepeatedly(SetArgReferee<0>(RegistrationState::NOT_REGISTERED));
-  EXPECT_CALL(*_httpstack, send_reply(_, 404, _));
-  EXPECT_CALL(mock_op, get_associated_impis(_)).Times(AtLeast(1));
-  EXPECT_CALL(mock_op, get_charging_addrs(_)).Times(AtLeast(1))
-    .WillRepeatedly(SetArgReferee<0>(NO_CHARGING_ADDRESSES));
-  t->on_success(&mock_op);
-
-  // Build the expected response and check it's correct
-  EXPECT_EQ("", req.content());
-
-  _caught_diam_tsx = NULL;
-  _caught_fd_msg = NULL;
-}
-
-
-TEST_F(HandlersTest, LegacyIMSSubscriptionNoHSS_Unregistered)
-{
-  MockHttpStack::Request req(_httpstack,
-                             "/impu/" + IMPU,
-                             "",
-                             "");
-  ImpuIMSSubscriptionTask::Config cfg(false, 3600);
-  ImpuIMSSubscriptionTask* task = new ImpuIMSSubscriptionTask(req, &cfg, FAKE_TRAIL_ID);
-
-  MockCache::MockGetRegData mock_op;
-  EXPECT_CALL(*_cache, create_GetRegData(IMPU))
-    .WillOnce(Return(&mock_op));
-  EXPECT_DO_ASYNC(*_cache, mock_op);
-  task->run();
-
-  CassandraStore::Transaction* t = mock_op.get_trx();
-  ASSERT_FALSE(t == NULL);
-  EXPECT_CALL(mock_op, get_xml(_, _)).Times(AtLeast(1))
-    .WillRepeatedly(SetArgReferee<0>(IMS_SUBSCRIPTION));
-  EXPECT_CALL(mock_op, get_registration_state(_, _)).Times(AtLeast(1))
-    .WillRepeatedly(SetArgReferee<0>(RegistrationState::UNREGISTERED));
-  EXPECT_CALL(mock_op, get_associated_impis(_)).Times(AtLeast(1));
-  EXPECT_CALL(mock_op, get_charging_addrs(_)).Times(AtLeast(1))
-    .WillRepeatedly(SetArgReferee<0>(NO_CHARGING_ADDRESSES));
-  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
-  t->on_success(&mock_op);
-
-  // Build the expected response and check it's correct
-  EXPECT_EQ(IMS_SUBSCRIPTION, req.content());
-
-  _caught_diam_tsx = NULL;
-  _caught_fd_msg = NULL;
-}
-
 // Verify that when doing a GET rather than a PUT, we just read from
 // the cache, rather than doing a write or sending anything to the HSS.
 
@@ -2975,12 +2870,12 @@ TEST_F(HandlersTest, IMSSubscriptionCacheNotFound)
   // doesn't return a result. Start by building the HTTP request which will
   // invoke a cache lookup.
   MockHttpStack::Request req(_httpstack,
-                             "/impu/" + IMPU,
+                             "/impu/" + IMPU + "/reg-data",
                              "",
                              "");
 
-  ImpuIMSSubscriptionTask::Config cfg(false, 3600);
-  ImpuIMSSubscriptionTask* task = new ImpuIMSSubscriptionTask(req, &cfg, FAKE_TRAIL_ID);
+  ImpuRegDataTask::Config cfg(false, 3600);
+  ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the task's run function is called, expect to lookup IMS
   // subscription information for the specified public ID.
@@ -3010,12 +2905,12 @@ TEST_F(HandlersTest, IMSSubscriptionCacheConnectionFailure)
   // has a connection failure. Start by building the HTTP request which
   // will invoke a cache lookup.
   MockHttpStack::Request req(_httpstack,
-                             "/impu/" + IMPU,
+                             "/impu/" + IMPU + "/reg-data",
                              "",
                              "");
 
-  ImpuIMSSubscriptionTask::Config cfg(false, 3600);
-  ImpuIMSSubscriptionTask* task = new ImpuIMSSubscriptionTask(req, &cfg, FAKE_TRAIL_ID);
+  ImpuRegDataTask::Config cfg(false, 3600);
+  ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the task's run function is called, expect to lookup IMS
   // subscription information for the specified public ID.
@@ -3045,12 +2940,11 @@ TEST_F(HandlersTest, IMSSubscriptionCacheFailure)
   // has an unknown failure. Start by building the HTTP request which
   // will invoke a cache lookup.
   MockHttpStack::Request req(_httpstack,
-                             "/impu/" + IMPU,
+                             "/impu/" + IMPU + "/reg-data",
                              "",
                              "");
-
-  ImpuIMSSubscriptionTask::Config cfg(false, 3600);
-  ImpuIMSSubscriptionTask* task = new ImpuIMSSubscriptionTask(req, &cfg, FAKE_TRAIL_ID);
+  ImpuRegDataTask::Config cfg(false, 3600);
+  ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the task's run function is called, expect to lookup IMS
   // subscription information for the specified public ID.

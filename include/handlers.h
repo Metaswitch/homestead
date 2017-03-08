@@ -532,20 +532,6 @@ public:
   virtual void run();
 };
 
-class ImpuIMSSubscriptionTask : public ImpuRegDataTask
-{
-public:
-  ImpuIMSSubscriptionTask(HttpStack::Request& req,
-                          const Config* cfg,
-                          SAS::TrailId trail) :
-    ImpuRegDataTask(req, cfg, trail)
-  {};
-
-  void run();
-private:
-  void send_reply();
-};
-
 class RegistrationTerminationTask : public Diameter::Task
 {
 public:
