@@ -2665,7 +2665,9 @@ TEST_F(HandlersTest, IMSSubscriptionHSS_ReregWithSARAlways)
 // flows and the Cassandra flows are correct.
 //
 
-// Call to a subscriber5007 error on SAA, unrelated to wildcards
+// Test that receiving a SAA with a wildcard triggers a
+// new lookup in the Cassandra cache - if the subscriber is found
+// then the request is successful.
 
 TEST_F(HandlersTest, MainlineCallWithWildcard)
 {
