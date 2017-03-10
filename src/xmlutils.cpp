@@ -53,12 +53,40 @@ int build_ClearwaterRegData_xml(RegistrationState state,
                                 std::string& xml_str)
 {
   rapidxml::xml_document<> doc;
-
   rapidxml::xml_node<>* root = doc.allocate_node(rapidxml::node_type::node_element,
                                                  RegDataXmlUtils::CLEARWATER_REG_DATA);
+  add_reg_state_node(state, doc, root);
+  if (xml != "")
+  {
+    // TODO - I can't set prev_doc inside func or get memory issues, any
+    // solution?
+    rapidxml::xml_document<> prev_doc;
+    // Parse the XML document, saving off the passed-in string first (as parsing
+    // is destructive).
+    int rc = add_ims_subscription_node(xml, doc, root, prev_doc);
+    if (rc == HTTP_SERVER_ERROR)
+    {
+      return HTTP_SERVER_ERROR;
+    }
+  }
+  if (!charging_addrs.empty())
+  {
+    add_charging_addr_node(charging_addrs, doc, root);
+  }
+  doc.append_node(root);
+  rapidxml::print(std::back_inserter(xml_str), doc, 0);
+  return HTTP_OK;
+}
+
+// Builds the ResistrationState node, and adds it to the xml doc passed in.
+void add_reg_state_node(RegistrationState state,
+                        rapidxml::xml_document<> &doc,
+                        rapidxml::xml_node<>* root)
+{
   std::string regtype;
   if (state == RegistrationState::REGISTERED)
   {
+    // TODO - Can I use RegistrationState::Registered here, and below? (see reg_state.h)
     regtype = RegDataXmlUtils::REGISTERED;
   }
   else if (state == RegistrationState::UNREGISTERED)
@@ -73,103 +101,105 @@ int build_ClearwaterRegData_xml(RegistrationState state,
     }
     regtype = RegDataXmlUtils::NOT_REGISTERED;
   }
-
   rapidxml::xml_node<>* reg = doc.allocate_node(rapidxml::node_type::node_element,
                                                 RegDataXmlUtils::REGISTRATION_STATE,
                                                 regtype.c_str());
-
   root->append_node(reg);
+}
 
-  if (xml != "")
+// Builds the IMSSubscription node, and adds it to the xml doc passed in.
+int add_ims_subscription_node(std::string xml,
+                              rapidxml::xml_document<> &doc,
+                              rapidxml::xml_node<>* root,
+                              rapidxml::xml_document<> &prev_doc)
+{
+  rapidxml::xml_node<>* is = NULL;
+  // This doesn't need freeing - prev_doc is on the stack, and this
+  // uses its memory pool.
+  char* user_data_str = prev_doc.allocate_string(xml.c_str());
+
+  try
   {
-    // Parse the XML document, saving off the passed-in string first (as parsing
-    // is destructive).
+    prev_doc.parse<rapidxml::parse_strip_xml_namespaces>(user_data_str);
 
-    rapidxml::xml_document<> prev_doc;
-
-    // This doesn't need freeing - prev_doc is on the stack, and this
-    // uses its memory pool.
-    char* user_data_str = prev_doc.allocate_string(xml.c_str());
-    rapidxml::xml_node<>* is = NULL;
-
-    try
+    if (prev_doc.first_node(RegDataXmlUtils::IMS_SUBSCRIPTION))
     {
-      prev_doc.parse<rapidxml::parse_strip_xml_namespaces>(user_data_str);
-
-      if (prev_doc.first_node(RegDataXmlUtils::IMS_SUBSCRIPTION))
-      {
-        is = doc.clone_node(prev_doc.first_node(RegDataXmlUtils::IMS_SUBSCRIPTION));
-      }
-      else
-      {
-        TRC_DEBUG("Missing IMS Subscription in XML");
-        prev_doc.clear();
-        return HTTP_SERVER_ERROR;
-      }
+      is = doc.clone_node(prev_doc.first_node(RegDataXmlUtils::IMS_SUBSCRIPTION));
     }
-    catch (rapidxml::parse_error err)
+    else
     {
-      TRC_DEBUG("Parse error in IMS Subscription document: %s\n\n%s", err.what(), xml.c_str());
+      TRC_DEBUG("Missing IMS Subscription in XML");
       prev_doc.clear();
       return HTTP_SERVER_ERROR;
     }
-
-    if (is != NULL)
-    {
-      root->append_node(is);
-    }
   }
-
-  if (!charging_addrs.empty())
+  catch (rapidxml::parse_error err)
   {
-    rapidxml::xml_node<>* cfs = doc.allocate_node(rapidxml::node_type::node_element,
-                                                  RegDataXmlUtils::CHARGING_ADDRESSES);
-    if (!charging_addrs.ccfs.empty())
-    {
-      rapidxml::xml_node<>* pccfn = doc.allocate_node(rapidxml::node_type::node_element,
-                                                      RegDataXmlUtils::CCF,
-                                                      charging_addrs.ccfs[0].c_str());
-      rapidxml::xml_attribute<>* pccf = doc.allocate_attribute(RegDataXmlUtils::PRIORITY,
-                                                               RegDataXmlUtils::PRIORITY_1);
-      pccfn->append_attribute(pccf);
-      cfs->append_node(pccfn);
-    }
-    if (charging_addrs.ccfs.size() > 1)
-    {
-      rapidxml::xml_node<>* sccfn = doc.allocate_node(rapidxml::node_type::node_element,
-                                                      RegDataXmlUtils::CCF,
-                                                      charging_addrs.ccfs[1].c_str());
-      rapidxml::xml_attribute<>* sccf = doc.allocate_attribute(RegDataXmlUtils::PRIORITY,
-                                                               RegDataXmlUtils::PRIORITY_2);
-      sccfn->append_attribute(sccf);
-      cfs->append_node(sccfn);
-    }
-    if (!charging_addrs.ecfs.empty())
-    {
-      rapidxml::xml_node<>* pecfn = doc.allocate_node(rapidxml::node_type::node_element,
-                                                      RegDataXmlUtils::ECF,
-                                                      charging_addrs.ecfs[0].c_str());
-      rapidxml::xml_attribute<>* pecf = doc.allocate_attribute(RegDataXmlUtils::PRIORITY,
-                                                               RegDataXmlUtils::PRIORITY_1);
-      pecfn->append_attribute(pecf);
-      cfs->append_node(pecfn);
-    }
-    if (charging_addrs.ecfs.size() > 1)
-    {
-      rapidxml::xml_node<>* secfn = doc.allocate_node(rapidxml::node_type::node_element,
-                                                      RegDataXmlUtils::ECF,
-                                                      charging_addrs.ecfs[1].c_str());
-      rapidxml::xml_attribute<>* secf = doc.allocate_attribute(RegDataXmlUtils::PRIORITY,
-                                                               RegDataXmlUtils::PRIORITY_2);
-      secfn->append_attribute(secf);
-      cfs->append_node(secfn);
-    }
-    root->append_node(cfs);
+    TRC_DEBUG("Parse error in IMS Subscription document: %s\n\n%s", err.what(), xml.c_str());
+    prev_doc.clear();
+    return HTTP_SERVER_ERROR;
   }
 
-  doc.append_node(root);
-  rapidxml::print(std::back_inserter(xml_str), doc, 0);
+  if (is != NULL)
+  {
+    root->append_node(is);
+  }
   return HTTP_OK;
+}
+
+// Builds the ChargingAddresses node, and adds it to the xml doc passed in.
+void add_charging_addr_node(const ChargingAddresses& charging_addrs,
+                            rapidxml::xml_document<> &doc,
+                            rapidxml::xml_node<>* root)
+{
+  rapidxml::xml_node<>* cfs = doc.allocate_node(rapidxml::node_type::node_element,
+                                                RegDataXmlUtils::CHARGING_ADDRESSES);
+
+  if (!charging_addrs.ccfs.empty())
+  {
+    rapidxml::xml_node<>* pccfn = doc.allocate_node(rapidxml::node_type::node_element,
+                                                    RegDataXmlUtils::CCF,
+                                                    charging_addrs.ccfs[0].c_str());
+    rapidxml::xml_attribute<>* pccf = doc.allocate_attribute(RegDataXmlUtils::PRIORITY,
+                                                             RegDataXmlUtils::PRIORITY_1);
+    pccfn->append_attribute(pccf);
+    cfs->append_node(pccfn);
+  }
+
+  if (charging_addrs.ccfs.size() > 1)
+  {
+    rapidxml::xml_node<>* sccfn = doc.allocate_node(rapidxml::node_type::node_element,
+                                                    RegDataXmlUtils::CCF,
+                                                    charging_addrs.ccfs[1].c_str());
+    rapidxml::xml_attribute<>* sccf = doc.allocate_attribute(RegDataXmlUtils::PRIORITY,
+                                                             RegDataXmlUtils::PRIORITY_2);
+    sccfn->append_attribute(sccf);
+    cfs->append_node(sccfn);
+  }
+
+  if (!charging_addrs.ecfs.empty())
+  {
+    rapidxml::xml_node<>* pecfn = doc.allocate_node(rapidxml::node_type::node_element,
+                                                    RegDataXmlUtils::ECF,
+                                                    charging_addrs.ecfs[0].c_str());
+    rapidxml::xml_attribute<>* pecf = doc.allocate_attribute(RegDataXmlUtils::PRIORITY,
+                                                             RegDataXmlUtils::PRIORITY_1);
+    pecfn->append_attribute(pecf);
+    cfs->append_node(pecfn);
+  }
+
+  if (charging_addrs.ecfs.size() > 1)
+  {
+    rapidxml::xml_node<>* secfn = doc.allocate_node(rapidxml::node_type::node_element,
+                                                    RegDataXmlUtils::ECF,
+                                                    charging_addrs.ecfs[1].c_str());
+    rapidxml::xml_attribute<>* secf = doc.allocate_attribute(RegDataXmlUtils::PRIORITY,
+                                                             RegDataXmlUtils::PRIORITY_2);
+    secfn->append_attribute(secf);
+    cfs->append_node(secfn);
+  }
+
+  root->append_node(cfs);
 }
 
 // Parses the given User-Data XML to retrieve a list of all the public IDs.

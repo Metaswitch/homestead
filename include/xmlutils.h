@@ -43,6 +43,9 @@
 #include "charging_addresses.h"
 #include "httpclient.h"
 
+
+#include "rapidxml/rapidxml.hpp"
+
 namespace XmlUtils
 {
   std::vector<std::string> get_public_ids(const std::string& user_data);
@@ -51,6 +54,16 @@ namespace XmlUtils
                                   std::string user_data,
                                   const ChargingAddresses& charging_addrs,
                                   std::string& xml_str);
+  void add_reg_state_node(RegistrationState state,
+                          rapidxml::xml_document<> &doc,
+                          rapidxml::xml_node<>* root);
+  int add_ims_subscription_node(std::string xml,
+                                rapidxml::xml_document<> &doc,
+                                rapidxml::xml_node<>* root,
+                                rapidxml::xml_document<> &prev_doc);
+  void add_charging_addr_node(const ChargingAddresses& charging_addrs,
+                              rapidxml::xml_document<> &doc,
+                              rapidxml::xml_node<>* root);
 }
 
 #endif
