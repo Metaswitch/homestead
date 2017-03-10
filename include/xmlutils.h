@@ -41,6 +41,7 @@
 #include <vector>
 #include "reg_state.h"
 #include "charging_addresses.h"
+#include "httpclient.h"
 
 namespace XmlUtils
 {
