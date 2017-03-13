@@ -403,7 +403,7 @@ public:
 
     if (use_wildcard)
     {
-      wildcard = ", \"wildcard-identity\": \"" + WILDCARD + "\"";
+      wildcard = ", \"wildcard_identity\": \"" + WILDCARD + "\"";
     }
 
     return MockHttpStack::Request(_httpstack,
@@ -3648,13 +3648,6 @@ TEST_F(HandlersTest, LocationInfoWithWildcard)
   // Turn the caught Diameter msg structure into a LIR and check its contents.
   Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
   Cx::LocationInfoRequest lir(msg);
-  EXPECT_TRUE(lir.get_str_from_avp(_cx_dict->DESTINATION_REALM, test_str));
-  EXPECT_EQ(DEST_REALM, test_str);
-  EXPECT_TRUE(lir.get_str_from_avp(_cx_dict->DESTINATION_HOST, test_str));
-  EXPECT_EQ(DEST_HOST, test_str);
-  EXPECT_EQ(IMPU, lir.impu());
-  EXPECT_FALSE(lir.originating(test_i32));
-  EXPECT_FALSE(lir.auth_type(test_i32));
 
   // Build an LIA and expect a successful HTTP response.
   Cx::LocationInfoAnswer lia(_cx_dict,

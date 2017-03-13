@@ -888,7 +888,8 @@ void ImpuLocationInfoTask::on_lir_response(Diameter::Message& rsp)
     // the response.
     if (lia.wildcarded_public_identity(wildcarded_public_identity))
     {
-      TRC_DEBUG("Got Wildcarded-Public-Id %s", wildcarded_public_identity.c_str());
+      TRC_DEBUG("Got Wildcarded-Public-Identity %s",
+                wildcarded_public_identity.c_str());
       writer.String(JSON_WILDCARD.c_str());
       writer.String(wildcarded_public_identity.c_str());
     }
@@ -1144,15 +1145,15 @@ std::string ImpuRegDataTask::wildcard_from_body(std::string body)
   document.Parse<0>(body.c_str());
 
   if (!document.IsObject() ||
-      !document.HasMember("wildcard-identity") ||
-      !document["wildcard-identity"].IsString())
+      !document.HasMember("wildcard_identity") ||
+      !document["wildcard_identity"].IsString())
   {
-    TRC_DEBUG("Did not receive valid JSON with a 'wildcard-identity' element");
+    TRC_DEBUG("Did not receive valid JSON with a 'wildcard_identity' element");
     return "";
   }
   else
   {
-    return document["wildcard-identity"].GetString();
+    return document["wildcard_identity"].GetString();
   }
 }
 
