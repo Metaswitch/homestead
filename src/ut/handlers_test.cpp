@@ -655,7 +655,7 @@ public:
   void reg_data_template_with_wildcard(std::string reqtype,          // Reqtype on the HTTP request
                                        std::string initial_wildcard, // Wildcard set on the HTTP request
                                        std::string wildcard_on_saa,  // Wildcard returned on the SAA
-                                       bool found_subscriber)        // Whether the subscriber was found in the cache
+                                       bool found_subscriber)        // Was the subscriber found on the second cache lookup
   {
     MockHttpStack::Request req = make_request(reqtype, false, false, (initial_wildcard != ""));
 
@@ -2668,7 +2668,6 @@ TEST_F(HandlersTest, IMSSubscriptionHSS_ReregWithSARAlways)
 // Test that receiving a SAA with a wildcard triggers a
 // new lookup in the Cassandra cache - if the subscriber is found
 // then the request is successful.
-
 TEST_F(HandlersTest, MainlineCallWithWildcard)
 {
   reg_data_template_with_wildcard("call", "", WILDCARD, true);
