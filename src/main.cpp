@@ -846,9 +846,6 @@ int main(int argc, char**argv)
                                               options.hss_reregistration_time,
                                               record_ttl,
                                               options.diameter_timeout_ms);
-  ImpuIMSSubscriptionTask::Config impu_handler_config_old(hss_configured,
-                                                          options.hss_reregistration_time,
-                                                          options.diameter_timeout_ms);
   ImpuListTask::Config impu_list_config;
 
   HttpStackUtils::PingHandler ping_handler;
@@ -857,7 +854,6 @@ int main(int argc, char**argv)
   HttpStackUtils::SpawningHandler<ImpiRegistrationStatusTask, ImpiRegistrationStatusTask::Config> impi_reg_status_handler(&registration_status_handler_config);
   HttpStackUtils::SpawningHandler<ImpuLocationInfoTask, ImpuLocationInfoTask::Config> impu_loc_info_handler(&location_info_handler_config);
   HttpStackUtils::SpawningHandler<ImpuRegDataTask, ImpuRegDataTask::Config> impu_reg_data_handler(&impu_handler_config);
-  HttpStackUtils::SpawningHandler<ImpuIMSSubscriptionTask, ImpuIMSSubscriptionTask::Config> impu_ims_sub_handler(&impu_handler_config_old);
   HttpStackUtils::SpawningHandler<ImpuListTask, ImpuListTask::Config> impu_list_handler(&impu_list_config);
 
   HttpStack* http_stack_sig = new HttpStack(options.http_threads,
@@ -882,8 +878,6 @@ int main(int argc, char**argv)
                                      &impu_loc_info_handler);
     http_stack_sig->register_handler("^/impu/[^/]*/reg-data$",
                                      &impu_reg_data_handler);
-    http_stack_sig->register_handler("^/impu/",
-                                     &impu_ims_sub_handler);
     http_stack_sig->start();
   }
   catch (HttpStack::Exception& e)

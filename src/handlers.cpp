@@ -859,6 +859,7 @@ void ImpuLocationInfoTask::on_lir_response(Diameter::Message& rsp)
     writer.String(JSON_RC.c_str());
     writer.Int(result_code ? result_code : experimental_result_code);
     std::string server_name;
+    std::string wildcarded_public_identity;
 
     // If the HSS returned a server_name, return that. If not, return the
     // server capabilities, even if none are returned by the HSS.
@@ -885,11 +886,11 @@ void ImpuLocationInfoTask::on_lir_response(Diameter::Message& rsp)
 
     // If the HSS returned a wildcarded public user identity, add this to
     // the response.
-    // !KH1! - to add in the message parsing here.
-    if (false)
+    if (lia.wildcarded_public_identity(wildcarded_public_identity))
     {
+      TRC_DEBUG("Got Wildcarded-Public-Id %s", wildcarded_public_identity.c_str());
       writer.String(JSON_WILDCARD.c_str());
-      writer.String("AVP");
+      writer.String(wildcarded_public_identity.c_str());
     }
 
     writer.EndObject();
@@ -1143,15 +1144,15 @@ std::string ImpuRegDataTask::wildcard_from_body(std::string body)
   document.Parse<0>(body.c_str());
 
   if (!document.IsObject() ||
-      !document.HasMember("wildcard") ||
-      !document["wildcard"].IsString())
+      !document.HasMember("wildcard-identity") ||
+      !document["wildcard-identity"].IsString())
   {
-    TRC_DEBUG("Did not receive valid JSON with a 'wildcard' element");
+    TRC_DEBUG("Did not receive valid JSON with a 'wildcard-identity' element");
     return "";
   }
   else
   {
-    return document["wildcard"].GetString();
+    return document["wildcard-identity"].GetString();
   }
 }
 

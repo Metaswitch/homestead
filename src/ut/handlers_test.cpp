@@ -374,10 +374,8 @@ public:
 
     if (!wildcard.empty())
     {
-      // !KH1!
-      // Temporarily commented out as this requires the LIA parsing code
-      //writer.String(JSON_WILDCARD.c_str());
-      //writer.String(wildcard.c_str());
+      writer.String(JSON_WILDCARD.c_str());
+      writer.String(wildcard.c_str());
     }
 
     writer.EndObject();
@@ -405,7 +403,7 @@ public:
 
     if (use_wildcard)
     {
-      wildcard = ", \"wildcard\": \"" + WILDCARD + "\"";
+      wildcard = ", \"wildcard-identity\": \"" + WILDCARD + "\"";
     }
 
     return MockHttpStack::Request(_httpstack,
@@ -419,7 +417,6 @@ public:
   void reg_data_template_with_deletion(std::string request_type,
                                        bool use_impi,
                                        bool use_server_name,
-                                       bool use_wildcard,
                                        RegistrationState db_regstate,
                                        int expected_type,
                                        int db_ttl = 3600,
@@ -430,7 +427,7 @@ public:
     MockHttpStack::Request req = make_request(request_type,
                                               use_impi,
                                               use_server_name,
-                                              use_wildcard);
+                                              false);
     reg_data_template(req,
                       use_impi,
                       use_server_name,
@@ -635,240 +632,154 @@ public:
     delete _caught_diam_tsx; _caught_diam_tsx = NULL;
   }
 
-// Test function for the case where we have a HSS, and a wildcarded public id.
-// Feeds a request in to a task, checks for one or more SARs, checks for a
-// resulting database delete or insert, and then verifies the response.
-void reg_data_template_with_wildcard(MockHttpStack::Request& req,
-                                     bool use_wildcard,
-                                     bool wildcard_correct,
-                                     bool error_unrelated_to_wc,
-                                     bool expect_wc_on_sar,  // Wildcard only added to some SAR types.
-                                     RegistrationState db_regstate = RegistrationState::NOT_REGISTERED,
-                                     int expected_type = 1,
-                                     int db_ttl = 7200,
-                                     std::string expected_result = REGDATA_RESULT,
-                                     RegistrationState expected_new_state = RegistrationState::REGISTERED,
-                                     bool expect_deletion = false,
-                                     bool expect_update = false,
-                                     int hss_reregistration_timeout = 3600,
-                                     int reg_max_expires = 300,
-                                     int record_ttl = 7200)
-{
-  // Configure the task to use a HSS, and send a RE_REGISTRATION
-  // SAR to the HSS every hour.
-  ImpuRegDataTask::Config cfg(true,
-                              hss_reregistration_timeout,
-                              record_ttl);
-  ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
-
-  // Once the request is processed by the task, we expect it to
-  // look up the subscriber's data in Cassandra.
-  MockCache::MockGetRegData mock_op;
-  EXPECT_CALL(*_cache, create_GetRegData(use_wildcard ? WILDCARD : IMPU))
-    .WillOnce(Return(&mock_op));
-  EXPECT_DO_ASYNC(*_cache, mock_op);
-  task->run();
-
-  // Have the cache return the values passed in for this test.
-  CassandraStore::Transaction* t = mock_op.get_trx();
-  ASSERT_FALSE(t == NULL);
-  EXPECT_CALL(mock_op, get_xml(_, _)).Times(AtLeast(1))
-    .WillRepeatedly(DoAll(SetArgReferee<0>(IMPU_IMS_SUBSCRIPTION), SetArgReferee<1>(db_ttl)));
-  EXPECT_CALL(mock_op, get_registration_state(_, _)).Times(AtLeast(1))
-    .WillRepeatedly(DoAll(SetArgReferee<0>(db_regstate), SetArgReferee<1>(db_ttl)));
-  EXPECT_CALL(mock_op, get_charging_addrs(_)).Times(AtLeast(1))
-    .WillRepeatedly(SetArgReferee<0>(NO_CHARGING_ADDRESSES));
-
-  // This isn't a new biding, so add IMPI to the list of associated IMPIs.
-  std::vector<std::string> associated_identities = ASSOCIATED_IDENTITIES;
-  associated_identities.push_back(IMPI);
-  EXPECT_CALL(mock_op, get_associated_impis(_)).Times(AtLeast(1))
-    .WillRepeatedly(SetArgReferee<0>(associated_identities));
-
-  // A Server-Assignment-Request should be generated for this
-  // test. Check for it, and check that its properties are as expected.
-  EXPECT_CALL(*_mock_stack, send(_, _, 200))
-    .Times(1)
-    .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
-
-  t->on_success(&mock_op);
-
-  ASSERT_FALSE(_caught_diam_tsx == NULL);
-  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
-  Cx::ServerAssignmentRequest sar(msg);
-  EXPECT_TRUE(sar.get_str_from_avp(_cx_dict->DESTINATION_REALM, test_str));
-  EXPECT_EQ(DEST_REALM, test_str);
-  EXPECT_TRUE(sar.get_str_from_avp(_cx_dict->DESTINATION_HOST, test_str));
-  EXPECT_EQ(DEST_HOST, test_str);
-  EXPECT_EQ(IMPI, sar.impi());
-  EXPECT_EQ(IMPU, sar.impu());
-  EXPECT_TRUE(sar.server_name(test_str));
-  EXPECT_EQ(SERVER_NAME, test_str);
-  EXPECT_TRUE(sar.server_assignment_type(test_i32));
-  if (use_wildcard && expect_wc_on_sar)
+  // Template for testing behaviour when there's wildcard identities.
+  //
+  // The basic flow is:
+  //  - Recieve a HTTP request - this may or may not have wildcard information
+  //  - Look up the IMPU/wildcard IMPU from the request in the cache - this
+  //      never finds the user
+  //  - Send a SAR to the HSS
+  //  - Receive an SAA back from the HSS - this always returns the error
+  //      DIAMETER_ERROR_IN_ASSIGNMENT_TYPE. In the error case, it may also
+  //      return wildcard identity information.
+  //      Depending on the UT, we then either:
+  //        - Finish processing, as we're in an error case
+  //        - Lookup in the cache with a new identity and find the information
+  //        - Lookup in the cache with a new identity, don't find the information,
+  //          and send a SAR again. In this case we just timeout the second SAR,
+  //          as we're not interested in any more SAR processing for this UT.
+  //  - Send a HTTP response
+  //
+  // Note - there are no tests for having a wildcard and no external HSS, as this
+  // isn't a supported configuration.
+  void reg_data_template_with_wildcard(std::string reqtype,          // Reqtype on the HTTP request
+                                       std::string initial_wildcard, // Wildcard set on the HTTP request
+                                       std::string wildcard_on_saa,  // Wildcard returned on the SAA
+                                       bool found_subscriber)        // Was the subscriber found on the second cache lookup
   {
-    // Wildcard AVP only added to certian SAR req types. (see cx.cpp)
-    std::string wildcard_on_sar;
-    sar.get_str_from_avp(_cx_dict->WILDCARDED_PUBLIC_IDENTITY, wildcard_on_sar);
-    std::string expected_wildcard = (use_wildcard ? WILDCARD : "");
-    EXPECT_TRUE(sar.get_str_from_avp(_cx_dict->WILDCARDED_PUBLIC_IDENTITY, test_str));
-    EXPECT_EQ(expected_wildcard, test_str);
-  }
-  else
-  {
-    ASSERT_FALSE(sar.get_str_from_avp(_cx_dict->WILDCARDED_PUBLIC_IDENTITY, test_str));
-  }
+    MockHttpStack::Request req = make_request(reqtype, false, false, (initial_wildcard != ""));
 
-  // Check that the SAR has the type expected by the caller.
-  EXPECT_EQ(expected_type, test_i32);
+    // Configure the task to use a HSS, and send a RE_REGISTRATION
+    // SAR to the HSS every hour.
+    ImpuRegDataTask::Config cfg(true,
+                                3600,
+                                7200);
+    ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
 
-  // Create the expected SAA.
-  std::string wildcard_on_saa = "";
-  int32_t experimental_result_code = 0;
-  int32_t result_code = 0;
-  if (error_unrelated_to_wc)
-  {
-    experimental_result_code = DIAMETER_ERROR_IN_ASSIGNMENT_TYPE;
-    if (use_wildcard)
+    // Once the request is processed by the task, we expect it to
+    // look up the subscriber's data in Cassandra. If the HTTP request had the
+    // wildcard body then we should look up the wildcard identity in the cache
+    // rather than the public identity. We never find the subscriber in this UT.
+    MockCache::MockGetRegData mock_op;
+    EXPECT_CALL(*_cache, create_GetRegData((initial_wildcard != "") ? initial_wildcard : IMPU))
+      .WillOnce(Return(&mock_op));
+    EXPECT_DO_ASYNC(*_cache, mock_op);
+    task->run();
+    CassandraStore::Transaction* t = mock_op.get_trx();
+    ASSERT_FALSE(t == NULL);
+    EXPECT_CALL(mock_op, get_xml(_, _)).WillRepeatedly(Return());
+    EXPECT_CALL(mock_op, get_registration_state(_, _)).WillRepeatedly(SetArgReferee<0>(RegistrationState::NOT_REGISTERED));
+    EXPECT_CALL(mock_op, get_charging_addrs(_)).WillRepeatedly(Return());
+    EXPECT_CALL(mock_op, get_associated_impis(_)).WillRepeatedly(Return());
+
+    // A SAR is sent to the HSS - catch it to check whether it has a wildcard AVP,
+    // and so that we can respond on the same transaction with an SAA. We also
+    // check the IMPU to be sure that we've not mixed up the wildcard and IMPU
+    // AVPs
+    EXPECT_CALL(*_mock_stack, send(_, _, 200)).Times(1).WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
+    t->on_success(&mock_op);
+    ASSERT_FALSE(_caught_diam_tsx == NULL);
+    Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
+    Cx::ServerAssignmentRequest sar(msg);
+    EXPECT_EQ(IMPU, sar.impu());
+
+    if ((initial_wildcard != "") && (reqtype == "call"))
     {
-      wildcard_on_saa = WILDCARD;
-    }
-  }
-  else
-  {
-    if (!wildcard_correct)
-    {
-      wildcard_on_saa = NEW_WILDCARD;
-      experimental_result_code = DIAMETER_ERROR_IN_ASSIGNMENT_TYPE;
+      EXPECT_TRUE(sar.get_str_from_avp(_cx_dict->WILDCARDED_PUBLIC_IDENTITY, test_str));
+      EXPECT_EQ(WILDCARD, test_str);
     }
     else
     {
-      result_code = DIAMETER_SUCCESS;
+      EXPECT_FALSE(sar.get_str_from_avp(_cx_dict->WILDCARDED_PUBLIC_IDENTITY, test_str));
     }
-  }
-  Cx::ServerAssignmentAnswer saa(_cx_dict,
-                                 _mock_stack,
-                                 result_code,
-                                 0,
-                                 experimental_result_code,
-                                 IMPU_IMS_SUBSCRIPTION,
-                                 NO_CHARGING_ADDRESSES,
-                                 wildcard_on_saa);
-  if (expect_update)
-  {
-    // This is a request where we expect the database to be
-    // updated - check that it is updated with the expected state
-    // for this test, and that the TTL is twice the configured HSS
-    // RE_REGISTRATION time of 3600 seconds.
 
-    // Once we simulate the Diameter response, check that the
-    // database is updated.
-    MockCache::MockPutRegData mock_op3;
-    EXPECT_CALL(*_cache, create_PutRegData(IMPU_REG_SET, _, record_ttl))
-      .WillOnce(Return(&mock_op3));
-    EXPECT_CALL(mock_op3, with_xml(IMPU_IMS_SUBSCRIPTION))
-      .WillOnce(ReturnRef(mock_op3));
-    if ((expected_new_state != RegistrationState::UNCHANGED) &&
-        (expected_new_state != RegistrationState::UNREGISTERED))
+    // Create the expected SAA.
+    Cx::ServerAssignmentAnswer saa(_cx_dict,
+                                   _mock_stack,
+                                   0,
+                                   0,
+                                   DIAMETER_ERROR_IN_ASSIGNMENT_TYPE,
+                                   IMPU_IMS_SUBSCRIPTION,
+                                   NO_CHARGING_ADDRESSES,
+                                   wildcard_on_saa);
+
+    if ((wildcard_on_saa == "") ||
+        (wildcard_on_saa == initial_wildcard))
     {
-      EXPECT_CALL(mock_op3, with_reg_state(expected_new_state))
-        .WillOnce(ReturnRef(mock_op3));
-    }
-    EXPECT_CALL(mock_op3, with_associated_impis(IMPI_IN_VECTOR))
-      .WillOnce(ReturnRef(mock_op3));
-    EXPECT_CALL(mock_op3, with_charging_addrs(_))
-      .WillOnce(ReturnRef(mock_op3));
-    EXPECT_DO_ASYNC(*_cache, mock_op3);
-
-    _caught_diam_tsx->on_response(saa);
-
-    t = mock_op3.get_trx();
-    ASSERT_FALSE(t == NULL);
-
-    // Response positively to the cache update and check that a 200 OK is sent.
-    EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
-    t->on_success(&mock_op3);
-
-    // Build the expected http response and check it's correct.
-    EXPECT_EQ(expected_result, req.content());
-  }
-  else if (expect_deletion)
-  {
-    // This is a request where we expect fields to be deleted from
-    // the database after the SAA. Check that they are.
-
-    MockCache::MockDeletePublicIDs mock_op3;
-    EXPECT_CALL(*_cache, create_DeletePublicIDs(IMPU_REG_SET, IMPI_IN_VECTOR, _))
-      .WillOnce(Return(&mock_op3));
-    EXPECT_DO_ASYNC(*_cache, mock_op3);
-
-    _caught_diam_tsx->on_response(saa);
-
-    t = mock_op3.get_trx();
-    ASSERT_FALSE(t == NULL);
-
-    // Send in a good response to the Delete, and expect a response
-    // Response won't always be HTTP_OK - need to edit this!!
-    // HTTP_SERVER_ERROR is what we'll get if this goes wrong
-    EXPECT_CALL(*_httpstack, send_reply(_, HTTP_OK, _));
-    t->on_success(&mock_op3);
-
-    // Build the expected http response and check it's correct.
-    EXPECT_EQ(expected_result, req.content());
-  }
-  else
-  {
-    // Not expecting to update/delete from cache, so must have received an error
-    // from the HSS. This could be to update the wildcard, or it could be an
-    // error unrelated to the wildcard.
-    EXPECT_TRUE(experimental_result_code == DIAMETER_ERROR_IN_ASSIGNMENT_TYPE);
-    if(wildcard_on_saa == NEW_WILDCARD)
-    {
-      // Set registration state to registered so the registration data is mock
-      // found in the cache.
-      db_regstate = RegistrationState::REGISTERED;
-      // Have updated the wildcard - expect another look up in Cassandra.
-      MockCache::MockGetRegData mock_op;
-      EXPECT_CALL(*_cache, create_GetRegData(NEW_WILDCARD))
-        .WillOnce(Return(&mock_op));
-      EXPECT_DO_ASYNC(*_cache, mock_op);
-
-      // Have the cache return the values passed in for this test.
-      EXPECT_CALL(mock_op, get_xml(_, _)).Times(AtLeast(1))
-        .WillRepeatedly(DoAll(SetArgReferee<0>(IMPU_IMS_SUBSCRIPTION),
-                              SetArgReferee<1>(db_ttl)));
-      EXPECT_CALL(mock_op, get_registration_state(_, _)).Times(AtLeast(1))
-        .WillRepeatedly(DoAll(SetArgReferee<0>(db_regstate),
-                              SetArgReferee<1>(db_ttl)));
-      EXPECT_CALL(mock_op, get_charging_addrs(_)).Times(AtLeast(1))
-        .WillRepeatedly(SetArgReferee<0>(NO_CHARGING_ADDRESSES));
-
-      // This isn't a new binding, so add IMPI to the list of associated IMPIs.
-      associated_identities.push_back(IMPI);
-      EXPECT_CALL(mock_op, get_associated_impis(_)).Times(AtLeast(1))
-        .WillRepeatedly(SetArgReferee<0>(associated_identities));
-
-      // Send in the SAA, and catch the cache search and http response sent to
-      // sprout.
-      _caught_diam_tsx->on_response(saa);
-      t = mock_op.get_trx();
-      ASSERT_FALSE(t == NULL);
-      EXPECT_CALL(*_httpstack, send_reply(_, HTTP_OK, _));
-      t->on_success(&mock_op);
-
-      // Build the expected response and check it's correct.
-      EXPECT_EQ(expected_result, req.content());
-    }
-    else
-    {
+      // The wildcard on the SAA was empty (implying that the SAR failed for a
+      // non-wildcard related reason), or the same as the wildcard AVP on the SAR
+      // (which if we sent a new SAR would just be a loop). Expect an error
+      // response with no further lookups.
       EXPECT_CALL(*_httpstack, send_reply(_, 500, _));
       _caught_diam_tsx->on_response(saa);
     }
-  }
+    else
+    {
+      // The wildcard information has changed - expect another look up in Cassandra.
+      MockCache::MockGetRegData mock_op2;
+      EXPECT_CALL(*_cache, create_GetRegData(wildcard_on_saa)).WillOnce(Return(&mock_op2));
+      EXPECT_DO_ASYNC(*_cache, mock_op2);
 
-  _caught_fd_msg = NULL;
-  delete _caught_diam_tsx; _caught_diam_tsx = NULL;
-}
+      if (found_subscriber)
+      {
+        // Doing the lookup with the new identity found the subscriber -
+        // expect a successful response with no further SARs.
+        _caught_diam_tsx->on_response(saa);
+
+        CassandraStore::Transaction* t2 = mock_op2.get_trx();
+        ASSERT_FALSE(t2 == NULL);
+        EXPECT_CALL(mock_op2, get_xml(_, _)).WillRepeatedly(Return());
+        EXPECT_CALL(mock_op2, get_registration_state(_, _)).WillRepeatedly(SetArgReferee<0>(RegistrationState::REGISTERED));
+        EXPECT_CALL(mock_op2, get_charging_addrs(_)).WillRepeatedly(Return());
+        EXPECT_CALL(mock_op2, get_associated_impis(_)).WillRepeatedly(Return());
+
+        EXPECT_CALL(*_httpstack, send_reply(_, HTTP_OK, _));
+        t2->on_success(&mock_op2);
+      }
+      else
+      {
+        // Doing the lookup with the new identity still didn't find the subscriber.
+        // We send another SAR. We check this has the correct wildcard AVP, then
+        // end the test by reporting that SAR as timing out.
+        _caught_diam_tsx->on_response(saa);
+        _caught_fd_msg = NULL;
+        delete _caught_diam_tsx; _caught_diam_tsx = NULL;
+
+        CassandraStore::Transaction* t2 = mock_op2.get_trx();
+        ASSERT_FALSE(t2 == NULL);
+        EXPECT_CALL(mock_op2, get_xml(_, _)).WillRepeatedly(Return());
+        EXPECT_CALL(mock_op2, get_registration_state(_, _)).WillRepeatedly(SetArgReferee<0>(RegistrationState::NOT_REGISTERED));
+        EXPECT_CALL(mock_op2, get_charging_addrs(_)).WillRepeatedly(Return());
+        EXPECT_CALL(mock_op2, get_associated_impis(_)).WillRepeatedly(Return());
+
+        EXPECT_CALL(*_mock_stack, send(_, _, 200)).Times(1).WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
+        t2->on_success(&mock_op2);
+
+        ASSERT_FALSE(_caught_diam_tsx == NULL);
+        Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
+        Cx::ServerAssignmentRequest sar(msg);
+        EXPECT_EQ(IMPU, sar.impu());
+        EXPECT_TRUE(sar.get_str_from_avp(_cx_dict->WILDCARDED_PUBLIC_IDENTITY, test_str));
+        EXPECT_EQ(wildcard_on_saa, test_str);
+
+        EXPECT_CALL(*_httpstack, send_reply(_, _, _));
+        _caught_diam_tsx->on_timeout();
+      }
+    }
+
+    _caught_fd_msg = NULL;
+    delete _caught_diam_tsx; _caught_diam_tsx = NULL;
+  }
 
   // Test function for the case where we have a HSS, but we're making a
   // request that doesn't require a SAR or database hit. Feeds a request
@@ -2668,45 +2579,6 @@ TEST_F(HandlersTest, IMSSubscriptionHSS_InitialRegister)
   reg_data_template(req, true, true, false, RegistrationState::NOT_REGISTERED, 1);
 }
 
-// Initial registration with wildcarded public identity
-
-TEST_F(HandlersTest, IMSSubscriptionRegisterWithWildcard)
-{
-  reg_data_template_no_sar("reg", true, true, RegistrationState::REGISTERED);
-}
-
-// 5007 error on SAA, unrelated to wildcards
-
-TEST_F(HandlersTest, SAAAssignmentErrorNoWildcard)
-{
-  MockHttpStack::Request req = make_request("reg", true, true, false);
-  reg_data_template_with_wildcard(req, false, true, true, false);
-}
-
-// 5007 error on SAA, unrelated to wildcards
-
-TEST_F(HandlersTest, SAAAssignmentErrorGoodWildcard)
-{
-  MockHttpStack::Request req = make_request("reg", true, true, true);
-  reg_data_template_with_wildcard(req, true, true, true, false);
-}
-
-// 5007 error due to absence of wildcard on SAR
-
-TEST_F(HandlersTest, SAAAssignmentErrorMissingWildcard)
-{
-  MockHttpStack::Request req = make_request("reg", true, true, false);
-  reg_data_template_with_wildcard(req, false, false, false, false);
-}
-
-// 5007 error due to incorrect wildcard on SAR
-
-TEST_F(HandlersTest, SAAAssignmentErrorIncorrectWildcard)
-{
-  MockHttpStack::Request req = make_request("reg", true, true, true);
-  reg_data_template_with_wildcard(req, true, false, false, false);
-}
-
 // Initial registration (using the configured service name)
 
 TEST_F(HandlersTest, IMSSubscriptionHSS_InitialRegisterNoServerName)
@@ -2787,11 +2659,72 @@ TEST_F(HandlersTest, IMSSubscriptionHSS_ReregWithSARAlways)
                     310);
 }
 
+//
+// This set of tests covers the different types of scenarios that can happen
+// with wildcard identities. It simulates a HSS and verifies that both the Cx
+// flows and the Cassandra flows are correct.
+//
+
+// Test that receiving a SAA with a wildcard triggers a
+// new lookup in the Cassandra cache - if the subscriber is found
+// then the request is successful.
+TEST_F(HandlersTest, MainlineCallWithWildcard)
+{
+  reg_data_template_with_wildcard("call", "", WILDCARD, true);
+}
+
+// Test that receiving a SAA with a different wildcard triggers a
+// new lookup in the Cassandra cache - if the subscriber is found
+// then the request is successful.
+TEST_F(HandlersTest, WildcardChangeOnSARFound)
+{
+  reg_data_template_with_wildcard("call", WILDCARD, NEW_WILDCARD, true);
+}
+
+// Test that receiving a SAA with a different wildcard triggers a
+// new lookup in the Cassandra cache - if the subscriber isn't found
+// then a new SAR is sent with the new wildcard information.
+TEST_F(HandlersTest, WildcardChangeOnSARNotFound)
+{
+  reg_data_template_with_wildcard("call", WILDCARD, NEW_WILDCARD, false);
+}
+
+// Test that if we get an unrelated error in a wildcard flow, we still
+// reject the request with an appropriate error.
+TEST_F(HandlersTest, WildcardUnrelatedError)
+{
+  reg_data_template_with_wildcard("call", "", "", true);
+}
+
+// Test that if we get a SAA with the same wildcard as we sent on the SAR,
+// we reject the request with an error rather than get stuck in a loop.
+TEST_F(HandlersTest, WildcardLoopDetected)
+{
+  reg_data_template_with_wildcard("call", WILDCARD, WILDCARD, true);
+}
+
+// Test that receiving wildcard information on a request that doesn't generate
+// a SAR of a useful type still works, but doesn't have a wildcard AVP on the
+// initial SAR. Note - this isn't a realistic request; Homestead shouldn't
+// receive a request of this type; this UT checks that we handle this
+// gracefully.
+TEST_F(HandlersTest, WildcardOnInappropriateRequest)
+{
+  reg_data_template_with_wildcard("reg", WILDCARD, WILDCARD, true);
+}
+
 // Call to a registered subscriber
 
 TEST_F(HandlersTest, IMSSubscriptionCallHSS)
 {
   reg_data_template_no_sar("call", true, false, RegistrationState::REGISTERED);
+}
+
+// Call to a registered subscriber that's found by the wildcard identity.
+
+TEST_F(HandlersTest, IMSSubscriptionCallHSSWildcard)
+{
+  reg_data_template_no_sar("call", true, true, RegistrationState::REGISTERED);
 }
 
 // Call to an unregistered subscriber (one whose data is already
@@ -2823,17 +2756,17 @@ TEST_F(HandlersTest, IMSSubscriptionCallHSSNewUnregisteredService)
 
 TEST_F(HandlersTest, IMSSubscriptionDeregHSS)
 {
-  reg_data_template_with_deletion("dereg-user", true, true, false, RegistrationState::REGISTERED, 5);
+  reg_data_template_with_deletion("dereg-user", true, true, RegistrationState::REGISTERED, 5);
 }
 
 TEST_F(HandlersTest, IMSSubscriptionDeregTimeout)
 {
-  reg_data_template_with_deletion("dereg-timeout", true, true, false, RegistrationState::REGISTERED, 4);
+  reg_data_template_with_deletion("dereg-timeout", true, true, RegistrationState::REGISTERED, 4);
 }
 
 TEST_F(HandlersTest, IMSSubscriptionDeregAdmin)
 {
-  reg_data_template_with_deletion("dereg-admin", true, true, false, RegistrationState::REGISTERED, 8);
+  reg_data_template_with_deletion("dereg-admin", true, true, RegistrationState::REGISTERED, 8);
 }
 
 // Test that if an IMPI is not explicitly provided on a deregistration
@@ -2841,25 +2774,25 @@ TEST_F(HandlersTest, IMSSubscriptionDeregAdmin)
 
 TEST_F(HandlersTest, IMSSubscriptionDeregUseCacheIMPI)
 {
-  reg_data_template_with_deletion("dereg-admin", false, true, false, RegistrationState::REGISTERED, 8);
+  reg_data_template_with_deletion("dereg-admin", false, true, RegistrationState::REGISTERED, 8);
 }
 
 // Test the cache failure path
 TEST_F(HandlersTest, IMSSubscriptionDeregHSSCacheFail)
 {
-  reg_data_template_with_deletion("dereg-user", true, true, false, RegistrationState::REGISTERED, 5, 3600, "", RegistrationState::NOT_REGISTERED, CassandraStore::CONNECTION_ERROR);
+  reg_data_template_with_deletion("dereg-user", true, true, RegistrationState::REGISTERED, 5, 3600, "", RegistrationState::NOT_REGISTERED, CassandraStore::CONNECTION_ERROR);
 }
 
 // Test the benign cache failure path
 TEST_F(HandlersTest, IMSSubscriptionDeregHSSCacheFailBenign)
 {
-  reg_data_template_with_deletion("dereg-user", true, true, false, RegistrationState::REGISTERED, 5, 3600, REGDATA_RESULT_DEREG, RegistrationState::NOT_REGISTERED, CassandraStore::NOT_FOUND);
+  reg_data_template_with_deletion("dereg-user", true, true, RegistrationState::REGISTERED, 5, 3600, REGDATA_RESULT_DEREG, RegistrationState::NOT_REGISTERED, CassandraStore::NOT_FOUND);
 }
 
 // Test that an unregistered user is deregistered with the HSS.
 TEST_F(HandlersTest, IMSSubscriptionDeregUnregSub)
 {
-  reg_data_template_with_deletion("dereg-user", true, true, false, RegistrationState::UNREGISTERED, 5);
+  reg_data_template_with_deletion("dereg-user", true, true, RegistrationState::UNREGISTERED, 5);
 }
 
 // Test the two authentication failure flows (which should only affect
@@ -3038,111 +2971,6 @@ TEST_F(HandlersTest, IMSSubscriptionNoHSSUnknownCall)
   _caught_fd_msg = NULL;
 }
 
-// Verify that the old interface (without /reg-data in the URL) still works
-
-TEST_F(HandlersTest, LegacyIMSSubscriptionNoHSS)
-{
-  MockHttpStack::Request req(_httpstack,
-                             "/impu/" + IMPU,
-                             "",
-                             "?private_id=" + IMPI);
-  ImpuIMSSubscriptionTask::Config cfg(false, 3600);
-  ImpuIMSSubscriptionTask* task = new ImpuIMSSubscriptionTask(req, &cfg, FAKE_TRAIL_ID);
-
-  MockCache::MockGetRegData mock_op;
-  EXPECT_CALL(*_cache, create_GetRegData(IMPU))
-    .WillOnce(Return(&mock_op));
-  EXPECT_DO_ASYNC(*_cache, mock_op);
-  task->run();
-
-  CassandraStore::Transaction* t = mock_op.get_trx();
-  ASSERT_FALSE(t == NULL);
-  EXPECT_CALL(mock_op, get_xml(_, _)).Times(AtLeast(1))
-    .WillRepeatedly(SetArgReferee<0>(IMS_SUBSCRIPTION));
-  EXPECT_CALL(mock_op, get_registration_state(_, _)).Times(AtLeast(1))
-    .WillRepeatedly(SetArgReferee<0>(RegistrationState::REGISTERED));
-  EXPECT_CALL(mock_op, get_associated_impis(_)).Times(AtLeast(1));
-  EXPECT_CALL(mock_op, get_charging_addrs(_)).Times(AtLeast(1))
-    .WillRepeatedly(SetArgReferee<0>(NO_CHARGING_ADDRESSES));
-  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
-  t->on_success(&mock_op);
-
-  // Build the expected response and check it's correct
-  EXPECT_EQ(IMS_SUBSCRIPTION, req.content());
-
-  _caught_diam_tsx = NULL;
-  _caught_fd_msg = NULL;
-}
-
-TEST_F(HandlersTest, LegacyIMSSubscriptionNoHSS_NotFound)
-{
-  MockHttpStack::Request req(_httpstack,
-                             "/impu/" + IMPU,
-                             "",
-                             "?private_id=" + IMPI);
-  ImpuIMSSubscriptionTask::Config cfg(false, 3600);
-  ImpuIMSSubscriptionTask* task = new ImpuIMSSubscriptionTask(req, &cfg, FAKE_TRAIL_ID);
-
-  MockCache::MockGetRegData mock_op;
-  EXPECT_CALL(*_cache, create_GetRegData(IMPU))
-    .WillOnce(Return(&mock_op));
-  EXPECT_DO_ASYNC(*_cache, mock_op);
-  task->run();
-
-  CassandraStore::Transaction* t = mock_op.get_trx();
-  ASSERT_FALSE(t == NULL);
-  EXPECT_CALL(mock_op, get_xml(_, _)).Times(AtLeast(1))
-    .WillRepeatedly(SetArgReferee<0>(""));
-  EXPECT_CALL(mock_op, get_registration_state(_, _)).Times(AtLeast(1))
-    .WillRepeatedly(SetArgReferee<0>(RegistrationState::NOT_REGISTERED));
-  EXPECT_CALL(*_httpstack, send_reply(_, 404, _));
-  EXPECT_CALL(mock_op, get_associated_impis(_)).Times(AtLeast(1));
-  EXPECT_CALL(mock_op, get_charging_addrs(_)).Times(AtLeast(1))
-    .WillRepeatedly(SetArgReferee<0>(NO_CHARGING_ADDRESSES));
-  t->on_success(&mock_op);
-
-  // Build the expected response and check it's correct
-  EXPECT_EQ("", req.content());
-
-  _caught_diam_tsx = NULL;
-  _caught_fd_msg = NULL;
-}
-
-
-TEST_F(HandlersTest, LegacyIMSSubscriptionNoHSS_Unregistered)
-{
-  MockHttpStack::Request req(_httpstack,
-                             "/impu/" + IMPU,
-                             "",
-                             "");
-  ImpuIMSSubscriptionTask::Config cfg(false, 3600);
-  ImpuIMSSubscriptionTask* task = new ImpuIMSSubscriptionTask(req, &cfg, FAKE_TRAIL_ID);
-
-  MockCache::MockGetRegData mock_op;
-  EXPECT_CALL(*_cache, create_GetRegData(IMPU))
-    .WillOnce(Return(&mock_op));
-  EXPECT_DO_ASYNC(*_cache, mock_op);
-  task->run();
-
-  CassandraStore::Transaction* t = mock_op.get_trx();
-  ASSERT_FALSE(t == NULL);
-  EXPECT_CALL(mock_op, get_xml(_, _)).Times(AtLeast(1))
-    .WillRepeatedly(SetArgReferee<0>(IMS_SUBSCRIPTION));
-  EXPECT_CALL(mock_op, get_registration_state(_, _)).Times(AtLeast(1))
-    .WillRepeatedly(SetArgReferee<0>(RegistrationState::UNREGISTERED));
-  EXPECT_CALL(mock_op, get_associated_impis(_)).Times(AtLeast(1));
-  EXPECT_CALL(mock_op, get_charging_addrs(_)).Times(AtLeast(1))
-    .WillRepeatedly(SetArgReferee<0>(NO_CHARGING_ADDRESSES));
-  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
-  t->on_success(&mock_op);
-
-  // Build the expected response and check it's correct
-  EXPECT_EQ(IMS_SUBSCRIPTION, req.content());
-
-  _caught_diam_tsx = NULL;
-  _caught_fd_msg = NULL;
-}
-
 // Verify that when doing a GET rather than a PUT, we just read from
 // the cache, rather than doing a write or sending anything to the HSS.
 
@@ -3272,12 +3100,12 @@ TEST_F(HandlersTest, IMSSubscriptionCacheNotFound)
   // doesn't return a result. Start by building the HTTP request which will
   // invoke a cache lookup.
   MockHttpStack::Request req(_httpstack,
-                             "/impu/" + IMPU,
+                             "/impu/" + IMPU + "/reg-data",
                              "",
                              "");
 
-  ImpuIMSSubscriptionTask::Config cfg(false, 3600);
-  ImpuIMSSubscriptionTask* task = new ImpuIMSSubscriptionTask(req, &cfg, FAKE_TRAIL_ID);
+  ImpuRegDataTask::Config cfg(false, 3600);
+  ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the task's run function is called, expect to lookup IMS
   // subscription information for the specified public ID.
@@ -3307,12 +3135,12 @@ TEST_F(HandlersTest, IMSSubscriptionCacheConnectionFailure)
   // has a connection failure. Start by building the HTTP request which
   // will invoke a cache lookup.
   MockHttpStack::Request req(_httpstack,
-                             "/impu/" + IMPU,
+                             "/impu/" + IMPU + "/reg-data",
                              "",
                              "");
 
-  ImpuIMSSubscriptionTask::Config cfg(false, 3600);
-  ImpuIMSSubscriptionTask* task = new ImpuIMSSubscriptionTask(req, &cfg, FAKE_TRAIL_ID);
+  ImpuRegDataTask::Config cfg(false, 3600);
+  ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the task's run function is called, expect to lookup IMS
   // subscription information for the specified public ID.
@@ -3342,12 +3170,11 @@ TEST_F(HandlersTest, IMSSubscriptionCacheFailure)
   // has an unknown failure. Start by building the HTTP request which
   // will invoke a cache lookup.
   MockHttpStack::Request req(_httpstack,
-                             "/impu/" + IMPU,
+                             "/impu/" + IMPU + "/reg-data",
                              "",
                              "");
-
-  ImpuIMSSubscriptionTask::Config cfg(false, 3600);
-  ImpuIMSSubscriptionTask* task = new ImpuIMSSubscriptionTask(req, &cfg, FAKE_TRAIL_ID);
+  ImpuRegDataTask::Config cfg(false, 3600);
+  ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Once the task's run function is called, expect to lookup IMS
   // subscription information for the specified public ID.
@@ -3830,14 +3657,14 @@ TEST_F(HandlersTest, LocationInfoWithWildcard)
   EXPECT_FALSE(lir.auth_type(test_i32));
 
   // Build an LIA and expect a successful HTTP response.
-  // !KH1! - The LIA needs to have the wildcard parsing in it.
   Cx::LocationInfoAnswer lia(_cx_dict,
                              _mock_stack,
                              DIAMETER_SUCCESS,
                              0,
                              0,
                              SERVER_NAME,
-                             CAPABILITIES);
+                             CAPABILITIES,
+                             WILDCARD);
   EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
 
   _caught_diam_tsx->on_response(lia);

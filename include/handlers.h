@@ -94,7 +94,7 @@ const std::string JSON_VERSION = "version";
 const std::string JSON_RC = "result-code";
 const std::string JSON_SCSCF = "scscf";
 const std::string JSON_IMPUS = "impus";
-const std::string JSON_WILDCARD = "wildcard";
+const std::string JSON_WILDCARD = "wildcard-identity";
 
 // HTTP query string field names
 const std::string AUTH_FIELD_NAME = "resync-auth";
@@ -544,20 +544,6 @@ public:
 
   virtual ~ImpuReadRegDataTask() {}
   virtual void run();
-};
-
-class ImpuIMSSubscriptionTask : public ImpuRegDataTask
-{
-public:
-  ImpuIMSSubscriptionTask(HttpStack::Request& req,
-                          const Config* cfg,
-                          SAS::TrailId trail) :
-    ImpuRegDataTask(req, cfg, trail)
-  {};
-
-  void run();
-private:
-  void send_reply();
 };
 
 class RegistrationTerminationTask : public Diameter::Task
