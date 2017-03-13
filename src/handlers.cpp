@@ -2005,54 +2005,6 @@ void ImpuReadRegDataTask::run()
   ImpuRegDataTask::run();
 }
 
-//
-// IMPU IMS Subscription handling for URLs of the form
-// "/impu/<public ID>". Deprecated.
-//
-
-void ImpuIMSSubscriptionTask::run()
-{
-  const std::string prefix = "/impu/";
-  std::string path = _req.full_path();
-
-  _impu = path.substr(prefix.length());
-  _impi = _req.param("private_id");
-  TRC_DEBUG("Parsed HTTP request: private ID %s, public ID %s",
-            _impi.c_str(), _impu.c_str());
-
-  if (_impi.empty())
-  {
-    _type = RequestType::CALL;
-  }
-  else
-  {
-    _type = RequestType::REG;
-  }
-
-  TRC_DEBUG("Try to find IMS Subscription information in the cache");
-  CassandraStore::Operation* get_reg_data = _cache->create_GetRegData(search_term());
-  CassandraStore::Transaction* tsx =
-    new CacheTransaction(this,
-                         &ImpuRegDataTask::on_get_reg_data_success,
-                         &ImpuRegDataTask::on_get_reg_data_failure);
-  _cache->do_async(get_reg_data, tsx);
-}
-
-void ImpuIMSSubscriptionTask::send_reply()
-{
-  if (_xml != "")
-  {
-    TRC_DEBUG("Building 200 OK response to send");
-    _req.add_content(_xml);
-    send_http_reply(HTTP_OK);
-  }
-  else
-  {
-    TRC_DEBUG("No XML User-Data available, returning 404");
-    send_http_reply(HTTP_NOT_FOUND);
-  }
-}
-
 void RegistrationTerminationTask::run()
 {
   // Save off the deregistration reason and all private and public
