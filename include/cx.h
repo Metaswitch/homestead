@@ -264,7 +264,8 @@ enum ServerAssignmentType
     USER_DEREGISTRATION_STORE_SERVER_NAME = 7, // Currently not used
     ADMINISTRATIVE_DEREGISTRATION = 8,
     AUTHENTICATION_FAILURE = 9,
-    AUTHENTICATION_TIMEOUT = 10
+    AUTHENTICATION_TIMEOUT = 10,
+    DEREGISTRATION_TOO_MUCH_DATA = 11 // Currently not used
 };
 
 class ServerAssignmentRequest : public Diameter::Message
@@ -277,7 +278,8 @@ public:
                           const std::string& impi,
                           const std::string& impu,
                           const std::string& server_name,
-                          const Cx::ServerAssignmentType type);
+                          const Cx::ServerAssignmentType type,
+                          const std::string& wildcard = "");
   inline ServerAssignmentRequest(Diameter::Message& msg) : Diameter::Message(msg) {};
 
   inline std::string impu() const
@@ -298,6 +300,9 @@ public:
   {
     return get_i32_from_avp(((Cx::Dictionary*)dict())->USER_DATA_ALREADY_AVAILABLE, i32);
   }
+
+  bool include_wildcard_on_sar(Cx::ServerAssignmentType type);
+
 };
 
 class ServerAssignmentAnswer : public Diameter::Message
@@ -309,12 +314,21 @@ public:
                          const uint32_t& vendor_id,
                          const int32_t& experimental_result_code,
                          const std::string& ims_subscription,
-                         const ChargingAddresses& charging_addrs);
+                         const ChargingAddresses& charging_addrs,
+                         const std::string& wildcard = "");
   inline ServerAssignmentAnswer(Diameter::Message& msg) : Diameter::Message(msg) {};
 
   inline bool user_data(std::string& str) const
   {
     return get_str_from_avp(((Cx::Dictionary*)dict())->USER_DATA, str);
+  }
+  inline bool wildcarded_public_identity(std::string& str) const
+  {
+    return get_str_from_avp(((Cx::Dictionary*)dict())->WILDCARDED_PUBLIC_IDENTITY, str);
+  }
+  inline bool server_assignment_type(int32_t& i32) const
+  {
+    return get_i32_from_avp(((Cx::Dictionary*)dict())->SERVER_ASSIGNMENT_TYPE, i32);
   }
 
   void charging_addrs(ChargingAddresses& charging_addrs) const;

@@ -1164,7 +1164,7 @@ void ImpuRegDataTask::run()
   _impu = path.substr(prefix.length(), path.find_first_of("/", prefix.length()) - prefix.length());
   _impi = _req.param("private_id");
   _provided_server_name = server_name_from_body(_req.get_rx_body());
-  _wildcard_identity = wildcard_from_body(_req.get_rx_body());
+  _sprout_wildcard = wildcard_from_body(_req.get_rx_body());
 
   TRC_DEBUG("Parsed HTTP request: private ID %s, public ID %s, server name %s",
             _impi.c_str(), _impu.c_str(), _provided_server_name.c_str());
@@ -1204,12 +1204,16 @@ void ImpuRegDataTask::run()
   // We must always get the data from the cache - even if we're doing
   // a deregistration, we'll need to use the existing private ID, and
   // need to return the iFCs to Sprout.
+  get_reg_data();
+}
 
-  TRC_DEBUG ("Try to find IMS Subscription information in the cache");
+void ImpuRegDataTask::get_reg_data()
+{
+  TRC_DEBUG("Try to find IMS Subscription information in the cache");
   SAS::Event event(this->trail(), SASEvent::CACHE_GET_REG_DATA, 0);
-  event.add_var_param(_impu);
+  event.add_var_param(public_id());
   SAS::report_event(event);
-  CassandraStore::Operation* get_reg_data = _cache->create_GetRegData(_impu);
+  CassandraStore::Operation* get_reg_data = _cache->create_GetRegData(public_id());
   CassandraStore::Transaction* tsx =
     new CacheTransaction(this,
                          &ImpuRegDataTask::on_get_reg_data_success,
@@ -1601,7 +1605,8 @@ void ImpuRegDataTask::send_server_assignment_request(Cx::ServerAssignmentType ty
                                   _impu,
                                   (_provided_server_name == "" ? _configured_server_name :
                                    _provided_server_name),
-                                  type);
+                                  type,
+                                  (_hss_wildcard.empty() ? _sprout_wildcard : _hss_wildcard));
   DiameterTransaction* tsx =
     new DiameterTransaction(_dict,
                             this,
@@ -1818,6 +1823,41 @@ void ImpuRegDataTask::on_sar_response(Diameter::Message& rsp)
     SAS::report_event(event);
     _http_rc = HTTP_NOT_FOUND;
   }
+  else if (experimental_result_code == DIAMETER_ERROR_IN_ASSIGNMENT_TYPE)
+  {
+    std::string current_wildcard = wildcard_id();
+    saa.wildcarded_public_identity(_hss_wildcard);
+    if (current_wildcard == _hss_wildcard)
+    {
+      // An error has been recieved in the SAA, and the wildcard has not been
+      // updated. Return an error instead of retrying to avoid being stuck in a
+      // loop.
+      int type = 0;
+      saa.server_assignment_type(type);
+      TRC_INFO("Server-Assignment answer with experimental result code "
+               "DIAMETER_ERROR_IN_ASSIGNMENT_TYPE and wildcarded public id %s, "
+               "with vendor id %d and assignment type %d - reject",
+               _hss_wildcard.c_str(), vendor_id, type);
+      SAS::Event event(this->trail(), SASEvent::REG_DATA_HSS_FAIL_ASSIGNMENT_TYPE, 0);
+      event.add_static_param(result_code);
+      event.add_static_param(experimental_result_code);
+      event.add_static_param(type);
+      SAS::report_event(event);
+      _http_rc = HTTP_SERVER_ERROR;
+    }
+    else
+    {
+      // An error has been recieved in the SAA, and the wildcard has been
+      // updated. Return to searching the cache with the new wildcarded public
+      // identity,and continue the processing from there - possibly send another
+      // SAR and recieve an SAA, and send an http response.
+      SAS::Event event(this->trail(), SASEvent::REG_DATA_HSS_UPDATED_WILDCARD, 0);
+      SAS::report_event(event);
+      get_reg_data();
+      // Since processing has been redone, we can stop processing this SAA now.
+      return;
+    }
+  }
   else
   {
     TRC_INFO("Server-Assignment answer with result code %d and experimental result code %d with vendor id %d - reject",
@@ -1831,7 +1871,7 @@ void ImpuRegDataTask::on_sar_response(Diameter::Message& rsp)
 
   // Update the cache if required.
   bool pending_cache_op = false;
-  if ((result_code == 2001) &&
+  if ((result_code == DIAMETER_SUCCESS) &&
       (!is_deregistration_request(_type)) &&
       (!is_auth_failure_request(_type)))
   {
@@ -1891,6 +1931,20 @@ void ImpuRegDataTask::on_sar_response(Diameter::Message& rsp)
     delete this;
   }
   return;
+}
+
+// Returns the public id to use - priorities any wildcarded public id.
+std::string ImpuRegDataTask::public_id()
+{
+  std::string wildcard_id_str = wildcard_id();
+  return (wildcard_id_str.empty() ? _impu : wildcard_id_str);
+}
+
+// Returns the wildcarded public id to use - prioritises the wildcard returned by
+// the HSS over the one sent by sprout as it is more up to date.
+std::string ImpuRegDataTask::wildcard_id()
+{
+  return (_hss_wildcard.empty() ? _sprout_wildcard : _hss_wildcard);
 }
 
 void ImpuRegDataTask::on_del_impu_benign(CassandraStore::Operation* op, bool not_found)
