@@ -1839,8 +1839,6 @@ void ImpuRegDataTask::on_sar_response(Diameter::Message& rsp)
                "with vendor id %d and assignment type %d - reject",
                _hss_wildcard.c_str(), vendor_id, type);
       SAS::Event event(this->trail(), SASEvent::REG_DATA_HSS_FAIL_ASSIGNMENT_TYPE, 0);
-      event.add_static_param(result_code);
-      event.add_static_param(experimental_result_code);
       event.add_static_param(type);
       SAS::report_event(event);
       _http_rc = HTTP_SERVER_ERROR;
@@ -1852,6 +1850,8 @@ void ImpuRegDataTask::on_sar_response(Diameter::Message& rsp)
       // identity,and continue the processing from there - possibly send another
       // SAR and recieve an SAA, and send an http response.
       SAS::Event event(this->trail(), SASEvent::REG_DATA_HSS_UPDATED_WILDCARD, 0);
+      event.add_var_param(current_wildcard);
+      event.add_var_param(_hss_wildcard);
       SAS::report_event(event);
       get_reg_data();
       // Since processing has been redone, we can stop processing this SAA now.
