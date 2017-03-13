@@ -66,6 +66,7 @@ const int32_t DIAMETER_ERROR_USER_UNKNOWN = 5001;
 const int32_t DIAMETER_ERROR_IDENTITIES_DONT_MATCH = 5002;
 const int32_t DIAMETER_ERROR_IDENTITY_NOT_REGISTERED = 5003;
 const int32_t DIAMETER_ERROR_ROAMING_NOT_ALLOWED = 5004;
+const int32_t DIAMETER_ERROR_IN_ASSIGNMENT_TYPE = 5007;
 
 // Result-Code AVP strings used in set_result_code function
 const std::string DIAMETER_REQ_SUCCESS = "DIAMETER_SUCCESS";
@@ -93,6 +94,7 @@ const std::string JSON_VERSION = "version";
 const std::string JSON_RC = "result-code";
 const std::string JSON_SCSCF = "scscf";
 const std::string JSON_IMPUS = "impus";
+const std::string JSON_WILDCARD = "wildcard-identity";
 
 // HTTP query string field names
 const std::string AUTH_FIELD_NAME = "resync-auth";
@@ -473,6 +475,7 @@ public:
   {}
   virtual ~ImpuRegDataTask() {};
   virtual void run();
+  void get_reg_data();
   void on_get_reg_data_success(CassandraStore::Operation* op);
   void on_get_reg_data_failure(CassandraStore::Operation* op,
                                CassandraStore::ResultCode error,
@@ -487,6 +490,9 @@ public:
 
   typedef HssCacheTask::CacheTransaction<ImpuRegDataTask> CacheTransaction;
   typedef HssCacheTask::DiameterTransaction<ImpuRegDataTask> DiameterTransaction;
+
+  std::string public_id();
+  std::string wildcard_id();
 
 protected:
 
@@ -507,6 +513,7 @@ protected:
   Cx::ServerAssignmentType sar_type_for_request(RequestType type);
   RequestType request_type_from_body(std::string body);
   std::string server_name_from_body(std::string body);
+  std::string wildcard_from_body(std::string body);
   std::vector<std::string> get_associated_private_ids();
 
   const Config* _cfg;
@@ -520,6 +527,14 @@ protected:
   ChargingAddresses _charging_addrs;
   long _http_rc;
   std::string _provided_server_name;
+
+  // Save off the wildcard sent from sprout and the wildcard received from the
+  // HSS as separate class variables, so that they can be compared.
+  // This is necessary so we can tell if the HSS has sent an updated wildcard to
+  // Homestead, as the wildcard from the HSS will not write over the original
+  // wildcard sent from Sprout.
+  std::string _sprout_wildcard;
+  std::string _hss_wildcard;
 };
 
 class ImpuReadRegDataTask : public ImpuRegDataTask

@@ -34,6 +34,8 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
+#include <algorithm>
+
 #include "xmlutils.h"
 
 #include "log.h"
@@ -208,7 +210,38 @@ std::vector<std::string> get_public_ids(const std::string& user_data)
         rapidxml::xml_node<>* id = pi->first_node("Identity");
         if (id)
         {
-          public_ids.push_back((std::string)id->value());
+          std::string uri = std::string(id->value());
+
+          // TODO - This code should be commonised with the code in Sprout
+          // (and will be shortly). It's therefore not fully UT'd; this will be
+          // done when it moves.
+          // LCOV_EXCL_START
+          rapidxml::xml_node<>* extension = pi->first_node("Extension");
+          if (extension)
+          {
+            rapidxml::xml_node<>* type = extension->first_node("IdentityType");
+            if (type)
+            {
+              if (std::string(type->value()) == "2")
+              {
+                rapidxml::xml_node<>* new_identity = extension->first_node("WildcardedPSI");
+                uri = std::string(new_identity->value());
+              }
+              else if ((std::string(type->value()) == "3") ||
+                       (std::string(type->value()) == "4"))
+              {
+                rapidxml::xml_node<>* new_identity = extension->first_node("WildcardedIMPU");
+                uri = std::string(new_identity->value());
+              }
+            }
+          }
+          // LCOV_EXCL_STOP
+
+          if (std::find(public_ids.begin(), public_ids.end(), uri) ==
+              public_ids.end())
+          {
+            public_ids.push_back(uri);
+          }
         }
         else
         {

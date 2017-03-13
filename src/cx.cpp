@@ -93,7 +93,8 @@ Dictionary::Dictionary() :
   PRIMARY_CHARGING_COLLECTION_FUNCTION_NAME("3GPP", "Primary-Charging-Collection-Function-Name"),
   SECONDARY_CHARGING_COLLECTION_FUNCTION_NAME("3GPP", "Secondary-Charging-Collection-Function-Name"),
   PRIMARY_EVENT_CHARGING_FUNCTION_NAME("3GPP", "Primary-Event-Charging-Function-Name"),
-  SECONDARY_EVENT_CHARGING_FUNCTION_NAME("3GPP", "Secondary-Event-Charging-Function-Name")
+  SECONDARY_EVENT_CHARGING_FUNCTION_NAME("3GPP", "Secondary-Event-Charging-Function-Name"),
+  WILDCARDED_PUBLIC_IDENTITY("3GPP", "Wildcarded-Public-Identity")
 {
 }
 
@@ -275,7 +276,8 @@ LocationInfoAnswer::LocationInfoAnswer(const Dictionary* dict,
                                        const uint32_t& vendor_id,
                                        const int32_t& experimental_result_code,
                                        const std::string& server_name,
-                                       const ServerCapabilities& capabs) :
+                                       const ServerCapabilities& capabs,
+                                       const std::string& wildcarded_public_identity) :
                                        Diameter::Message(dict, dict->USER_AUTHORIZATION_ANSWER, stack)
 {
   TRC_DEBUG("Building Location-Info answer");
@@ -325,6 +327,11 @@ LocationInfoAnswer::LocationInfoAnswer(const Dictionary* dict,
     }
   }
   add(server_capabilities);
+
+  if (!wildcarded_public_identity.empty())
+  {
+    add(Diameter::AVP(dict->WILDCARDED_PUBLIC_IDENTITY).val_str(wildcarded_public_identity));
+  }
 }
 
 ServerCapabilities LocationInfoAnswer::server_capabilities() const
@@ -643,6 +650,25 @@ AKAAuthVector MultimediaAuthAnswer::akav2_auth_vector() const
   return av;
 }
 
+// The wildcard AVP may only be included on certain SAR types (see spec TS
+// 29.228). This function determines whether or not the wildcard AVP should be
+// placed on the SAR by checking its type.
+bool ServerAssignmentRequest::include_wildcard_on_sar(const Cx::ServerAssignmentType type)
+{
+  switch (type)
+  {
+    case Cx::ServerAssignmentType::UNREGISTERED_USER:
+    case Cx::ServerAssignmentType::NO_ASSIGNMENT:
+    case Cx::ServerAssignmentType::TIMEOUT_DEREGISTRATION_STORE_SERVER_NAME:
+    case Cx::ServerAssignmentType::ADMINISTRATIVE_DEREGISTRATION:
+    case Cx::ServerAssignmentType::DEREGISTRATION_TOO_MUCH_DATA:
+    case Cx::ServerAssignmentType::TIMEOUT_DEREGISTRATION:
+      return true;
+    default:
+      return false;
+  }
+}
+
 ServerAssignmentRequest::ServerAssignmentRequest(const Dictionary* dict,
                                                  Diameter::Stack* stack,
                                                  const std::string& dest_host,
@@ -650,7 +676,8 @@ ServerAssignmentRequest::ServerAssignmentRequest(const Dictionary* dict,
                                                  const std::string& impi,
                                                  const std::string& impu,
                                                  const std::string& server_name,
-                                                 const Cx::ServerAssignmentType type) :
+                                                 const Cx::ServerAssignmentType type,
+                                                 const std::string& wildcard) :
                                                  Diameter::Message(dict, dict->SERVER_ASSIGNMENT_REQUEST, stack)
 {
   TRC_DEBUG("Building Server-Assignment request for %s/%s", impi.c_str(), impu.c_str());
@@ -672,6 +699,11 @@ ServerAssignmentRequest::ServerAssignmentRequest(const Dictionary* dict,
   add(Diameter::AVP(dict->SERVER_NAME).val_str(server_name));
   add(Diameter::AVP(dict->SERVER_ASSIGNMENT_TYPE).val_i32(type));
   add(Diameter::AVP(dict->USER_DATA_ALREADY_AVAILABLE).val_i32(0));
+  if ((!wildcard.empty()) && (include_wildcard_on_sar(type)))
+  {
+    TRC_DEBUG("Including wildcarded public identity %s on SAR", wildcard.c_str());
+    add(Diameter::AVP(dict->WILDCARDED_PUBLIC_IDENTITY).val_str(wildcard));
+  }
 }
 
 ServerAssignmentAnswer::ServerAssignmentAnswer(const Dictionary* dict,
@@ -680,7 +712,8 @@ ServerAssignmentAnswer::ServerAssignmentAnswer(const Dictionary* dict,
                                                const uint32_t& vendor_id,
                                                const int32_t& experimental_result_code,
                                                const std::string& ims_subscription,
-                                               const ChargingAddresses& charging_addrs) :
+                                               const ChargingAddresses& charging_addrs,
+                                               const std::string& wildcard) :
                                                Diameter::Message(dict, dict->SERVER_ASSIGNMENT_ANSWER, stack)
 {
   TRC_DEBUG("Building Server-Assignment answer");
@@ -729,6 +762,11 @@ ServerAssignmentAnswer::ServerAssignmentAnswer(const Dictionary* dict,
                                val_str(charging_addrs.ecfs[1]));
     }
     add(charging_information);
+  }
+
+  if (!wildcard.empty())
+  {
+    add(Diameter::AVP(dict->WILDCARDED_PUBLIC_IDENTITY).val_str(wildcard));
   }
 }
 
