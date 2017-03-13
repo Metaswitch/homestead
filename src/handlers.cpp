@@ -1850,8 +1850,8 @@ void ImpuRegDataTask::on_sar_response(Diameter::Message& rsp)
       // identity,and continue the processing from there - possibly send another
       // SAR and recieve an SAA, and send an http response.
       SAS::Event event(this->trail(), SASEvent::REG_DATA_HSS_UPDATED_WILDCARD, 0);
-      event.add_static_param(current_wildcard);
-      event.add_static_param(_hss_wildcard);
+      event.add_var_param(current_wildcard);
+      event.add_var_param(_hss_wildcard);
       SAS::report_event(event);
       get_reg_data();
       // Since processing has been redone, we can stop processing this SAA now.
