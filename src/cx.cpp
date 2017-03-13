@@ -644,6 +644,9 @@ AKAAuthVector MultimediaAuthAnswer::akav2_auth_vector() const
   return av;
 }
 
+// The wildcard AVP may only be included on certain SAR types (see spec TS
+// 29.228). This function determines whether or not the wildcard AVP should be
+// placed on the SAR by checking its type.
 bool ServerAssignmentRequest::include_wildcard_on_sar(const Cx::ServerAssignmentType type)
 {
   switch (type)
@@ -690,7 +693,7 @@ ServerAssignmentRequest::ServerAssignmentRequest(const Dictionary* dict,
   add(Diameter::AVP(dict->SERVER_NAME).val_str(server_name));
   add(Diameter::AVP(dict->SERVER_ASSIGNMENT_TYPE).val_i32(type));
   add(Diameter::AVP(dict->USER_DATA_ALREADY_AVAILABLE).val_i32(0));
-  if (!wildcard.empty() && include_wildcard_on_sar(type))
+  if ((!wildcard.empty()) && (include_wildcard_on_sar(type)))
   {
     TRC_DEBUG("Including wildcarded public identity %s on SAR", wildcard.c_str());
     add(Diameter::AVP(dict->WILDCARDED_PUBLIC_IDENTITY).val_str(wildcard));

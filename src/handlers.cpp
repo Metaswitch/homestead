@@ -1210,9 +1210,9 @@ void ImpuRegDataTask::get_reg_data()
 {
   TRC_DEBUG("Try to find IMS Subscription information in the cache");
   SAS::Event event(this->trail(), SASEvent::CACHE_GET_REG_DATA, 0);
-  event.add_var_param(search_term());
+  event.add_var_param(public_id());
   SAS::report_event(event);
-  CassandraStore::Operation* get_reg_data = _cache->create_GetRegData(search_term());
+  CassandraStore::Operation* get_reg_data = _cache->create_GetRegData(public_id());
   CassandraStore::Transaction* tsx =
     new CacheTransaction(this,
                          &ImpuRegDataTask::on_get_reg_data_success,
@@ -1822,22 +1822,21 @@ void ImpuRegDataTask::on_sar_response(Diameter::Message& rsp)
     SAS::report_event(event);
     _http_rc = HTTP_NOT_FOUND;
   }
-  // An SAA received with this experimental result code may be updating the
-  // wildcarded public identity. If it is, then return to searching the cache
-  // with the new wildcarded public identity and proceed from there. But if it
-  // isn't, treat it as an error.
   else if (experimental_result_code == DIAMETER_ERROR_IN_ASSIGNMENT_TYPE)
   {
-    const std::string current_wildcard = (_hss_wildcard.empty() ? _sprout_wildcard : _hss_wildcard);
+    std::string current_wildcard = wildcard_id();
     saa.wildcarded_public_identity(_hss_wildcard);
     if (current_wildcard == _hss_wildcard)
     {
-      int type;
+      // An error has been recieved in the SAA, and the wildcard has not been
+      // updated. Return an error instead of retrying to avoid being stuck in a
+      // loop.
+      int type = 0;
       saa.server_assignment_type(type);
-      TRC_INFO("Server-Assignment answer with result code %d and experimental "
-               "result code DIAMETER_ERROR_IN_ASSIGNMENT_TYPE, with vendor id "
-               "%d and assignment type %d - reject",
-               result_code, vendor_id, type);
+      TRC_INFO("Server-Assignment answer with experimental result code "
+               "DIAMETER_ERROR_IN_ASSIGNMENT_TYPE and wildcarded public id %s, "
+               "with vendor id %d and assignment type %d - reject",
+               _hss_wildcard.c_str(), vendor_id, type);
       SAS::Event event(this->trail(), SASEvent::REG_DATA_HSS_FAIL_ASSIGNMENT_TYPE, 0);
       event.add_static_param(result_code);
       event.add_static_param(experimental_result_code);
@@ -1847,9 +1846,10 @@ void ImpuRegDataTask::on_sar_response(Diameter::Message& rsp)
     }
     else
     {
-      // Return to search the cache with the new wildcarded public identity, and
-      // continue the processing from there (possibly send SAR, send http
-      // response, etc.)
+      // An error has been recieved in the SAA, and the wildcard has been
+      // updated. Return to searching the cache with the new wildcarded public
+      // identity,and continue the processing from there - possibly send another
+      // SAR and recieve an SAA, and send an http response.
       SAS::Event event(this->trail(), SASEvent::REG_DATA_HSS_UPDATED_WILDCARD, 0);
       SAS::report_event(event);
       get_reg_data();
@@ -1932,23 +1932,18 @@ void ImpuRegDataTask::on_sar_response(Diameter::Message& rsp)
   return;
 }
 
-std::string ImpuRegDataTask::search_term()
+// Returns the public id to use - priorities any wildcarded public id.
+std::string ImpuRegDataTask::public_id()
 {
-  // Search for registered data using the public ids below in the following order
-  // of preference: wildcarded public id sent from the HSS, wildcarded public id
-  // sent from sprout, public id sent from sprout.
-  if (!_hss_wildcard.empty())
-  {
-    return _hss_wildcard;
-  }
-  else if (!_sprout_wildcard.empty())
-  {
-    return _sprout_wildcard;
-  }
-  else
-  {
-    return _impu;
-  }
+  std::string wildcard_id_str = wildcard_id();
+  return (wildcard_id_str.empty() ? _impu : wildcard_id_str);
+}
+
+// Returns the wildcarded public id to use - prioritises the wildcard returned by
+// the HSS over the one sent by sprout as it is more up to date.
+std::string ImpuRegDataTask::wildcard_id()
+{
+  return (_hss_wildcard.empty() ? _sprout_wildcard : _hss_wildcard);
 }
 
 void ImpuRegDataTask::on_del_impu_benign(CassandraStore::Operation* op, bool not_found)
@@ -2029,7 +2024,7 @@ void ImpuIMSSubscriptionTask::run()
   }
 
   TRC_DEBUG("Try to find IMS Subscription information in the cache");
-  CassandraStore::Operation* get_reg_data = _cache->create_GetRegData(search_term());
+  CassandraStore::Operation* get_reg_data = _cache->create_GetRegData(public_id());
   CassandraStore::Transaction* tsx =
     new CacheTransaction(this,
                          &ImpuRegDataTask::on_get_reg_data_success,

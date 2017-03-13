@@ -491,7 +491,8 @@ public:
   typedef HssCacheTask::CacheTransaction<ImpuRegDataTask> CacheTransaction;
   typedef HssCacheTask::DiameterTransaction<ImpuRegDataTask> DiameterTransaction;
 
-  std::string search_term();
+  std::string public_id();
+  std::string wildcard_id();
 
 protected:
 
@@ -526,6 +527,11 @@ protected:
   ChargingAddresses _charging_addrs;
   long _http_rc;
   std::string _provided_server_name;
+  // Save off the wildcard sent from sprout and the wildcard received from the
+  // HSS as seperate class variables, so that they can be compared.
+  // This is necessary so we can tell if the HSS has sent an updated wildcard to
+  // Homestead, as the wildcard from the HSS will not write over the original
+  // wildcard sent from sprout.
   std::string _sprout_wildcard;
   std::string _hss_wildcard;
 };
