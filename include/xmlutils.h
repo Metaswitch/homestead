@@ -42,8 +42,6 @@
 #include "reg_state.h"
 #include "charging_addresses.h"
 #include "httpclient.h"
-
-
 #include "rapidxml/rapidxml.hpp"
 
 namespace XmlUtils

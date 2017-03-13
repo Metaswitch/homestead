@@ -86,7 +86,6 @@ void add_reg_state_node(RegistrationState state,
   std::string regtype;
   if (state == RegistrationState::REGISTERED)
   {
-    // TODO - Can I use RegistrationState::Registered here, and below? (see reg_state.h)
     regtype = RegDataXmlUtils::REGISTERED;
   }
   else if (state == RegistrationState::UNREGISTERED)
