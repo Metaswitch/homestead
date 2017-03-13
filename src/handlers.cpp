@@ -1833,7 +1833,7 @@ void ImpuRegDataTask::on_sar_response(Diameter::Message& rsp)
     saa.wildcarded_public_identity(_hss_wildcard);
     if (current_wildcard == _hss_wildcard)
     {
-      int type;
+      int type = 0;
       saa.server_assignment_type(type);
       TRC_INFO("Server-Assignment answer with result code %d and experimental "
                "result code DIAMETER_ERROR_IN_ASSIGNMENT_TYPE, with vendor id "
