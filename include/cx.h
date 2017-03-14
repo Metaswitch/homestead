@@ -94,6 +94,10 @@ public:
   const Diameter::Dictionary::AVP SECONDARY_CHARGING_COLLECTION_FUNCTION_NAME;
   const Diameter::Dictionary::AVP PRIMARY_EVENT_CHARGING_FUNCTION_NAME;
   const Diameter::Dictionary::AVP SECONDARY_EVENT_CHARGING_FUNCTION_NAME;
+  const Diameter::Dictionary::AVP SUPPORTED_FEATURES;
+  const Diameter::Dictionary::AVP VENDOR_ID;
+  const Diameter::Dictionary::AVP FEATURE_LIST_ID;
+  const Diameter::Dictionary::AVP FEATURE_LIST;
   const Diameter::Dictionary::AVP WILDCARDED_PUBLIC_IDENTITY;
 };
 
