@@ -31,6 +31,7 @@ COMMON_SOURCES := accesslogger.cpp \
                   log.cpp \
                   namespace_hop.cpp \
                   realmmanager.cpp \
+                  reg_data_xml_utils.cpp \
                   saslogger.cpp \
                   sproutconnection.cpp \
                   statistic.cpp \

@@ -244,30 +244,11 @@ std::vector<std::string> get_public_ids(const std::string& user_data)
         {
           std::string uri = std::string(id->value());
 
-          // TODO - This code should be commonised with the code in Sprout
-          // (and will be shortly). It's therefore not fully UT'd; this will be
-          // done when it moves.
-          // LCOV_EXCL_START
-          rapidxml::xml_node<>* extension = pi->first_node("Extension");
+          rapidxml::xml_node<>* extension = pi->first_node(RegDataXmlUtils::EXTENSION);
           if (extension)
           {
-            rapidxml::xml_node<>* type = extension->first_node("IdentityType");
-            if (type)
-            {
-              if (std::string(type->value()) == "2")
-              {
-                rapidxml::xml_node<>* new_identity = extension->first_node("WildcardedPSI");
-                uri = std::string(new_identity->value());
-              }
-              else if ((std::string(type->value()) == "3") ||
-                       (std::string(type->value()) == "4"))
-              {
-                rapidxml::xml_node<>* new_identity = extension->first_node("WildcardedIMPU");
-                uri = std::string(new_identity->value());
-              }
-            }
+            RegDataXmlUtils::parse_extension(uri, extension);
           }
-          // LCOV_EXCL_STOP
 
           if (std::find(public_ids.begin(), public_ids.end(), uri) ==
               public_ids.end())
