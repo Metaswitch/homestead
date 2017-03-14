@@ -447,6 +447,8 @@ bool Cache::GetRegData::perform(CassandraStore::Client* client,
     // default state (NOT_REGISTERED and empty XML).
   }
 
+  // All other exceptions will rise up to the calling function, where the return
+  // code will be set as unsuccessful.
 
   return true;
 }
