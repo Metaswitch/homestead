@@ -37,7 +37,7 @@
 #define GTEST_HAS_POSIX_RE 0
 #include "test_utils.hpp"
 
-#include "xmlutils.h"
+#include "homestead_xml_utils.h"
 #include "reg_state.h"
 
 /// Fixture for XmlUtilsTest.

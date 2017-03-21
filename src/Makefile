@@ -20,6 +20,7 @@ COMMON_SOURCES := accesslogger.cpp \
                   exception_handler.cpp \
                   handlers.cpp \
                   health_checker.cpp \
+                  homestead_xml_utils.cpp \
                   http_connection_pool.cpp \
                   httpclient.cpp \
                   httpconnection.cpp \
@@ -31,7 +32,6 @@ COMMON_SOURCES := accesslogger.cpp \
                   log.cpp \
                   namespace_hop.cpp \
                   realmmanager.cpp \
-                  reg_data_xml_utils.cpp \
                   saslogger.cpp \
                   sproutconnection.cpp \
                   statistic.cpp \
@@ -40,7 +40,7 @@ COMMON_SOURCES := accesslogger.cpp \
                   snmp_row.cpp \
                   snmp_scalar.cpp \
                   utils.cpp \
-                  xmlutils.cpp \
+                  xml_utils.cpp \
                   zmq_lvc.cpp
 
 homestead_SOURCES := ${COMMON_SOURCES} \
@@ -53,9 +53,9 @@ homestead_test_SOURCES := ${COMMON_SOURCES} \
                           test_main.cpp \
                           test_interposer.cpp \
                           cx_test.cpp \
-                          xmlutils_test.cpp \
                           cache_test.cpp \
                           handlers_test.cpp \
+                          homestead_xml_utils_test.cpp \
                           fakelogger.cpp \
                           fakesnmp.cpp \
                           mockfreediameter.cpp \
