@@ -56,6 +56,8 @@ const int32_t DIAMETER_UNABLE_TO_DELIVER = 3002;
 const int32_t DIAMETER_TOO_BUSY = 3004;
 const int32_t DIAMETER_AUTHORIZATION_REJECTED = 5003;
 const int32_t DIAMETER_UNABLE_TO_COMPLY = 5012;
+// 3GPP Vendor ID - RFC 5516
+const uint32_t VENDOR_ID_3GPP = 10415;
 // Experimental-Result-Code AVP constants
 const int32_t DIAMETER_FIRST_REGISTRATION = 2001;
 const int32_t DIAMETER_SUBSEQUENT_REGISTRATION = 2002;
@@ -64,6 +66,7 @@ const int32_t DIAMETER_ERROR_USER_UNKNOWN = 5001;
 const int32_t DIAMETER_ERROR_IDENTITIES_DONT_MATCH = 5002;
 const int32_t DIAMETER_ERROR_IDENTITY_NOT_REGISTERED = 5003;
 const int32_t DIAMETER_ERROR_ROAMING_NOT_ALLOWED = 5004;
+const int32_t DIAMETER_ERROR_IN_ASSIGNMENT_TYPE = 5007;
 
 // Result-Code AVP strings used in set_result_code function
 const std::string DIAMETER_REQ_SUCCESS = "DIAMETER_SUCCESS";
@@ -87,8 +90,11 @@ const std::string JSON_CHALLENGE = "challenge";
 const std::string JSON_RESPONSE = "response";
 const std::string JSON_CRYPTKEY = "cryptkey";
 const std::string JSON_INTEGRITYKEY = "integritykey";
+const std::string JSON_VERSION = "version";
 const std::string JSON_RC = "result-code";
 const std::string JSON_SCSCF = "scscf";
+const std::string JSON_IMPUS = "impus";
+const std::string JSON_WILDCARD = "wildcard-identity";
 
 // HTTP query string field names
 const std::string AUTH_FIELD_NAME = "resync-auth";
@@ -292,24 +298,27 @@ class ImpiTask : public HssCacheTask
 public:
   struct Config
   {
-    Config(bool _hss_configured = true,
-           int _impu_cache_ttl = 0,
-           std::string _scheme_unknown = "Unknown",
-           std::string _scheme_digest = "SIP Digest",
-           std::string _scheme_aka = "Digest-AKAv1-MD5",
+    Config(bool _hss_configured,
+           int _impu_cache_ttl,
+           std::string _scheme_unknown,
+           std::string _scheme_digest,
+           std::string _scheme_akav1,
+           std::string _scheme_akav2,
            int _diameter_timeout_ms = 200) :
       query_cache_av(!_hss_configured),
       impu_cache_ttl(_impu_cache_ttl),
       scheme_unknown(_scheme_unknown),
       scheme_digest(_scheme_digest),
-      scheme_aka(_scheme_aka),
+      scheme_akav1(_scheme_akav1),
+      scheme_akav2(_scheme_akav2),
       diameter_timeout_ms(_diameter_timeout_ms) {}
 
     bool query_cache_av;
     int impu_cache_ttl;
     std::string scheme_unknown;
     std::string scheme_digest;
-    std::string scheme_aka;
+    std::string scheme_akav1;
+    std::string scheme_akav2;
     int diameter_timeout_ms;
   };
 
@@ -393,7 +402,7 @@ public:
 
   void run();
   void on_uar_response(Diameter::Message& rsp);
-  void sas_log_hss_failure(int32_t result_code);
+  void sas_log_hss_failure(int32_t result_code,int32_t experimental_result_code);
 
   typedef HssCacheTask::DiameterTransaction<ImpiRegistrationStatusTask> DiameterTransaction;
 
@@ -424,7 +433,7 @@ public:
 
   void run();
   void on_lir_response(Diameter::Message& rsp);
-  void sas_log_hss_failure(int32_t result_code);
+  void sas_log_hss_failure(int32_t result_code,int32_t experimental_result_code);
   void query_cache_reg_data();
   void on_get_reg_data_success(CassandraStore::Operation* op);
   void on_get_reg_data_failure(CassandraStore::Operation* op,
@@ -448,12 +457,16 @@ public:
   {
     Config(bool _hss_configured = true,
            int _hss_reregistration_time = 3600,
+           int _record_ttl = 7200,
            int _diameter_timeout_ms = 200) :
       hss_configured(_hss_configured),
       hss_reregistration_time(_hss_reregistration_time),
+      record_ttl(_record_ttl),
       diameter_timeout_ms(_diameter_timeout_ms) {}
+
     bool hss_configured;
     int hss_reregistration_time;
+    int record_ttl;
     int diameter_timeout_ms;
   };
 
@@ -462,6 +475,7 @@ public:
   {}
   virtual ~ImpuRegDataTask() {};
   virtual void run();
+  void get_reg_data();
   void on_get_reg_data_success(CassandraStore::Operation* op);
   void on_get_reg_data_failure(CassandraStore::Operation* op,
                                CassandraStore::ResultCode error,
@@ -476,6 +490,9 @@ public:
 
   typedef HssCacheTask::CacheTransaction<ImpuRegDataTask> CacheTransaction;
   typedef HssCacheTask::DiameterTransaction<ImpuRegDataTask> DiameterTransaction;
+
+  std::string public_id();
+  std::string wildcard_id();
 
 protected:
 
@@ -495,6 +512,8 @@ protected:
   bool is_auth_failure_request(RequestType type);
   Cx::ServerAssignmentType sar_type_for_request(RequestType type);
   RequestType request_type_from_body(std::string body);
+  std::string server_name_from_body(std::string body);
+  std::string wildcard_from_body(std::string body);
   std::vector<std::string> get_associated_private_ids();
 
   const Config* _cfg;
@@ -503,24 +522,29 @@ protected:
   std::string _type_param;
   RequestType _type;
   std::string _xml;
+  RegistrationState _original_state;
   RegistrationState _new_state;
   ChargingAddresses _charging_addrs;
   long _http_rc;
   std::string _provided_server_name;
+
+  // Save off the wildcard sent from sprout and the wildcard received from the
+  // HSS as separate class variables, so that they can be compared.
+  // This is necessary so we can tell if the HSS has sent an updated wildcard to
+  // Homestead, as the wildcard from the HSS will not write over the original
+  // wildcard sent from Sprout.
+  std::string _sprout_wildcard;
+  std::string _hss_wildcard;
 };
 
-class ImpuIMSSubscriptionTask : public ImpuRegDataTask
+class ImpuReadRegDataTask : public ImpuRegDataTask
 {
 public:
-  ImpuIMSSubscriptionTask(HttpStack::Request& req,
-                          const Config* cfg,
-                          SAS::TrailId trail) :
-    ImpuRegDataTask(req, cfg, trail)
-  {};
+  // Just use the superclass's constructor.
+  using ImpuRegDataTask::ImpuRegDataTask;
 
-  void run();
-private:
-  void send_reply();
+  virtual ~ImpuReadRegDataTask() {}
+  virtual void run();
 };
 
 class RegistrationTerminationTask : public Diameter::Task
@@ -541,6 +565,7 @@ public:
     Cx::Dictionary* dict;
     SproutConnection* sprout_conn;
     int hss_reregistration_time;
+    int reg_max_expires;
   };
 
   RegistrationTerminationTask(const Diameter::Dictionary* dict,
@@ -586,16 +611,19 @@ public:
     Config(Cache* _cache,
            Cx::Dictionary* _dict,
            int _impu_cache_ttl = 0,
-           int _hss_reregistration_time = 3600) :
+           int _hss_reregistration_time = 3600,
+           int _record_ttl = 7200) :
       cache(_cache),
       dict(_dict),
       impu_cache_ttl(_impu_cache_ttl),
-      hss_reregistration_time(_hss_reregistration_time) {}
+      hss_reregistration_time(_hss_reregistration_time),
+      record_ttl(_record_ttl) {}
 
     Cache* cache;
     Cx::Dictionary* dict;
     int impu_cache_ttl;
     int hss_reregistration_time;
+    int record_ttl;
   };
 
   PushProfileTask(const Diameter::Dictionary* dict,
@@ -630,6 +658,30 @@ private:
                                CassandraStore::ResultCode error,
                                std::string& text);
   void send_ppa(const std::string result_code);
+};
+
+class ImpuListTask : public HssCacheTask
+{
+public:
+  struct Config {};
+
+  ImpuListTask(HttpStack::Request& req, const Config* cfg, SAS::TrailId trail) :
+    HssCacheTask(req, trail), _cfg(cfg)
+  {}
+
+  virtual ~ImpuListTask() {};
+
+  virtual void run();
+
+  void on_list_impu_success(CassandraStore::Operation* op);
+  void on_list_impu_failure(CassandraStore::Operation* op,
+                            CassandraStore::ResultCode error,
+                            std::string& text);
+
+  typedef HssCacheTask::CacheTransaction<ImpuListTask> CacheTransaction;
+
+protected:
+  const Config* _cfg;
 };
 
 void configure_cx_results_tables(SNMP::CxCounterTable* mar_results_table,

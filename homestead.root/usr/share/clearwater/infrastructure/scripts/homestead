@@ -65,6 +65,3 @@ then
   realm=$(echo $hs_hostname | sed -e 's/:[^:]*$//g' | sed -e 's/^\[//g' | sed -e 's/\]$//g')
   /usr/share/clearwater/bin/generic_create_diameterconf homestead $identity $realm $hs_listen_port $hs_secure_listen_port $acl_required $check_destination_host
 fi
-
-# Create Cassandra schema if Cassandra is installed.
-/usr/share/clearwater/cassandra-schemas/homestead_cache.sh || /bin/true

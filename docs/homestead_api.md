@@ -69,7 +69,7 @@ RegistrationState may take the values REGISTERED, UNREGISTERED or NOT_REGISTERED
 
 Changes to registration state can be done by:
 
-`PUT /impu/<public ID>/reg-data[?private_id=<private ID>&server_name=<S-CSCF name>]`
+`PUT /impu/<public ID>/reg-data[?private_id=<private ID>]`
 
 The body of this PUT request is a JSON object, which has a mandatory "reqtype" field, specifying the type of SIP request this state change is based on. The response to a successful PUT request is the same as a GET request (200 OK with an XML body describing the current registration state).
 
@@ -80,7 +80,11 @@ The valid values of reqtype are:
 * `dereg-user`, `dereg-timeout`, `dereg-admin` - used to indicate that a deregistration (e.g. a REGISTER with `Expires: 0`, expiry of all bindings, or some other failure) has triggered this request. If a HSS is configured, Clearwater will delete any cached data for the subscriber (putting it in NOT_REGISTERED state) and send a Server-Assignment-Request with an appropriate type (USER_DEREGISTRATION, TIMEOUT_DEREGISTRATION or ADMINISTRATIVE_DEREGISTRATION). If a HSS is not configured, Clearwater will set the user to UNREGISTERED state.
 * `dereg-auth-failure` - used to indicate that a registration of a new binding has failed. This doesn't change any state on Homestead (as a registered user who fails to register a second binding shouldn't be de-registered, and an unregistered or not-registered user who fails to register is already in the right state) - it simply triggers a Server-Assignment-Request with Server-Assignment-Type AUTHENTICATION_FAILURE.
 
-These Server-Assignment-Types will specify a User-Name based on the `private_id` query parameter (if provided), or on the PrivateID element in the cached User-Data. It will be omitted if neither of these are available. It will also specify the Server-Name based on the `server_name` query parameter (if provided), or the value of the configured S-CSCF URI (in `/etc/clearwater/shared_config`).
+The body also has an optional `server_name` field, specifying the S-CSCF URI to use in the Server-Name on the Server-Assignment-Request. If this is missing then the Server-Name is set to the value of the configured S-CSCF URI (in `/etc/clearwater/shared_config`).
+
+The body also has another optional `wildcard_identity` field, specifying what wildcarded public user identity is associated with the public ID. This is only used by Homestead if the `reqtype` is either `call` or `dereg-user`, and it is used in the Wildcarded-Public-Identity AVP in the Server-Assignment-Request. If this field is missing then the Wildcarded-Public-Identity AVP is not set.
+
+The Server-Assignment-Requests will specify a User-Name based on the `private_id` query parameter (if provided), or on the PrivateID element in the cached User-Data. It will be omitted if neither of these are available.
 
 The following error cases are possible:
 
@@ -99,13 +103,13 @@ The URL takes two optional query parameters. The originating parameter can be se
 
 Response:
 
-* 200 if the user is authorized, returned as JSON. The response will contain the HSS result code (or a hard-coded success code if no HSS is present), and either the name of a server capable of handling the user, or a list of capabilities that will allow the interrogating server to pick a serving server for the user. This list of capabilities can be empty.
+* 200 if the user is authorized, returned as JSON. The response will contain the HSS result code (or a hard-coded success code if no HSS is present), and either the name of a server capable of handling the user, or a list of capabilities that will allow the interrogating server to pick a serving server for the user. This list of capabilities can be empty. If the user identity has an associated wildcarded public user identity then this is also returned.
 
-`{ "result-code": 2001, "scscf": "<server-name>" }`
+`{ "result-code": 2001, "scscf": "<server-name>" [,"wildcard-identity" : "<wildcarded public user identity>"] }`
 
-`{ "result-code": 2001, "mandatory-capabilities": [1,2,3], "optional-capabilities": [4,5,6] }`
+`{ "result-code": 2001, "mandatory-capabilities": [1,2,3], "optional-capabilities": [4,5,6] [,"wildcard-identity" : "<wildcarded public user identity>"] }`
 
-`{ "result-code": 2001, "mandatory-capabilities": [], "optional-capabilities": [] }`
+`{ "result-code": 2001, "mandatory-capabilities": [], "optional-capabilities": [] [,"wildcard-identity" : "<wildcarded public user identity>"] }`
 
 * 404 if the user cannot be found (either a 5001 error from the HSS, or having no HSS configured and no record of the user).
 * 500 if the HSS is overloaded.

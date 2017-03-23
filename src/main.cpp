@@ -83,10 +83,12 @@ struct options
   std::string server_name;
   int impu_cache_ttl;
   int hss_reregistration_time;
+  int reg_max_expires;
   std::string sprout_http_name;
   std::string scheme_unknown;
   std::string scheme_digest;
-  std::string scheme_aka;
+  std::string scheme_akav1;
+  std::string scheme_akav2;
   bool access_log_enabled;
   std::string access_log_directory;
   bool log_to_file;
@@ -105,6 +107,7 @@ struct options
   int diameter_blacklist_duration;
   std::string pidfile;
   bool daemon;
+  bool sas_signaling_if;
 };
 
 // Enum for option types not assigned short-forms
@@ -112,7 +115,8 @@ enum OptionTypes
 {
   SCHEME_UNKNOWN = 128, // start after the ASCII set ends to avoid conflicts
   SCHEME_DIGEST,
-  SCHEME_AKA,
+  SCHEME_AKAV1,
+  SCHEME_AKAV2,
   SAS_CONFIG,
   DIAMETER_TIMEOUT_MS,
   ALARMS_ENABLED,
@@ -125,8 +129,10 @@ enum OptionTypes
   HTTP_BLACKLIST_DURATION,
   DIAMETER_BLACKLIST_DURATION,
   FORCE_HSS_PEER,
+  SAS_USE_SIGNALING_IF,
   PIDFILE,
-  DAEMON
+  DAEMON,
+  REG_MAX_EXPIRES
 };
 
 const static struct option long_opt[] =
@@ -146,10 +152,12 @@ const static struct option long_opt[] =
   {"server-name",                 required_argument, NULL, 's'},
   {"impu-cache-ttl",              required_argument, NULL, 'i'},
   {"hss-reregistration-time",     required_argument, NULL, 'I'},
+  {"reg-max-expires",             required_argument, NULL, REG_MAX_EXPIRES},
   {"sprout-http-name",            required_argument, NULL, 'j'},
   {"scheme-unknown",              required_argument, NULL, SCHEME_UNKNOWN},
   {"scheme-digest",               required_argument, NULL, SCHEME_DIGEST},
-  {"scheme-aka",                  required_argument, NULL, SCHEME_AKA},
+  {"scheme-akav1",                required_argument, NULL, SCHEME_AKAV1},
+  {"scheme-akav2",                required_argument, NULL, SCHEME_AKAV2},
   {"access-log",                  required_argument, NULL, 'a'},
   {"sas",                         required_argument, NULL, SAS_CONFIG},
   {"diameter-timeout-ms",         required_argument, NULL, DIAMETER_TIMEOUT_MS},
@@ -165,10 +173,14 @@ const static struct option long_opt[] =
   {"diameter-blacklist-duration", required_argument, NULL, DIAMETER_BLACKLIST_DURATION},
   {"pidfile",                     required_argument, NULL, PIDFILE},
   {"daemon",                      no_argument,       NULL, DAEMON},
+  {"sas-use-signaling-interface", no_argument,       NULL, SAS_USE_SIGNALING_IF},
   {NULL,                          0,                 NULL, 0},
 };
 
 static std::string options_description = "l:r:c:H:t:u:S:D:d:p:s:i:I:a:F:L:h";
+
+static const std::string HTTP_MGMT_SOCKET_PATH = "/tmp/homestead-http-mgmt-socket";
+static const int NUM_HTTP_MGMT_THREADS = 5;
 
 void usage(void)
 {
@@ -180,7 +192,7 @@ void usage(void)
        " -H, --http <address>       Set HTTP bind address (default: 0.0.0.0)\n"
        " -t, --http-threads N       Number of HTTP threads (default: 1)\n"
        " -u, --cache-threads N      Number of cache threads (default: 10)\n"
-       " -S, --cassandra <address>  Set the IP address or FQDN of the Cassandra database (default: localhost)"
+       " -S, --cassandra <address>  Set the IP address or FQDN of the Cassandra database (default: 127.0.0.1 or [::1])"
        " -D, --dest-realm <name>    Set Destination-Realm on Cx messages\n"
        " -d, --dest-host <name>     Set Destination-Host on Cx messages\n"
        "     --hss-peer <name>      IP address of HSS to connect to (rather than resolving Destination-Realm/Destination-Host)\n"
@@ -218,6 +230,9 @@ void usage(void)
        "     --exception-max-ttl <secs>\n"
        "                            The maximum time before the process exits if it hits an exception.\n"
        "                            The actual time is randomised.\n"
+       "     --sas-use-signaling-interface\n"
+       "                            Whether SAS traffic is to be dispatched over the signaling network\n"
+       "                            interface rather than the default management interface\n"
        "     --http-blacklist-duration <secs>\n"
        "                            The amount of time to blacklist an HTTP peer when it is unresponsive.\n"
        "     --diameter-blacklist-duration <secs>\n"
@@ -247,6 +262,10 @@ int init_logging_options(int argc, char**argv, struct options& options)
 
     case 'L':
       options.log_level = atoi(optarg);
+      break;
+
+    case DAEMON:
+      options.daemon = true;
       break;
 
     default:
@@ -333,6 +352,11 @@ int init_options(int argc, char**argv, struct options& options)
       options.hss_reregistration_time = atoi(optarg);
       break;
 
+    case REG_MAX_EXPIRES:
+      TRC_INFO("Maximum registration expiry time: %s", optarg);
+      options.reg_max_expires = atoi(optarg);
+      break;
+
     case 'j':
       TRC_INFO("Sprout HTTP name: %s", optarg);
       options.sprout_http_name = std::string(optarg);
@@ -348,9 +372,14 @@ int init_options(int argc, char**argv, struct options& options)
       options.scheme_digest = std::string(optarg);
       break;
 
-    case SCHEME_AKA:
-      TRC_INFO("Scheme AKA: %s", optarg);
-      options.scheme_aka = std::string(optarg);
+    case SCHEME_AKAV1:
+      TRC_INFO("Scheme AKAv1: %s", optarg);
+      options.scheme_akav1 = std::string(optarg);
+      break;
+
+    case SCHEME_AKAV2:
+      TRC_INFO("Scheme AKAv2: %s", optarg);
+      options.scheme_akav2 = std::string(optarg);
       break;
 
     case 'a':
@@ -369,11 +398,6 @@ int init_options(int argc, char**argv, struct options& options)
           options.sas_system_name = sas_options[1];
           TRC_INFO("SAS set to %s\n", options.sas_server.c_str());
           TRC_INFO("System name is set to %s\n", options.sas_system_name.c_str());
-        }
-        else
-        {
-          CL_HOMESTEAD_INVALID_SAS_OPTION.log();
-          TRC_WARNING("Invalid --sas option, SAS disabled\n");
         }
       }
       break;
@@ -452,10 +476,11 @@ int init_options(int argc, char**argv, struct options& options)
       options.pidfile = std::string(optarg);
       break;
 
-    case DAEMON:
-      options.daemon = true;
+    case SAS_USE_SIGNALING_IF:
+      options.sas_signaling_if = true;
       break;
 
+    case DAEMON:
     case 'F':
     case 'L':
       // Ignore F and L - these are handled by init_logging_options
@@ -525,18 +550,16 @@ int main(int argc, char**argv)
   options.http_port = 8888;
   options.http_threads = 1;
   options.cache_threads = 10;
-  options.cassandra = "localhost";
+  options.cassandra = "";
   options.dest_realm = "";
   options.dest_host = "dest-host.unknown";
   options.force_hss_peer = "";
   options.max_peers = 2;
   options.server_name = "sip:server-name.unknown";
-  options.scheme_unknown = "Unknown";
-  options.scheme_digest = "SIP Digest";
-  options.scheme_aka = "Digest-AKAv1-MD5";
   options.access_log_enabled = false;
   options.impu_cache_ttl = 0;
   options.hss_reregistration_time = 1800;
+  options.reg_max_expires = 300;
   options.sprout_http_name = "sprout-http-name.unknown";
   options.log_to_file = false;
   options.log_level = 0;
@@ -552,32 +575,23 @@ int main(int argc, char**argv)
   options.diameter_blacklist_duration = DiameterResolver::DEFAULT_BLACKLIST_DURATION;
   options.pidfile = "";
   options.daemon = false;
-
-  // Initialise ENT logging before making "Started" log
-  PDLogStatic::init(argv[0]);
-
-  CL_HOMESTEAD_STARTED.log();
+  options.sas_signaling_if = false;
 
   if (init_logging_options(argc, argv, options) != 0)
   {
     return 1;
   }
 
-  Log::setLoggingLevel(options.log_level);
+  Utils::daemon_log_setup(argc,
+                          argv,
+                          options.daemon,
+                          options.log_directory,
+                          options.log_level,
+                          options.log_to_file);
 
-  if ((options.log_to_file) && (options.log_directory != ""))
-  {
-    // Work out the program name from argv[0], stripping anything before the final slash.
-    char* prog_name = argv[0];
-    char* slash_ptr = rindex(argv[0], '/');
-    if (slash_ptr != NULL)
-    {
-      prog_name = slash_ptr + 1;
-    }
-    Log::setLogger(new Logger(options.log_directory, prog_name));
-  }
-
-  TRC_STATUS("Log level set to %d", options.log_level);
+  // We should now have a connection to syslog so we can write the started ENT
+  // log.
+  CL_HOMESTEAD_STARTED.log();
 
   std::stringstream options_ss;
   for (int ii = 0; ii < argc; ii++)
@@ -592,18 +606,6 @@ int main(int argc, char**argv)
   if (init_options(argc, argv, options) != 0)
   {
     return 1;
-  }
-
-  if (options.daemon)
-  {
-    // Options parsed and validated, time to demonize before writing out our
-    // pidfile or spwaning threads.
-    int errnum = Utils::daemonize();
-    if (errnum != 0)
-    {
-      TRC_ERROR("Failed to convert to daemon, %d (%s)", errnum, strerror(errnum));
-      exit(0);
-    }
   }
 
   if (options.pidfile != "")
@@ -624,6 +626,12 @@ int main(int argc, char**argv)
     access_logger = new AccessLogger(options.access_log_directory);
   }
 
+  if (options.sas_server == "0.0.0.0")
+  {
+    TRC_WARNING("SAS server option was invalid or not configured - SAS is disabled");
+    CL_HOMESTEAD_INVALID_SAS_OPTION.log();
+  }
+
   // Create a DNS resolver and a SIP specific resolver.
   int af = AF_INET;
   struct in6_addr dummy_addr;
@@ -638,7 +646,8 @@ int main(int argc, char**argv)
             SASEvent::CURRENT_RESOURCE_BUNDLE,
             options.sas_server,
             sas_write,
-            create_connection_in_management_namespace);
+            options.sas_signaling_if ? create_connection_in_signaling_namespace
+                                     : create_connection_in_management_namespace);
 
   // Set up the statistics (Homestead specific and Diameter)
   snmp_setup("homestead");
@@ -646,7 +655,7 @@ int main(int argc, char**argv)
   SNMP::CounterTable* realm_counter = SNMP::CounterTable::create("H_diameter_invalid_dest_realm",
                                                                  ".1.2.826.0.1.1578918.9.5.8");
   SNMP::CounterTable* host_counter = SNMP::CounterTable::create("H_diameter_invalid_dest_host",
-                                                                 ".1.2.826.0.1.1578918.9.5.9");
+                                                                ".1.2.826.0.1.1578918.9.5.9");
   SNMP::CxCounterTable* mar_results_table = SNMP::CxCounterTable::create("cx_mar_results",
                                                                          ".1.2.826.0.1.1578918.9.5.10");
   SNMP::CxCounterTable* sar_results_table = SNMP::CxCounterTable::create("cx_sar_results",
@@ -663,29 +672,29 @@ int main(int argc, char**argv)
   init_snmp_handler_threads("homestead");
 
   configure_cx_results_tables(mar_results_table,
-                             sar_results_table,
-                             uar_results_table,
-                             lir_results_table,
-                             ppr_results_table,
-                             rtr_results_table);
+                              sar_results_table,
+                              uar_results_table,
+                              lir_results_table,
+                              ppr_results_table,
+                              rtr_results_table);
 
   // Create Homesteads's alarm objects. Note that the alarm identifier strings must match those
   // in the alarm definition JSON file exactly.
+  AlarmManager* alarm_manager = new AlarmManager();
 
-  CommunicationMonitor* hss_comm_monitor = new CommunicationMonitor(new Alarm("homestead",
+  CommunicationMonitor* hss_comm_monitor = new CommunicationMonitor(new Alarm(alarm_manager,
+                                                                              "homestead",
                                                                               AlarmDef::HOMESTEAD_HSS_COMM_ERROR,
                                                                               AlarmDef::CRITICAL),
                                                                     "Homestead",
                                                                     "HSS");
 
-  CommunicationMonitor* cassandra_comm_monitor = new CommunicationMonitor(new Alarm("homestead",
+  CommunicationMonitor* cassandra_comm_monitor = new CommunicationMonitor(new Alarm(alarm_manager,
+                                                                                    "homestead",
                                                                                     AlarmDef::HOMESTEAD_CASSANDRA_COMM_ERROR,
                                                                                     AlarmDef::CRITICAL),
                                                                           "Homestead",
                                                                           "Cassandra");
-
-  // Start the alarm request agent
-  AlarmReqAgent::get_instance().start();
 
   // Create an exception handler. The exception handler doesn't need
   // to quiesce the process before killing it.
@@ -704,10 +713,30 @@ int main(int argc, char**argv)
                                                  af,
                                                  options.http_blacklist_duration);
 
+  // Use a 30s black- and gray- list duration
+  CassandraResolver* cassandra_resolver = new CassandraResolver(dns_resolver,
+                                                                af,
+                                                                30,
+                                                                30,
+                                                                9160);
+  // Default the cassandra hostname to the loopback IP
+  if (options.cassandra == "")
+  {
+    if (af == AF_INET6)
+    {
+      options.cassandra = "[::1]";
+    }
+    else
+    {
+      options.cassandra = "127.0.0.1";
+    }
+  }
+
   Cache* cache = Cache::get_instance();
   cache->configure_connection(options.cassandra,
                               9160,
-                              cassandra_comm_monitor);
+                              cassandra_comm_monitor,
+                              cassandra_resolver);
   cache->configure_workers(exception_handler,
                            options.cache_threads,
                            0);
@@ -742,6 +771,12 @@ int main(int argc, char**argv)
   Diameter::SpawningHandler<PushProfileTask, PushProfileTask::Config>* ppr_task = NULL;
   Cx::Dictionary* dict = NULL;
 
+  // We need the record to last twice the HSS Re-registration
+  // time, or the max expiry of the registration, whichever one
+  // is longer. We pad the expiry to avoid small timing windows.
+  int record_ttl = std::max(2 * options.hss_reregistration_time,
+                            options.reg_max_expires + 10);
+
   Diameter::Stack* diameter_stack = Diameter::Stack::get_instance();
 
   try
@@ -754,8 +789,16 @@ int main(int argc, char**argv)
                               host_counter);
     dict = new Cx::Dictionary();
 
-    rtr_config = new RegistrationTerminationTask::Config(cache, dict, sprout_conn, options.hss_reregistration_time);
-    ppr_config = new PushProfileTask::Config(cache, dict, options.impu_cache_ttl, options.hss_reregistration_time);
+    rtr_config = new RegistrationTerminationTask::Config(cache,
+                                                         dict,
+                                                         sprout_conn,
+                                                         options.hss_reregistration_time);
+    ppr_config = new PushProfileTask::Config(cache,
+                                             dict,
+                                             options.impu_cache_ttl,
+                                             options.hss_reregistration_time,
+                                             record_ttl);
+
     rtr_task = new Diameter::SpawningHandler<RegistrationTerminationTask, RegistrationTerminationTask::Config>(dict, rtr_config);
     ppr_task = new Diameter::SpawningHandler<PushProfileTask, PushProfileTask::Config>(dict, ppr_config);
 
@@ -774,7 +817,6 @@ int main(int argc, char**argv)
     exit(2);
   }
 
-  HttpStack* http_stack = HttpStack::get_instance();
   HssCacheTask::configure_diameter(diameter_stack,
                                    options.dest_realm.empty() ? options.home_domain : options.dest_realm,
                                    options.dest_host == "0.0.0.0" ? "" : options.dest_host,
@@ -793,12 +835,18 @@ int main(int argc, char**argv)
                                        options.impu_cache_ttl,
                                        options.scheme_unknown,
                                        options.scheme_digest,
-                                       options.scheme_aka,
+                                       options.scheme_akav1,
+                                       options.scheme_akav2,
                                        options.diameter_timeout_ms);
-  ImpiRegistrationStatusTask::Config registration_status_handler_config(hss_configured, options.diameter_timeout_ms);
-  ImpuLocationInfoTask::Config location_info_handler_config(hss_configured, options.diameter_timeout_ms);
-  ImpuRegDataTask::Config impu_handler_config(hss_configured, options.hss_reregistration_time, options.diameter_timeout_ms);
-  ImpuIMSSubscriptionTask::Config impu_handler_config_old(hss_configured, options.hss_reregistration_time, options.diameter_timeout_ms);
+  ImpiRegistrationStatusTask::Config registration_status_handler_config(hss_configured,
+                                                                        options.diameter_timeout_ms);
+  ImpuLocationInfoTask::Config location_info_handler_config(hss_configured,
+                                                            options.diameter_timeout_ms);
+  ImpuRegDataTask::Config impu_handler_config(hss_configured,
+                                              options.hss_reregistration_time,
+                                              record_ttl,
+                                              options.diameter_timeout_ms);
+  ImpuListTask::Config impu_list_config;
 
   HttpStackUtils::PingHandler ping_handler;
   HttpStackUtils::SpawningHandler<ImpiDigestTask, ImpiTask::Config> impi_digest_handler(&impi_handler_config);
@@ -806,40 +854,67 @@ int main(int argc, char**argv)
   HttpStackUtils::SpawningHandler<ImpiRegistrationStatusTask, ImpiRegistrationStatusTask::Config> impi_reg_status_handler(&registration_status_handler_config);
   HttpStackUtils::SpawningHandler<ImpuLocationInfoTask, ImpuLocationInfoTask::Config> impu_loc_info_handler(&location_info_handler_config);
   HttpStackUtils::SpawningHandler<ImpuRegDataTask, ImpuRegDataTask::Config> impu_reg_data_handler(&impu_handler_config);
-  HttpStackUtils::SpawningHandler<ImpuIMSSubscriptionTask, ImpuIMSSubscriptionTask::Config> impu_ims_sub_handler(&impu_handler_config_old);
+  HttpStackUtils::SpawningHandler<ImpuListTask, ImpuListTask::Config> impu_list_handler(&impu_list_config);
 
+  HttpStack* http_stack_sig = new HttpStack(options.http_threads,
+                                            exception_handler,
+                                            access_logger,
+                                            load_monitor,
+                                            stats_manager);
   try
   {
-    http_stack->initialize();
-    http_stack->configure(options.http_address,
-                          options.http_port,
-                          options.http_threads,
-                          exception_handler,
-                          access_logger,
-                          load_monitor,
-                          stats_manager);
-    http_stack->register_handler("^/ping$",
-                                    &ping_handler);
-    http_stack->register_handler("^/impi/[^/]*/digest$",
-                                    &impi_digest_handler);
-    http_stack->register_handler("^/impi/[^/]*/av",
-                                    &impi_av_handler);
-    http_stack->register_handler("^/impi/[^/]*/registration-status$",
-                                    &impi_reg_status_handler);
-    http_stack->register_handler("^/impu/[^/]*/location$",
-                                    &impu_loc_info_handler);
-    http_stack->register_handler("^/impu/[^/]*/reg-data$",
-                                    &impu_reg_data_handler);
-    http_stack->register_handler("^/impu/",
-                                    &impu_ims_sub_handler);
-    http_stack->start();
+    http_stack_sig->initialize();
+    http_stack_sig->bind_tcp_socket(options.http_address,
+                                    options.http_port);
+    http_stack_sig->register_handler("^/ping$",
+                                     &ping_handler);
+    http_stack_sig->register_handler("^/impi/[^/]*/digest$",
+                                     &impi_digest_handler);
+    http_stack_sig->register_handler("^/impi/[^/]*/av",
+                                     &impi_av_handler);
+    http_stack_sig->register_handler("^/impi/[^/]*/registration-status$",
+                                     &impi_reg_status_handler);
+    http_stack_sig->register_handler("^/impu/[^/]*/location$",
+                                     &impu_loc_info_handler);
+    http_stack_sig->register_handler("^/impu/[^/]*/reg-data$",
+                                     &impu_reg_data_handler);
+    http_stack_sig->start();
   }
   catch (HttpStack::Exception& e)
   {
     CL_HOMESTEAD_HTTP_INIT_FAIL.log(e._func, e._rc);
-    TRC_ERROR("Failed to initialize HttpStack stack - function %s, rc %d", e._func, e._rc);
+    TRC_ERROR("Failed to initialize signaling HttpStack stack - function %s, rc %d",
+              e._func, e._rc);
     TRC_STATUS("Homestead is shutting down");
     exit(2);
+  }
+
+  HttpStackUtils::SpawningHandler<ImpuReadRegDataTask, ImpuRegDataTask::Config>
+    impu_read_reg_data_handler(&impu_handler_config);
+
+  HttpStack* http_stack_mgmt = new HttpStack(NUM_HTTP_MGMT_THREADS,
+                                             exception_handler,
+                                             access_logger,
+                                             load_monitor);
+  try
+  {
+    http_stack_mgmt->initialize();
+    http_stack_mgmt->bind_unix_socket(HTTP_MGMT_SOCKET_PATH);
+    http_stack_mgmt->register_handler("^/ping$",
+                                      &ping_handler);
+    http_stack_mgmt->register_handler("^/impu/[^/]*/reg-data$",
+                                      &impu_read_reg_data_handler);
+    http_stack_mgmt->register_handler("^/impu/?$",
+                                      &impu_list_handler);
+    http_stack_mgmt->start();
+  }
+  catch (HttpStack::Exception& e)
+  {
+    CL_HOMESTEAD_HTTP_INIT_FAIL.log(e._func, e._rc);
+    TRC_ERROR("Failed to initialize management HttpStack stack - function %s, rc %d",
+              e._func, e._rc);
+    TRC_STATUS("Homestead is shutting down");
+    exit(3);
   }
 
   DiameterResolver* diameter_resolver = NULL;
@@ -877,13 +952,26 @@ int main(int argc, char**argv)
 
   try
   {
-    http_stack->stop();
-    http_stack->wait_stopped();
+    http_stack_sig->stop();
+    http_stack_sig->wait_stopped();
   }
   catch (HttpStack::Exception& e)
   {
     CL_HOMESTEAD_HTTP_STOP_FAIL.log(e._func, e._rc);
-    TRC_ERROR("Failed to stop HttpStack stack - function %s, rc %d", e._func, e._rc);
+    TRC_ERROR("Failed to stop signaling HttpStack stack - function %s, rc %d",
+              e._func, e._rc);
+  }
+
+  try
+  {
+    http_stack_mgmt->stop();
+    http_stack_mgmt->wait_stopped();
+  }
+  catch (HttpStack::Exception& e)
+  {
+    CL_HOMESTEAD_HTTP_STOP_FAIL.log(e._func, e._rc);
+    TRC_ERROR("Failed to stop management HttpStack stack - function %s, rc %d",
+              e._func, e._rc);
   }
 
   cache->stop();
@@ -895,6 +983,7 @@ int main(int argc, char**argv)
     delete realm_manager; realm_manager = NULL;
     delete diameter_resolver; diameter_resolver = NULL;
     delete dns_resolver; dns_resolver = NULL;
+    delete cassandra_resolver; cassandra_resolver = NULL;
   }
 
   try
@@ -925,6 +1014,8 @@ int main(int argc, char**argv)
   delete ppr_results_table; ppr_results_table = NULL;
   delete rtr_results_table; rtr_results_table = NULL;
 
+  delete http_stack_sig; http_stack_sig = NULL;
+  delete http_stack_mgmt; http_stack_mgmt = NULL;
   hc->stop_thread();
   delete hc; hc = NULL;
   delete exception_handler; exception_handler = NULL;
@@ -933,12 +1024,10 @@ int main(int argc, char**argv)
 
   SAS::term();
 
-  // Stop the alarm request agent
-  AlarmReqAgent::get_instance().stop();
-
   // Delete Homestead's alarm objects
   delete hss_comm_monitor;
   delete cassandra_comm_monitor;
+  delete alarm_manager;
 
   signal(SIGTERM, SIG_DFL);
   sem_destroy(&term_sem);

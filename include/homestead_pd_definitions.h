@@ -45,9 +45,7 @@
 // The fields for each PDLog instance contains:
 //   Identity - Identifies the log id to be used in the syslog id field.
 //   Severity - One of Emergency, Alert, Critical, Error, Warning, Notice, 
-//              and Info.  Directly corresponds to the syslog severity types.
-//              Only PDLOG_ERROR or PDLOG_NOTICE are used.  
-//              See syslog_facade.h for definitions.
+//              and Info. Only LOG_ERROR or LOG_NOTICE are used.  
 //   Message  - Formatted description of the condition.
 //   Cause    - The cause of the condition.
 //   Effect   - The effect the condition.
@@ -56,7 +54,7 @@
 static const PDLog CL_HOMESTEAD_INVALID_SAS_OPTION
 (
   PDLogBase::CL_HOMESTEAD_ID + 1,
-  PDLOG_INFO,
+  LOG_INFO,
   "The sas_server option in /etc/clearwater/config is invalid or not "
   "configured.",
   "The interface to the SAS is not specified.",
@@ -69,7 +67,7 @@ static const PDLog CL_HOMESTEAD_INVALID_SAS_OPTION
 static const PDLog1<char> CL_HOMESTEAD_INVALID_OPTION_C
 (
   PDLogBase::CL_HOMESTEAD_ID + 3,
-  PDLOG_ERR,
+  LOG_ERR,
   "Fatal - Unknown command line option %c.  Run with --help for options.",
   "There was an invalid command line option in /etc/clearwater/config.",
   "The application will exit and restart until the problem is fixed.",
@@ -79,7 +77,7 @@ static const PDLog1<char> CL_HOMESTEAD_INVALID_OPTION_C
 static const PDLog1<const char*> CL_HOMESTEAD_CRASH
 (
   PDLogBase::CL_HOMESTEAD_ID + 4,
-  PDLOG_ERR,
+  LOG_ERR,
   "Fatal - Homestead has exited or crashed with signal %s.",
   "Homestead has encountered a fatal software error or has been terminated.",
   "The application will exit and restart until the problem is fixed.",
@@ -90,7 +88,7 @@ static const PDLog1<const char*> CL_HOMESTEAD_CRASH
 static const PDLog CL_HOMESTEAD_STARTED
 (
   PDLogBase::CL_HOMESTEAD_ID + 5,
-  PDLOG_NOTICE,
+  LOG_NOTICE,
   "Homestead started.",
   "The Homestead application is starting.",
   "Normal.",
@@ -100,7 +98,7 @@ static const PDLog CL_HOMESTEAD_STARTED
 static const PDLog1<int> CL_HOMESTEAD_CASSANDRA_CACHE_INIT_FAIL
 (
   PDLogBase::CL_HOMESTEAD_ID + 6,
-  PDLOG_ERR,
+  LOG_ERR,
   "Fatal - Failed to initialize the cache for the CassandraStore - "
   "error code %d.",
   "The memory cache used to access Cassandra could not be initialized.",
@@ -114,7 +112,7 @@ static const PDLog1<int> CL_HOMESTEAD_CASSANDRA_CACHE_INIT_FAIL
 static const PDLog2<const char*, int> CL_HOMESTEAD_DIAMETER_INIT_FAIL
 (
   PDLogBase::CL_HOMESTEAD_ID + 7,
-  PDLOG_ERR,
+  LOG_ERR,
   "Fatal - Failed to initialize Diameter stack in function %s with error %d.",
   "The Diameter interface could not be initialized or encountered an "
   "error while running.",
@@ -126,7 +124,7 @@ static const PDLog2<const char*, int> CL_HOMESTEAD_DIAMETER_INIT_FAIL
 static const PDLog2<const char*, int> CL_HOMESTEAD_HTTP_INIT_FAIL
 (
   PDLogBase::CL_HOMESTEAD_ID + 8,
-  PDLOG_ERR,
+  LOG_ERR,
   "Fatal - Failed to initialize HttpStack stack in function %s with error %d.",
   "The HTTP interfaces could not be initialized.",
   "Call processing will not work.",
@@ -137,7 +135,7 @@ static const PDLog2<const char*, int> CL_HOMESTEAD_HTTP_INIT_FAIL
 static const PDLog CL_HOMESTEAD_ENDED
 (
   PDLogBase::CL_HOMESTEAD_ID + 9,
-  PDLOG_ERR,
+  LOG_ERR,
   "Fatal - Termination signal received - terminating.",
   "Homestead could have been stopped or Homestead could have been restarted "
   "by Monit due to a timeout.",
@@ -149,7 +147,7 @@ static const PDLog CL_HOMESTEAD_ENDED
 static const PDLog2<const char*, int> CL_HOMESTEAD_HTTP_STOP_FAIL
 (
   PDLogBase::CL_HOMESTEAD_ID + 10,
-  PDLOG_ERR,
+  LOG_ERR,
   "The HTTP interfaces encountered an error when stopping the HTTP stack "
   "in %s with error %d.",
   "When Homestead was exiting it encountered an error when shutting "
@@ -161,7 +159,7 @@ static const PDLog2<const char*, int> CL_HOMESTEAD_HTTP_STOP_FAIL
 static const PDLog2<const char*, int> CL_HOMESTEAD_DIAMETER_STOP_FAIL
 (
   PDLogBase::CL_HOMESTEAD_ID + 11,
-  PDLOG_ERR,
+  LOG_ERR,
   "Failed to stop Diameter stack in function %s with error %d.",
   "The Diameter interface encountered an error when shutting "
   "down the Diameter interface.",

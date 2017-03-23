@@ -1,9 +1,9 @@
 #!/bin/bash
 
-# @file poll_homestead.sh
+# @file create-homestead-nginx-config
 #
 # Project Clearwater - IMS in the Cloud
-# Copyright (C) 2014  Metaswitch Networks Ltd
+# Copyright (C) 2016 Metaswitch Networks Ltd
 #
 # This program is free software: you can redistribute it and/or modify it
 # under the terms of the GNU General Public License as published by the
@@ -34,7 +34,56 @@
 # under which the OpenSSL Project distributes the OpenSSL toolkit software,
 # as those licenses appear in the file LICENSE-OPENSSL.
 
+# This file creates an nginx config file for homestead.
+
 . /etc/clearwater/config
-http_ip=$(/usr/share/clearwater/bin/bracket-ipv6-address $local_ip)
-/usr/share/clearwater/bin/poll-http $http_ip:8888
-exit $?
+
+split_domain_and_port()
+{
+  echo $1 | perl -ne '$_ =~ /(.+):([0-9]+)$/ && print "$1 $2\n"'
+}
+
+if [ -n "$hs_hostname_mgmt" ]
+then
+  site_file=/etc/nginx/sites-available/homestead
+  enabled_file=/etc/nginx/sites-enabled/homestead
+  temp_file=$(mktemp homestead.nginx.XXXXXXXX)
+  server_name_and_port=( $( split_domain_and_port $hs_hostname_mgmt ) )
+
+  cat > $temp_file << EOF
+upstream http_homestead {
+        server unix:/tmp/homestead-http-mgmt-socket;
+
+        # The minimum number of idle connections to keep alive to the upstream.
+        keepalive 16;
+}
+
+server {
+        listen       [::]:8886 ipv6only=off;
+        server_name  ${server_name_and_port[0]};
+
+        location / {
+                proxy_pass http://http_homestead;
+                proxy_http_version 1.1;
+
+                # The client may have instructed the server to close the
+                # connection - do not forward this upstream.
+                proxy_set_header Connection "";
+        }
+}
+EOF
+
+  if ! diff $temp_file $enabled_file > /dev/null 2>&1
+  then
+    # Update the site file
+    mv $temp_file $site_file
+
+    # Enable the homestead nginx site
+    if ( nginx_ensite homestead > /dev/null )
+    then
+      service nginx stop
+    fi
+  else
+    rm $temp_file
+  fi
+fi

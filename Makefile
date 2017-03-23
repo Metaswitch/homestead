@@ -10,8 +10,12 @@ INSTALL_DIR ?= ${PREFIX}
 MODULE_DIR := ${ROOT}/modules
 
 DEB_COMPONENT := homestead
-DEB_MAJOR_VERSION := 1.0${DEB_VERSION_QUALIFIER}
-DEB_NAMES := homestead-libs homestead-libs-dbg homestead homestead-dbg
+DEB_MAJOR_VERSION ?= 1.0${DEB_VERSION_QUALIFIER}
+DEB_NAMES := homestead-libs homestead-libs-dbg
+DEB_NAMES += homestead homestead-dbg
+DEB_NAMES += homestead-node homestead-node-dbg
+DEB_NAMES += homestead-cx-node homestead-cx-node-dbg
+DEB_NAMES += homestead-cassandra
 
 INCLUDE_DIR := ${INSTALL_DIR}/include
 LIB_DIR := ${INSTALL_DIR}/lib

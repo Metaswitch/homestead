@@ -45,6 +45,7 @@ namespace SASEvent
   // Homestead events
   //----------------------------------------------------------------------------
   const int INVALID_SCHEME = HOMESTEAD_BASE + 0x0000;
+  const int UNSUPPORTED_SCHEME = HOMESTEAD_BASE + 0x0001;
   const int NO_IMPU_AKA = HOMESTEAD_BASE + 0x0010;
   const int NO_AV_CACHE = HOMESTEAD_BASE + 0x0020;
   const int NO_AV_HSS = HOMESTEAD_BASE + 0x0030;
@@ -55,6 +56,8 @@ namespace SASEvent
   const int REG_DATA_HSS_SUCCESS = HOMESTEAD_BASE + 0x0080;
   const int REG_DATA_HSS_FAIL = HOMESTEAD_BASE + 0x0090;
   const int REG_DATA_HSS_INVALID = HOMESTEAD_BASE + 0x0091;
+  const int REG_DATA_HSS_FAIL_ASSIGNMENT_TYPE = HOMESTEAD_BASE + 0x0092;
+  const int REG_DATA_HSS_UPDATED_WILDCARD = HOMESTEAD_BASE + 0x0093;
   const int ICSCF_NO_HSS = HOMESTEAD_BASE + 0x00A0;
   const int REG_STATUS_HSS_FAIL = HOMESTEAD_BASE + 0x00B0;
   const int LOC_INFO_HSS_FAIL = HOMESTEAD_BASE + 0x00C0;
