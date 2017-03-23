@@ -173,7 +173,7 @@ void add_charging_addr_node(const ChargingAddresses& charging_addrs,
     rapidxml::xml_node<>* pccfn = doc.allocate_node(rapidxml::node_type::node_element,
                                                     RegDataXMLUtils::CCF,
                                                     charging_addrs.ccfs[0].c_str());
-    rapidxml::xml_attribute<>* pccf = doc.allocate_attribute(RegDataXMLUtils::CCF_PRIORITY,
+    rapidxml::xml_attribute<>* pccf = doc.allocate_attribute(RegDataXMLUtils::CCF_ECF_PRIORITY,
                                                              RegDataXMLUtils::CCF_PRIORITY_1);
     pccfn->append_attribute(pccf);
     cfs->append_node(pccfn);
@@ -184,7 +184,7 @@ void add_charging_addr_node(const ChargingAddresses& charging_addrs,
     rapidxml::xml_node<>* sccfn = doc.allocate_node(rapidxml::node_type::node_element,
                                                     RegDataXMLUtils::CCF,
                                                     charging_addrs.ccfs[1].c_str());
-    rapidxml::xml_attribute<>* sccf = doc.allocate_attribute(RegDataXMLUtils::CCF_PRIORITY,
+    rapidxml::xml_attribute<>* sccf = doc.allocate_attribute(RegDataXMLUtils::CCF_ECF_PRIORITY,
                                                              RegDataXMLUtils::CCF_PRIORITY_2);
     sccfn->append_attribute(sccf);
     cfs->append_node(sccfn);
@@ -195,7 +195,7 @@ void add_charging_addr_node(const ChargingAddresses& charging_addrs,
     rapidxml::xml_node<>* pecfn = doc.allocate_node(rapidxml::node_type::node_element,
                                                     RegDataXMLUtils::ECF,
                                                     charging_addrs.ecfs[0].c_str());
-    rapidxml::xml_attribute<>* pecf = doc.allocate_attribute(RegDataXMLUtils::CCF_PRIORITY,
+    rapidxml::xml_attribute<>* pecf = doc.allocate_attribute(RegDataXMLUtils::CCF_ECF_PRIORITY,
                                                              RegDataXMLUtils::ECF_PRIORITY_1);
     pecfn->append_attribute(pecf);
     cfs->append_node(pecfn);
@@ -206,7 +206,7 @@ void add_charging_addr_node(const ChargingAddresses& charging_addrs,
     rapidxml::xml_node<>* secfn = doc.allocate_node(rapidxml::node_type::node_element,
                                                     RegDataXMLUtils::ECF,
                                                     charging_addrs.ecfs[1].c_str());
-    rapidxml::xml_attribute<>* secf = doc.allocate_attribute(RegDataXMLUtils::CCF_PRIORITY,
+    rapidxml::xml_attribute<>* secf = doc.allocate_attribute(RegDataXMLUtils::CCF_ECF_PRIORITY,
                                                              RegDataXMLUtils::ECF_PRIORITY_2);
     secfn->append_attribute(secf);
     cfs->append_node(secfn);
