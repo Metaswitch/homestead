@@ -1,5 +1,5 @@
 /**
- * @file xmlutils.h class for XML utilities
+ * @file homestead_xml_utils.h class for XML utilities
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2013  Metaswitch Networks Ltd
@@ -41,6 +41,7 @@
 #include <vector>
 #include "reg_state.h"
 #include "charging_addresses.h"
+#include "rapidxml/rapidxml.hpp"
 
 namespace XmlUtils
 {
@@ -50,6 +51,17 @@ namespace XmlUtils
                                   std::string user_data,
                                   const ChargingAddresses& charging_addrs,
                                   std::string& xml_str);
+  void add_reg_state_node(RegistrationState state,
+                          rapidxml::xml_document<> &doc,
+                          rapidxml::xml_node<>* root,
+                          std::string& regtype);
+  int add_ims_subscription_node(std::string xml,
+                                rapidxml::xml_document<> &doc,
+                                rapidxml::xml_node<>* root,
+                                rapidxml::xml_document<> &prev_doc);
+  void add_charging_addr_node(const ChargingAddresses& charging_addrs,
+                              rapidxml::xml_document<> &doc,
+                              rapidxml::xml_node<>* root);
 }
 
 #endif

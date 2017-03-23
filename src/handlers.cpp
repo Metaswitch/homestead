@@ -35,7 +35,7 @@
  */
 
 #include "handlers.h"
-#include "xmlutils.h"
+#include "homestead_xml_utils.h"
 #include "servercapabilities.h"
 #include "homesteadsasevent.h"
 #include "snmp_cx_counter_table.h"
