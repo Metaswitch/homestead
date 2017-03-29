@@ -35,7 +35,7 @@
  */
 
 #include "handlers.h"
-#include "xmlutils.h"
+#include "homestead_xml_utils.h"
 #include "servercapabilities.h"
 #include "homesteadsasevent.h"
 #include "snmp_cx_counter_table.h"
@@ -1162,8 +1162,8 @@ void ImpuRegDataTask::run()
   const std::string prefix = "/impu/";
   std::string path = _req.full_path();
 
-  _impu = path.substr(prefix.length(), path.find_first_of("/", prefix.length()) - prefix.length());
-  _impi = _req.param("private_id");
+  _impu = Utils::url_unescape(path.substr(prefix.length(), path.find_first_of("/", prefix.length()) - prefix.length()));
+  _impi = Utils::url_unescape(_req.param("private_id"));
   _provided_server_name = server_name_from_body(_req.get_rx_body());
   _sprout_wildcard = wildcard_from_body(_req.get_rx_body());
 
