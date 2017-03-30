@@ -95,7 +95,7 @@ Dictionary::Dictionary() :
   PRIMARY_EVENT_CHARGING_FUNCTION_NAME("3GPP", "Primary-Event-Charging-Function-Name"),
   SECONDARY_EVENT_CHARGING_FUNCTION_NAME("3GPP", "Secondary-Event-Charging-Function-Name"),
   SUPPORTED_FEATURES("3GPP", "Supported-Features"),
-  VENDOR_ID("3GPP", "Vendor-Id"),
+  VENDOR_ID("Vendor-Id"),
   FEATURE_LIST_ID("3GPP", "Feature-List-ID"),
   FEATURE_LIST("3GPP", "Feature-List"),
   WILDCARDED_PUBLIC_IDENTITY("3GPP", "Wildcarded-Public-Identity")
