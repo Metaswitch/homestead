@@ -380,6 +380,18 @@ TEST_F(CxTest, SARTest)
   EXPECT_EQ(TIMEOUT_DEREGISTRATION, test_i32);
   EXPECT_TRUE(sar.user_data_already_available(test_i32));
   EXPECT_EQ(0, test_i32);
+
+  Diameter::AVP::iterator supported_feature_avp = sar.begin(((Cx::Dictionary*)sar.dict())->SUPPORTED_FEATURES);
+  EXPECT_NE(supported_feature_avp, sar.end());
+  Diameter::AVP::iterator feature_list_id_avp = supported_feature_avp->begin(((Cx::Dictionary*)sar.dict())->FEATURE_LIST_ID);
+  EXPECT_NE(feature_list_id_avp, supported_feature_avp->end());
+  EXPECT_EQ(1, feature_list_id_avp->val_i32());
+  Diameter::AVP::iterator feature_list_avp = supported_feature_avp->begin(((Cx::Dictionary*)sar.dict())->FEATURE_LIST);
+  EXPECT_NE(feature_list_avp, supported_feature_avp->end());
+  EXPECT_EQ(1, feature_list_avp->val_i32());
+  Diameter::AVP::iterator vendor_id_avp = supported_feature_avp->begin(((Cx::Dictionary*)sar.dict())->VENDOR_ID);
+  EXPECT_NE(vendor_id_avp, supported_feature_avp->end());
+  EXPECT_EQ(10415, vendor_id_avp->val_i32());
 }
 
 TEST_F(CxTest, SARNoImpiTest)

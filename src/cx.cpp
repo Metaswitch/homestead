@@ -94,6 +94,10 @@ Dictionary::Dictionary() :
   SECONDARY_CHARGING_COLLECTION_FUNCTION_NAME("3GPP", "Secondary-Charging-Collection-Function-Name"),
   PRIMARY_EVENT_CHARGING_FUNCTION_NAME("3GPP", "Primary-Event-Charging-Function-Name"),
   SECONDARY_EVENT_CHARGING_FUNCTION_NAME("3GPP", "Secondary-Event-Charging-Function-Name"),
+  SUPPORTED_FEATURES("3GPP", "Supported-Features"),
+  VENDOR_ID("Vendor-Id"),
+  FEATURE_LIST_ID("3GPP", "Feature-List-ID"),
+  FEATURE_LIST("3GPP", "Feature-List"),
   WILDCARDED_PUBLIC_IDENTITY("3GPP", "Wildcarded-Public-Identity")
 {
 }
@@ -704,6 +708,11 @@ ServerAssignmentRequest::ServerAssignmentRequest(const Dictionary* dict,
     TRC_DEBUG("Including wildcarded public identity %s on SAR", wildcard.c_str());
     add(Diameter::AVP(dict->WILDCARDED_PUBLIC_IDENTITY).val_str(wildcard));
   }
+  Diameter::AVP supported_features(dict->SUPPORTED_FEATURES);
+  supported_features.add(Diameter::AVP(dict->VENDOR_ID).val_u32(10415));
+  supported_features.add(Diameter::AVP(dict->FEATURE_LIST_ID).val_u32(1));
+  supported_features.add(Diameter::AVP(dict->FEATURE_LIST).val_u32(1));
+  add(supported_features);
 }
 
 ServerAssignmentAnswer::ServerAssignmentAnswer(const Dictionary* dict,
