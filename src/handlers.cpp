@@ -2206,8 +2206,7 @@ void RegistrationTerminationTask::delete_registrations()
   std::vector<std::string> empty_vector;
   std::vector<std::string> default_public_identities;
 
-  // Extract the default public identities from the registration sets. These are the
-  // first public identities in the sets.
+  // Extract the default public identities from the registration sets.
   for (std::pair<std::string, std::vector<std::string>> reg_set : _registration_sets)
   {
     default_public_identities.push_back(reg_set.first);
@@ -2306,12 +2305,12 @@ void RegistrationTerminationTask::dissociate_implicit_registration_sets()
       _cfg->cache->create_DissociateImplicitRegistrationSetFromImpi(reg_set.second, _impis, Cache::generate_timestamp());
     CassandraStore::Transaction* tsx = new CacheTransaction;
 
-  // Note that this is an asynchronous operation and we are not attempting to
-  // wait for completion.  This is deliberate: Registration Termination is not
-  // driven by a client, and so there are no agents in the system that need to
-  // know when the async operation is complete (unlike a REGISTER from a SIP
-  // client which might follow the operation immediately with a request, such
-  // as a reg-event SUBSCRIBE, that relies on the cache being up to date).
+    // Note that this is an asynchronous operation and we are not attempting to
+    // wait for completion.  This is deliberate: Registration Termination is not
+    // driven by a client, and so there are no agents in the system that need to
+    // know when the async operation is complete (unlike a REGISTER from a SIP
+    // client which might follow the operation immediately with a request, such
+    // as a reg-event SUBSCRIBE, that relies on the cache being up to date).
     _cfg->cache->do_async(dissociate_reg_set, tsx);
   }
 }

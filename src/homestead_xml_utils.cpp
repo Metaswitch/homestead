@@ -218,6 +218,8 @@ void add_charging_addr_node(const ChargingAddresses& charging_addrs,
 // Parses the given User-Data XML to retrieve a list of all the public IDs.
 std::vector<std::string> get_public_ids(const std::string& user_data)
 {
+  // Call into the function which parses out both the default id and the public
+  // IDs with a dummy default id that will not be returned.
   std::string default_id;
   return get_public_and_default_ids(user_data, default_id);
 }

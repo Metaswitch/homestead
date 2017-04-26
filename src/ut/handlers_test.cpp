@@ -120,7 +120,6 @@ public:
   static const std::string IMPU3;
   static const std::string IMPU4;
   static std::vector<std::string> IMPUS;
-  static std::vector<std::string> IMPU_LIST_OF_ONE;
   static std::vector<std::string> ASSOCIATED_IDENTITY1_IN_VECTOR;
   static std::vector<std::string> IMPU_REG_SET;
   static std::vector<std::string> IMPU_REG_SET2;
@@ -1247,7 +1246,7 @@ public:
                                            PERMANENT_TERMINATION,
                                            IMPI,
                                            ASSOCIATED_IDENTITIES,
-                                           IMPU_LIST_OF_ONE,
+                                           IMPU_IN_VECTOR,
                                            AUTH_SESSION_STATE);
 
     // The free_on_delete flag controls whether we want to free the underlying
@@ -1702,7 +1701,6 @@ const int32_t HandlersTest::AUTH_SESSION_STATE = 1;
 const std::string HandlersTest::ASSOCIATED_IDENTITY1 = "associated_identity1@example.com";
 const std::string HandlersTest::ASSOCIATED_IDENTITY2 = "associated_identity2@example.com";
 std::vector<std::string> HandlersTest::ASSOCIATED_IDENTITIES = {ASSOCIATED_IDENTITY1, ASSOCIATED_IDENTITY2};
-std::vector<std::string> HandlersTest::IMPU_LIST_OF_ONE = {IMPU};
 std::vector<std::string> HandlersTest::IMPUS = {IMPU, IMPU2};
 std::vector<std::string> HandlersTest::IMPU_IN_VECTOR = {IMPU};
 std::vector<std::string> HandlersTest::IMPI_IN_VECTOR = {IMPI};
@@ -4054,16 +4052,20 @@ TEST_F(HandlersTest, RegistrationTerminationHTTPUnknownError)
   rtr_template(PERMANENT_TERMINATION, HTTP_PATH_REG_FALSE, DEREG_BODY_PAIRINGS, 999);
 }
 
-// Test the correct delete request is passed to sprout when the first public
-// identity is barred.
+// Test the correct delete request is passed to sprout and the correct
+// information is removed from Cassandra when the first public identity in an
+// implicit registration set is barred (and so the first public identity is not
+// the default public identity).
 TEST_F(HandlersTest, RegistrationTerminationIncludesBarredImpus)
 {
   rtr_template_with_barring(IMPU_IMS_SUBSCRIPTION_WITH_BARRING,
                             DEREG_BODY_PAIRINGS3);
 }
 
-// Test the correct delete request is passed to sprout when no identities are
-// barred, but the barring indication node is present.
+// Test the correct delete request is passed to sprout and the correct
+// information is removed from Cassandra when the first public identity in an
+// implicit registration set has a barring indication node associated with it
+// (although it is unbarred).
 TEST_F(HandlersTest, RegistrationTerminationIncludesBarredIndication)
 {
   rtr_template_with_barring(IMPU_IMS_SUBSCRIPTION_BARRING_INDICATION,
