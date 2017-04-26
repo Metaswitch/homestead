@@ -2159,11 +2159,15 @@ void RegistrationTerminationTask::get_registration_set_success(CassandraStore::O
   get_reg_data_result->get_xml(ims_sub, temp);
 
   // Add the list of public identities in the IMS subscription to
-  // the list of registration sets..
-  std::vector<std::string> public_ids = XmlUtils::get_public_ids(ims_sub);
+  // the list of registration sets.
+  std::string default_id;
+  std::vector<std::string> public_ids = XmlUtils::get_public_and_default_ids(
+                                                           ims_sub, default_id);
   if (!public_ids.empty())
   {
-    _registration_sets.push_back(public_ids);
+    std::pair<std::string, std::vector<std::string>> reg_set;
+    reg_set = make_pair(default_id, public_ids);
+    _registration_sets.push_back(reg_set);
   }
 
   if ((_deregistration_reason == SERVER_CHANGE) ||
@@ -2204,11 +2208,9 @@ void RegistrationTerminationTask::delete_registrations()
 
   // Extract the default public identities from the registration sets. These are the
   // first public identities in the sets.
-  for (std::vector<std::vector<std::string>>::iterator i = _registration_sets.begin();
-       i != _registration_sets.end();
-       i++)
+  for (std::pair<std::string, std::vector<std::string>> reg_set : _registration_sets)
   {
-    default_public_identities.push_back((*i)[0]);
+    default_public_identities.push_back(reg_set.first);
   }
 
   // We need to notify sprout of the deregistrations. What we send to sprout depends
@@ -2292,26 +2294,24 @@ void RegistrationTerminationTask::delete_registrations()
 void RegistrationTerminationTask::dissociate_implicit_registration_sets()
 {
   // Dissociate the private identities from each registration set.
-  for (std::vector<std::vector<std::string>>::iterator i = _registration_sets.begin();
-       i != _registration_sets.end();
-       i++)
+  for (std::pair<std::string, std::vector<std::string>> reg_set : _registration_sets)
   {
     SAS::Event event(this->trail(), SASEvent::CACHE_DISASSOC_REG_SET, 0);
-    std::string reg_set_str = boost::algorithm::join(*i, ", ");
+    std::string reg_set_str = boost::algorithm::join(reg_set.second, ", ");
     event.add_var_param(reg_set_str);
     std::string impis_str = boost::algorithm::join(_impis, ", ");
     event.add_var_param(impis_str);
     SAS::report_event(event);
     CassandraStore::Operation* dissociate_reg_set =
-      _cfg->cache->create_DissociateImplicitRegistrationSetFromImpi(*i, _impis, Cache::generate_timestamp());
+      _cfg->cache->create_DissociateImplicitRegistrationSetFromImpi(reg_set.second, _impis, Cache::generate_timestamp());
     CassandraStore::Transaction* tsx = new CacheTransaction;
 
-    // Note that this is an asynchronous operation and we are not attempting to
-    // wait for completion.  This is deliberate: Registration Termination is not
-    // driven by a client, and so there are no agents in the system that need to
-    // know when the async operation is complete (unlike a REGISTER from a SIP
-    // client which might follow the operation immediately with a request, such
-    // as a reg-event SUBSCRIBE, that relies on the cache being up to date).
+  // Note that this is an asynchronous operation and we are not attempting to
+  // wait for completion.  This is deliberate: Registration Termination is not
+  // driven by a client, and so there are no agents in the system that need to
+  // know when the async operation is complete (unlike a REGISTER from a SIP
+  // client which might follow the operation immediately with a request, such
+  // as a reg-event SUBSCRIBE, that relies on the cache being up to date).
     _cfg->cache->do_async(dissociate_reg_set, tsx);
   }
 }

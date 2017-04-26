@@ -120,12 +120,16 @@ public:
   static const std::string IMPU3;
   static const std::string IMPU4;
   static std::vector<std::string> IMPUS;
+  static std::vector<std::string> IMPU_LIST_OF_ONE;
   static std::vector<std::string> ASSOCIATED_IDENTITY1_IN_VECTOR;
   static std::vector<std::string> IMPU_REG_SET;
+  static std::vector<std::string> IMPU_REG_SET2;
   static std::vector<std::string> IMPU3_REG_SET;
   static const std::string IMPU_IMS_SUBSCRIPTION;
   static const std::string IMPU_IMS_SUBSCRIPTION_INVALID;
   static const std::string IMPU3_IMS_SUBSCRIPTION;
+  static const std::string IMPU_IMS_SUBSCRIPTION_WITH_BARRING;
+  static const std::string IMPU_IMS_SUBSCRIPTION_BARRING_INDICATION;
   static const std::string SCHEME_UNKNOWN;
   static const std::string SCHEME_DIGEST;
   static const std::string SCHEME_AKA;
@@ -137,6 +141,8 @@ public:
   static const std::string DEREG_BODY_PAIRINGS;
   static const std::string DEREG_BODY_LIST;
   static const std::string DEREG_BODY_PAIRINGS2;
+  static const std::string DEREG_BODY_PAIRINGS3;
+  static const std::string DEREG_BODY_PAIRINGS4;
   static const std::string DEREG_BODY_LIST2;
   static const std::deque<std::string> NO_CFS;
   static const std::deque<std::string> CCFS;
@@ -1233,6 +1239,84 @@ public:
     ASSERT_FALSE(t == NULL);
   }
 
+  void rtr_template_with_barring(std::string xml_from_cache,
+                                 std::string dereg_body)
+  {
+    Cx::RegistrationTerminationRequest rtr(_cx_dict,
+                                           _mock_stack,
+                                           PERMANENT_TERMINATION,
+                                           IMPI,
+                                           ASSOCIATED_IDENTITIES,
+                                           IMPU_LIST_OF_ONE,
+                                           AUTH_SESSION_STATE);
+
+    // The free_on_delete flag controls whether we want to free the underlying
+    // fd_msg structure when we delete this RTR. We don't, since this will be
+    // freed when the answer is freed later in the test. If we leave this flag set
+    // then the request will be freed twice.
+    rtr._free_on_delete = false;
+
+    RegistrationTerminationTask::Config cfg(_cache, _cx_dict, _sprout_conn, 0);
+    RegistrationTerminationTask* task = new RegistrationTerminationTask(_cx_dict, &rtr._fd_msg, &cfg, FAKE_TRAIL_ID);
+
+    // We have to make sure the message is pointing at the mock stack.
+    task->_msg._stack = _mock_stack;
+    task->_rtr._stack = _mock_stack;
+
+    // Once the task's run function is called, we expect a cache request for
+    // the IMS subscription of the final public identity in IMPUS.
+    MockCache::MockGetRegData mock_op;
+    EXPECT_CALL(*_cache, create_GetRegData(IMPU))
+      .WillOnce(Return(&mock_op));
+    EXPECT_DO_ASYNC(*_cache, mock_op);
+
+    task->run();
+
+    // The cache successfully returns the correct IMS subscription.
+    CassandraStore::Transaction* t = mock_op.get_trx();
+    ASSERT_FALSE(t == NULL);
+    EXPECT_CALL(mock_op, get_xml(_, _)).Times(AtLeast(1))
+      .WillRepeatedly(DoAll(SetArgReferee<0>(xml_from_cache), SetArgReferee<1>(0)));
+    EXPECT_CALL(mock_op, get_registration_state(_, _)).Times(AtLeast(1))
+      .WillRepeatedly(SetArgReferee<0>(RegistrationState::NOT_REGISTERED));
+    EXPECT_CALL(mock_op, get_associated_impis(_)).Times(AtLeast(1))
+      .WillRepeatedly(SetArgReferee<0>(IMPI_IN_VECTOR));
+    EXPECT_CALL(mock_op, get_charging_addrs(_)).Times(AtLeast(1))
+      .WillRepeatedly(SetArgReferee<0>(NO_CHARGING_ADDRESSES));
+
+    // Expect a delete to be sent to Sprout.
+    EXPECT_CALL(*_mock_http_conn, send_delete(HTTP_PATH_REG_FALSE, _, dereg_body))
+      .Times(1)
+      .WillOnce(Return(HTTP_OK));
+
+    // Expect to receive a diameter message.
+    EXPECT_CALL(*_mock_stack, send(_, FAKE_TRAIL_ID))
+      .Times(1)
+      .WillOnce(WithArgs<0>(Invoke(store_msg)));
+
+    // We also expect to receive a cache request for the registration set.
+    // Catch this.
+    std::vector<std::string> impis{IMPI, ASSOCIATED_IDENTITY1, ASSOCIATED_IDENTITY2};
+    MockCache::MockDissociateImplicitRegistrationSetFromImpi mock_op2;
+    EXPECT_CALL(*_cache, create_DissociateImplicitRegistrationSetFromImpi(IMPU_REG_SET2, impis, _))
+      .WillOnce(Return(&mock_op2));
+    EXPECT_DO_ASYNC(*_cache, mock_op2);
+
+    t->on_success(&mock_op);
+
+    // Turn the caught Diameter msg structure into a RTA and confirm it's contents.
+    Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
+    Cx::RegistrationTerminationAnswer rta(msg);
+    EXPECT_TRUE(rta.result_code(test_i32));
+    EXPECT_EQ(DIAMETER_SUCCESS, test_i32);
+    EXPECT_EQ(impis, rta.associated_identities());
+    EXPECT_EQ(AUTH_SESSION_STATE, rta.auth_session_state());
+
+    // Check the cache request has a transaction.
+    t = mock_op2.get_trx();
+    ASSERT_FALSE(t == NULL);
+  }
+
   void rtr_template_no_impus(int32_t dereg_reason,
                              std::string http_path,
                              std::string body)
@@ -1618,15 +1702,19 @@ const int32_t HandlersTest::AUTH_SESSION_STATE = 1;
 const std::string HandlersTest::ASSOCIATED_IDENTITY1 = "associated_identity1@example.com";
 const std::string HandlersTest::ASSOCIATED_IDENTITY2 = "associated_identity2@example.com";
 std::vector<std::string> HandlersTest::ASSOCIATED_IDENTITIES = {ASSOCIATED_IDENTITY1, ASSOCIATED_IDENTITY2};
+std::vector<std::string> HandlersTest::IMPU_LIST_OF_ONE = {IMPU};
 std::vector<std::string> HandlersTest::IMPUS = {IMPU, IMPU2};
 std::vector<std::string> HandlersTest::IMPU_IN_VECTOR = {IMPU};
 std::vector<std::string> HandlersTest::IMPI_IN_VECTOR = {IMPI};
 std::vector<std::string> HandlersTest::ASSOCIATED_IDENTITY1_IN_VECTOR = {ASSOCIATED_IDENTITY1};
 std::vector<std::string> HandlersTest::IMPU_REG_SET = {IMPU, IMPU4};
+std::vector<std::string> HandlersTest::IMPU_REG_SET2 = {IMPU, IMPU2};
 std::vector<std::string> HandlersTest::IMPU3_REG_SET = {IMPU3, IMPU2};
 const std::string HandlersTest::IMPU_IMS_SUBSCRIPTION = "<?xml version=\"1.0\"?><IMSSubscription><PrivateID>" + IMPI + "</PrivateID><ServiceProfile><PublicIdentity><Identity>" + IMPU + "</Identity></PublicIdentity><PublicIdentity><Identity>" + IMPU4 + "</Identity></PublicIdentity></ServiceProfile></IMSSubscription>";
 const std::string HandlersTest::IMPU_IMS_SUBSCRIPTION_INVALID = "<?xml version=\"1.0\"?><IMSSubscriptio></IMSSubscriptio>";
 const std::string HandlersTest::IMPU3_IMS_SUBSCRIPTION = "<?xml version=\"1.0\"?><IMSSubscription><PrivateID>" + IMPI + "</PrivateID><ServiceProfile><PublicIdentity><Identity>" + IMPU3 + "</Identity></PublicIdentity><PublicIdentity><Identity>" + IMPU2 + "</Identity></PublicIdentity></ServiceProfile></IMSSubscription>";
+const std::string HandlersTest::IMPU_IMS_SUBSCRIPTION_WITH_BARRING = "<?xml version=\"1.0\"?><IMSSubscription><PrivateID>" + IMPI + "</PrivateID><ServiceProfile><PublicIdentity><Identity>" + IMPU + "</Identity><BarringIndication>1</BarringIndication></PublicIdentity><PublicIdentity><Identity>" + IMPU2 + "</Identity></PublicIdentity></ServiceProfile></IMSSubscription>";
+const std::string HandlersTest::IMPU_IMS_SUBSCRIPTION_BARRING_INDICATION = "<?xml version=\"1.0\"?><IMSSubscription><PrivateID>" + IMPI + "</PrivateID><ServiceProfile><PublicIdentity><Identity>" + IMPU + "</Identity><BarringIndication>0</BarringIndication></PublicIdentity><PublicIdentity><Identity>" + IMPU2 + "</Identity></PublicIdentity></ServiceProfile></IMSSubscription>";
 std::vector<std::string> HandlersTest::EMPTY_VECTOR = {};
 const std::string HandlersTest::DEREG_BODY_PAIRINGS = "{\"registrations\":[{\"primary-impu\":\"" + IMPU3 + "\",\"impi\":\"" + IMPI +
                                                                       "\"},{\"primary-impu\":\"" + IMPU3 + "\",\"impi\":\"" + ASSOCIATED_IDENTITY1 +
@@ -1644,6 +1732,12 @@ const std::string HandlersTest::DEREG_BODY_PAIRINGS2 = "{\"registrations\":[{\"p
                                                                        "\"},{\"primary-impu\":\"" + IMPU3 + "\",\"impi\":\"" + ASSOCIATED_IDENTITY2 + "\"}]}";
 const std::string HandlersTest::DEREG_BODY_LIST2 = "{\"registrations\":[{\"primary-impu\":\"" + IMPU + "\"},{\"primary-impu\":\"" + IMPU3 + "\"}]}";
 const std::string HandlersTest::SCHEME_UNKNOWN = "Unknwon";
+const std::string HandlersTest::DEREG_BODY_PAIRINGS3 = "{\"registrations\":[{\"primary-impu\":\"" + IMPU2 + "\",\"impi\":\"" + IMPI +
+                                                                       "\"},{\"primary-impu\":\"" + IMPU2 + "\",\"impi\":\"" + ASSOCIATED_IDENTITY1 +
+                                                                       "\"},{\"primary-impu\":\"" + IMPU2 + "\",\"impi\":\"" + ASSOCIATED_IDENTITY2 + "\"}]}";
+const std::string HandlersTest::DEREG_BODY_PAIRINGS4 = "{\"registrations\":[{\"primary-impu\":\"" + IMPU + "\",\"impi\":\"" + IMPI +
+                                                                       "\"},{\"primary-impu\":\"" + IMPU + "\",\"impi\":\"" + ASSOCIATED_IDENTITY1 +
+                                                                       "\"},{\"primary-impu\":\"" + IMPU + "\",\"impi\":\"" + ASSOCIATED_IDENTITY2 + "\"}]}";
 const std::string HandlersTest::SCHEME_DIGEST = "SIP Digest";
 const std::string HandlersTest::SCHEME_AKA = "Digest-AKAv1-MD5";
 const std::string HandlersTest::SCHEME_AKAV2 = "Digest-AKAv2-SHA-256";
@@ -3958,6 +4052,22 @@ TEST_F(HandlersTest, RegistrationTerminationHTTPServerError)
 TEST_F(HandlersTest, RegistrationTerminationHTTPUnknownError)
 {
   rtr_template(PERMANENT_TERMINATION, HTTP_PATH_REG_FALSE, DEREG_BODY_PAIRINGS, 999);
+}
+
+// Test the correct delete request is passed to sprout when the first public
+// identity is barred.
+TEST_F(HandlersTest, RegistrationTerminationIncludesBarredImpus)
+{
+  rtr_template_with_barring(IMPU_IMS_SUBSCRIPTION_WITH_BARRING,
+                            DEREG_BODY_PAIRINGS3);
+}
+
+// Test the correct delete request is passed to sprout when no identities are
+// barred, but the barring indication node is present.
+TEST_F(HandlersTest, RegistrationTerminationIncludesBarredIndication)
+{
+  rtr_template_with_barring(IMPU_IMS_SUBSCRIPTION_BARRING_INDICATION,
+                            DEREG_BODY_PAIRINGS4);
 }
 
 TEST_F(HandlersTest, RegistrationTerminationNoRegSets)

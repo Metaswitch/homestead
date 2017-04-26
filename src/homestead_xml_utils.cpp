@@ -67,7 +67,7 @@ int build_ClearwaterRegData_xml(RegistrationState state,
   {
     // Parse the XML document - note we need to pass in the prev_doc here to
     // ensure it isn't destroyed before the XML is printed.
-    rapidxml::xml_document<> prev_doc; 
+    rapidxml::xml_document<> prev_doc;
     int rc = add_ims_subscription_node(xml, doc, root, prev_doc);
 
     if (rc == HTTP_SERVER_ERROR)
@@ -218,7 +218,17 @@ void add_charging_addr_node(const ChargingAddresses& charging_addrs,
 // Parses the given User-Data XML to retrieve a list of all the public IDs.
 std::vector<std::string> get_public_ids(const std::string& user_data)
 {
+  std::string default_id;
+  return get_public_and_default_ids(user_data, default_id);
+}
+
+// Parses the given User-Data XML to retrieve a list of all the public IDs, and
+// the default id (the first unbarred public ID).
+std::vector<std::string> get_public_and_default_ids(const std::string &user_data,
+                                                    std::string &default_id)
+{
   std::vector<std::string> public_ids;
+  std::vector<std::string> unbarred_public_ids;
 
   // Parse the XML document, saving off the passed-in string first (as parsing
   // is destructive).
@@ -252,6 +262,13 @@ std::vector<std::string> get_public_ids(const std::string& user_data)
            pi = pi->next_sibling(RegDataXMLUtils::PUBLIC_IDENTITY))
       {
         rapidxml::xml_node<>* id = pi->first_node(RegDataXMLUtils::IDENTITY);
+        std::string barring_value = RegDataXMLUtils::STATE_UNBARRED;
+        rapidxml::xml_node<>* barring_indication = pi->first_node(RegDataXMLUtils::BARRING_INDICATION);
+        if (barring_indication)
+        {
+          barring_value = barring_indication->value();
+        }
+
         if (id)
         {
           std::string uri = std::string(id->value());
@@ -266,6 +283,10 @@ std::vector<std::string> get_public_ids(const std::string& user_data)
               public_ids.end())
           {
             public_ids.push_back(uri);
+            if (barring_value == RegDataXMLUtils::STATE_UNBARRED)
+            {
+              unbarred_public_ids.push_back(uri);
+            }
           }
         }
         else
@@ -280,6 +301,13 @@ std::vector<std::string> get_public_ids(const std::string& user_data)
   {
     TRC_ERROR("Failed to extract any ServiceProfile/PublicIdentity/Identity nodes from %s", user_data.c_str());
   }
+
+  // Set the default id - this is the first unbarred public identity.
+  if (unbarred_public_ids.size() != 0)
+  {
+    default_id = unbarred_public_ids.front();
+  }
+
   return public_ids;
 }
 

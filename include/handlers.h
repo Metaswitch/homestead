@@ -586,7 +586,7 @@ private:
   int32_t _deregistration_reason;
   std::vector<std::string> _impis;
   std::vector<std::string> _impus;
-  std::vector<std::vector<std::string>> _registration_sets;
+  std::vector< std::pair<std::string, std::vector<std::string>> > _registration_sets;
 
   void get_assoc_primary_public_ids_success(CassandraStore::Operation* op);
   void get_assoc_primary_public_ids_failure(CassandraStore::Operation* op,
