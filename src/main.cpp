@@ -105,6 +105,7 @@ struct options
   int exception_max_ttl;
   int http_blacklist_duration;
   int diameter_blacklist_duration;
+  int dns_timeout;
   std::string pidfile;
   bool daemon;
   bool sas_signaling_if;
@@ -128,6 +129,7 @@ enum OptionTypes
   EXCEPTION_MAX_TTL,
   HTTP_BLACKLIST_DURATION,
   DIAMETER_BLACKLIST_DURATION,
+  DNS_TIMEOUT,
   FORCE_HSS_PEER,
   SAS_USE_SIGNALING_IF,
   PIDFILE,
@@ -171,6 +173,7 @@ const static struct option long_opt[] =
   {"exception-max-ttl",           required_argument, NULL, EXCEPTION_MAX_TTL},
   {"http-blacklist-duration",     required_argument, NULL, HTTP_BLACKLIST_DURATION},
   {"diameter-blacklist-duration", required_argument, NULL, DIAMETER_BLACKLIST_DURATION},
+  {"dns-timeout",                 required_argument, NULL, DNS_TIMEOUT},
   {"pidfile",                     required_argument, NULL, PIDFILE},
   {"daemon",                      no_argument,       NULL, DAEMON},
   {"sas-use-signaling-interface", no_argument,       NULL, SAS_USE_SIGNALING_IF},
@@ -237,6 +240,8 @@ void usage(void)
        "                            The amount of time to blacklist an HTTP peer when it is unresponsive.\n"
        "     --diameter-blacklist-duration <secs>\n"
        "                            The amount of time to blacklist a Diameter peer when it is unresponsive.\n"
+       "     --dns-timeout <milliseconds>\n"
+       "                            The amount of time to wait for a DNS response (default: 200)n"
        " -F, --log-file <directory>\n"
        "                            Log to file in specified directory\n"
        " -L, --log-level N          Set log level to N (default: 4)\n"
@@ -468,6 +473,11 @@ int init_options(int argc, char**argv, struct options& options)
                options.diameter_blacklist_duration);
       break;
 
+    case DNS_TIMEOUT:
+      options.dns_timeout = atoi(optarg);
+      TRC_INFO("DNS timeout set to %d", options.dns_timeout);
+      break;
+
     case FORCE_HSS_PEER:
       options.force_hss_peer = std::string(optarg);
       break;
@@ -573,6 +583,7 @@ int main(int argc, char**argv)
   options.exception_max_ttl = 600;
   options.http_blacklist_duration = HttpResolver::DEFAULT_BLACKLIST_DURATION;
   options.diameter_blacklist_duration = DiameterResolver::DEFAULT_BLACKLIST_DURATION;
+  options.dns_timeout = DnsCachedResolver::DEFAULT_TIMEOUT;
   options.pidfile = "";
   options.daemon = false;
   options.sas_signaling_if = false;
@@ -708,7 +719,8 @@ int main(int argc, char**argv)
                                               options.max_tokens,
                                               options.init_token_rate,
                                               options.min_token_rate);
-  DnsCachedResolver* dns_resolver = new DnsCachedResolver(options.dns_servers);
+  DnsCachedResolver* dns_resolver = new DnsCachedResolver(options.dns_servers,
+                                                          options.dns_timeout);
   HttpResolver* http_resolver = new HttpResolver(dns_resolver,
                                                  af,
                                                  options.http_blacklist_duration);
