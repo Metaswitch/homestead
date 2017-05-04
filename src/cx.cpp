@@ -98,7 +98,8 @@ Dictionary::Dictionary() :
   VENDOR_ID("Vendor-Id"),
   FEATURE_LIST_ID("3GPP", "Feature-List-ID"),
   FEATURE_LIST("3GPP", "Feature-List"),
-  WILDCARDED_PUBLIC_IDENTITY("3GPP", "Wildcarded-Public-Identity")
+  WILDCARDED_PUBLIC_IDENTITY("3GPP", "Wildcarded-Public-Identity"),
+  UAR_FLAGS("3GPP", "UAR-Flags")
 {
 }
 
@@ -109,7 +110,8 @@ UserAuthorizationRequest::UserAuthorizationRequest(const Dictionary* dict,
                                                    const std::string& impi,
                                                    const std::string& impu,
                                                    const std::string& visited_network_identifier,
-                                                   const std::string& authorization_type) :
+                                                   const std::string& authorization_type,
+                                                   const bool& emergency) :
                                                    Diameter::Message(dict, dict->USER_AUTHORIZATION_REQUEST, stack)
 {
   TRC_DEBUG("Building User-Authorization request for %s/%s", impi.c_str(), impu.c_str());
@@ -139,6 +141,13 @@ UserAuthorizationRequest::UserAuthorizationRequest(const Dictionary* dict,
   else
   {
     add(Diameter::AVP(dict->USER_AUTHORIZATION_TYPE).val_i32(0));
+  }
+
+  // UAR_FLAGS AVP is a u32 and contains a bit mask. The 0th bit is set for
+  // IMS emergency registrations.
+  if (emergency)
+  {
+    add(Diameter::AVP(dict->UAR_FLAGS).val_u32(1));
   }
 }
 

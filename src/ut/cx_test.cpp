@@ -84,6 +84,8 @@ public:
   static const std::deque<std::string> ECFS;
   static const ChargingAddresses NO_CHARGING_ADDRESSES;
   static const ChargingAddresses FULL_CHARGING_ADDRESSES;
+  static const bool NO_EMERGENCY;
+  static const bool EMERGENCY;
 
   static Diameter::Stack* _real_stack;
   static MockDiameterStack* _mock_stack;
@@ -216,6 +218,9 @@ const std::deque<std::string> CxTest::ECFS = {"ecf1", "ecf"};
 const std::deque<std::string> CxTest::CCFS = {"ccf1", "ccf2"};
 const ChargingAddresses CxTest::NO_CHARGING_ADDRESSES(NO_CFS, NO_CFS);
 const ChargingAddresses CxTest::FULL_CHARGING_ADDRESSES(CCFS, ECFS);
+const bool CxTest::NO_EMERGENCY = false;
+const bool CxTest::EMERGENCY = true;
+
 
 Diameter::Stack* CxTest::_real_stack = NULL;
 MockDiameterStack* CxTest::_mock_stack = NULL;
@@ -472,7 +477,8 @@ TEST_F(CxTest, UARTest)
                                    IMPI,
                                    IMPU,
                                    VISITED_NETWORK_IDENTIFIER,
-                                   AUTHORIZATION_TYPE_REG);
+                                   AUTHORIZATION_TYPE_REG,
+                                   NO_EMERGENCY);
   launder_message(uar);
   check_common_request_fields(uar);
   EXPECT_EQ(IMPI, uar.impi());
@@ -481,6 +487,7 @@ TEST_F(CxTest, UARTest)
   EXPECT_EQ(VISITED_NETWORK_IDENTIFIER, test_str);
   EXPECT_TRUE(uar.auth_type(test_i32));
   EXPECT_EQ(0, test_i32);
+  EXPECT_FALSE(uar.uar_flags(test_u32));
 }
 
 TEST_F(CxTest, UARAuthTypeDeregTest)
@@ -492,7 +499,8 @@ TEST_F(CxTest, UARAuthTypeDeregTest)
                                    IMPI,
                                    IMPU,
                                    VISITED_NETWORK_IDENTIFIER,
-                                   AUTHORIZATION_TYPE_DEREG);
+                                   AUTHORIZATION_TYPE_DEREG,
+                                   NO_EMERGENCY);
   launder_message(uar);
   check_common_request_fields(uar);
   EXPECT_EQ(IMPI, uar.impi());
@@ -501,6 +509,7 @@ TEST_F(CxTest, UARAuthTypeDeregTest)
   EXPECT_EQ(VISITED_NETWORK_IDENTIFIER, test_str);
   EXPECT_TRUE(uar.auth_type(test_i32));
   EXPECT_EQ(1, test_i32);
+  EXPECT_FALSE(uar.uar_flags(test_u32));
 }
 
 TEST_F(CxTest, UARAuthTypeCapabTest)
@@ -512,7 +521,8 @@ TEST_F(CxTest, UARAuthTypeCapabTest)
                                    IMPI,
                                    IMPU,
                                    VISITED_NETWORK_IDENTIFIER,
-                                   AUTHORIZATION_TYPE_CAPAB);
+                                   AUTHORIZATION_TYPE_CAPAB,
+                                   NO_EMERGENCY);
   launder_message(uar);
   check_common_request_fields(uar);
   EXPECT_EQ(IMPI, uar.impi());
@@ -521,6 +531,7 @@ TEST_F(CxTest, UARAuthTypeCapabTest)
   EXPECT_EQ(VISITED_NETWORK_IDENTIFIER, test_str);
   EXPECT_TRUE(uar.auth_type(test_i32));
   EXPECT_EQ(2, test_i32);
+  EXPECT_FALSE(uar.uar_flags(test_u32));
 }
 
 TEST_F(CxTest, UARNoAuthTypeTest)
@@ -532,7 +543,8 @@ TEST_F(CxTest, UARNoAuthTypeTest)
                                    IMPI,
                                    IMPU,
                                    VISITED_NETWORK_IDENTIFIER,
-                                   EMPTY_STRING);
+                                   EMPTY_STRING,
+                                   NO_EMERGENCY);
   launder_message(uar);
   check_common_request_fields(uar);
   EXPECT_EQ(IMPI, uar.impi());
@@ -541,6 +553,30 @@ TEST_F(CxTest, UARNoAuthTypeTest)
   EXPECT_EQ(VISITED_NETWORK_IDENTIFIER, test_str);
   EXPECT_TRUE(uar.auth_type(test_i32));
   EXPECT_EQ(0, test_i32);
+  EXPECT_FALSE(uar.uar_flags(test_u32));
+}
+
+TEST_F(CxTest, UAREmergencyTest)
+{
+  Cx::UserAuthorizationRequest uar(_cx_dict,
+                                   _mock_stack,
+                                   DEST_HOST,
+                                   DEST_REALM,
+                                   IMPI,
+                                   IMPU,
+                                   VISITED_NETWORK_IDENTIFIER,
+                                   AUTHORIZATION_TYPE_REG,
+                                   EMERGENCY);
+  launder_message(uar);
+  check_common_request_fields(uar);
+  EXPECT_EQ(IMPI, uar.impi());
+  EXPECT_EQ(IMPU, uar.impu());
+  EXPECT_TRUE(uar.visited_network(test_str));
+  EXPECT_EQ(VISITED_NETWORK_IDENTIFIER, test_str);
+  EXPECT_TRUE(uar.auth_type(test_i32));
+  EXPECT_EQ(0, test_i32);
+  EXPECT_TRUE(uar.uar_flags(test_u32));
+  EXPECT_EQ(1, test_u32);
 }
 
 //

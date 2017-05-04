@@ -99,6 +99,7 @@ public:
   const Diameter::Dictionary::AVP FEATURE_LIST_ID;
   const Diameter::Dictionary::AVP FEATURE_LIST;
   const Diameter::Dictionary::AVP WILDCARDED_PUBLIC_IDENTITY;
+  const Diameter::Dictionary::AVP UAR_FLAGS;
 };
 
 class UserAuthorizationRequest : public Diameter::Message
@@ -111,7 +112,8 @@ public:
                            const std::string& impi,
                            const std::string& impu,
                            const std::string& visited_network_identifier,
-                           const std::string& authorization_type);
+                           const std::string& authorization_type,
+                           const bool& emergency);
   inline UserAuthorizationRequest(Diameter::Message& msg) : Diameter::Message(msg) {};
 
   inline std::string impu() const
@@ -127,6 +129,10 @@ public:
   inline bool auth_type(int32_t& i32) const
   {
     return get_i32_from_avp(((Cx::Dictionary*)dict())->USER_AUTHORIZATION_TYPE, i32);
+  }
+  inline bool uar_flags(uint32_t& u32) const
+  {
+    return get_u32_from_avp(((Cx::Dictionary*)dict())->UAR_FLAGS, u32);
   }
 };
 
