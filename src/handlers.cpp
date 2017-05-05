@@ -1610,6 +1610,7 @@ void ImpuRegDataTask::send_server_assignment_request(Cx::ServerAssignmentType ty
                                   (_provided_server_name == "" ? _configured_server_name :
                                    _provided_server_name),
                                   type,
+                                  _cfg->support_shared_ifcs,
                                   (_hss_wildcard.empty() ? _sprout_wildcard : _hss_wildcard));
   DiameterTransaction* tsx =
     new DiameterTransaction(_dict,

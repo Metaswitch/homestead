@@ -108,6 +108,7 @@ struct options
   std::string pidfile;
   bool daemon;
   bool sas_signaling_if;
+  bool support_shared_ifcs;
 };
 
 // Enum for option types not assigned short-forms
@@ -130,6 +131,7 @@ enum OptionTypes
   DIAMETER_BLACKLIST_DURATION,
   FORCE_HSS_PEER,
   SAS_USE_SIGNALING_IF,
+  SUPPORT_SHARED_IFCS,
   PIDFILE,
   DAEMON,
   REG_MAX_EXPIRES
@@ -174,6 +176,7 @@ const static struct option long_opt[] =
   {"pidfile",                     required_argument, NULL, PIDFILE},
   {"daemon",                      no_argument,       NULL, DAEMON},
   {"sas-use-signaling-interface", no_argument,       NULL, SAS_USE_SIGNALING_IF},
+  {"support-shared-ifcs",         no_argument,       NULL, SUPPORT_SHARED_IFCS},
   {NULL,                          0,                 NULL, 0},
 };
 
@@ -237,6 +240,7 @@ void usage(void)
        "                            The amount of time to blacklist an HTTP peer when it is unresponsive.\n"
        "     --diameter-blacklist-duration <secs>\n"
        "                            The amount of time to blacklist a Diameter peer when it is unresponsive.\n"
+       "     --support-shared-ifcs  Indicate support for Shared IFC sets in the Supported-Features AVP.\n"
        " -F, --log-file <directory>\n"
        "                            Log to file in specified directory\n"
        " -L, --log-level N          Set log level to N (default: 4)\n"
@@ -480,6 +484,10 @@ int init_options(int argc, char**argv, struct options& options)
       options.sas_signaling_if = true;
       break;
 
+    case SUPPORT_SHARED_IFCS:
+      options.support_shared_ifcs = true;
+      break;
+
     case DAEMON:
     case 'F':
     case 'L':
@@ -576,6 +584,7 @@ int main(int argc, char**argv)
   options.pidfile = "";
   options.daemon = false;
   options.sas_signaling_if = false;
+  options.support_shared_ifcs = false;
 
   if (init_logging_options(argc, argv, options) != 0)
   {
@@ -845,7 +854,8 @@ int main(int argc, char**argv)
   ImpuRegDataTask::Config impu_handler_config(hss_configured,
                                               options.hss_reregistration_time,
                                               record_ttl,
-                                              options.diameter_timeout_ms);
+                                              options.diameter_timeout_ms,
+                                              options.support_shared_ifcs);
   ImpuListTask::Config impu_list_config;
 
   HttpStackUtils::PingHandler ping_handler;
