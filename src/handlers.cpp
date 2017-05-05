@@ -623,6 +623,8 @@ void ImpiRegistrationStatusTask::run()
       _visited_network = _dest_realm;
     }
     _authorization_type = _req.param("auth-type");
+    std::string sos = _req.param("sos");
+    _emergency = sos == "true" ? true : false;
     TRC_DEBUG("Parsed HTTP request: private ID %s, public ID %s, visited network %s, authorization type %s",
               _impi.c_str(), _impu.c_str(), _visited_network.c_str(), _authorization_type.c_str());
 
@@ -633,7 +635,8 @@ void ImpiRegistrationStatusTask::run()
                                      _impi,
                                      _impu,
                                      _visited_network,
-                                     _authorization_type);
+                                     _authorization_type,
+                                     _emergency);
     DiameterTransaction* tsx =
       new DiameterTransaction(_dict,
                               this,

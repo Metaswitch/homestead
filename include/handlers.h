@@ -397,7 +397,7 @@ public:
   };
 
   ImpiRegistrationStatusTask(HttpStack::Request& req, const Config* cfg, SAS::TrailId trail) :
-    HssCacheTask(req, trail), _cfg(cfg), _impi(), _impu(), _visited_network(), _authorization_type()
+    HssCacheTask(req, trail), _cfg(cfg), _impi(), _impu(), _visited_network(), _authorization_type(), _emergency()
   {}
 
   void run();
@@ -412,6 +412,7 @@ private:
   std::string _impu;
   std::string _visited_network;
   std::string _authorization_type;
+  bool _emergency;
 };
 
 class ImpuLocationInfoTask : public HssCacheTask
