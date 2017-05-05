@@ -143,6 +143,7 @@ public:
   static const std::string DEREG_BODY_PAIRINGS3;
   static const std::string DEREG_BODY_PAIRINGS4;
   static const std::string DEREG_BODY_LIST2;
+  static const std::string DEREG_BODY_LIST3;
   static const std::deque<std::string> NO_CFS;
   static const std::deque<std::string> CCFS;
   static const std::deque<std::string> ECFS;
@@ -1238,12 +1239,15 @@ public:
     ASSERT_FALSE(t == NULL);
   }
 
-  void rtr_template_with_barring(std::string xml_from_cache,
+  // Template function for an RTR test that includes barring.
+  void rtr_template_with_barring(int32_t dereg_reason,
+                                 std::string http_path,
+                                 std::string xml_from_cache,
                                  std::string dereg_body)
   {
     Cx::RegistrationTerminationRequest rtr(_cx_dict,
                                            _mock_stack,
-                                           PERMANENT_TERMINATION,
+                                           dereg_reason,
                                            IMPI,
                                            ASSOCIATED_IDENTITIES,
                                            IMPU_IN_VECTOR,
@@ -1284,7 +1288,7 @@ public:
       .WillRepeatedly(SetArgReferee<0>(NO_CHARGING_ADDRESSES));
 
     // Expect a delete to be sent to Sprout.
-    EXPECT_CALL(*_mock_http_conn, send_delete(HTTP_PATH_REG_FALSE, _, dereg_body))
+    EXPECT_CALL(*_mock_http_conn, send_delete(http_path, _, dereg_body))
       .Times(1)
       .WillOnce(Return(HTTP_OK));
 
@@ -1733,6 +1737,7 @@ const std::string HandlersTest::SCHEME_UNKNOWN = "Unknwon";
 const std::string HandlersTest::DEREG_BODY_PAIRINGS3 = "{\"registrations\":[{\"primary-impu\":\"" + IMPU2 + "\",\"impi\":\"" + IMPI +
                                                                        "\"},{\"primary-impu\":\"" + IMPU2 + "\",\"impi\":\"" + ASSOCIATED_IDENTITY1 +
                                                                        "\"},{\"primary-impu\":\"" + IMPU2 + "\",\"impi\":\"" + ASSOCIATED_IDENTITY2 + "\"}]}";
+const std::string HandlersTest::DEREG_BODY_LIST3 = "{\"registrations\":[{\"primary-impu\":\"" + IMPU2 + "\"}]}";
 const std::string HandlersTest::DEREG_BODY_PAIRINGS4 = "{\"registrations\":[{\"primary-impu\":\"" + IMPU + "\",\"impi\":\"" + IMPI +
                                                                        "\"},{\"primary-impu\":\"" + IMPU + "\",\"impi\":\"" + ASSOCIATED_IDENTITY1 +
                                                                        "\"},{\"primary-impu\":\"" + IMPU + "\",\"impi\":\"" + ASSOCIATED_IDENTITY2 + "\"}]}";
@@ -4058,7 +4063,9 @@ TEST_F(HandlersTest, RegistrationTerminationHTTPUnknownError)
 // the default public identity).
 TEST_F(HandlersTest, RegistrationTerminationIncludesBarredImpus)
 {
-  rtr_template_with_barring(IMPU_IMS_SUBSCRIPTION_WITH_BARRING,
+  rtr_template_with_barring(PERMANENT_TERMINATION,
+                            HTTP_PATH_REG_FALSE,
+                            IMPU_IMS_SUBSCRIPTION_WITH_BARRING,
                             DEREG_BODY_PAIRINGS3);
 }
 
@@ -4068,8 +4075,22 @@ TEST_F(HandlersTest, RegistrationTerminationIncludesBarredImpus)
 // (although it is unbarred).
 TEST_F(HandlersTest, RegistrationTerminationIncludesBarredIndication)
 {
-  rtr_template_with_barring(IMPU_IMS_SUBSCRIPTION_BARRING_INDICATION,
+  rtr_template_with_barring(PERMANENT_TERMINATION,
+                            HTTP_PATH_REG_FALSE,
+                            IMPU_IMS_SUBSCRIPTION_BARRING_INDICATION,
                             DEREG_BODY_PAIRINGS4);
+}
+
+// Test the correct delete request is passed to sprout and the correct
+// information is recieved from Cassandra when the first public identity in an
+// implicit registration set is barred, with the deregistration reason of
+// removing the S-CSCF.
+TEST_F(HandlersTest, RTRRemoveSCSCFIncludesBarring)
+{
+  rtr_template_with_barring(REMOVE_SCSCF,
+                            HTTP_PATH_REG_TRUE,
+                            IMPU_IMS_SUBSCRIPTION_WITH_BARRING,
+                            DEREG_BODY_LIST3);
 }
 
 TEST_F(HandlersTest, RegistrationTerminationNoRegSets)
