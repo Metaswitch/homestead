@@ -175,6 +175,7 @@ public:
 
   std::string test_str;
   int32_t test_i32;
+  uint32_t test_u32;
 
   HandlersTest() {}
   virtual ~HandlersTest()
@@ -3395,7 +3396,7 @@ TEST_F(HandlersTest, RegistrationStatusOptParamsSubseqRegCapabs)
   MockHttpStack::Request req(_httpstack,
                              "/impi/" + IMPI + "/",
                              "registration-status",
-                             "?impu=" + IMPU + "&visited-network=" + VISITED_NETWORK + "&auth-type=" + AUTH_TYPE_DEREG);
+                             "?impu=" + IMPU + "&visited-network=" + VISITED_NETWORK + "&auth-type=" + AUTH_TYPE_DEREG + "&sos=true");
 
   ImpiRegistrationStatusTask::Config cfg(true);
   ImpiRegistrationStatusTask* task = new ImpiRegistrationStatusTask(req, &cfg, FAKE_TRAIL_ID);
@@ -3421,6 +3422,8 @@ TEST_F(HandlersTest, RegistrationStatusOptParamsSubseqRegCapabs)
   EXPECT_EQ(VISITED_NETWORK, test_str);
   EXPECT_TRUE(uar.auth_type(test_i32));
   EXPECT_EQ(1, test_i32);
+  EXPECT_TRUE(uar.uar_flags(test_u32));
+  EXPECT_EQ(1, test_u32);
 
   // Build a UAA and expect a successful HTTP response.
   Cx::UserAuthorizationAnswer uaa(_cx_dict,
