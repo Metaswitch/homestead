@@ -160,6 +160,7 @@ get_daemon_args()
 
 
         [ "$sas_use_signaling_interface" != "Y" ] || sas_signaling_if_arg="--sas-use-signaling-interface"
+        [ "$support_shared_ifc" == "N" ] || support_shared_ifcs_arg="--support-shared-ifcs"
 
         [ -z "$diameter_timeout_ms" ] || diameter_timeout_ms_arg="--diameter-timeout-ms=$diameter_timeout_ms"
         [ -z "$signaling_namespace" ] || namespace_prefix="ip netns exec $signaling_namespace"
@@ -197,6 +198,7 @@ get_daemon_args()
                      $min_token_rate_arg
                      $exception_max_ttl_arg
                      $sas_signaling_if_arg
+                     $support_shared_ifcs_arg
                      --access-log=$log_directory
                      --log-file=$log_directory
                      --log-level=$log_level
