@@ -128,6 +128,8 @@ public:
   static const std::string IMPU_IMS_SUBSCRIPTION_INVALID;
   static const std::string IMPU3_IMS_SUBSCRIPTION;
   static const std::string IMPU_IMS_SUBSCRIPTION_WITH_BARRING;
+  static const std::string IMPU_IMS_SUBSCRIPTION_WITH_BARRING2;
+  static const std::string IMPU_IMS_SUBSCRIPTION_WITH_BARRING3;
   static const std::string IMPU_IMS_SUBSCRIPTION_BARRING_INDICATION;
   static const std::string SCHEME_UNKNOWN;
   static const std::string SCHEME_DIGEST;
@@ -138,10 +140,11 @@ public:
   static const std::string HTTP_PATH_REG_FALSE;
   static std::vector<std::string> EMPTY_VECTOR;
   static const std::string DEREG_BODY_PAIRINGS;
-  static const std::string DEREG_BODY_LIST;
   static const std::string DEREG_BODY_PAIRINGS2;
   static const std::string DEREG_BODY_PAIRINGS3;
   static const std::string DEREG_BODY_PAIRINGS4;
+  static const std::string DEREG_BODY_PAIRINGS5;
+  static const std::string DEREG_BODY_LIST;
   static const std::string DEREG_BODY_LIST2;
   static const std::string DEREG_BODY_LIST3;
   static const std::deque<std::string> NO_CFS;
@@ -1322,7 +1325,8 @@ public:
 
   void rtr_template_no_impus(int32_t dereg_reason,
                              std::string http_path,
-                             std::string body)
+                             std::string body,
+                             std::string cache_return_one)
   {
     // This is a template function for an RTR test where no public identities
     // are specified on the request.
@@ -1376,7 +1380,7 @@ public:
     t = mock_op2.get_trx();
     ASSERT_FALSE(t == NULL);
     EXPECT_CALL(mock_op2, get_xml(_, _)).Times(AtLeast(1))
-      .WillRepeatedly(DoAll(SetArgReferee<0>(IMPU_IMS_SUBSCRIPTION), SetArgReferee<1>(0)));
+      .WillRepeatedly(DoAll(SetArgReferee<0>(cache_return_one), SetArgReferee<1>(0)));
     EXPECT_CALL(mock_op2, get_registration_state(_, _)).Times(AtLeast(1))
       .WillRepeatedly(SetArgReferee<0>(RegistrationState::NOT_REGISTERED));
     EXPECT_CALL(mock_op2, get_associated_impis(_)).Times(AtLeast(1))
@@ -1716,6 +1720,8 @@ const std::string HandlersTest::IMPU_IMS_SUBSCRIPTION = "<?xml version=\"1.0\"?>
 const std::string HandlersTest::IMPU_IMS_SUBSCRIPTION_INVALID = "<?xml version=\"1.0\"?><IMSSubscriptio></IMSSubscriptio>";
 const std::string HandlersTest::IMPU3_IMS_SUBSCRIPTION = "<?xml version=\"1.0\"?><IMSSubscription><PrivateID>" + IMPI + "</PrivateID><ServiceProfile><PublicIdentity><Identity>" + IMPU3 + "</Identity></PublicIdentity><PublicIdentity><Identity>" + IMPU2 + "</Identity></PublicIdentity></ServiceProfile></IMSSubscription>";
 const std::string HandlersTest::IMPU_IMS_SUBSCRIPTION_WITH_BARRING = "<?xml version=\"1.0\"?><IMSSubscription><PrivateID>" + IMPI + "</PrivateID><ServiceProfile><PublicIdentity><Identity>" + IMPU + "</Identity><BarringIndication>1</BarringIndication></PublicIdentity><PublicIdentity><Identity>" + IMPU2 + "</Identity></PublicIdentity></ServiceProfile></IMSSubscription>";
+const std::string HandlersTest::IMPU_IMS_SUBSCRIPTION_WITH_BARRING2 = "<?xml version=\"1.0\"?><IMSSubscription><PrivateID>" + IMPI + "</PrivateID><ServiceProfile><PublicIdentity><Identity>" + IMPU + "</Identity><BarringIndication>1</BarringIndication></PublicIdentity><PublicIdentity><Identity>" + IMPU4 + "</Identity></PublicIdentity></ServiceProfile></IMSSubscription>";
+const std::string HandlersTest::IMPU_IMS_SUBSCRIPTION_WITH_BARRING3 = "<?xml version=\"1.0\"?><IMSSubscription><PrivateID>" + IMPI + "</PrivateID><ServiceProfile><PublicIdentity><Identity>" + IMPU + "</Identity></PublicIdentity><PublicIdentity><Identity>" + IMPU4 + "</Identity><BarringIndication>1</BarringIndication></PublicIdentity></ServiceProfile></IMSSubscription>";
 const std::string HandlersTest::IMPU_IMS_SUBSCRIPTION_BARRING_INDICATION = "<?xml version=\"1.0\"?><IMSSubscription><PrivateID>" + IMPI + "</PrivateID><ServiceProfile><PublicIdentity><Identity>" + IMPU + "</Identity><BarringIndication>0</BarringIndication></PublicIdentity><PublicIdentity><Identity>" + IMPU2 + "</Identity></PublicIdentity></ServiceProfile></IMSSubscription>";
 std::vector<std::string> HandlersTest::EMPTY_VECTOR = {};
 const std::string HandlersTest::DEREG_BODY_PAIRINGS = "{\"registrations\":[{\"primary-impu\":\"" + IMPU3 + "\",\"impi\":\"" + IMPI +
@@ -1741,6 +1747,12 @@ const std::string HandlersTest::DEREG_BODY_LIST3 = "{\"registrations\":[{\"prima
 const std::string HandlersTest::DEREG_BODY_PAIRINGS4 = "{\"registrations\":[{\"primary-impu\":\"" + IMPU + "\",\"impi\":\"" + IMPI +
                                                                        "\"},{\"primary-impu\":\"" + IMPU + "\",\"impi\":\"" + ASSOCIATED_IDENTITY1 +
                                                                        "\"},{\"primary-impu\":\"" + IMPU + "\",\"impi\":\"" + ASSOCIATED_IDENTITY2 + "\"}]}";
+const std::string HandlersTest::DEREG_BODY_PAIRINGS5 = "{\"registrations\":[{\"primary-impu\":\"" + IMPU4 + "\",\"impi\":\"" + IMPI +
+                                                                       "\"},{\"primary-impu\":\"" + IMPU4 + "\",\"impi\":\"" + ASSOCIATED_IDENTITY1 +
+                                                                       "\"},{\"primary-impu\":\"" + IMPU4 + "\",\"impi\":\"" + ASSOCIATED_IDENTITY2 +
+                                                                       "\"},{\"primary-impu\":\"" + IMPU3 + "\",\"impi\":\"" + IMPI +
+                                                                       "\"},{\"primary-impu\":\"" + IMPU3 + "\",\"impi\":\"" + ASSOCIATED_IDENTITY1 +
+                                                                       "\"},{\"primary-impu\":\"" + IMPU3 + "\",\"impi\":\"" + ASSOCIATED_IDENTITY2 + "\"}]}";
 const std::string HandlersTest::SCHEME_DIGEST = "SIP Digest";
 const std::string HandlersTest::SCHEME_AKA = "Digest-AKAv1-MD5";
 const std::string HandlersTest::SCHEME_AKAV2 = "Digest-AKAv2-SHA-256";
@@ -4019,22 +4031,22 @@ TEST_F(HandlersTest, RegistrationTerminationRemoveSCSCF)
 
 TEST_F(HandlersTest, RegistrationTerminationPermanentTerminationNoIMPUs)
 {
-  rtr_template_no_impus(PERMANENT_TERMINATION, HTTP_PATH_REG_FALSE, DEREG_BODY_PAIRINGS2);
+  rtr_template_no_impus(PERMANENT_TERMINATION, HTTP_PATH_REG_FALSE, DEREG_BODY_PAIRINGS2, IMPU_IMS_SUBSCRIPTION);
 }
 
 TEST_F(HandlersTest, RegistrationTerminationRemoveSCSCFNoIMPUS)
 {
-  rtr_template_no_impus(REMOVE_SCSCF, HTTP_PATH_REG_TRUE, DEREG_BODY_LIST2);
+  rtr_template_no_impus(REMOVE_SCSCF, HTTP_PATH_REG_TRUE, DEREG_BODY_LIST2, IMPU_IMS_SUBSCRIPTION);
 }
 
 TEST_F(HandlersTest, RegistrationTerminationServerChange)
 {
-  rtr_template_no_impus(SERVER_CHANGE, HTTP_PATH_REG_TRUE, DEREG_BODY_LIST2);
+  rtr_template_no_impus(SERVER_CHANGE, HTTP_PATH_REG_TRUE, DEREG_BODY_LIST2, IMPU_IMS_SUBSCRIPTION);
 }
 
 TEST_F(HandlersTest, RegistrationTerminationNewServerAssigned)
 {
-  rtr_template_no_impus(NEW_SERVER_ASSIGNED, HTTP_PATH_REG_FALSE, DEREG_BODY_LIST2);
+  rtr_template_no_impus(NEW_SERVER_ASSIGNED, HTTP_PATH_REG_FALSE, DEREG_BODY_LIST2, IMPU_IMS_SUBSCRIPTION);
 }
 
 TEST_F(HandlersTest, RegistrationTerminationHTTPBadMethod)
@@ -4091,6 +4103,20 @@ TEST_F(HandlersTest, RTRRemoveSCSCFIncludesBarring)
                             HTTP_PATH_REG_TRUE,
                             IMPU_IMS_SUBSCRIPTION_WITH_BARRING,
                             DEREG_BODY_LIST3);
+}
+
+// Test that an RTR on which no IMPUs are present, only the IMPI, is handled
+// correctly if the first IMPU in a set associated with that IMPI is barred.
+TEST_F(HandlersTest, RegistrationTerminationNoImpusFirstBarred)
+{
+  rtr_template_no_impus(PERMANENT_TERMINATION, HTTP_PATH_REG_FALSE, DEREG_BODY_PAIRINGS5, IMPU_IMS_SUBSCRIPTION_WITH_BARRING2);
+}
+
+// Test that an RTR on which no IMPUs are present, only the IMPI, is handled
+// correctly if the second IMPU in a set associated with that IMPI is barred.
+TEST_F(HandlersTest, RegistrationTerminationNoImpusSecondBarred)
+{
+  rtr_template_no_impus(PERMANENT_TERMINATION, HTTP_PATH_REG_FALSE, DEREG_BODY_PAIRINGS2, IMPU_IMS_SUBSCRIPTION_WITH_BARRING3);
 }
 
 TEST_F(HandlersTest, RegistrationTerminationNoRegSets)
