@@ -409,6 +409,9 @@ void ImpiTask::on_mar_response(Diameter::Message& rsp)
       TRC_DEBUG("Unsupported auth scheme: %s", sip_auth_scheme.c_str());
       SAS::Event event(this->trail(), SASEvent::UNSUPPORTED_SCHEME, 0);
       event.add_var_param(sip_auth_scheme);
+      event.add_var_param(_cfg->scheme_digest);
+      event.add_var_param(_cfg->scheme_akav1);
+      event.add_var_param(_cfg->scheme_akav2);
       SAS::report_event(event);
       send_http_reply(HTTP_NOT_FOUND);
     }
