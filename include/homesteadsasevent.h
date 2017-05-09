@@ -91,6 +91,8 @@ namespace SASEvent
   const int NO_SIP_URI_IN_IRS = HOMESTEAD_BASE + 0x220;
   const int PPR_RECEIVED = HOMESTEAD_BASE + 0x230;
   const int RTR_RECEIVED = HOMESTEAD_BASE + 0x240;
+  const int CACHE_GET_ASSOC_DEF_IMPU_FAIL = HOMESTEAD_BASE + 0x0250;
+  const int CHANGE_IMPU_PPR = HOMESTEAD_BASE + 0x0260;
 
 } // namespace SASEvent
 

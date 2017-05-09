@@ -4430,20 +4430,35 @@ TEST_F(HandlersTest, PushProfile)
   task->_msg._stack = _mock_stack;
   task->_ppr._stack = _mock_stack;
 
-  // Once the task's run function is called, we expect to try and update
-  // the IMS subscription the charging addresses in the cache.
-  MockCache::MockPutRegData mock_op;
-  EXPECT_CALL(*_cache, create_PutRegData(IMPU_IN_VECTOR, _, 7200))
+  // Once the task's run function is called, we expect to search in the cache to
+  // check the default id hasn't changed.
+  MockCache::MockGetAssociatedPrimaryPublicIDs mock_op;
+  EXPECT_CALL(*_cache, create_GetAssociatedPrimaryPublicIDs(IMPI))
     .WillOnce(Return(&mock_op));
-  EXPECT_CALL(mock_op, with_xml(IMS_SUBSCRIPTION))
-    .WillOnce(ReturnRef(mock_op));
-  EXPECT_CALL(mock_op, with_charging_addrs(_))
-    .WillOnce(ReturnRef(mock_op));
   EXPECT_DO_ASYNC(*_cache, mock_op);
 
   task->run();
 
+  // The cache sucessfully returns a list of public identities.
   CassandraStore::Transaction* t = mock_op.get_trx();
+  ASSERT_FALSE(t == NULL);
+  EXPECT_CALL(mock_op, get_result(_))
+    .WillRepeatedly(SetArgReferee<0>(IMPU_IN_VECTOR));
+
+  // Then expect an attempt to update the IMS subscription of the charging
+  // addresses in the cache.
+  MockCache::MockPutRegData mock_op2;
+  EXPECT_CALL(*_cache, create_PutRegData(IMPU_IN_VECTOR, _, 7200))
+    .WillOnce(Return(&mock_op2));
+  EXPECT_CALL(mock_op2, with_xml(IMS_SUBSCRIPTION))
+    .WillOnce(ReturnRef(mock_op2));
+  EXPECT_CALL(mock_op2, with_charging_addrs(_))
+    .WillOnce(ReturnRef(mock_op2));
+  EXPECT_DO_ASYNC(*_cache, mock_op2);
+
+  t->on_success(&mock_op);
+
+  t = mock_op2.get_trx();
   ASSERT_FALSE(t == NULL);
 
   // Finally we expect a PPA.
@@ -4451,7 +4466,7 @@ TEST_F(HandlersTest, PushProfile)
     .Times(1)
     .WillOnce(WithArgs<0>(Invoke(store_msg)));
 
-  t->on_success(&mock_op);
+  t->on_success(&mock_op2);
 
   // Turn the caught Diameter msg structure into a PPA and confirm it's contents.
   Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
@@ -4503,18 +4518,33 @@ TEST_F(HandlersTest, PushProfileChargingAddrs)
   EXPECT_CALL(mock_op, get_result(_))
     .WillRepeatedly(SetArgReferee<0>(IMPUS));
 
-  // Next we expect to try and update the charging addresses (but not the IMS
-  // subscription) in the cache.
-  MockCache::MockPutRegData mock_op2;
-  EXPECT_CALL(*_cache, create_PutRegData(IMPUS, _, 7200))
-    .WillOnce(Return(&mock_op2));
-  EXPECT_CALL(mock_op2, with_charging_addrs(_))
-    .WillOnce(ReturnRef(mock_op2));
+  // Before any update is done, we expect a search in the cache to check the
+  // default id hasn't changed.
+  MockCache::MockGetAssociatedPrimaryPublicIDs mock_op2;
+  EXPECT_CALL(*_cache, create_GetAssociatedPrimaryPublicIDs(IMPI))
+      .WillOnce(Return(&mock_op2));
   EXPECT_DO_ASYNC(*_cache, mock_op2);
 
   t->on_success(&mock_op);
 
+  // The cache sucessfully returns a list of public identities.
   t = mock_op2.get_trx();
+  ASSERT_FALSE(t == NULL);
+  EXPECT_CALL(mock_op2, get_result(_))
+    .WillRepeatedly(SetArgReferee<0>(IMPU_IN_VECTOR));
+
+  // Next we expect to try and update the charging addresses (but not the IMS
+  // subscription) in the cache.
+  MockCache::MockPutRegData mock_op3;
+  EXPECT_CALL(*_cache, create_PutRegData(IMPUS, _, 7200))
+    .WillOnce(Return(&mock_op3));
+  EXPECT_CALL(mock_op3, with_charging_addrs(_))
+    .WillOnce(ReturnRef(mock_op3));
+  EXPECT_DO_ASYNC(*_cache, mock_op3);
+
+  t->on_success(&mock_op2);
+
+  t = mock_op3.get_trx();
   ASSERT_FALSE(t == NULL);
 
   // Finally we expect a PPA.
@@ -4522,7 +4552,7 @@ TEST_F(HandlersTest, PushProfileChargingAddrs)
     .Times(1)
     .WillOnce(WithArgs<0>(Invoke(store_msg)));
 
-  t->on_success(&mock_op2);
+  t->on_success(&mock_op3);
 
   // Turn the caught Diameter msg structure into a PPA and confirm it's contents.
   Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
