@@ -2499,7 +2499,7 @@ void PushProfileTask::update_reg_data()
   // Get the default public id from the ims subscription if it is present.
   // If the ims subscription is not present, take the first of the default ifcs
   // found from searching each IRS associated with the IMPI on the PPR.
-  // TODO - THIS IS INCORRECT AS THE CORRECT DEFAULT ID MUST BE FOUND
+  // TODO - THIS IS INCORRECT AS THE CORRECT DEFAULT ID MUST BE FOUND.
   // CURRENTLY THIS CANNOT BE FIXED AS THE CODE IS BROKEN.
   std::string default_public_id;
   if (_ims_sub_present)

@@ -2756,6 +2756,8 @@ TEST_F(HandlersTest, IMSSubscriptionHSS_ReregCacheNotallowed)
   reg_data_template(req, true, true, false, RegistrationState::REGISTERED, 2, 7200);
 }
 
+// Test that the correct default id (the first unbarred public id) is used when
+// putting data into the cache.
 TEST_F(HandlersTest, IMSSubscriptionIncludesBarring)
 {
   MockHttpStack::Request req = make_request("reg", true, true, false);
@@ -2852,7 +2854,7 @@ TEST_F(HandlersTest, WildcardLoopDetected)
 // Test that receiving wildcard information on a request that doesn't generate
 // a SAR of a useful type still works, but doesn't have a wildcard AVP on the
 // initial SAR. Note - this isn't a realistic request; Homestead shouldn't
-// reeeive a request of this type; this UT checks that we handle this
+// receive a request of this type; this UT checks that we handle this
 // gracefully.
 TEST_F(HandlersTest, WildcardOnInappropriateRequest)
 {
