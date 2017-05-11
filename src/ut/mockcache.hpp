@@ -56,16 +56,19 @@ public:
   //
   // Methods that create cache request objects.
   //
-  MOCK_METHOD3(create_PutRegData,
+  MOCK_METHOD4(create_PutRegData,
                PutRegData*(const std::string& public_id,
+                           const std::string& default_public_id,
                            const int64_t timestamp,
                            const int32_t ttl));
-  MOCK_METHOD3(create_PutRegData,
+  MOCK_METHOD4(create_PutRegData,
                PutRegData*(const std::vector<std::string>& public_ids,
+                           const std::string& default_public_id,
                            const int64_t timestamp,
                            const int32_t ttl));
-  MOCK_METHOD4(create_PutAssociatedPrivateID,
+  MOCK_METHOD5(create_PutAssociatedPrivateID,
                PutAssociatedPrivateID*(const std::vector<std::string>& impus,
+                                       const std::string& default_public_id,
                                        const std::string& impi,
                                        const int64_t timestamp,
                                        const int32_t ttl));
@@ -149,7 +152,7 @@ public:
   //
   class MockPutRegData : public PutRegData, public MockOperationMixin
   {
-    MockPutRegData() : PutRegData("", 0, 0) {}
+    MockPutRegData() : PutRegData("", "", 0, 0) {}
     virtual ~MockPutRegData() {}
 
     MOCK_METHOD1(with_xml, PutRegData&(const std::string& xml));
@@ -160,7 +163,7 @@ public:
 
   class MockPutAssociatedPrivateID : public PutAssociatedPrivateID, public MockOperationMixin
   {
-    MockPutAssociatedPrivateID() : PutAssociatedPrivateID({}, "", 0, 0) {}
+    MockPutAssociatedPrivateID() : PutAssociatedPrivateID({}, "", "", 0, 0) {}
     virtual ~MockPutAssociatedPrivateID() {}
   };
 

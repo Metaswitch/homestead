@@ -222,8 +222,17 @@ std::vector<std::string> get_public_ids(const std::string& user_data)
   return get_public_and_default_ids(user_data, unused_default_id);
 }
 
+// Parses the given User-Data XML to retrieve the default public ID (the first
+// unbarred public ID).
+void get_default_id(const std::string& user_data,
+                    std::string &default_id)
+{
+  std::vector<std::string> unused_public_ids;
+  unused_public_ids = get_public_and_default_ids(user_data, default_id);
+}
+
 // Parses the given User-Data XML to retrieve a list of all the public IDs, and
-// the default id (the first unbarred public ID).
+// the default public ID (the first unbarred public ID).
 std::vector<std::string> get_public_and_default_ids(const std::string &user_data,
                                                     std::string &default_id)
 {
