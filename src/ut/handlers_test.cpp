@@ -4880,7 +4880,7 @@ TEST_F(HandlersTest, PushProfileCacheFailure)
   task->_msg._stack = _mock_stack;
   task->_ppr._stack = _mock_stack;
 
-  // Once the task's run funtion is called, we expect to search the cache to
+  // Once the task's run function is called, we expect to search the cache to
   // check the default id hasn't changed.
   MockCache::MockGetAssociatedPrimaryPublicIDs mock_op;
   EXPECT_CALL(*_cache, create_GetAssociatedPrimaryPublicIDs(IMPI))

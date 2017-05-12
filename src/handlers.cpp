@@ -1709,7 +1709,6 @@ void ImpuRegDataTask::put_in_cache()
     event.add_var_param(_charging_addrs.log_string());
     SAS::report_event(event);
 
-
     Cache::PutRegData* put_reg_data = _cache->create_PutRegData(public_ids,
                                                                 default_public_id,
                                                                 Cache::generate_timestamp(),
@@ -2378,14 +2377,15 @@ void PushProfileTask::run()
   _ims_sub_present = _ppr.user_data(_ims_subscription);
   _charging_addrs_present = _ppr.charging_addrs(_charging_addrs);
 
-  // If we have charging addresses but no IMS subscription, we need
-  // to lookup which public IDs need updating based on the private ID
-  // specified in the PPR.
+  // If we have charging addresses but no IMS subscription, we need to lookup
+  // which public IDs need updating based on the private ID specified in the
+  // PPR.
   // If we have no charging addresses or IMS subscription, no actions need to be
   // taken, so send a PPA saying the PPR was successfully handled.
   // Otherwise, we have an IMS subscription, so we need to lookup the default
-  // public ids for any IRS the IMPI is part of to determine this PPR won't
-  // change the default public id. If it will, reject it, otherwise continue.
+  // public ids for any IRS the IMPI is part of to determine whether this PPR
+  // will change the default public id. If it will, reject it, otherwise
+  // continue.
   _impi = _ppr.impi();
   if ((_charging_addrs_present) && (!_ims_sub_present))
   {
@@ -2435,6 +2435,7 @@ void PushProfileTask::on_get_impus_success(CassandraStore::Operation* op)
                 impus_str.c_str(), _impi.c_str());
       // LCOV_EXCL_STOP
     }
+
     // At this point we have the list of public ids, but we still need to dip
     // into the cache again to get the default id to use.
     CassandraStore::Operation* get_current_default =
@@ -2576,7 +2577,7 @@ void PushProfileTask::on_get_primary_impus_success(CassandraStore::Operation* op
   {
     TRC_INFO("No cached default public IDs found for private ID %s - failed to "
              "update charging addresses", _impi.c_str());
-    SAS::Event event(this->trail(), SASEvent::CACHE_GET_ASSOC_DEF_IMPU_FAIL, 0);
+    SAS::Event event(this->trail(), SASEvent::CACHE_GET_ASSOC_DEF_IMPU_FAIL, 1);
     SAS::report_event(event);
     send_ppa(DIAMETER_REQ_FAILURE);
     return;
@@ -2600,11 +2601,14 @@ void PushProfileTask::on_get_primary_impus_success(CassandraStore::Operation* op
         break;
       }
     }
+
     if (!impu_match_found)
     {
       TRC_INFO("The default id of the PPR doesn't match a default id already "
                "known be belong to the IMPI %s - reject the PPR", _impi.c_str());
-      SAS::Event event(this->trail(), SASEvent::CHANGE_IMPU_PPR, 0);
+      SAS::Event event(this->trail(), SASEvent::PPR_CHANGE_DEFAULT_IMPU, 0);
+      event.add_var_param(_impi);
+      event.add_var_param(new_default_id);
       SAS::report_event(event);
       send_ppa(DIAMETER_REQ_FAILURE);
       return;
