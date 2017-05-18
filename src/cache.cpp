@@ -90,20 +90,24 @@ Cache::~Cache() {}
 
 Cache::PutRegData::
 PutRegData(const std::string& public_id,
+           const std::string& default_public_id,
            const int64_t timestamp,
            const int32_t ttl):
   CassandraStore::Operation(),
   _public_ids(1, public_id),
+  _default_public_id(default_public_id),
   _timestamp(timestamp),
   _ttl(ttl)
 {}
 
 Cache::PutRegData::
 PutRegData(const std::vector<std::string>& public_ids,
+           const std::string& default_public_id,
            const int64_t timestamp,
            const int32_t ttl):
   CassandraStore::Operation(),
   _public_ids(public_ids),
+  _default_public_id(default_public_id),
   _timestamp(timestamp),
   _ttl(ttl)
 {}
@@ -147,8 +151,7 @@ Cache::PutRegData& Cache::PutRegData::with_associated_impis(const std::vector<st
     _columns[column_name] = "";
 
     std::map<std::string, std::string> impi_columns;
-    std::vector<std::string>::iterator default_public_id = _public_ids.begin();
-    impi_columns[IMPI_MAPPING_PREFIX + *default_public_id] = "";
+    impi_columns[IMPI_MAPPING_PREFIX + _default_public_id] = "";
     _to_put.push_back(CassandraStore::RowColumns(IMPI_MAPPING, *impi, impi_columns));
   }
   return *this;
@@ -211,11 +214,13 @@ bool Cache::PutRegData::perform(CassandraStore::Client* client,
 
 Cache::PutAssociatedPrivateID::
 PutAssociatedPrivateID(const std::vector<std::string>& impus,
+                       const std::string& default_public_id,
                        const std::string& impi,
                        const int64_t timestamp,
                        const int32_t ttl) :
   CassandraStore::Operation(),
   _impus(impus),
+  _default_public_id(default_public_id),
   _impi(impi),
   _timestamp(timestamp),
   _ttl(ttl)
@@ -235,8 +240,7 @@ bool Cache::PutAssociatedPrivateID::perform(CassandraStore::Client* client,
   std::map<std::string, std::string> impi_columns;
   impu_columns[IMPI_COLUMN_PREFIX + _impi] = "";
 
-  std::string default_public_id = _impus.front();
-  impi_columns[IMPI_MAPPING_PREFIX + default_public_id] = "";
+  impi_columns[IMPI_MAPPING_PREFIX + _default_public_id] = "";
   to_put.push_back(CassandraStore::RowColumns(IMPI_MAPPING, _impi, impi_columns));
 
   for (std::vector<std::string>::iterator row = _impus.begin();

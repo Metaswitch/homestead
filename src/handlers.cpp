@@ -1294,9 +1294,12 @@ void ImpuRegDataTask::on_get_reg_data_success(CassandraStore::Operation* op)
       TRC_DEBUG("Associating private identity %s to IRS for %s",
                 _impi.c_str(),
                 _impu.c_str());
-      std::vector<std::string> public_ids = XmlUtils::get_public_ids(_xml);
+      std::string default_public_id;
+      std::vector<std::string> public_ids =
+        XmlUtils::get_public_and_default_ids(_xml, default_public_id);
       CassandraStore::Operation* put_associated_private_id =
         _cache->create_PutAssociatedPrivateID(public_ids,
+                                              default_public_id,
                                               _impi,
                                               Cache::generate_timestamp(),
                                               _cfg->record_ttl);
@@ -1649,7 +1652,9 @@ void ImpuRegDataTask::put_in_cache()
   }
 
   TRC_DEBUG("Attempting to cache IMS subscription for public IDs");
-  std::vector<std::string> public_ids = XmlUtils::get_public_ids(_xml);
+  std::string default_public_id;
+  std::vector<std::string> public_ids =
+    XmlUtils::get_public_and_default_ids(_xml, default_public_id);
   if (!public_ids.empty())
   {
     TRC_DEBUG("Got public IDs to cache against - doing it");
@@ -1705,6 +1710,7 @@ void ImpuRegDataTask::put_in_cache()
     SAS::report_event(event);
 
     Cache::PutRegData* put_reg_data = _cache->create_PutRegData(public_ids,
+                                                                default_public_id,
                                                                 Cache::generate_timestamp(),
                                                                 ttl);
     put_reg_data->with_xml(_xml);
@@ -2371,12 +2377,18 @@ void PushProfileTask::run()
   _ims_sub_present = _ppr.user_data(_ims_subscription);
   _charging_addrs_present = _ppr.charging_addrs(_charging_addrs);
 
-  // If we have charging addresses but no IMS subscription, we need
-  // to lookup which public IDs need updating based on the private ID
-  // specified in the PPR.
+  // If we have charging addresses but no IMS subscription, we need to lookup
+  // which public IDs need updating based on the private ID specified in the
+  // PPR.
+  // If we have no charging addresses or IMS subscription, no actions need to be
+  // taken, so send a PPA saying the PPR was successfully handled.
+  // Otherwise, we have an IMS subscription, so we need to lookup the default
+  // public ids for any IRS the IMPI is part of to determine whether this PPR
+  // will change the default public id. If it will, reject it, otherwise
+  // continue.
+  _impi = _ppr.impi();
   if ((_charging_addrs_present) && (!_ims_sub_present))
   {
-    _impi = _ppr.impi();
     TRC_DEBUG("Querying cache to find public IDs associated with %s", _impi.c_str());
     SAS::Event event(this->trail(), SASEvent::CACHE_GET_ASSOC_IMPU, 0);
     event.add_var_param(_impi);
@@ -2389,9 +2401,19 @@ void PushProfileTask::run()
                            &PushProfileTask::on_get_impus_failure);
     _cfg->cache->do_async(get_public_ids, tsx);
   }
+  else if ((!_charging_addrs_present) && (!_ims_sub_present))
+  {
+    send_ppa(DIAMETER_REQ_SUCCESS);
+  }
   else
   {
-    update_reg_data();
+    CassandraStore::Operation* get_current_default =
+      _cfg->cache->create_GetAssociatedPrimaryPublicIDs(_impi);
+    CassandraStore::Transaction* tsx =
+      new CacheTransaction(this,
+                           &PushProfileTask::on_get_primary_impus_success,
+                           &PushProfileTask::on_get_primary_impus_failure);
+    _cfg->cache->do_async(get_current_default, tsx);
   }
 }
 
@@ -2413,7 +2435,16 @@ void PushProfileTask::on_get_impus_success(CassandraStore::Operation* op)
                 impus_str.c_str(), _impi.c_str());
       // LCOV_EXCL_STOP
     }
-    update_reg_data();
+
+    // At this point we have the list of public ids, but we still need to dip
+    // into the cache again to get the default id to use.
+    CassandraStore::Operation* get_current_default =
+      _cfg->cache->create_GetAssociatedPrimaryPublicIDs(_impi);
+    CassandraStore::Transaction* tsx =
+      new CacheTransaction(this,
+                           &PushProfileTask::on_get_primary_impus_success,
+                           &PushProfileTask::on_get_primary_impus_failure);
+    _cfg->cache->do_async(get_current_default, tsx);
   }
   else
   {
@@ -2437,85 +2468,156 @@ void PushProfileTask::on_get_impus_failure(CassandraStore::Operation* op,
 
 void PushProfileTask::update_reg_data()
 {
-  if ((_ims_sub_present) || (_charging_addrs_present))
+  // If we don't have any public IDs yet, we need to get them
+  // out of the IMS subscription.
+  if (_impus.empty())
   {
-    // If we don't have any public IDs yet, we need to get them
-    // out of the IMS subscription.
-    if (_impus.empty())
+    _impus = XmlUtils::get_public_ids(_ims_subscription);
+
+    // We should check the IRS contains a SIP URI and throw an error log if
+    // it doesn't. We continue as normal even if it doesn't.
+    bool found_sip_uri = false;
+
+    for (std::vector<std::string>::iterator it = _impus.begin();
+        (it != _impus.end()) && (!found_sip_uri);
+         ++it)
     {
-      _impus = XmlUtils::get_public_ids(_ims_subscription);
-
-      // We should check the IRS contains a SIP URI and throw an error log if
-      // it doesn't. We continue as normal even if it doesn't.
-      bool found_sip_uri = false;
-
-      for (std::vector<std::string>::iterator it = _impus.begin();
-           (it != _impus.end()) && (!found_sip_uri);
-           ++it)
+      if ((*it).compare(0, SIP_URI_PRE.length(), SIP_URI_PRE) == 0)
       {
-        if ((*it).compare(0, SIP_URI_PRE.length(), SIP_URI_PRE) == 0)
-        {
-          found_sip_uri = true;
-        }
-      }
-
-      if (!found_sip_uri)
-      {
-        TRC_ERROR("No SIP URI in Implicit Registration Set");
-        SAS::Event event(this->trail(), SASEvent::NO_SIP_URI_IN_IRS, 0);
-        event.add_compressed_param(_ims_subscription, &SASEvent::PROFILE_SERVICE_PROFILE);
-        SAS::report_event(event);
+        found_sip_uri = true;
       }
     }
 
-    Cache::PutRegData* put_reg_data =
-      _cfg->cache->create_PutRegData(_impus,
-                                     Cache::generate_timestamp(),
-                                     _cfg->record_ttl);
-    SAS::Event event(this->trail(), SASEvent::CACHE_PUT_REG_DATA, 0);
-
-    std::string impus_str = boost::algorithm::join(_impus, ", ");
-    event.add_var_param(impus_str);
-
-    if (_ims_sub_present)
+    if (!found_sip_uri)
     {
-      TRC_INFO("Updating IMS subscription from PPR");
-      put_reg_data->with_xml(_ims_subscription);
+      TRC_ERROR("No SIP URI in Implicit Registration Set");
+      SAS::Event event(this->trail(), SASEvent::NO_SIP_URI_IN_IRS, 0);
       event.add_compressed_param(_ims_subscription, &SASEvent::PROFILE_SERVICE_PROFILE);
+      SAS::report_event(event);
     }
-    else
-    {
-      event.add_compressed_param("IMS subscription unchanged", &SASEvent::PROFILE_SERVICE_PROFILE);
-    }
+  }
 
-    event.add_static_param(RegistrationState::UNCHANGED);
-    event.add_var_param("");
-
-    if (_charging_addrs_present)
-    {
-      TRC_INFO("Updating charging addresses from PPR");
-      event.add_var_param(_charging_addrs.log_string());
-      put_reg_data->with_charging_addrs(_charging_addrs);
-    }
-    else
-    {
-      event.add_var_param("Charging addresses unchanged");
-    }
-
-    CassandraStore::Transaction* tsx =
-      new CacheTransaction(this,
-                           &PushProfileTask::update_reg_data_success,
-                           &PushProfileTask::update_reg_data_failure);
-    CassandraStore::Operation*& op = (CassandraStore::Operation*&)put_reg_data;
-    _cfg->cache->do_async(op, tsx);
-
-    SAS::report_event(event);
-
+  // Get the default public id from the ims subscription if it is present.
+  // If the ims subscription is not present, take the first of the default ifcs
+  // found from searching each IRS associated with the IMPI on the PPR.
+  // TODO - THIS IS INCORRECT AS THE CORRECT DEFAULT ID MUST BE FOUND.
+  // CURRENTLY THIS CANNOT BE FIXED AS THE CODE IS BROKEN.
+  std::string default_public_id;
+  if (_ims_sub_present)
+  {
+    XmlUtils::get_default_id(_ims_subscription, default_public_id);
   }
   else
   {
-    send_ppa(DIAMETER_REQ_SUCCESS);
+    default_public_id = _default_impus.front();
   }
+
+  Cache::PutRegData* put_reg_data =
+    _cfg->cache->create_PutRegData(_impus,
+                                   default_public_id,
+                                   Cache::generate_timestamp(),
+                                   _cfg->record_ttl);
+  SAS::Event event(this->trail(), SASEvent::CACHE_PUT_REG_DATA, 0);
+
+  std::string impus_str = boost::algorithm::join(_impus, ", ");
+  event.add_var_param(impus_str);
+
+  if (_ims_sub_present)
+  {
+    TRC_INFO("Updating IMS subscription from PPR");
+    put_reg_data->with_xml(_ims_subscription);
+    event.add_compressed_param(_ims_subscription, &SASEvent::PROFILE_SERVICE_PROFILE);
+  }
+  else
+  {
+    event.add_compressed_param("IMS subscription unchanged", &SASEvent::PROFILE_SERVICE_PROFILE);
+  }
+
+  event.add_static_param(RegistrationState::UNCHANGED);
+  event.add_var_param("");
+
+  if (_charging_addrs_present)
+  {
+    TRC_INFO("Updating charging addresses from PPR");
+    event.add_var_param(_charging_addrs.log_string());
+    put_reg_data->with_charging_addrs(_charging_addrs);
+  }
+  else
+  {
+    event.add_var_param("Charging addresses unchanged");
+  }
+
+  CassandraStore::Transaction* tsx =
+    new CacheTransaction(this,
+                         &PushProfileTask::update_reg_data_success,
+                         &PushProfileTask::update_reg_data_failure);
+  CassandraStore::Operation*& op = (CassandraStore::Operation*&)put_reg_data;
+  _cfg->cache->do_async(op, tsx);
+
+  SAS::report_event(event);
+}
+
+void PushProfileTask::on_get_primary_impus_failure(CassandraStore::Operation* op,
+                                                   CassandraStore::ResultCode error,
+                                                   std::string& text)
+{
+  SAS::Event event(this->trail(), SASEvent::CACHE_GET_ASSOC_DEF_IMPU_FAIL, 0);
+  SAS::report_event(event);
+  TRC_DEBUG("Cache query failed with rc %d", error);
+  send_ppa(DIAMETER_REQ_FAILURE);
+}
+
+void PushProfileTask::on_get_primary_impus_success(CassandraStore::Operation* op)
+{
+  Cache::GetAssociatedPrimaryPublicIDs* get_primary_public_ids =
+    (Cache::GetAssociatedPrimaryPublicIDs*)op;
+  get_primary_public_ids->get_result(_default_impus);
+
+  if (_default_impus.empty())
+  {
+    TRC_INFO("No cached default public IDs found for private ID %s - failed to "
+             "update charging addresses", _impi.c_str());
+    SAS::Event event(this->trail(), SASEvent::CACHE_GET_ASSOC_DEF_IMPU_FAIL, 1);
+    SAS::report_event(event);
+    send_ppa(DIAMETER_REQ_FAILURE);
+    return;
+  }
+
+  // We can only look for a match if an IMS Subscription was present on the PPR.
+  if (_ims_sub_present)
+  {
+    // Attempt to find a match between any of the default ids of the sets the
+    // private id corresponds to, and the default id in the PPR. If no match is
+    // found the PPR is changing the default id (which is not permitted), so
+    // reject it. Otherwise, continue.
+    std::string new_default_id;
+    XmlUtils::get_default_id(_ims_subscription, new_default_id);
+    bool impu_match_found = false;
+    for (std::string current_default_id : _default_impus)
+    {
+      if (current_default_id == new_default_id)
+      {
+        impu_match_found = true;
+        break;
+      }
+    }
+
+    if (!impu_match_found)
+    {
+      TRC_INFO("The default id of the PPR doesn't match a default id already "
+               "known be belong to the IMPI %s - reject the PPR", _impi.c_str());
+      SAS::Event event(this->trail(), SASEvent::PPR_CHANGE_DEFAULT_IMPU, 0);
+      event.add_var_param(_impi);
+      event.add_var_param(new_default_id);
+      SAS::report_event(event);
+      send_ppa(DIAMETER_REQ_FAILURE);
+      return;
+    }
+  }
+
+  // If we've reached this point, we can safely update the reg data in the
+  // knowledge it will not change the default public identity.
+  update_reg_data();
 }
 
 void PushProfileTask::update_reg_data_success(CassandraStore::Operation* op)
