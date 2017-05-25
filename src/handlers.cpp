@@ -190,14 +190,6 @@ void ImpiTask::on_get_av_failure(CassandraStore::Operation* op,
     TRC_DEBUG("No cached av found for private ID %s, public ID %s - reject", _impi.c_str(), _impu.c_str());
     send_http_reply(HTTP_NOT_FOUND);
   }
-  else if (error == CassandraStore::CONNECTION_ERROR)
-  {
-    // If the cache error is a failure to connect to the local Cassandra,
-    // then we want Sprout to retry the request to another Homestead (as this
-    // could be a local issue to the node). Send a 503.
-    TRC_DEBUG("Cache query failed: unable to connect to local Cassandra");
-    send_http_reply(HTTP_SERVER_UNAVAILABLE);
-  }
   else
   {
     // Send a 504 in all other cases (the request won't be retried)

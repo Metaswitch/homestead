@@ -4795,7 +4795,7 @@ TEST_F(HandlerStatsTest, DigestCacheConnectionFailure)
   ASSERT_FALSE(t == NULL);
 
   // Cache latency stats are updated when the transaction fails.
-  EXPECT_CALL(*_httpstack, send_reply(_, 503,  _));
+  EXPECT_CALL(*_httpstack, send_reply(_, 504,  _));
   EXPECT_CALL(*_stats, update_H_cache_latency_us(_));
 
   mock_op._cass_status = CassandraStore::CONNECTION_ERROR;
