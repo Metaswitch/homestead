@@ -179,6 +179,7 @@ get_daemon_args()
 
         [ "$http_blacklist_duration" = "" ]     || DAEMON_ARGS="$DAEMON_ARGS --http-blacklist-duration=$http_blacklist_duration"
         [ "$diameter_blacklist_duration" = "" ] || DAEMON_ARGS="$DAEMON_ARGS --diameter-blacklist-duration=$diameter_blacklist_duration"
+        [ "$dns_timeout" = "" ]                 || DAEMON_ARGS="$DAEMON_ARGS --dns-timeout=$dns_timeout"
 }
 
 #
