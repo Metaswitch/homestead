@@ -302,7 +302,7 @@ bool Cache::PutAuthVector::perform(CassandraStore::Client* client,
 
 Cache::GetRegData::
 GetRegData(const std::string& public_id) :
-  CassandraStore::Operation(),
+  CassandraStore::HAOperation(),
   _public_id(public_id),
   _xml(),
   _reg_state(RegistrationState::NOT_REGISTERED),
@@ -327,7 +327,7 @@ bool Cache::GetRegData::perform(CassandraStore::Client* client,
 
   try
   {
-    client->ha_get_all_columns(IMPU, _public_id, results, trail);
+    ha_get_all_columns(client, IMPU, _public_id, results, trail);
 
     for(std::vector<ColumnOrSuperColumn>::iterator it = results.begin(); it != results.end(); ++it)
     {
@@ -484,7 +484,7 @@ void Cache::GetRegData::get_result(Cache::GetRegData::Result& result)
 
 Cache::GetAssociatedPublicIDs::
 GetAssociatedPublicIDs(const std::string& private_id) :
-  CassandraStore::Operation(),
+  CassandraStore::HAOperation(),
   _private_ids(1, private_id),
   _public_ids()
 {}
@@ -492,7 +492,7 @@ GetAssociatedPublicIDs(const std::string& private_id) :
 
 Cache::GetAssociatedPublicIDs::
 GetAssociatedPublicIDs(const std::vector<std::string>& private_ids) :
-  CassandraStore::Operation(),
+  CassandraStore::HAOperation(),
   _private_ids(private_ids),
   _public_ids()
 {}
@@ -514,11 +514,12 @@ bool Cache::GetAssociatedPublicIDs::perform(CassandraStore::Client* client,
             _private_ids.size());
   try
   {
-    client->ha_multiget_columns_with_prefix(IMPI,
-                                            _private_ids,
-                                            ASSOC_PUBLIC_ID_COLUMN_PREFIX,
-                                            columns,
-                                            trail);
+    ha_multiget_columns_with_prefix(client,
+                                    IMPI,
+                                    _private_ids,
+                                    ASSOC_PUBLIC_ID_COLUMN_PREFIX,
+                                    columns,
+                                    trail);
   }
   catch(CassandraStore::RowNotFoundException& rnfe)
   {
@@ -559,14 +560,14 @@ void Cache::GetAssociatedPublicIDs::get_result(std::vector<std::string>& ids)
 
 Cache::GetAssociatedPrimaryPublicIDs::
 GetAssociatedPrimaryPublicIDs(const std::string& private_id) :
-  CassandraStore::Operation(),
+  CassandraStore::HAOperation(),
   _private_ids(1, private_id),
   _public_ids()
 {}
 
 Cache::GetAssociatedPrimaryPublicIDs::
 GetAssociatedPrimaryPublicIDs(const std::vector<std::string>& private_ids) :
-  CassandraStore::Operation(),
+  CassandraStore::HAOperation(),
   _private_ids(private_ids),
   _public_ids()
 {}
@@ -581,11 +582,12 @@ bool Cache::GetAssociatedPrimaryPublicIDs::perform(CassandraStore::Client* clien
   TRC_DEBUG("Looking for primary public IDs for private ID %s and %d others", _private_ids.front().c_str(), _private_ids.size());
   try
   {
-    client->ha_multiget_columns_with_prefix(IMPI_MAPPING,
-                                            _private_ids,
-                                            IMPI_MAPPING_PREFIX,
-                                            columns,
-                                            trail);
+    ha_multiget_columns_with_prefix(client,
+                                    IMPI_MAPPING,
+                                    _private_ids,
+                                    IMPI_MAPPING_PREFIX,
+                                    columns,
+                                    trail);
   }
   catch(CassandraStore::RowNotFoundException& rnfe)
   {
@@ -622,7 +624,7 @@ void Cache::GetAssociatedPrimaryPublicIDs::get_result(std::vector<std::string>& 
 
 Cache::GetAuthVector::
 GetAuthVector(const std::string& private_id) :
-  CassandraStore::Operation(),
+  CassandraStore::HAOperation(),
   _private_id(private_id),
   _public_id(""),
   _auth_vector()
@@ -632,7 +634,7 @@ GetAuthVector(const std::string& private_id) :
 Cache::GetAuthVector::
 GetAuthVector(const std::string& private_id,
               const std::string& public_id) :
-  CassandraStore::Operation(),
+  CassandraStore::HAOperation(),
   _private_id(private_id),
   _public_id(public_id),
   _auth_vector()
@@ -671,7 +673,7 @@ bool Cache::GetAuthVector::perform(CassandraStore::Client* client,
 
   TRC_DEBUG("Issuing cache query");
   std::vector<ColumnOrSuperColumn> results;
-  client->ha_get_columns(IMPI, _private_id, requested_columns, results, trail);
+  ha_get_columns(client, IMPI, _private_id, requested_columns, results, trail);
 
   for (std::vector<ColumnOrSuperColumn>::const_iterator it = results.begin();
        it != results.end();
@@ -862,7 +864,7 @@ Cache::DissociateImplicitRegistrationSetFromImpi::
 DissociateImplicitRegistrationSetFromImpi(const std::vector<std::string>& impus,
                                           const std::string& impi,
                                           int64_t timestamp) :
-  CassandraStore::Operation(),
+  CassandraStore::HAOperation(),
   _impus(impus),
   _timestamp(timestamp)
 {
@@ -873,7 +875,7 @@ Cache::DissociateImplicitRegistrationSetFromImpi::
 DissociateImplicitRegistrationSetFromImpi(const std::vector<std::string>& impus,
                                           const std::vector<std::string>& impis,
                                           int64_t timestamp) :
-  CassandraStore::Operation(),
+  CassandraStore::HAOperation(),
   _impus(impus),
   _impis(impis),
   _timestamp(timestamp)
@@ -907,11 +909,12 @@ bool Cache::DissociateImplicitRegistrationSetFromImpi::perform(CassandraStore::C
   // to check the first)
 
   std::vector<ColumnOrSuperColumn> columns;
-  client->ha_get_columns_with_prefix(IMPU,
-                                     primary_public_id,
-                                     IMPI_COLUMN_PREFIX,
-                                     columns,
-                                     trail);
+  ha_get_columns_with_prefix(client,
+                             IMPU,
+                             primary_public_id,
+                             IMPI_COLUMN_PREFIX,
+                             columns,
+                             trail);
   TRC_DEBUG("%d IMPIs are associated with this IRS", columns.size());
 
   std::set<std::string> associated_impis_set;
