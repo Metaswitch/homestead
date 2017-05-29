@@ -665,6 +665,7 @@ ServerAssignmentRequest::ServerAssignmentRequest(const Dictionary* dict,
                                                  const std::string& impu,
                                                  const std::string& server_name,
                                                  const Cx::ServerAssignmentType type,
+                                                 const bool support_shared_ifcs,
                                                  const std::string& wildcard) :
                                                  Diameter::Message(dict, dict->SERVER_ASSIGNMENT_REQUEST, stack)
 {
@@ -673,30 +674,39 @@ ServerAssignmentRequest::ServerAssignmentRequest(const Dictionary* dict,
   add_app_id(Diameter::Dictionary::Application::AUTH, dict->TGPP, dict->CX);
   add(Diameter::AVP(dict->AUTH_SESSION_STATE).val_i32(1));
   add_origin();
+
   if (!dest_host.empty())
   {
     add(Diameter::AVP(dict->DESTINATION_HOST).val_str(dest_host));
   }
+
   add(Diameter::AVP(dict->DESTINATION_REALM).val_str(dest_realm));
+
   if (!impi.empty())
   {
     TRC_DEBUG("Specifying User-Name %s", impi.c_str());
     add(Diameter::AVP(dict->USER_NAME).val_str(impi));
   }
+
   add(Diameter::AVP(dict->PUBLIC_IDENTITY).val_str(impu));
   add(Diameter::AVP(dict->SERVER_NAME).val_str(server_name));
   add(Diameter::AVP(dict->SERVER_ASSIGNMENT_TYPE).val_i32(type));
   add(Diameter::AVP(dict->USER_DATA_ALREADY_AVAILABLE).val_i32(0));
+
   if ((!wildcard.empty()) && (include_wildcard_on_sar(type)))
   {
     TRC_DEBUG("Including wildcarded public identity %s on SAR", wildcard.c_str());
     add(Diameter::AVP(dict->WILDCARDED_PUBLIC_IDENTITY).val_str(wildcard));
   }
-  Diameter::AVP supported_features(dict->SUPPORTED_FEATURES);
-  supported_features.add(Diameter::AVP(dict->VENDOR_ID).val_u32(10415));
-  supported_features.add(Diameter::AVP(dict->FEATURE_LIST_ID).val_u32(1));
-  supported_features.add(Diameter::AVP(dict->FEATURE_LIST).val_u32(1));
-  add(supported_features);
+
+  if (support_shared_ifcs)
+  {
+    Diameter::AVP supported_features(dict->SUPPORTED_FEATURES);
+    supported_features.add(Diameter::AVP(dict->VENDOR_ID).val_u32(10415));
+    supported_features.add(Diameter::AVP(dict->FEATURE_LIST_ID).val_u32(1));
+    supported_features.add(Diameter::AVP(dict->FEATURE_LIST).val_u32(1));
+    add(supported_features);
+  }
 }
 
 ServerAssignmentAnswer::ServerAssignmentAnswer(const Dictionary* dict,

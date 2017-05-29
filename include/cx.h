@@ -264,6 +264,7 @@ public:
                           const std::string& impu,
                           const std::string& server_name,
                           const Cx::ServerAssignmentType type,
+                          const bool support_shared_ifcs,
                           const std::string& wildcard = "");
   inline ServerAssignmentRequest(Diameter::Message& msg) : Diameter::Message(msg) {};
 
