@@ -1,37 +1,12 @@
 /**
  * @file main.cpp main function for homestead
  *
- * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2013  Metaswitch Networks Ltd
- *
- * This program is free software: you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the
- * Free Software Foundation, either version 3 of the License, or (at your
- * option) any later version, along with the "Special Exception" for use of
- * the program along with SSL, set forth below. This program is distributed
- * in the hope that it will be useful, but WITHOUT ANY WARRANTY;
- * without even the implied warranty of MERCHANTABILITY or FITNESS FOR
- * A PARTICULAR PURPOSE.  See the GNU General Public License for more
- * details. You should have received a copy of the GNU General Public
- * License along with this program.  If not, see
- * <http://www.gnu.org/licenses/>.
- *
- * The author can be reached by email at clearwater@metaswitch.com or by
- * post at Metaswitch Networks Ltd, 100 Church St, Enfield EN2 6BQ, UK
- *
- * Special Exception
- * Metaswitch Networks Ltd  grants you permission to copy, modify,
- * propagate, and distribute a work formed by combining OpenSSL with The
- * Software, or a work derivative of such a combination, even if such
- * copying, modification, propagation, or distribution would otherwise
- * violate the terms of the GPL. You must comply with the GPL in all
- * respects for all of the code used other than OpenSSL.
- * "OpenSSL" means OpenSSL toolkit software distributed by the OpenSSL
- * Project and licensed under the OpenSSL Licenses, or a work based on such
- * software and licensed under the OpenSSL Licenses.
- * "OpenSSL Licenses" means the OpenSSL License and Original SSLeay License
- * under which the OpenSSL Project distributes the OpenSSL toolkit software,
- * as those licenses appear in the file LICENSE-OPENSSL.
+ * Copyright (C) Metaswitch Networks 2017
+ * If license terms are provided to you in a COPYING file in the root directory
+ * of the source code repository by which you are accessing this code, then
+ * the license outlined in that COPYING file applies to your use.
+ * Otherwise no rights are granted except for those provided to you by
+ * Metaswitch Networks in a separate written agreement.
  */
 
 #include <getopt.h>
@@ -105,6 +80,7 @@ struct options
   int exception_max_ttl;
   int http_blacklist_duration;
   int diameter_blacklist_duration;
+  int dns_timeout;
   std::string pidfile;
   bool daemon;
   bool sas_signaling_if;
@@ -129,6 +105,7 @@ enum OptionTypes
   EXCEPTION_MAX_TTL,
   HTTP_BLACKLIST_DURATION,
   DIAMETER_BLACKLIST_DURATION,
+  DNS_TIMEOUT,
   FORCE_HSS_PEER,
   SAS_USE_SIGNALING_IF,
   SUPPORT_SHARED_IFCS,
@@ -173,6 +150,7 @@ const static struct option long_opt[] =
   {"exception-max-ttl",           required_argument, NULL, EXCEPTION_MAX_TTL},
   {"http-blacklist-duration",     required_argument, NULL, HTTP_BLACKLIST_DURATION},
   {"diameter-blacklist-duration", required_argument, NULL, DIAMETER_BLACKLIST_DURATION},
+  {"dns-timeout",                 required_argument, NULL, DNS_TIMEOUT},
   {"pidfile",                     required_argument, NULL, PIDFILE},
   {"daemon",                      no_argument,       NULL, DAEMON},
   {"sas-use-signaling-interface", no_argument,       NULL, SAS_USE_SIGNALING_IF},
@@ -240,6 +218,8 @@ void usage(void)
        "                            The amount of time to blacklist an HTTP peer when it is unresponsive.\n"
        "     --diameter-blacklist-duration <secs>\n"
        "                            The amount of time to blacklist a Diameter peer when it is unresponsive.\n"
+       "     --dns-timeout <milliseconds>\n"
+       "                            The amount of time to wait for a DNS response (default: 200)n"
        "     --support-shared-ifcs  Indicate support for Shared IFC sets in the Supported-Features AVP.\n"
        " -F, --log-file <directory>\n"
        "                            Log to file in specified directory\n"
@@ -472,6 +452,11 @@ int init_options(int argc, char**argv, struct options& options)
                options.diameter_blacklist_duration);
       break;
 
+    case DNS_TIMEOUT:
+      options.dns_timeout = atoi(optarg);
+      TRC_INFO("DNS timeout set to %d", options.dns_timeout);
+      break;
+
     case FORCE_HSS_PEER:
       options.force_hss_peer = std::string(optarg);
       break;
@@ -581,6 +566,7 @@ int main(int argc, char**argv)
   options.exception_max_ttl = 600;
   options.http_blacklist_duration = HttpResolver::DEFAULT_BLACKLIST_DURATION;
   options.diameter_blacklist_duration = DiameterResolver::DEFAULT_BLACKLIST_DURATION;
+  options.dns_timeout = DnsCachedResolver::DEFAULT_TIMEOUT;
   options.pidfile = "";
   options.daemon = false;
   options.sas_signaling_if = false;
@@ -717,7 +703,8 @@ int main(int argc, char**argv)
                                               options.max_tokens,
                                               options.init_token_rate,
                                               options.min_token_rate);
-  DnsCachedResolver* dns_resolver = new DnsCachedResolver(options.dns_servers);
+  DnsCachedResolver* dns_resolver = new DnsCachedResolver(options.dns_servers,
+                                                          options.dns_timeout);
   HttpResolver* http_resolver = new HttpResolver(dns_resolver,
                                                  af,
                                                  options.http_blacklist_duration);
