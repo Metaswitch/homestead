@@ -638,6 +638,51 @@ TEST_F(CacheRequestTest, PutTransportThenUnknownException)
   execute_trx((CassandraStore::Operation*)put_reg_data, trx);
 }
 
+TEST_F(CacheRequestTest, PutOneTimedOutException)
+{
+  TestTransaction *trx = make_trx();
+  Cache::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", 1000);
+  put_reg_data->with_xml("<xml>");
+
+  cass::TimedOutException te;
+
+  // We should ask for 2 clients from the pool, because a timeout is retried
+  EXPECT_CALL(*_pool, get_client()).Times(2).WillRepeatedly(Return(&_client));
+
+  {
+    testing::InSequence s;
+
+    EXPECT_CALL(_client, batch_mutate(_, _)).WillOnce(Throw(te)).RetiresOnSaturation();
+    EXPECT_CALL(_resolver, success(_targets[0])).Times(1);
+    EXPECT_CALL(_client, batch_mutate(_, _)).WillOnce(Return());
+    EXPECT_CALL(_resolver, success(_targets[1])).Times(1);
+  }
+
+  EXPECT_CALL(*trx, on_success(_));
+  EXPECT_CALL(*_cm, inform_success(_));
+  execute_trx((CassandraStore::Operation*)put_reg_data, trx);
+}
+
+TEST_F(CacheRequestTest, PutTwoTimedOutExceptions)
+{
+  TestTransaction *trx = make_trx();
+  Cache::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", 1000);
+  put_reg_data->with_xml("<xml>");
+
+  cass::TimedOutException te;
+
+  // We should ask for 2 clients from the pool, because a timeout is retried
+  EXPECT_CALL(*_pool, get_client()).Times(2).WillRepeatedly(Return(&_client));
+
+  EXPECT_CALL(_resolver, success(_targets[0])).Times(1);
+  EXPECT_CALL(_resolver, success(_targets[1])).Times(1);
+  EXPECT_CALL(_client, batch_mutate(_, _)).Times(2).WillRepeatedly(Throw(te));
+
+  EXPECT_CALL(*trx, on_failure(OperationHasResult(CassandraStore::TIMEOUT)));
+  EXPECT_CALL(*_cm, inform_success(_));
+  execute_trx((CassandraStore::Operation*)put_reg_data, trx);
+}
+
 
 TEST_F(CacheRequestTest, PutInvalidRequestException)
 {
@@ -1579,6 +1624,65 @@ TEST_F(CacheRequestTest, HaGet2ndReadTimedUutException)
 
   EXPECT_CALL(*trx, on_failure(OperationHasResult(CassandraStore::NOT_FOUND)));
   execute_trx(op, trx);
+}
+
+TEST_F(CacheRequestTest, HaGetRetryUsesConsistencyOne)
+{
+  std::map<std::string, std::string> columns;
+  columns["ims_subscription_xml"] = "<howdy>";
+  columns["is_registered"] = "\x01";
+
+  std::vector<cass::ColumnOrSuperColumn> slice;
+  make_slice(slice, columns);
+
+  ResultRecorder<Cache::GetRegData, Cache::GetRegData::Result> rec;
+  RecordingTransaction* trx = make_rec_trx(&rec);
+  CassandraStore::Operation* op = _cache.create_GetRegData("kermit");
+
+  // We should ask for 2 clients from the pool, because a timeout is retried
+  EXPECT_CALL(*_pool, get_client()).Times(2).WillRepeatedly(Return(&_client));
+
+  {
+    testing::InSequence s;
+
+    cass::TimedOutException te;
+
+    // The first attempt is consistency level TWO, and that throws a
+    // TimedOutException
+    EXPECT_CALL(_client, get_slice(_,
+                                   "kermit",
+                                   ColumnPathForTable("impu"),
+                                   AllColumns(),
+                                   cass::ConsistencyLevel::TWO))
+      .WillOnce(Throw(te)).RetiresOnSaturation();
+
+    // The next atempt is consistency level ONE to ths same node. That also
+    // throws a TimedOutException
+    EXPECT_CALL(_client, get_slice(_,
+                                   "kermit",
+                                   ColumnPathForTable("impu"),
+                                   AllColumns(),
+                                   cass::ConsistencyLevel::ONE))
+      .WillOnce(Throw(te)).RetiresOnSaturation();
+    EXPECT_CALL(_resolver, success(_targets[0])).Times(1);
+
+    // Now, we expect the operation to be tried on the second target, with level
+    // ONE straight away. This succeeds
+    EXPECT_CALL(_client, get_slice(_,
+                                   "kermit",
+                                   ColumnPathForTable("impu"),
+                                   AllColumns(),
+                                   cass::ConsistencyLevel::ONE))
+      .WillOnce(SetArgReferee<0>(slice));
+    EXPECT_CALL(_resolver, success(_targets[1])).Times(1);
+
+    EXPECT_CALL(*trx, on_success(_))
+      .WillOnce(Invoke(trx, &RecordingTransaction::record_result));
+  }
+
+  execute_trx(op, trx);
+
+  EXPECT_EQ("<howdy>", rec.result.xml);
 }
 
 
