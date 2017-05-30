@@ -1,7 +1,7 @@
 /**
  * @file reg_state.h A definition of possible registration states.
  *
- * Copyright (C) Metaswitch Networks 2017
+ * Copyright (C) Metaswitch Networks 2014
  * If license terms are provided to you in a COPYING file in the root directory
  * of the source code repository by which you are accessing this code, then
  * the license outlined in that COPYING file applies to your use.
