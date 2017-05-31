@@ -21,6 +21,10 @@
 namespace XmlUtils
 {
   std::vector<std::string> get_public_ids(const std::string& user_data);
+  void get_default_id(const std::string& user_data,
+                      std::string& default_id);
+  std::vector<std::string> get_public_and_default_ids(const std::string& user_data,
+                                                      std::string& default_id);
   std::string get_private_id(const std::string& user_data);
   int build_ClearwaterRegData_xml(RegistrationState state,
                                   std::string user_data,

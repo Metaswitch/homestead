@@ -565,7 +565,7 @@ private:
   int32_t _deregistration_reason;
   std::vector<std::string> _impis;
   std::vector<std::string> _impus;
-  std::vector<std::vector<std::string>> _registration_sets;
+  std::vector< std::pair<std::string, std::vector<std::string>> > _registration_sets;
 
   void get_assoc_primary_public_ids_success(CassandraStore::Operation* op);
   void get_assoc_primary_public_ids_failure(CassandraStore::Operation* op,
@@ -626,11 +626,16 @@ private:
   ChargingAddresses _charging_addrs;
   std::string _impi;
   std::vector<std::string> _impus;
+  std::vector<std::string> _default_impus;
 
   void on_get_impus_success(CassandraStore::Operation* op);
   void on_get_impus_failure(CassandraStore::Operation* op,
                             CassandraStore::ResultCode error,
                             std::string& text);
+  void on_get_primary_impus_success(CassandraStore::Operation* op);
+  void on_get_primary_impus_failure(CassandraStore::Operation* op,
+                                    CassandraStore::ResultCode error,
+                                    std::string& text);
   void update_reg_data();
   void update_reg_data_success(CassandraStore::Operation* op);
   void update_reg_data_failure(CassandraStore::Operation* op,
