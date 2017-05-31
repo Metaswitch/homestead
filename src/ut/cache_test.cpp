@@ -343,7 +343,7 @@ TEST_F(CacheInitializationTest, Connection)
 TEST_F(CacheRequestTest, PutRegDataMainline)
 {
   TestTransaction *trx = make_trx();
-  Cache::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", 1000, 300);
+  Cache::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", "kermit", 1000, 300);
   put_reg_data->with_xml("<xml>")
                .with_reg_state(RegistrationState::REGISTERED)
                .with_associated_impis(IMPIS)
@@ -378,7 +378,7 @@ TEST_F(CacheRequestTest, PutRegDataMainline)
 TEST_F(CacheRequestTest, PutRegDataUnregistered)
 {
   TestTransaction *trx = make_trx();
-  Cache::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", 1000, 300);
+  Cache::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", "kermit", 1000, 300);
   put_reg_data->with_xml("<xml>")
                .with_reg_state(RegistrationState::UNREGISTERED)
                .with_associated_impis(IMPIS)
@@ -413,7 +413,7 @@ TEST_F(CacheRequestTest, PutRegDataUnregistered)
 TEST_F(CacheRequestTest, NoTTLOnPut)
 {
   TestTransaction *trx = make_trx();
-  Cache::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", 1000);
+  Cache::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", "kermit", 1000);
   put_reg_data->with_xml("<xml>")
                .with_reg_state(RegistrationState::REGISTERED)
                .with_associated_impis(IMPIS)
@@ -454,7 +454,7 @@ TEST_F(CacheRequestTest, PutRegDataMultipleIDs)
   std::vector<CassandraStore::RowColumns> expected;
 
   TestTransaction *trx = make_trx();
-  Cache::PutRegData* put_reg_data = _cache.create_PutRegData(ids, 1000);
+  Cache::PutRegData* put_reg_data = _cache.create_PutRegData(ids, "kermit", 1000);
   put_reg_data->with_xml("<xml>")
                .with_reg_state(RegistrationState::REGISTERED)
                .with_associated_impis(IMPIS)
@@ -494,7 +494,7 @@ TEST_F(CacheRequestTest, PutRegDataNoXml)
   std::vector<CassandraStore::RowColumns> expected;
 
   TestTransaction *trx = make_trx();
-  Cache::PutRegData* put_reg_data = _cache.create_PutRegData(ids, 1000);
+  Cache::PutRegData* put_reg_data = _cache.create_PutRegData(ids, "kermit", 1000);
   put_reg_data->with_charging_addrs(FULL_CHARGING_ADDRS);
 
   std::map<std::string, std::string> columns;
@@ -523,7 +523,7 @@ TEST_F(CacheRequestTest, PutRegDataNoChargingAddresses)
   std::vector<CassandraStore::RowColumns> expected;
 
   TestTransaction *trx = make_trx();
-  Cache::PutRegData* put_reg_data = _cache.create_PutRegData(ids, 1000);
+  Cache::PutRegData* put_reg_data = _cache.create_PutRegData(ids, "kermit", 1000);
   put_reg_data->with_xml("<xml>");
 
   std::map<std::string, std::string> columns;
@@ -551,7 +551,7 @@ MATCHER_P(OperationHasResult, expected_rc, "")
 TEST_F(CacheRequestTest, PutOneTransportEx)
 {
   TestTransaction *trx = make_trx();
-  Cache::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", 1000);
+  Cache::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", "kermit", 1000);
   put_reg_data->with_xml("<xml>");
 
   apache::thrift::transport::TTransportException te;
@@ -577,7 +577,7 @@ TEST_F(CacheRequestTest, PutOneTransportEx)
 TEST_F(CacheRequestTest, PutTwoTransportEx)
 {
   TestTransaction *trx = make_trx();
-  Cache::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", 1000);
+  Cache::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", "kermit", 1000);
   put_reg_data->with_xml("<xml>");
 
   apache::thrift::transport::TTransportException te;
@@ -598,7 +598,7 @@ TEST_F(CacheRequestTest, PutTwoTransportEx)
 TEST_F(CacheRequestTest, PutConnectTransportExThenPutTransportEx)
 {
   TestTransaction *trx = make_trx();
-  Cache::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", 1000);
+  Cache::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", "kermit", 1000);
   put_reg_data->with_xml("<xml>");
 
   apache::thrift::transport::TTransportException te;
@@ -620,7 +620,7 @@ TEST_F(CacheRequestTest, PutConnectTransportExThenPutTransportEx)
 TEST_F(CacheRequestTest, PutTransportThenUnknownException)
 {
   TestTransaction *trx = make_trx();
-  Cache::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", 1000);
+  Cache::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", "kermit", 1000);
   put_reg_data->with_xml("<xml>");
 
   apache::thrift::transport::TTransportException te;
@@ -642,7 +642,7 @@ TEST_F(CacheRequestTest, PutTransportThenUnknownException)
 TEST_F(CacheRequestTest, PutInvalidRequestException)
 {
   TestTransaction *trx = make_trx();
-  Cache::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", 1000);
+  Cache::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", "kermit", 1000);
   put_reg_data->with_xml("<xml>");
 
   cass::InvalidRequestException ire;
@@ -658,7 +658,7 @@ TEST_F(CacheRequestTest, PutInvalidRequestException)
 TEST_F(CacheRequestTest, PutNotFoundException)
 {
   TestTransaction *trx = make_trx();
-  Cache::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", 1000);
+  Cache::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", "kermit", 1000);
   put_reg_data->with_xml("<xml>");
 
   cass::NotFoundException nfe;
@@ -674,7 +674,7 @@ TEST_F(CacheRequestTest, PutNotFoundException)
 TEST_F(CacheRequestTest, PutNoResultsException)
 {
   TestTransaction *trx = make_trx();
-  Cache::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", 1000);
+  Cache::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", "kermit", 1000);
   put_reg_data->with_xml("<xml>");
 
   CassandraStore::RowNotFoundException rnfe("muppets", "kermit");
@@ -690,7 +690,7 @@ TEST_F(CacheRequestTest, PutNoResultsException)
 TEST_F(CacheRequestTest, PutUnknownException)
 {
   TestTransaction *trx = make_trx();
-  Cache::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", 1000);
+  Cache::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", "kermit", 1000);
   put_reg_data->with_xml("<xml>");
 
   std::string ex("Made up exception");
@@ -706,7 +706,7 @@ TEST_F(CacheRequestTest, PutUnknownException)
 TEST_F(CacheRequestTest, PutsHaveConsistencyLevelOne)
 {
   TestTransaction *trx = make_trx();
-  Cache::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", 1000);
+  Cache::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", "kermit", 1000);
   put_reg_data->with_xml("<xml>");
 
   EXPECT_CALL(_resolver, success(_targets[0])).Times(1);
@@ -778,7 +778,7 @@ TEST_F(CacheRequestTest, PutAssocPrivateIdMainline)
 {
   TestTransaction *trx = make_trx();
   CassandraStore::Operation* op =
-    _cache.create_PutAssociatedPrivateID({"kermit", "miss piggy"}, "gonzo", 1000);
+    _cache.create_PutAssociatedPrivateID({"kermit", "miss piggy"}, "kermit", "gonzo", 1000);
 
   std::vector<CassandraStore::RowColumns> expected;
 
@@ -1606,7 +1606,7 @@ ACTION_P2(CheckLatency, trx, ms) { trx->check_latency(ms * 1000); }
 TEST_F(CacheLatencyTest, PutRecordsLatency)
 {
   TestTransaction *trx = make_trx();
-  Cache::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", 1000);
+  Cache::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", "kermit", 1000);
   put_reg_data->with_xml("<xml>");
 
   std::map<std::string, std::string> columns;
@@ -1663,7 +1663,7 @@ TEST_F(CacheLatencyTest, GetRecordsLatency)
 TEST_F(CacheLatencyTest, ErrorRecordsLatency)
 {
   TestTransaction *trx = make_trx();
-  Cache::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", 1000);
+  Cache::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", "kermit", 1000);
   put_reg_data->with_xml("<xml>");
 
   cass::NotFoundException nfe;

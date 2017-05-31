@@ -48,9 +48,11 @@ public:
     /// Constructors. Stores off the public IDs that we're changing, the
     /// timestamp, and the TTL. Then creates a blank PutRegData object.
     PutRegData(const std::string& public_id,
+               const std::string& default_public_id,
                const int64_t timestamp,
                const int32_t ttl = 0);
     PutRegData(const std::vector<std::string>& public_ids,
+               const std::string& default_public_id,
                const int64_t timestamp,
                const int32_t ttl = 0);
 
@@ -78,6 +80,8 @@ public:
 
   protected:
     std::vector<std::string> _public_ids;
+    // The default public identity is the first unbarred public identity.
+    std::string _default_public_id;
     int64_t _timestamp;
     int32_t _ttl;
 
@@ -88,19 +92,23 @@ public:
   };
 
   virtual PutRegData* create_PutRegData(const std::string& public_id,
+                                        const std::string& default_public_id,
                                         const int64_t timestamp,
                                         const int32_t ttl = 0)
   {
     return new PutRegData(public_id,
+                          default_public_id,
                           timestamp,
                           ttl);
   }
 
   virtual PutRegData* create_PutRegData(const std::vector<std::string>& public_ids,
+                                        const std::string& default_public_id,
                                         const int64_t timestamp,
                                         const int32_t ttl = 0)
   {
     return new PutRegData(public_ids,
+                          default_public_id,
                           timestamp,
                           ttl);
   }
@@ -113,6 +121,7 @@ public:
     /// @param impus The public IDs.
     /// @param impi the private ID to associate with them.
     PutAssociatedPrivateID(const std::vector<std::string>& impus,
+                           const std::string& default_public_id,
                            const std::string& impi,
                            const int64_t timestamp,
                            const int32_t ttl = 0);
@@ -120,6 +129,8 @@ public:
 
   protected:
     std::vector<std::string> _impus;
+    // The default public identity is the first unbarred impu.
+    std::string _default_public_id;
     std::string _impi;
     int64_t _timestamp;
     int32_t _ttl;
@@ -129,11 +140,12 @@ public:
 
   virtual PutAssociatedPrivateID* create_PutAssociatedPrivateID(
     const std::vector<std::string>& impus,
+    const std::string& default_public_id,
     const std::string& impi,
     const int64_t timestamp,
     const int32_t ttl = 0)
   {
-    return new PutAssociatedPrivateID(impus, impi, timestamp, ttl);
+    return new PutAssociatedPrivateID(impus, default_public_id, impi, timestamp, ttl);
   }
 
   class PutAssociatedPublicID : public CassandraStore::Operation
