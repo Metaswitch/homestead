@@ -2355,9 +2355,8 @@ TEST_F(HandlersTest, DigestNoIMPUCacheConnectionFailure)
   CassandraStore::Transaction* t = mock_op.get_trx();
   ASSERT_FALSE(t == NULL);
 
-  // Once the cache transaction's failure callback is called, expect a 503 Service
-  // unavailable response.
-  EXPECT_CALL(*_httpstack, send_reply(_, 503, _));
+  // Once the cache transaction's failure callback is called, expect a 504
+  EXPECT_CALL(*_httpstack, send_reply(_, 504, _));
 
   mock_op._cass_status = CassandraStore::CONNECTION_ERROR;
   mock_op._cass_error_text = "error";
@@ -3252,7 +3251,7 @@ TEST_F(HandlersTest, IMSSubscriptionCacheNotFound)
   t->on_failure(&mock_op);
 }
 
-// Connection failures should translate into a 503 Service Unavailable error
+// Connection failures should translate into a 504 error
 TEST_F(HandlersTest, IMSSubscriptionCacheConnectionFailure)
 {
   // This test tests an IMS Subscription handler case where the cache
@@ -3279,8 +3278,8 @@ TEST_F(HandlersTest, IMSSubscriptionCacheConnectionFailure)
   CassandraStore::Transaction* t = mock_op.get_trx();
   ASSERT_FALSE(t == NULL);
 
-  // Expect a 503 HTTP response once the cache returns an error to the task.
-  EXPECT_CALL(*_httpstack, send_reply(_, 503, _));
+  // Expect a 504 HTTP response once the cache returns an error to the task.
+  EXPECT_CALL(*_httpstack, send_reply(_, 504, _));
 
   mock_op._cass_status = CassandraStore::CONNECTION_ERROR;
   mock_op._cass_error_text = "error";
@@ -3996,8 +3995,8 @@ TEST_F(HandlersTest, LocationInfoNoHSSConnectionError)
   EXPECT_DO_ASYNC(*_cache, mock_op);
   task->run();
 
-  // The cache indicates connection error, so expect a 503 Service Unavailable over HTTP.
-  EXPECT_CALL(*_httpstack, send_reply(_, 503, _));
+  // The cache indicates connection error, so expect a 504 over HTTP.
+  EXPECT_CALL(*_httpstack, send_reply(_, 504, _));
   CassandraStore::Transaction* t = mock_op.get_trx();
   ASSERT_FALSE(t == NULL);
   mock_op._cass_status = CassandraStore::CONNECTION_ERROR;
@@ -5322,7 +5321,7 @@ TEST_F(HandlerStatsTest, DigestCacheConnectionFailure)
   ASSERT_FALSE(t == NULL);
 
   // Cache latency stats are updated when the transaction fails.
-  EXPECT_CALL(*_httpstack, send_reply(_, 503,  _));
+  EXPECT_CALL(*_httpstack, send_reply(_, 504,  _));
   EXPECT_CALL(*_stats, update_H_cache_latency_us(_));
 
   mock_op._cass_status = CassandraStore::CONNECTION_ERROR;
