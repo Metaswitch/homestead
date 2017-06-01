@@ -641,7 +641,7 @@ TEST_F(CacheRequestTest, PutTransportThenUnknownException)
 TEST_F(CacheRequestTest, PutOneTimedOutException)
 {
   TestTransaction *trx = make_trx();
-  Cache::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", 1000);
+  Cache::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", "kermit", 1000);
   put_reg_data->with_xml("<xml>");
 
   cass::TimedOutException te;
@@ -666,7 +666,7 @@ TEST_F(CacheRequestTest, PutOneTimedOutException)
 TEST_F(CacheRequestTest, PutTwoTimedOutExceptions)
 {
   TestTransaction *trx = make_trx();
-  Cache::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", 1000);
+  Cache::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", "kermit", 1000);
   put_reg_data->with_xml("<xml>");
 
   cass::TimedOutException te;
