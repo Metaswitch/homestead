@@ -211,7 +211,7 @@ public:
     return new PutAuthVector(private_id, auth_vector, timestamp, ttl);
   }
 
-  class GetRegData : public CassandraStore::Operation
+  class GetRegData : public CassandraStore::HAOperation
   {
   public:
     /// Get the IMS subscription XML for a public identity.
@@ -279,7 +279,7 @@ public:
   // database operation that stores associations between IMPIs and
   // primary public IDs for use in handling RTRs, see GetAssociatedPrimaryPublicIDs.
 
-  class GetAssociatedPublicIDs : public CassandraStore::Operation
+  class GetAssociatedPublicIDs : public CassandraStore::HAOperation
   {
   public:
     /// Get the public Ids that are associated with a single private ID.
@@ -327,7 +327,7 @@ public:
   /// when we have a HSS) not the "impi" table (storing the SIP digest
   /// HA1 and all the public IDs associated with this IMPI, and only
   /// used when subscribers are locally provisioned).
-  class GetAssociatedPrimaryPublicIDs : public CassandraStore::Operation
+  class GetAssociatedPrimaryPublicIDs : public CassandraStore::HAOperation
   {
   public:
     /// Get the primary public Ids that are associated with a single private ID.
@@ -364,7 +364,7 @@ public:
     return new GetAssociatedPrimaryPublicIDs(private_ids);
   }
 
-  class GetAuthVector : public CassandraStore::Operation
+  class GetAuthVector : public CassandraStore::HAOperation
   {
   public:
     /// Get the auth vector of a private ID.
@@ -538,7 +538,7 @@ public:
 
   /// The main use-case is for Registration-Termination-Requests.
 
-  class DissociateImplicitRegistrationSetFromImpi : public CassandraStore::Operation
+  class DissociateImplicitRegistrationSetFromImpi : public CassandraStore::HAOperation
   {
   public:
     /// Delete a mapping from private IDs to the IMPUs they have authenticated.
