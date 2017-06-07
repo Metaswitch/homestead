@@ -7,19 +7,19 @@
             "levels": [
                 {
                   "severity": "CLEARED",
-                  "details": "The Homestead process has been restored to normal operation.",
+                  "details": "The local Homestead process has been restored to normal operation.",
                   "description": "Homestead: Process failure cleared.",
-                  "cause": "The Homestead process has been restored to normal operation. The previously issued alarm has been cleared.",
-                  "effect": "Full capacity and availability of the connected HSSs has been restored for the I-CSCF and the S-CSCF.",
+                  "cause": "The local Homestead process has been restored to normal operation. The previously issued alarm has been cleared.",
+                  "effect": "The Homestead process is functioning normally again.",
                   "action": "No action."
                 },
                 {
                   "severity": "CRITICAL",
-                  "details": "Monit has detected that the Homestead process has failed. A restart will automatically be attempted. If this alarm does not clear, the Homestead process may have been stopped or an unrecoverable failure may have occurred.",
+                  "details": "Monit has detected that the local Homestead process has failed. A restart will automatically be attempted. If this alarm does not clear, the Homestead process may have been stopped or an unrecoverable failure may have occurred.",
                   "description": "Homestead: Process failure.",
                   "cause": "The system has detected that the Homestead process has failed.",
-                  "effect": "In progress registrations and calls on the reporting Homestead node are interrupted and Sprout may be required to retransmit requests to a different Homestead node. If a single Homestead process failed then there is no significant effect to HSS communication capacity. If multiple Homestead processes fail then HSS communication capacity will be reduced or communication may be out of service.",
-                  "action": "Monitor for the alarm to clear and confirm the system is operating normally. Determine if the local Cassandra process has failed. If it has then make sure it also returns to service. If the failed Homestead node fails to return to service then contact your support representative."
+                  "effect": "In progress requests will fail and Sprout may be required to retransmit requests to a different Homestead instance. If only a small percentage of Homestead processes are failed simultaneously then in a typical deployment there will be no significant impact. However multiple simultaneous failures will result in an increasingly significant reduction in HSS communication capacity and will eventually result in service impacts. If all Homestead processes are failed then all registrations and all new calls involving local subscribers will fail.",
+                  "action": "Monitor for the alarm to clear and confirm the system is operating normally. If the failed Homestead process fails to return to service then contact your support representative."
                 }
             ]
         },
@@ -30,19 +30,19 @@
             "levels": [
                 {
                   "severity": "CLEARED",
-                  "details": "Homestead communication to the local Cassandra has been restored.",
+                  "details": "Communication between the local Homestead process and the Cassandra service has been restored.",
                   "description": "Homestead: Cassandra communication error cleared.",
-                  "cause": "Homestead communication to the local Cassandra has been restored. The previously issued alarm has been cleared.",
+                  "cause": "Communication between the local Homestead process and the Cassandra service has been restored.",
                   "effect": "This Homestead node is providing full service again. If this alarm is clear on all Homestead nodes, then full capacity and availability of the connected HSSs has been restored for the I-CSCF and the S-CSCF.",
                   "action": "No action."
                 },
                 {
                   "severity": "CRITICAL",
-                  "details": "Homestead is unable to contact the local Cassandra. It will periodically attempt to reconnect. If this alarm does not clear, ensure that the local Cassandra is configured correctly then restart it.",
+                  "details": "The local Homestead process is unable to contact the Cassandra service.",
                   "description": "Homestead: Cassandra communication error.",
-                  "cause": "Homestead is unable to contact the local Cassandra.",
-                  "effect": "Effectively equivalent to a Homestead process failure because Homestead cannot access the local Cassandra database. In progress I-CSCF and S-CSCF SIP registrations handled by the reporting Homestead node are interrupted and may require retransmission by the SIP clients. If a single Cassandra process failed then there is no significant effect to HSS communication capacity. If multiple Cassandra processes fail then HSS communication capacity will be reduced",
-                  "action": "Monitor for the alarm to clear and confirm the system is operating normally for HSS traffic. If the alarm fails to clear then contact your support representative."
+                  "cause": "The local Homestead is unable to contact any Cassandra processes. The likely cause depends on whether this is effecting all Homestead instances or just a subset. If the issue impacts just a subset of Homestead instances then it is likely to be due to a partial network outage or configuration issues on those nodes. If it impacts all Homestead instances then it is likely to be due to a misconfiguration of the Cassandra hostname in shared configuration, misconfiguration of the Cassandra cluster DNS record, a significant network outage, or because all Cassandra instances are currently failed.",
+                  "effect": "This effect of this is equivalent to the local Homestead process having failed. If only a small percentage of Homestead processes are failed simultaneously then in a typical deployment there will be no significant impact. However multiple simultaneous failures will result in an increasingly significant reduction in HSS communication capacity and will eventually result in service impacts. If all Homestead processes are failed then all registrations and all new calls involving local subscribers will fail.",
+                  "action": "Investigate the issue that is preventing the local Homestead process from contacting Cassandra. The Homestead process will periodically attempt to reconnect and this alarm will clear once connectivity has been restored. If you cannot determine the issue or the alarm fails to clear then contact your support representative."
                 }
             ]
         },
@@ -61,11 +61,11 @@
                 },
                 {
                   "severity": "CRITICAL",
-                  "details": "Homestead is unable to contact any HSSs. It will periodically attempt to reconnect. If this alarm does not clear, ensure that at least one HSS is operational and that network connectivity exists between it and Homestead.",
+                  "details": "The local Homestead process is unable to contact any HSSs.",
                   "description": "Homestead: HSS communication error.",
-                  "cause": "Homestead is unable to contact any HSSs.",
-                  "effect": "The system will eventually reach a state where subscribers can no longer register or originate and receive calls.",
-                  "action": "Monitor for this alarm to clear. If this alarm does not clear, ensure that an HSS is operational and that network connectivity exists between it and Homestead. Check the configuration file for correct configuration of the HSS. Confirm that the DNS records for the HSS are correct. If the HSS does not return to service then you may need to contact your HSS vendor."
+                  "cause": "The local Homestead process is unable to contact any HSS instances. The likely cause depends on whether this is effecting all Homestead instances or just a subset. If the issue impacts just a subset of Homestead instances then it is likely to be due to a partial network outage or configuration issues on those nodes. If it impacts all Homestead instances then it is likely to be due to a misconfiguration of the HSS hostname in shared configuration, misconfiguration of DNS, a significant network outage, or because all HSS instances are currently failed.",
+                  "effect": "This effect of this is equivalent to the local Homestead process having failed. If only a small percentage of Homestead processes are failed simultaneously then in a typical deployment there will be no significant impact. However multiple simultaneous failures will result in an increasingly significant reduction in HSS communication capacity and will eventually result in service impacts. If all Homestead processes are failed then all registrations and all new calls involving local subscribers will fail.",
+                  "action": "Investigate the issue that is preventing the local Homestead process from contacting the HSS. The Homestead process will periodically attempt to reconnect and this alarm will clear once connectivity has been restored. If you cannot determine the issue or the alarm fails to clear then contact your support representative."
                 }
             ]
         }
