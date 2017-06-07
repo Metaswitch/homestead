@@ -78,9 +78,9 @@ static const PDLog1<int> CL_HOMESTEAD_CASSANDRA_CACHE_INIT_FAIL
   "error code %d.",
   "The Cassandra cache could not be initialized.",
   "The application will exit and restart until the problem is fixed.",
-  "(1). Check to see if Cassandra is running reliably. "
-  "(2). Check that Homestead is configured with the correct cassandra_hostname. "
-  "(3). Check connectivity between the Homestead and Cassandra processes."
+  "(1). Check that the Cassandra service is running reliably. "
+  "(2). Check that the correct Cassandra hostname is set in shared configuration. "
+  "(3). Check connectivity between the local Homestead process and the Cassandra service."
 );
 
 static const PDLog2<const char*, int> CL_HOMESTEAD_DIAMETER_INIT_FAIL
