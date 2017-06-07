@@ -33,7 +33,7 @@
                   "details": "Communication between the local Homestead process and the Cassandra service has been restored.",
                   "description": "Homestead: Cassandra communication error cleared.",
                   "cause": "Communication between the local Homestead process and the Cassandra service has been restored.",
-                  "effect": "This Homestead node is providing full service again. If this alarm is clear on all Homestead nodes, then full capacity and availability of the connected HSSs has been restored for the I-CSCF and the S-CSCF.",
+                  "effect": "The local Homestead process can succesfully contact the Cassandra service.",
                   "action": "No action."
                 },
                 {
@@ -41,7 +41,7 @@
                   "details": "The local Homestead process is unable to contact the Cassandra service.",
                   "description": "Homestead: Cassandra communication error.",
                   "cause": "The local Homestead is unable to contact any Cassandra processes. The likely cause depends on whether this is effecting all Homestead instances or just a subset. If the issue impacts just a subset of Homestead instances then it is likely to be due to a partial network outage or configuration issues on those nodes. If it impacts all Homestead instances then it is likely to be due to a misconfiguration of the Cassandra hostname in shared configuration, misconfiguration of the Cassandra cluster DNS record, a significant network outage, or because all Cassandra instances are currently failed.",
-                  "effect": "This effect of this is equivalent to the local Homestead process having failed. If only a small percentage of Homestead processes are failed simultaneously then in a typical deployment there will be no significant impact. However multiple simultaneous failures will result in an increasingly significant reduction in HSS communication capacity and will eventually result in service impacts. If all Homestead processes are failed then all registrations and all new calls involving local subscribers will fail.",
+                  "effect": "The effect of this is equivalent to the local Homestead process having failed. If only a small percentage of Homestead processes are failed simultaneously then in a typical deployment there will be no significant impact. However multiple simultaneous failures will result in an increasingly significant reduction in HSS communication capacity and will eventually result in service impacts. If all Homestead processes are failed then all registrations and all new calls involving local subscribers will fail.",
                   "action": "Investigate the issue that is preventing the local Homestead process from contacting Cassandra. The Homestead process will periodically attempt to reconnect and this alarm will clear once connectivity has been restored. If you cannot determine the issue or the alarm fails to clear then contact your support representative."
                 }
             ]
@@ -56,7 +56,7 @@
                   "details": "Homestead communication to at least one HSS has been restored.",
                   "description": "Homestead: HSS communication error cleared.",
                   "cause": "Homestead communication to at least one HSS has been restored. The previously issued alarm has been cleared.",
-                  "effect": "Full capacity and availability of the connected HSSs has been restored for the I-CSCF and the S-CSCF.",
+                  "effect": "The local Homestead process can succesfully contact the HSS again.",
                   "action": "No action."
                 },
                 {
