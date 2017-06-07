@@ -19,12 +19,12 @@
 
 // The fields for each PDLog instance contains:
 //   Identity - Identifies the log id to be used in the syslog id field.
-//   Severity - One of Emergency, Alert, Critical, Error, Warning, Notice, 
-//              and Info. Only LOG_ERROR or LOG_NOTICE are used.  
+//   Severity - One of Emergency, Alert, Critical, Error, Warning, Notice,
+//              and Info. Only LOG_ERROR or LOG_NOTICE are used.
 //   Message  - Formatted description of the condition.
 //   Cause    - The cause of the condition.
 //   Effect   - The effect the condition.
-//   Action   - A list of one or more actions to take to resolve the condition 
+//   Action   - A list of one or more actions to take to resolve the condition
 //              if it is an error.
 static const PDLog CL_HOMESTEAD_INVALID_SAS_OPTION
 (
@@ -74,14 +74,13 @@ static const PDLog1<int> CL_HOMESTEAD_CASSANDRA_CACHE_INIT_FAIL
 (
   PDLogBase::CL_HOMESTEAD_ID + 6,
   LOG_ERR,
-  "Fatal - Failed to initialize the cache for the CassandraStore - "
+  "Fatal - Failed to initialize the Cassandra cache - "
   "error code %d.",
-  "The memory cache used to access Cassandra could not be initialized.",
+  "The Cassandra cache could not be initialized.",
   "The application will exit and restart until the problem is fixed.",
   "(1). Check to see if Cassandra is running reliably. "
-  "(2). See if the restart on Homestead clears the problem. "
-  "(3). Try reinstalling Homestead and starting Homestead to see if "
-  "the problem clears. "
+  "(2). Check that Homestead is configured with the correct cassandra_hostname. "
+  "(3). Check connectivity between the Homestead and Cassandra processes."
 );
 
 static const PDLog2<const char*, int> CL_HOMESTEAD_DIAMETER_INIT_FAIL
