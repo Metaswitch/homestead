@@ -74,9 +74,9 @@ static const PDLog1<int> CL_HOMESTEAD_CASSANDRA_CACHE_INIT_FAIL
 (
   PDLogBase::CL_HOMESTEAD_ID + 6,
   LOG_ERR,
-  "Fatal - Failed to initialize the Cassandra cache - "
+  "Fatal - Failed to initialize the Cassandra connection - "
   "error code %d.",
-  "The Cassandra cache could not be initialized.",
+  "The connection to Cassandra could not be established.",
   "The application will exit and restart until the problem is fixed.",
   "(1). Check that the Cassandra service is running reliably. "
   "(2). Check that the correct Cassandra hostname is set in shared configuration. "
