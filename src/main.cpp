@@ -154,7 +154,7 @@ const static struct option long_opt[] =
   {"pidfile",                     required_argument, NULL, PIDFILE},
   {"daemon",                      no_argument,       NULL, DAEMON},
   {"sas-use-signaling-interface", no_argument,       NULL, SAS_USE_SIGNALING_IF},
-  {"request-shared-ifcs",         no_argument,       NULL, REQUEST_SHARED_IFCS},
+  {"request-shared-ifcs",         required_argument, NULL, REQUEST_SHARED_IFCS},
   {NULL,                          0,                 NULL, 0},
 };
 
