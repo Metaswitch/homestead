@@ -1,30 +1,30 @@
 [submodule "modules/freeDiameter"]
 	path = modules/freeDiameter
-	url = git@github.com:ClearwaterCore/freeDiameter.git
+	url = git@git.datcon.co.uk:/clearwater-core/freeDiameter.git
 [submodule "modules/cassandra"]
 	path = modules/cassandra
 	url = https://github.com/apache/cassandra.git
 [submodule "modules/thrift"]
 	path = modules/thrift
-	url = git@github.com:ClearwaterCore/thrift.git
+	url = git@git.datcon.co.uk:/clearwater-core/thrift.git
 [submodule "modules/rapidjson"]
 	path = modules/rapidjson
 	url = git@github.com:miloyip/rapidjson.git
 [submodule "build-infra"]
 	path = build-infra
-	url = git@github.com:ClearwaterCore/clearwater-build-infra.git
+	url = git@git.datcon.co.uk:/clearwater-core/clearwater-build-infra.git
 [submodule "modules/gmock"]
 	path = modules/gmock
-	url = git@github.com:ClearwaterCore/gmock-upstream.git
+	url = git@git.datcon.co.uk:/clearwater-core/gmock-upstream.git
 [submodule "modules/libevhtp"]
 	path = modules/libevhtp
-	url = git@github.com:ClearwaterCore/libevhtp.git
+	url = git@git.datcon.co.uk:/clearwater-core/libevhtp.git
 [submodule "modules/cpp-common"]
 	path = modules/cpp-common
-	url = git@github.com:ClearwaterCore/cpp-common.git
+	url = git@git.datcon.co.uk:/clearwater-core/cpp-common.git
 [submodule "modules/sas-client"]
 	path = modules/sas-client
-	url = git@github.com:ClearwaterCore/sas-client.git
+	url = git@git.datcon.co.uk:/clearwater-core/sas-client.git
 [submodule "modules/c-ares"]
 	path = modules/c-ares
 	url = git@github.com:bagder/c-ares.git
