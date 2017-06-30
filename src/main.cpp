@@ -154,7 +154,7 @@ const static struct option long_opt[] =
   {"pidfile",                     required_argument, NULL, PIDFILE},
   {"daemon",                      no_argument,       NULL, DAEMON},
   {"sas-use-signaling-interface", no_argument,       NULL, SAS_USE_SIGNALING_IF},
-  {"request-shared-ifcs",         required_argument, NULL, REQUEST_SHARED_IFCS},
+  {"request-shared-ifcs",         no_argument,       NULL, REQUEST_SHARED_IFCS},
   {NULL,                          0,                 NULL, 0},
 };
 
@@ -220,8 +220,7 @@ void usage(void)
        "                            The amount of time to blacklist a Diameter peer when it is unresponsive.\n"
        "     --dns-timeout <milliseconds>\n"
        "                            The amount of time to wait for a DNS response (default: 200)n"
-       "     --request-shared-ifcs <Y/N>\n"
-       "                            Indicate support for Shared IFC sets in the Supported-Features AVP.\n"
+       "     --request-shared-ifcs  Indicate support for Shared IFC sets in the Supported-Features AVP.\n"
        " -F, --log-file <directory>\n"
        "                            Log to file in specified directory\n"
        " -L, --log-level N          Set log level to N (default: 4)\n"
@@ -471,10 +470,7 @@ int init_options(int argc, char**argv, struct options& options)
       break;
 
     case REQUEST_SHARED_IFCS:
-      if (strcmp(optarg, "Y") != 0)
-      {
-        options.request_shared_ifcs = false;
-      }
+      options.request_shared_ifcs = true;
       break;
 
     case DAEMON:
@@ -574,7 +570,7 @@ int main(int argc, char**argv)
   options.pidfile = "";
   options.daemon = false;
   options.sas_signaling_if = false;
-  options.request_shared_ifcs = true;
+  options.request_shared_ifcs = false;
 
   if (init_logging_options(argc, argv, options) != 0)
   {
