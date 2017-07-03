@@ -135,8 +135,8 @@ get_daemon_args()
 
 
         [ "$sas_use_signaling_interface" != "Y" ] || sas_signaling_if_arg="--sas-use-signaling-interface"
+        [ "$request_shared_ifcs" != "Y" ] || request_shared_ifcs_arg="--request-shared-ifcs"
 
-        [ -z "$request_shared_ifcs" ] || request_shared_ifcs_arg="--request-shared-ifcs=$request_shared_ifcs"
         [ -z "$diameter_timeout_ms" ] || diameter_timeout_ms_arg="--diameter-timeout-ms=$diameter_timeout_ms"
         [ -z "$signaling_namespace" ] || namespace_prefix="ip netns exec $signaling_namespace"
         [ -z "$target_latency_us" ] || target_latency_us_arg="--target-latency-us=$target_latency_us"
