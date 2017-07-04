@@ -783,7 +783,7 @@ void ImpuLocationInfoTask::run()
   else
   {
     TRC_DEBUG("No HSS configured - fake up response if subscriber exists");
-    SAS::Event event(this->trail(), SASEvent::ICSCF_NO_HSS, 0);
+    SAS::Event event(this->trail(), SASEvent::ICSCF_NO_HSS_CHECK_CASSANDRA, 0);
     SAS::report_event(event);
     query_cache_reg_data();
   }
@@ -944,6 +944,8 @@ void ImpuLocationInfoTask::on_get_reg_data_success(CassandraStore::Operation* op
   }
   else
   {
+    SAS::Event event(this->trail(), SASEvent::ICSCF_NO_HSS_CASSANDRA_NO_SUBSCRIBER, 0);
+    SAS::report_event(event);
     TRC_DEBUG("No IMS subscription XML found for public ID %s - reject", _impu.c_str());
     send_http_reply(HTTP_NOT_FOUND);
   }
