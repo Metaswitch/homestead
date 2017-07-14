@@ -2386,7 +2386,7 @@ void PushProfileTask::update_reg_data()
       SAS::report_event(event);
     }
   }
-}
+
 
   // Get the default public id from the ims subscription if it is present.
   // If the ims subscription is not present, take the first of the default ifcs
