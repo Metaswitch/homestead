@@ -2322,35 +2322,25 @@ void PushProfileTask::run()
   SAS::report_event(ppr_received);
 
   // Received a Push Profile Request. We may need to update an IMS
-  // subscription or charging address information in the cache.
+  // subscription and/or charging address information in the cache.
   _ims_sub_present = _ppr.user_data(_ims_subscription);
   _charging_addrs_present = _ppr.charging_addrs(_charging_addrs);
 
-  // If we have charging addresses but no IMS subscription, we need to lookup
-  // which public IDs need updating based on the private ID specified in the
-  // PPR.
+
   // If we have no charging addresses or IMS subscription, no actions need to be
   // taken, so send a PPA saying the PPR was successfully handled.
+
+  // If we have charging addresses but no IMS subscription, we need to lookup
+  // which public IDs need updating based on the private ID specified in the
+  // PPR. Need to find the default public IDs.
+
   // Otherwise, we have an IMS subscription, so we need to lookup the default
   // public ids for any IRS the IMPI is part of to determine whether this PPR
   // will change the default public id. If it will, reject it, otherwise
   // continue.
   _impi = _ppr.impi();
-  if ((_charging_addrs_present) && (!_ims_sub_present))
-  {
-    TRC_DEBUG("Querying cache to find public IDs associated with %s", _impi.c_str());
-    SAS::Event event(this->trail(), SASEvent::CACHE_GET_ASSOC_IMPU, 0);
-    event.add_var_param(_impi);
-    SAS::report_event(event);
-    CassandraStore::Operation* get_public_ids =
-      _cfg->cache->create_GetAssociatedPublicIDs(_impi);
-    CassandraStore::Transaction* tsx =
-      new CacheTransaction(this,
-                           &PushProfileTask::on_get_impus_success,
-                           &PushProfileTask::on_get_impus_failure);
-    _cfg->cache->do_async(get_public_ids, tsx);
-  }
-  else if ((!_charging_addrs_present) && (!_ims_sub_present))
+ 
+  if ((!_charging_addrs_present) && (!_ims_sub_present))
   {
     send_ppa(DIAMETER_REQ_SUCCESS);
   }
@@ -2366,60 +2356,13 @@ void PushProfileTask::run()
   }
 }
 
-void PushProfileTask::on_get_impus_success(CassandraStore::Operation* op)
-{
-  Cache::GetAssociatedPublicIDs* get_public_ids = (Cache::GetAssociatedPublicIDs*)op;
-  get_public_ids->get_result(_impus);
-  if (!_impus.empty())
-  {
-    SAS::Event event(this->trail(), SASEvent::CACHE_GET_ASSOC_IMPU_SUCCESS, 0);
-    event.add_var_param(_impus[0]);
-    SAS::report_event(event);
-    if (Log::enabled(Log::DEBUG_LEVEL))
-    {
-      // LCOV_EXCL_START - clearly we only go through this code when debug logging
-      // is turned on.
-      std::string impus_str = boost::algorithm::join(_impus, ", ");
-      TRC_DEBUG("Found cached public IDs %s for private ID %s",
-                impus_str.c_str(), _impi.c_str());
-      // LCOV_EXCL_STOP
-    }
-
-    // At this point we have the list of public ids, but we still need to dip
-    // into the cache again to get the default id to use.
-    CassandraStore::Operation* get_current_default =
-      _cfg->cache->create_GetAssociatedPrimaryPublicIDs(_impi);
-    CassandraStore::Transaction* tsx =
-      new CacheTransaction(this,
-                           &PushProfileTask::on_get_primary_impus_success,
-                           &PushProfileTask::on_get_primary_impus_failure);
-    _cfg->cache->do_async(get_current_default, tsx);
-  }
-  else
-  {
-    TRC_INFO("No cached public IDs found for private ID %s - failed to update charging addresses",
-             _impi.c_str());
-    SAS::Event event(this->trail(), SASEvent::CACHE_GET_ASSOC_IMPU_FAIL, 0);
-    SAS::report_event(event);
-    send_ppa(DIAMETER_REQ_FAILURE);
-  }
-}
-
-void PushProfileTask::on_get_impus_failure(CassandraStore::Operation* op,
-                                           CassandraStore::ResultCode error,
-                                           std::string& text)
-{
-  SAS::Event event(this->trail(), SASEvent::CACHE_GET_ASSOC_IMPU_FAIL, 0);
-  SAS::report_event(event);
-  TRC_DEBUG("Cache query failed with rc %d", error);
-  send_ppa(DIAMETER_REQ_FAILURE);
-}
 
 void PushProfileTask::update_reg_data()
 {
   // If we don't have any public IDs yet, we need to get them
   // out of the IMS subscription.
-  if (_impus.empty())
+   if (_ims_sub_present) {
+   if (_impus.empty())
   {
     _impus = XmlUtils::get_public_ids(_ims_subscription);
 
@@ -2445,10 +2388,14 @@ void PushProfileTask::update_reg_data()
       SAS::report_event(event);
     }
   }
+}
 
   // Get the default public id from the ims subscription if it is present.
   // If the ims subscription is not present, take the first of the default ifcs
   // found from searching each IRS associated with the IMPI on the PPR.
+  // Currently taking the list of IMPUs when there is no IMS sub present to be 
+  // the default ID, since this can be used to identify the set and the IMS
+  // sub does not change.
   // TODO - THIS IS INCORRECT AS THE CORRECT DEFAULT ID MUST BE FOUND.
   // CURRENTLY THIS CANNOT BE FIXED AS THE CODE IS BROKEN.
   std::string default_public_id;
@@ -2459,8 +2406,9 @@ void PushProfileTask::update_reg_data()
   else
   {
     default_public_id = _default_impus.front();
+    _impus.push_back(default_public_id);  
   }
-
+ 
   Cache::PutRegData* put_reg_data =
     _cfg->cache->create_PutRegData(_impus,
                                    default_public_id,
@@ -2472,10 +2420,10 @@ void PushProfileTask::update_reg_data()
   event.add_var_param(impus_str);
 
   if (_ims_sub_present)
-  {
-    TRC_INFO("Updating IMS subscription from PPR");
-    put_reg_data->with_xml(_ims_subscription);
-    event.add_compressed_param(_ims_subscription, &SASEvent::PROFILE_SERVICE_PROFILE);
+  {  
+   TRC_INFO("Updating IMS subscription from PPR");
+   put_reg_data->with_xml(_ims_subscription);
+   event.add_compressed_param(_ims_subscription, &SASEvent::PROFILE_SERVICE_PROFILE);
   }
   else
   {
@@ -2503,8 +2451,10 @@ void PushProfileTask::update_reg_data()
   CassandraStore::Operation*& op = (CassandraStore::Operation*&)put_reg_data;
   _cfg->cache->do_async(op, tsx);
 
-  SAS::report_event(event);
+   SAS::report_event(event);
+
 }
+
 
 void PushProfileTask::on_get_primary_impus_failure(CassandraStore::Operation* op,
                                                    CassandraStore::ResultCode error,
