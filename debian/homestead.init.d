@@ -93,9 +93,9 @@ get_settings()
           server_name=$scscf_uri
         elif [ -n "$scscf_prefix" ]
         then
-          server_name="sip:$scscf_prefix.$sprout_hostname:$scscf;transport=TCP"
+          server_name="sip:$scscf_prefix.$sprout_hostname;transport=TCP"
         else
-          server_name="sip:scscf.$sprout_hostname:$scscf;transport=TCP"
+          server_name="sip:scscf.$sprout_hostname;transport=TCP"
         fi
 
         sprout_http_name=$(/usr/share/clearwater/bin/bracket-ipv6-address $sprout_hostname):9888
