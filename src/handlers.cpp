@@ -2361,9 +2361,7 @@ void PushProfileTask::update_reg_data()
 {
   // If we don't have any public IDs yet, we need to get them
   // out of the IMS subscription.
-   if (_ims_sub_present) {
-   if (_impus.empty())
-  {
+   if ((_ims_sub_present) && (_impus.empty())) {
     _impus = XmlUtils::get_public_ids(_ims_subscription);
 
     // We should check the IRS contains a SIP URI and throw an error log if
@@ -2452,7 +2450,6 @@ void PushProfileTask::update_reg_data()
   _cfg->cache->do_async(op, tsx);
 
    SAS::report_event(event);
-
 }
 
 
