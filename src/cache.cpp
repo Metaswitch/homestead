@@ -386,25 +386,25 @@ bool Cache::GetRegData::perform(CassandraStore::Client* client,
       else if ((it->column.name == PRIMARY_CCF_COLUMN_NAME) && (it->column.value != ""))
       {
         _charging_addrs.ccfs.push_front(it->column.value);
-        TRC_DEBUG("Retrived primary_ccf column with value %s",
+        TRC_DEBUG("Retrieved primary_ccf column with value %s",
                   it->column.value.c_str());
       }
       else if ((it->column.name == SECONDARY_CCF_COLUMN_NAME) && (it->column.value != ""))
       {
         _charging_addrs.ccfs.push_back(it->column.value);
-        TRC_DEBUG("Retrived secondary_ccf column with value %s",
+        TRC_DEBUG("Retrieved secondary_ccf column with value %s",
                   it->column.value.c_str());
       }
       else if ((it->column.name == PRIMARY_ECF_COLUMN_NAME) && (it->column.value != ""))
       {
         _charging_addrs.ecfs.push_front(it->column.value);
-        TRC_DEBUG("Retrived primary_ecf column with value %s",
+        TRC_DEBUG("Retrieved primary_ecf column with value %s",
                   it->column.value.c_str());
       }
       else if ((it->column.name == SECONDARY_ECF_COLUMN_NAME) && (it->column.value != ""))
       {
         _charging_addrs.ecfs.push_back(it->column.value);
-        TRC_DEBUG("Retrived secondary_ecf column with value %s",
+        TRC_DEBUG("Retrieved secondary_ecf column with value %s",
                   it->column.value.c_str());
       }
     }
@@ -513,7 +513,7 @@ bool Cache::GetAssociatedPublicIDs::perform(CassandraStore::Client* client,
   std::map<std::string, std::vector<ColumnOrSuperColumn> > columns;
   std::set<std::string> public_ids;
 
-  TRC_DEBUG("Looking for public IDs for private ID %s and %d others",
+  TRC_DEBUG("Looking for public IDs for private ID %s out of a total %d private IDs.",
             _private_ids.front().c_str(),
             _private_ids.size());
   try
@@ -585,7 +585,7 @@ bool Cache::GetAssociatedPrimaryPublicIDs::perform(CassandraStore::Client* clien
   std::set<std::string> public_ids_set;
   std::map<std::string, std::vector<ColumnOrSuperColumn> > columns;
 
-  TRC_DEBUG("Looking for primary public IDs for private ID %s and %d others", _private_ids.front().c_str(), _private_ids.size());
+  TRC_DEBUG("Looking for primary public IDs for private ID %s out of a total %d private IDs", _private_ids.front().c_str(), _private_ids.size());
   try
   {
     ha_multiget_columns_with_prefix(client,
