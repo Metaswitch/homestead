@@ -2322,7 +2322,7 @@ void PushProfileTask::run()
   SAS::report_event(ppr_received);
 
   // Received a Push Profile Request. We may need to update an IMS
-  // subscription and/or charging address information in the cache.
+  // subscription and/or charging address information in the cache
   _ims_sub_present = _ppr.user_data(_ims_subscription);
   _charging_addrs_present = _ppr.charging_addrs(_charging_addrs);
 
@@ -2339,7 +2339,7 @@ void PushProfileTask::run()
   // will change the default public id. If it will, reject it, otherwise
   // continue.
   _impi = _ppr.impi();
- 
+
   if ((!_charging_addrs_present) && (!_ims_sub_present))
   {
     send_ppa(DIAMETER_REQ_SUCCESS);
@@ -2391,11 +2391,10 @@ void PushProfileTask::update_reg_data()
   // Get the default public id from the ims subscription if it is present.
   // If the ims subscription is not present, take the first of the default ifcs
   // found from searching each IRS associated with the IMPI on the PPR.
-  // Currently taking the list of IMPUs when there is no IMS sub present to be 
+  // Currently taking the list of IMPUs when there is no IMS sub present to be
   // the default ID, since this can be used to identify the set and the IMS
   // sub does not change.
-  // TODO - THIS IS INCORRECT AS THE CORRECT DEFAULT ID MUST BE FOUND.
-  // CURRENTLY THIS CANNOT BE FIXED AS THE CODE IS BROKEN.
+
   std::string default_public_id;
   if (_ims_sub_present)
   {
@@ -2404,9 +2403,9 @@ void PushProfileTask::update_reg_data()
   else
   {
     default_public_id = _default_impus.front();
-    _impus.push_back(default_public_id);  
+    _impus.push_back(default_public_id);
   }
- 
+
   Cache::PutRegData* put_reg_data =
     _cfg->cache->create_PutRegData(_impus,
                                    default_public_id,
@@ -2418,12 +2417,12 @@ void PushProfileTask::update_reg_data()
   event.add_var_param(impus_str);
 
   if (_ims_sub_present)
-  {  
+  {
    TRC_INFO("Updating IMS subscription from PPR");
    put_reg_data->with_xml(_ims_subscription);
    event.add_compressed_param(_ims_subscription, &SASEvent::PROFILE_SERVICE_PROFILE);
   }
-  else
+   else
   {
     event.add_compressed_param("IMS subscription unchanged", &SASEvent::PROFILE_SERVICE_PROFILE);
   }
@@ -2437,9 +2436,24 @@ void PushProfileTask::update_reg_data()
     event.add_var_param(_charging_addrs.log_string());
     put_reg_data->with_charging_addrs(_charging_addrs);
   }
+
   else
   {
     event.add_var_param("Charging addresses unchanged");
+  }
+
+  // if there are multiple implicit registration sets, create a new vector, containing any further default IMPUs, that have yet
+  // to be updated with the charging addresses.
+  if (_charging_addrs_present)
+  {
+     for (std::vector<std::string>::iterator it = _default_impus.begin(); it != _default_impus.end(); it++)
+     {
+       if (*it != default_public_id)
+       {
+     	 _further_impus.push_back(std::string(*it));
+	 std::string test = _further_impus.back();
+       }
+     }
   }
 
   CassandraStore::Transaction* tsx =
@@ -2450,8 +2464,54 @@ void PushProfileTask::update_reg_data()
   _cfg->cache->do_async(op, tsx);
 
    SAS::report_event(event);
+
 }
 
+void PushProfileTask::further_update_reg_data()
+{
+  if (!_further_impus.empty())
+  {
+      // Take the next default impu to update to be the last one in the vector. Then delete that
+      // element in the vector. Clear the _impus vector, and repopulate it
+      // Update the charging addresses for that default IMPU.
+      std::string default_public_id = _further_impus.back();
+      _further_impus.pop_back();
+      while (!_impus.empty())
+      {
+      _impus.pop_back();
+      }
+      _impus.push_back(default_public_id);
+
+       Cache::PutRegData* put_reg_data =
+         _cfg->cache->create_PutRegData(_impus,
+                                        default_public_id,
+                                        Cache::generate_timestamp(),
+                                        _cfg->record_ttl);
+       SAS::Event event(this->trail(), SASEvent::CACHE_PUT_REG_DATA, 0);
+
+       std::string impus_str = boost::algorithm::join(_impus, ", ");
+       event.add_var_param(impus_str);
+       TRC_INFO("Updating charging addresses from PPR");
+       event.add_var_param(_charging_addrs.log_string());
+       put_reg_data->with_charging_addrs(_charging_addrs);
+
+       CassandraStore::Transaction* tsx =
+       new CacheTransaction(this,
+                            &PushProfileTask::further_update_reg_data_success,
+                            &PushProfileTask::further_update_reg_data_failure);
+       CassandraStore::Operation*& op = (CassandraStore::Operation*&)put_reg_data;
+       _cfg->cache->do_async(op, tsx);
+
+       SAS::report_event(event);
+  }
+
+  // If it is empty, there are no further updates required.
+  else
+  {
+  TRC_INFO("Finished updating charging addresses.")
+  delete this;
+  }
+}
 
 void PushProfileTask::on_get_primary_impus_failure(CassandraStore::Operation* op,
                                                    CassandraStore::ResultCode error,
@@ -2465,6 +2525,7 @@ void PushProfileTask::on_get_primary_impus_failure(CassandraStore::Operation* op
 
 void PushProfileTask::on_get_primary_impus_success(CassandraStore::Operation* op)
 {
+  // will return a list of default IMPUs, one default IMPU per IRS.
   Cache::GetAssociatedPrimaryPublicIDs* get_primary_public_ids =
     (Cache::GetAssociatedPrimaryPublicIDs*)op;
   get_primary_public_ids->get_result(_default_impus);
@@ -2521,6 +2582,12 @@ void PushProfileTask::update_reg_data_success(CassandraStore::Operation* op)
   SAS::Event event(this->trail(), SASEvent::UPDATED_REG_DATA, 0);
   SAS::report_event(event);
   send_ppa(DIAMETER_REQ_SUCCESS);
+
+
+  // if there are multiple Implicit Registration Sets present, then the charging information needs to be updated
+  // for all of the sets.
+
+  further_update_reg_data();
 }
 
 void PushProfileTask::update_reg_data_failure(CassandraStore::Operation* op,
@@ -2529,6 +2596,24 @@ void PushProfileTask::update_reg_data_failure(CassandraStore::Operation* op,
 {
   TRC_DEBUG("Failed to update registration data - report failure to HSS");
   send_ppa(DIAMETER_REQ_FAILURE);
+}
+
+
+void PushProfileTask::further_update_reg_data_success(CassandraStore::Operation* op)
+{
+  SAS::Event event(this->trail(), SASEvent::UPDATED_REG_DATA, 0);
+  SAS::report_event(event);
+
+  // There might be more default IMPUs to update the charging information for.
+  further_update_reg_data();
+}
+
+void PushProfileTask::further_update_reg_data_failure(CassandraStore::Operation* op,
+                                                   CassandraStore::ResultCode error,
+                                                   std::string& text)
+{
+  TRC_DEBUG("Failed to update charging information");
+  further_update_reg_data();
 }
 
 void PushProfileTask::send_ppa(const std::string result_code)
@@ -2553,7 +2638,11 @@ void PushProfileTask::send_ppa(const std::string result_code)
   TRC_INFO("Ready to send PPA");
   ppa.send(trail());
 
+  if (result_code == DIAMETER_REQ_FAILURE)
+  {
   delete this;
+  }
+
 }
 
 void ImpuListTask::run()
