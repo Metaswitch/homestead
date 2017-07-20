@@ -625,28 +625,29 @@ private:
   bool _charging_addrs_present;
   ChargingAddresses _charging_addrs;
   std::string _impi;
+  std::string _default_public_id;
+  std::string _first_default_id;
   std::vector<std::string> _impus;
   std::vector<std::string> _default_impus;
-  std::vector<std::string> _further_impus;
 
-  void on_get_impus_success(CassandraStore::Operation* op);
-  void on_get_impus_failure(CassandraStore::Operation* op,
-                            CassandraStore::ResultCode error,
-                            std::string& text);
-  void on_get_primary_impus_success(CassandraStore::Operation* op);
-  void on_get_primary_impus_failure(CassandraStore::Operation* op,
-                                    CassandraStore::ResultCode error,
-                                    std::string& text);
   void update_reg_data();
-  void further_update_reg_data();
-  void further_update_reg_data_success(CassandraStore::Operation* op);
-  void further_update_reg_data_failure(CassandraStore::Operation* op,
-                                       CassandraStore::ResultCode error,
-                                       std::string& text);
   void update_reg_data_success(CassandraStore::Operation* op);
   void update_reg_data_failure(CassandraStore::Operation* op,
                                CassandraStore::ResultCode error,
                                std::string& text);
+  void get_registration_set();
+  void on_get_registration_set_success(CassandraStore::Operation* op);
+  void on_get_registration_set_failure(CassandraStore::Operation* op,
+                                      CassandraStore::ResultCode error,
+                                      std::string& text);
+  void on_get_primary_impus_success(CassandraStore::Operation* op);
+  void on_get_primary_impus_failure(CassandraStore::Operation* op,
+                                    CassandraStore::ResultCode error,
+                                    std::string& text);
+  void ims_sub_compare_default_ids();
+  void ims_sub_get_ids();
+  void no_ims_set_first_default();
+  void decide_if_send_ppa();
   void send_ppa(const std::string result_code);
 };
 

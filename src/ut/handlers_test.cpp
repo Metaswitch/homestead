@@ -97,16 +97,21 @@ public:
   static const std::string IMPU2;
   static const std::string IMPU3;
   static const std::string IMPU4;
+  static const std::string IMPU5;
+  static const std::string IMPU6;
   static std::vector<std::string> IMPU_TEST;
   static std::vector<std::string> IMPUS;
-  static std::vector<std::string> MANY_IMPUS;
+  static std::vector<std::string> THREE_DEFAULT_IMPUS;
+  static std::vector<std::string> THREE_DEFAULT_IMPUS2;
   static std::vector<std::string> ASSOCIATED_IDENTITY1_IN_VECTOR;
   static std::vector<std::string> IMPU_REG_SET;
   static std::vector<std::string> IMPU_REG_SET2;
   static std::vector<std::string> IMPU3_REG_SET;
+  static std::vector<std::string> IMPU5_REG_SET;
   static const std::string IMPU_IMS_SUBSCRIPTION;
   static const std::string IMPU_IMS_SUBSCRIPTION_INVALID;
   static const std::string IMPU3_IMS_SUBSCRIPTION;
+  static const std::string IMPU5_IMS_SUBSCRIPTION;
   static const std::string IMPU_IMS_SUBSCRIPTION_WITH_BARRING;
   static const std::string IMPU_IMS_SUBSCRIPTION_WITH_BARRING2;
   static const std::string IMPU_IMS_SUBSCRIPTION_WITH_BARRING3;
@@ -1686,6 +1691,8 @@ const std::string HandlersTest::IMPU = "sip:impu@example.com";
 const std::string HandlersTest::IMPU2 = "sip:impu2@example.com";
 const std::string HandlersTest::IMPU3 = "sip:impu3@example.com";
 const std::string HandlersTest::IMPU4 = "sip:impu4@example.com";
+const std::string HandlersTest::IMPU5 = "sip:impu5@example.com";
+const std::string HandlersTest::IMPU6 = "sip:impu6@example.com";
 const std::string HandlersTest::IMS_SUBSCRIPTION = "<?xml version=\"1.0\"?><IMSSubscription><PrivateID>" + IMPI + "</PrivateID><ServiceProfile><PublicIdentity><Identity>" + IMPU + "</Identity></PublicIdentity></ServiceProfile></IMSSubscription>";
 const std::string HandlersTest::REGDATA_RESULT = "<ClearwaterRegData>\n\t<RegistrationState>REGISTERED</RegistrationState>\n\t<IMSSubscription>\n\t\t<PrivateID>" + IMPI + "</PrivateID>\n\t\t<ServiceProfile>\n\t\t\t<PublicIdentity>\n\t\t\t\t<Identity>" + IMPU + "</Identity>\n\t\t\t</PublicIdentity>\n\t\t\t<PublicIdentity>\n\t\t\t\t<Identity>" + IMPU4 + "</Identity>\n\t\t\t</PublicIdentity>\n\t\t</ServiceProfile>\n\t</IMSSubscription>\n</ClearwaterRegData>\n\n";
 const std::string HandlersTest::REGDATA_RESULT_INCLUDES_BARRING = "<ClearwaterRegData>\n\t<RegistrationState>REGISTERED</RegistrationState>\n\t<IMSSubscription>\n\t\t<PrivateID>" + IMPI + "</PrivateID>\n\t\t<ServiceProfile>\n\t\t\t<PublicIdentity>\n\t\t\t\t<Identity>" + IMPU + "</Identity>\n\t\t\t\t<BarringIndication>1</BarringIndication>\n\t\t\t</PublicIdentity>\n\t\t\t<PublicIdentity>\n\t\t\t\t<Identity>" + IMPU2 + "</Identity>\n\t\t\t</PublicIdentity>\n\t\t</ServiceProfile>\n\t</IMSSubscription>\n</ClearwaterRegData>\n\n";
@@ -1707,7 +1714,8 @@ const std::string HandlersTest::ASSOCIATED_IDENTITY2 = "associated_identity2@exa
 std::vector<std::string> HandlersTest::ASSOCIATED_IDENTITIES = {ASSOCIATED_IDENTITY1, ASSOCIATED_IDENTITY2};
 std::vector<std::string> HandlersTest::IMPU_TEST = {IMPU};
 std::vector<std::string> HandlersTest::IMPUS = {IMPU, IMPU2};
-std::vector<std::string> HandlersTest::MANY_IMPUS = {IMPU, IMPU2, IMPU3};
+std::vector<std::string> HandlersTest::THREE_DEFAULT_IMPUS = {IMPU, IMPU2, IMPU3};
+std::vector<std::string> HandlersTest::THREE_DEFAULT_IMPUS2 = {IMPU, IMPU3, IMPU5};
 std::vector<std::string> HandlersTest::IMPU_IN_VECTOR = {IMPU};
 std::vector<std::string> HandlersTest::IMPU2_IN_VECTOR = {IMPU2};
 std::vector<std::string> HandlersTest::IMPU3_IN_VECTOR = {IMPU3};
@@ -1716,9 +1724,11 @@ std::vector<std::string> HandlersTest::ASSOCIATED_IDENTITY1_IN_VECTOR = {ASSOCIA
 std::vector<std::string> HandlersTest::IMPU_REG_SET = {IMPU, IMPU4};
 std::vector<std::string> HandlersTest::IMPU_REG_SET2 = {IMPU, IMPU2};
 std::vector<std::string> HandlersTest::IMPU3_REG_SET = {IMPU3, IMPU2};
+std::vector<std::string> HandlersTest::IMPU5_REG_SET = {IMPU5, IMPU6};
 const std::string HandlersTest::IMPU_IMS_SUBSCRIPTION = "<?xml version=\"1.0\"?><IMSSubscription><PrivateID>" + IMPI + "</PrivateID><ServiceProfile><PublicIdentity><Identity>" + IMPU + "</Identity></PublicIdentity><PublicIdentity><Identity>" + IMPU4 + "</Identity></PublicIdentity></ServiceProfile></IMSSubscription>";
 const std::string HandlersTest::IMPU_IMS_SUBSCRIPTION_INVALID = "<?xml version=\"1.0\"?><IMSSubscriptio></IMSSubscriptio>";
 const std::string HandlersTest::IMPU3_IMS_SUBSCRIPTION = "<?xml version=\"1.0\"?><IMSSubscription><PrivateID>" + IMPI + "</PrivateID><ServiceProfile><PublicIdentity><Identity>" + IMPU3 + "</Identity></PublicIdentity><PublicIdentity><Identity>" + IMPU2 + "</Identity></PublicIdentity></ServiceProfile></IMSSubscription>";
+const std::string HandlersTest::IMPU5_IMS_SUBSCRIPTION = "<?xml version=\"1.0\"?><IMSSubscription><PrivateID>" + IMPI + "</PrivateID><ServiceProfile><PublicIdentity><Identity>" + IMPU5 + "</Identity></PublicIdentity><PublicIdentity><Identity>" + IMPU6 + "</Identity></PublicIdentity></ServiceProfile></IMSSubscription>";
 const std::string HandlersTest::IMPU_IMS_SUBSCRIPTION_WITH_BARRING = "<?xml version=\"1.0\"?><IMSSubscription><PrivateID>" + IMPI + "</PrivateID><ServiceProfile><PublicIdentity><Identity>" + IMPU + "</Identity><BarringIndication>1</BarringIndication></PublicIdentity><PublicIdentity><Identity>" + IMPU2 + "</Identity></PublicIdentity></ServiceProfile></IMSSubscription>";
 const std::string HandlersTest::IMPU_IMS_SUBSCRIPTION_WITH_BARRING2 = "<?xml version=\"1.0\"?><IMSSubscription><PrivateID>" + IMPI + "</PrivateID><ServiceProfile><PublicIdentity><Identity>" + IMPU + "</Identity><BarringIndication>1</BarringIndication></PublicIdentity><PublicIdentity><Identity>" + IMPU4 + "</Identity></PublicIdentity></ServiceProfile></IMSSubscription>";
 const std::string HandlersTest::IMPU_IMS_SUBSCRIPTION_WITH_BARRING3 = "<?xml version=\"1.0\"?><IMSSubscription><PrivateID>" + IMPI + "</PrivateID><ServiceProfile><PublicIdentity><Identity>" + IMPU + "</Identity></PublicIdentity><PublicIdentity><Identity>" + IMPU4 + "</Identity><BarringIndication>1</BarringIndication></PublicIdentity></ServiceProfile></IMSSubscription>";
@@ -4540,19 +4550,38 @@ TEST_F(HandlersTest, PushProfileChargingAddrs)
   EXPECT_CALL(mock_op, get_result(_))
     .WillRepeatedly(SetArgReferee<0>(IMPU_IN_VECTOR));
 
-  // Next we expect to try and update the charging addresses (but not the IMS
-  // subscription) in the cache.
-  MockCache::MockPutRegData mock_op2;
-  EXPECT_CALL(*_cache, create_PutRegData(IMPU_TEST, IMPU, _, 7200))
-    .Times(1)
+  // Next, expect to obtain the other public identities in the IRS
+  MockCache::MockGetRegData mock_op2;
+  EXPECT_CALL(*_cache, create_GetRegData(IMPU))
     .WillOnce(Return(&mock_op2));
-  EXPECT_CALL(mock_op2, with_charging_addrs(_))
-    .WillOnce(ReturnRef(mock_op2));
   EXPECT_DO_ASYNC(*_cache, mock_op2);
 
   t->on_success(&mock_op);
 
   t = mock_op2.get_trx();
+  ASSERT_FALSE(t == NULL);
+  EXPECT_CALL(mock_op2, get_xml(_, _))
+    .WillRepeatedly(SetArgReferee<0>(IMPU_IMS_SUBSCRIPTION));
+  EXPECT_CALL(mock_op2, get_registration_state(_, _))
+    .WillRepeatedly(Return());
+  EXPECT_CALL(mock_op2, get_charging_addrs(_))
+    .WillRepeatedly(Return());
+  EXPECT_CALL(mock_op2, get_associated_impis(_))
+    .WillRepeatedly(Return());
+
+  // Next we expect to try and update the charging addresses (but not the IMS
+  // subscription) in the cache.
+  MockCache::MockPutRegData mock_op3;
+  EXPECT_CALL(*_cache, create_PutRegData(IMPU_REG_SET, IMPU, _, 7200))
+    .Times(1)
+    .WillOnce(Return(&mock_op3));
+  EXPECT_CALL(mock_op3, with_charging_addrs(_))
+    .WillOnce(ReturnRef(mock_op3));
+  EXPECT_DO_ASYNC(*_cache, mock_op3);
+
+  t->on_success(&mock_op2);
+
+  t = mock_op3.get_trx();
   ASSERT_FALSE(t == NULL);
 
   // Finally we expect a PPA.
@@ -4560,7 +4589,7 @@ TEST_F(HandlersTest, PushProfileChargingAddrs)
     .Times(1)
     .WillOnce(WithArgs<0>(Invoke(store_msg)));
 
-  t->on_success(&mock_op2);
+  t->on_success(&mock_op3);
 
   // Turn the caught Diameter msg structure into a PPA and confirm its contents.
   Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
@@ -4785,7 +4814,7 @@ TEST_F(HandlersTest, PushProfileMultipleIRS)
     Cx::PushProfileRequest ppr(_cx_dict,
                              _mock_stack,
                              IMPI,
-                             IMS_SUBSCRIPTION,
+                             IMPU3_IMS_SUBSCRIPTION,
                              FULL_CHARGING_ADDRESSES,
                              AUTH_SESSION_STATE);
 
@@ -4811,19 +4840,21 @@ TEST_F(HandlersTest, PushProfileMultipleIRS)
 
   task->run();
 
-   // The cache successfully returns a list of default public identities from
-  // each IRS the IMPI is associated with.
+  // The cache successfully returns a list of default public identities from
+  // each IRS the IMPI is associated with. It will return a list of
+  // three default IMPUs, and the one in the IMS subscription element on the
+  // PPR is the second.
   CassandraStore::Transaction* t = mock_op.get_trx();
   ASSERT_FALSE(t == NULL);
   EXPECT_CALL(mock_op, get_result(_))
-    .WillRepeatedly(SetArgReferee<0>(MANY_IMPUS));
+    .WillRepeatedly(SetArgReferee<0>(THREE_DEFAULT_IMPUS2));
 
   // Then expect an attempt to update the IMS subscription of the charging
   // addresses in the cache.
   MockCache::MockPutRegData mock_op2;
-  EXPECT_CALL(*_cache, create_PutRegData(IMPU_IN_VECTOR, IMPU, _, 7200))
+  EXPECT_CALL(*_cache, create_PutRegData(IMPU3_REG_SET, IMPU3, _, 7200))
     .WillOnce(Return(&mock_op2));
-  EXPECT_CALL(mock_op2, with_xml(IMS_SUBSCRIPTION))
+  EXPECT_CALL(mock_op2, with_xml(IMPU3_IMS_SUBSCRIPTION))
     .WillOnce(ReturnRef(mock_op2));
   EXPECT_CALL(mock_op2, with_charging_addrs(_))
     .WillOnce(ReturnRef(mock_op2));
@@ -4834,25 +4865,58 @@ TEST_F(HandlersTest, PushProfileMultipleIRS)
   t = mock_op2.get_trx();
   ASSERT_FALSE(t == NULL);
 
-  // we expect a PPA.
+  // Next, we expect a PPA.
   EXPECT_CALL(*_mock_stack, send(_, FAKE_TRAIL_ID))
     .Times(1)
     .WillOnce(WithArgs<0>(Invoke(store_msg)));
 
-  //expect an attempt to update the charging addresses for the other default IMPUs.
-  MockCache::MockPutRegData mock_op3;
-  EXPECT_CALL(*_cache, create_PutRegData(IMPU3_IN_VECTOR, IMPU3, _, 7200))
+  // Next, expect to obtain the other public identities in the IRS
+  // for the next default ID
+  MockCache::MockGetRegData mock_op3;
+  EXPECT_CALL(*_cache, create_GetRegData(IMPU5))
     .WillOnce(Return(&mock_op3));
-  EXPECT_CALL(mock_op3, with_charging_addrs(_))
-    .WillOnce(ReturnRef(mock_op3));
   EXPECT_DO_ASYNC(*_cache, mock_op3);
 
+  EXPECT_CALL(mock_op3, get_xml(_, _))
+    .WillRepeatedly(SetArgReferee<0>(IMPU5_IMS_SUBSCRIPTION));
+  EXPECT_CALL(mock_op3, get_registration_state(_, _))
+    .WillRepeatedly(Return());
+  EXPECT_CALL(mock_op3, get_charging_addrs(_))
+    .WillRepeatedly(Return());
+  EXPECT_CALL(mock_op3, get_associated_impis(_))
+    .WillRepeatedly(Return());
+
+  //expect an attempt to update the charging addresses for this default IMPU.
   MockCache::MockPutRegData mock_op4;
-  EXPECT_CALL(*_cache, create_PutRegData(IMPU2_IN_VECTOR, IMPU2, _, 7200))
+  EXPECT_CALL(*_cache, create_PutRegData(IMPU5_REG_SET, IMPU5, _, 7200))
     .WillOnce(Return(&mock_op4));
   EXPECT_CALL(mock_op4, with_charging_addrs(_))
     .WillOnce(ReturnRef(mock_op4));
   EXPECT_DO_ASYNC(*_cache, mock_op4);
+
+  // Next, expect to obtain the other public identities in the IRS
+  // for the final default ID
+  MockCache::MockGetRegData mock_op5;
+  EXPECT_CALL(*_cache, create_GetRegData(IMPU))
+    .WillOnce(Return(&mock_op5));
+  EXPECT_DO_ASYNC(*_cache, mock_op5);
+
+  EXPECT_CALL(mock_op5, get_xml(_, _))
+    .WillRepeatedly(SetArgReferee<0>(IMPU_IMS_SUBSCRIPTION));
+  EXPECT_CALL(mock_op5, get_registration_state(_, _))
+    .WillRepeatedly(Return());
+  EXPECT_CALL(mock_op5, get_charging_addrs(_))
+    .WillRepeatedly(Return());
+  EXPECT_CALL(mock_op5, get_associated_impis(_))
+    .WillRepeatedly(Return());
+
+  //expect an attempt to update the charging addresses for this default IMPU.
+  MockCache::MockPutRegData mock_op6;
+  EXPECT_CALL(*_cache, create_PutRegData(IMPU_REG_SET, IMPU, _, 7200))
+    .WillOnce(Return(&mock_op6));
+  EXPECT_CALL(mock_op6, with_charging_addrs(_))
+    .WillOnce(ReturnRef(mock_op6));
+  EXPECT_DO_ASYNC(*_cache, mock_op6);
 
   t->on_success(&mock_op2);
 
@@ -4872,6 +4936,17 @@ TEST_F(HandlersTest, PushProfileMultipleIRS)
   ASSERT_FALSE(t == NULL);
 
   t->on_success(&mock_op4);
+
+  t = mock_op5.get_trx();
+  ASSERT_FALSE(t == NULL);
+
+  t->on_success(&mock_op5);
+
+  t = mock_op6.get_trx();
+  ASSERT_FALSE(t == NULL);
+
+  t->on_success(&mock_op6);
+
 }
 
 
@@ -4911,47 +4986,102 @@ TEST_F(HandlersTest, PushProfileChargingAddrsMultipleIRS)
   task->run();
 
   // The cache successfully returns a list of default public identities.
+  // It will return a list of 3 default identities.
   CassandraStore::Transaction* t = mock_op.get_trx();
   ASSERT_FALSE(t == NULL);
   EXPECT_CALL(mock_op, get_result(_))
-    .WillRepeatedly(SetArgReferee<0>(MANY_IMPUS));
+    .WillRepeatedly(SetArgReferee<0>(THREE_DEFAULT_IMPUS2));
 
-  // Next we expect to try and update the charging addresses (but not the IMS
-  // subscription) in the cache.
-  MockCache::MockPutRegData mock_op2;
-  EXPECT_CALL(*_cache, create_PutRegData(IMPU_IN_VECTOR, IMPU, _, 7200))
-    .Times(1)
+  // Next, expect to obtain the other public identities in the IRS
+  // for the first default ID
+  MockCache::MockGetRegData mock_op2;
+  EXPECT_CALL(*_cache, create_GetRegData(IMPU5))
     .WillOnce(Return(&mock_op2));
-  EXPECT_CALL(mock_op2, with_charging_addrs(_))
-    .WillOnce(ReturnRef(mock_op2));
   EXPECT_DO_ASYNC(*_cache, mock_op2);
+
+  EXPECT_CALL(mock_op2, get_xml(_, _))
+    .WillRepeatedly(SetArgReferee<0>(IMPU5_IMS_SUBSCRIPTION));
+  EXPECT_CALL(mock_op2, get_registration_state(_, _))
+    .WillRepeatedly(Return());
+  EXPECT_CALL(mock_op2, get_charging_addrs(_))
+    .WillRepeatedly(Return());
+  EXPECT_CALL(mock_op2, get_associated_impis(_))
+    .WillRepeatedly(Return());
 
   t->on_success(&mock_op);
 
   t = mock_op2.get_trx();
   ASSERT_FALSE(t == NULL);
 
-  // we expect a PPA.
-  EXPECT_CALL(*_mock_stack, send(_, FAKE_TRAIL_ID))
-    .Times(1)
-    .WillOnce(WithArgs<0>(Invoke(store_msg)));
 
-  //expect an attempt to update the charging addresses for the other default IMPUs.
+  // Next we expect to try and update the charging addresses in the cache.
   MockCache::MockPutRegData mock_op3;
-  EXPECT_CALL(*_cache, create_PutRegData(IMPU3_IN_VECTOR, IMPU3, _, 7200))
+  EXPECT_CALL(*_cache, create_PutRegData(IMPU5_REG_SET, IMPU5, _, 7200))
+    .Times(1)
     .WillOnce(Return(&mock_op3));
   EXPECT_CALL(mock_op3, with_charging_addrs(_))
     .WillOnce(ReturnRef(mock_op3));
   EXPECT_DO_ASYNC(*_cache, mock_op3);
 
-  MockCache::MockPutRegData mock_op4;
-  EXPECT_CALL(*_cache, create_PutRegData(IMPU2_IN_VECTOR, IMPU2, _, 7200))
+  t->on_success(&mock_op2);
+
+  t = mock_op3.get_trx();
+  ASSERT_FALSE(t == NULL);
+
+  // Next, we expect a PPA.
+  EXPECT_CALL(*_mock_stack, send(_, FAKE_TRAIL_ID))
+    .Times(1)
+    .WillOnce(WithArgs<0>(Invoke(store_msg)));
+
+  // Next, expect to obtain the other public identities in the IRS
+  // for the next default ID
+  MockCache::MockGetRegData mock_op4;
+  EXPECT_CALL(*_cache, create_GetRegData(IMPU3))
     .WillOnce(Return(&mock_op4));
-  EXPECT_CALL(mock_op4, with_charging_addrs(_))
-    .WillOnce(ReturnRef(mock_op4));
   EXPECT_DO_ASYNC(*_cache, mock_op4);
 
-  t->on_success(&mock_op2);
+  EXPECT_CALL(mock_op4, get_xml(_, _))
+    .WillRepeatedly(SetArgReferee<0>(IMPU3_IMS_SUBSCRIPTION));
+  EXPECT_CALL(mock_op4, get_registration_state(_, _))
+    .WillRepeatedly(Return());
+  EXPECT_CALL(mock_op4, get_charging_addrs(_))
+    .WillRepeatedly(Return());
+  EXPECT_CALL(mock_op4, get_associated_impis(_))
+    .WillRepeatedly(Return());
+
+  // Expect an attempt to update the charging addresses for this default IMPU.
+  MockCache::MockPutRegData mock_op5;
+  EXPECT_CALL(*_cache, create_PutRegData(IMPU3_REG_SET, IMPU3, _, 7200))
+    .WillOnce(Return(&mock_op5));
+  EXPECT_CALL(mock_op5, with_charging_addrs(_))
+    .WillOnce(ReturnRef(mock_op5));
+  EXPECT_DO_ASYNC(*_cache, mock_op5);
+
+  // Next, expect to obtain the other public identities in the IRS
+  // for the final default ID
+  MockCache::MockGetRegData mock_op6;
+  EXPECT_CALL(*_cache, create_GetRegData(IMPU))
+    .WillOnce(Return(&mock_op6));
+  EXPECT_DO_ASYNC(*_cache, mock_op6);
+
+  EXPECT_CALL(mock_op6, get_xml(_, _))
+    .WillRepeatedly(SetArgReferee<0>(IMPU_IMS_SUBSCRIPTION));
+  EXPECT_CALL(mock_op6, get_registration_state(_, _))
+    .WillRepeatedly(Return());
+  EXPECT_CALL(mock_op6, get_charging_addrs(_))
+    .WillRepeatedly(Return());
+  EXPECT_CALL(mock_op6, get_associated_impis(_))
+    .WillRepeatedly(Return());
+
+  // Expect an attempt to update the charging addresses for this default IMPU.
+  MockCache::MockPutRegData mock_op7;
+  EXPECT_CALL(*_cache, create_PutRegData(IMPU_REG_SET, IMPU, _, 7200))
+    .WillOnce(Return(&mock_op7));
+  EXPECT_CALL(mock_op7, with_charging_addrs(_))
+    .WillOnce(ReturnRef(mock_op7));
+  EXPECT_DO_ASYNC(*_cache, mock_op7);
+
+  t->on_success(&mock_op3);
 
   // Turn the caught Diameter msg structure into a PPA and confirm its contents.
   Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
@@ -4960,15 +5090,25 @@ TEST_F(HandlersTest, PushProfileChargingAddrsMultipleIRS)
   EXPECT_EQ(DIAMETER_SUCCESS, test_i32);
   EXPECT_EQ(AUTH_SESSION_STATE, ppa.auth_session_state());
 
-  t = mock_op3.get_trx();
-  ASSERT_FALSE(t == NULL);
-
-  t->on_success(&mock_op3);
-
   t = mock_op4.get_trx();
   ASSERT_FALSE(t == NULL);
 
   t->on_success(&mock_op4);
+
+  t = mock_op5.get_trx();
+  ASSERT_FALSE(t == NULL);
+
+  t->on_success(&mock_op5);
+
+  t = mock_op6.get_trx();
+  ASSERT_FALSE(t == NULL);
+
+  t->on_success(&mock_op6);
+
+  t = mock_op7.get_trx();
+  ASSERT_FALSE(t == NULL);
+
+  t->on_success(&mock_op7);
 }
 
 
