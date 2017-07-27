@@ -2217,9 +2217,6 @@ TEST_F(HandlersTest, DigestHSSUnkownScheme)
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
 }
 
-
-
-
 TEST_F(HandlersTest, DigestHSSAKAReturned)
 {
   // This test tests an Impi Digest task case with an HSS configured, but
