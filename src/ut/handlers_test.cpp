@@ -69,6 +69,7 @@ public:
   static const std::string DEST_REALM;
   static const std::string DEST_HOST;
   static const std::string DEFAULT_SERVER_NAME;
+  static const std::string PROVIDED_SERVER_NAME;
   static const std::string SERVER_NAME;
   static const std::string WILDCARD;
   static const std::string NEW_WILDCARD;
@@ -1541,7 +1542,7 @@ public:
     MockHttpStack::Request req(_httpstack,
                                "/impi/" + IMPI,
                                "digest",
-                               "?public_id=" + IMPU);
+                               "?public_id=" + IMPU + "&server_name=" + PROVIDED_SERVER_NAME);
 
     // Set the IMPU Cache TTL based on whether the IMPU cache is enabled
     ImpiTask::Config cfg(true, (impu_cache_enabled) ? 300 : 0, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA, SCHEME_AKAV2);
@@ -1566,7 +1567,7 @@ public:
     EXPECT_EQ(SCHEME_DIGEST, mar.sip_auth_scheme());
     EXPECT_EQ("", mar.sip_authorization());
     EXPECT_TRUE(mar.server_name(test_str));
-    EXPECT_EQ(DEFAULT_SERVER_NAME, test_str);
+    EXPECT_EQ(PROVIDED_SERVER_NAME, test_str);
 
     DigestAuthVector digest;
     digest.ha1 = "ha1";
@@ -1674,6 +1675,7 @@ public:
 const std::string HandlersTest::DEST_REALM = "dest-realm";
 const std::string HandlersTest::DEST_HOST = "dest-host";
 const std::string HandlersTest::DEFAULT_SERVER_NAME = "sprout";
+const std::string HandlersTest::PROVIDED_SERVER_NAME = "sprout-site2";
 const std::string HandlersTest::SERVER_NAME = "scscf";
 const std::string HandlersTest::WILDCARD = "sip:im!.*!@scscf";
 const std::string HandlersTest::NEW_WILDCARD = "sip:newim!.*!@scscf";
@@ -2215,6 +2217,9 @@ TEST_F(HandlersTest, DigestHSSUnkownScheme)
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
 }
 
+
+
+
 TEST_F(HandlersTest, DigestHSSAKAReturned)
 {
   // This test tests an Impi Digest task case with an HSS configured, but
@@ -2573,7 +2578,7 @@ TEST_F(HandlersTest, AvHSSAKAv2)
   MockHttpStack::Request req(_httpstack,
                              "/impi/" + IMPI,
                              "aka2",
-                             "?impu=" + IMPU + "&resync-auth=" + base64_encode(SIP_AUTHORIZATION));
+                             "?impu=" + IMPU + "&resync-auth=" + base64_encode(SIP_AUTHORIZATION) + "&server_name=" + PROVIDED_SERVER_NAME);
 
   ImpiTask::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA, SCHEME_AKAV2);
   ImpiAvTask* task = new ImpiAvTask(req, &cfg, FAKE_TRAIL_ID);
@@ -2592,6 +2597,8 @@ TEST_F(HandlersTest, AvHSSAKAv2)
   Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
   Cx::MultimediaAuthRequest mar(msg);
   EXPECT_EQ(SCHEME_AKAV2, mar.sip_auth_scheme());
+  EXPECT_TRUE(mar.server_name(test_str));
+  EXPECT_EQ(PROVIDED_SERVER_NAME, test_str);
 
   DigestAuthVector digest;
   AKAAuthVector aka;
