@@ -73,7 +73,7 @@ const std::string JSON_WILDCARD = "wildcard-identity";
 
 // HTTP query string field names
 const std::string AUTH_FIELD_NAME = "resync-auth";
-const std::string SERVER_NAME_FIELD = "server_name";
+const std::string SERVER_NAME_FIELD = "server-name";
 
 class HssCacheTask : public HttpStackUtils::Task
 {

@@ -1542,7 +1542,7 @@ public:
     MockHttpStack::Request req(_httpstack,
                                "/impi/" + IMPI,
                                "digest",
-                               "?public_id=" + IMPU + "&server_name=" + PROVIDED_SERVER_NAME);
+                               "?public_id=" + IMPU + "&server-name=" + PROVIDED_SERVER_NAME);
 
     // Set the IMPU Cache TTL based on whether the IMPU cache is enabled
     ImpiTask::Config cfg(true, (impu_cache_enabled) ? 300 : 0, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA, SCHEME_AKAV2);
@@ -2575,7 +2575,7 @@ TEST_F(HandlersTest, AvHSSAKAv2)
   MockHttpStack::Request req(_httpstack,
                              "/impi/" + IMPI,
                              "aka2",
-                             "?impu=" + IMPU + "&resync-auth=" + base64_encode(SIP_AUTHORIZATION) + "&server_name=" + PROVIDED_SERVER_NAME);
+                             "?impu=" + IMPU + "&resync-auth=" + base64_encode(SIP_AUTHORIZATION) + "&server-name=" + PROVIDED_SERVER_NAME);
 
   ImpiTask::Config cfg(true, 300, SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA, SCHEME_AKAV2);
   ImpiAvTask* task = new ImpiAvTask(req, &cfg, FAKE_TRAIL_ID);
