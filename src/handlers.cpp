@@ -2343,6 +2343,7 @@ void PushProfileTask::run()
   if ((!_charging_addrs_present) && (!_ims_sub_present))
   {
     send_ppa(DIAMETER_REQ_SUCCESS);
+    delete this;
   }
   else
   {
@@ -2359,6 +2360,11 @@ void PushProfileTask::run()
 
 void PushProfileTask::update_reg_data()
 {
+  if (!_ims_sub_present || !check_if_first())
+  {
+    _impus = _irs_impus;
+  }
+
   Cache::PutRegData* put_reg_data =
     _cfg->cache->create_PutRegData(_impus,
                                    _default_public_id,
@@ -2371,13 +2377,24 @@ void PushProfileTask::update_reg_data()
 
   // Only need to update the IMS sub for the one default ID in the subscription
   // This will be done first
-  if (_ims_sub_present && _default_public_id == _first_default_id)
+
+  if (_ims_sub_present && check_if_first())
   {
     TRC_INFO("Updating IMS subscription from PPR");
     put_reg_data->with_xml(_ims_subscription);
     event.add_compressed_param(_ims_subscription, &SASEvent::PROFILE_SERVICE_PROFILE);
+    find_impus_to_delete();
+    if (check_impus_added())
+    {
+      TRC_INFO("Updating registration state");
+      put_reg_data->with_reg_state(_reg_state);
+      if (!_charging_addrs_present)
+      {
+        put_reg_data->with_charging_addrs(_reg_charging_addrs);
+      }
+    }
   }
-   else if (_default_public_id == _first_default_id)
+  else if (check_if_first())
   {
     event.add_compressed_param("IMS subscription unchanged", &SASEvent::PROFILE_SERVICE_PROFILE);
   }
@@ -2446,10 +2463,12 @@ void PushProfileTask::on_get_registration_set_success(CassandraStore::Operation*
   std::string ims_sub;
   int32_t temp;
   get_reg_data_result->get_xml(ims_sub, temp);
+  get_reg_data_result->get_registration_state(_reg_state, temp);
+  get_reg_data_result->get_charging_addrs(_reg_charging_addrs);
 
   // Add the list of public identities in the IMS subscription obtained to
   // _impus, to update and update the charging information for these IMPUs.
-  _impus = XmlUtils::get_public_and_default_ids(ims_sub, _default_public_id);
+  _irs_impus = XmlUtils::get_public_and_default_ids(ims_sub, _default_public_id);
   update_reg_data();
 }
 
@@ -2570,7 +2589,8 @@ void PushProfileTask::ims_sub_get_ids()
                                    _default_impus.end(),
                                    _default_public_id),
                        _default_impus.end());
-  update_reg_data();
+  _default_impus.push_back(_first_default_id);
+  get_registration_set();
 }
 
 void PushProfileTask::no_ims_set_first_default()
@@ -2594,7 +2614,10 @@ void PushProfileTask::update_reg_data_failure(CassandraStore::Operation* op,
                                               std::string& text)
 {
   TRC_DEBUG("Failed to update registration data - report failure to HSS");
-  send_ppa(DIAMETER_REQ_FAILURE);
+  if (check_if_first())
+  {
+    send_ppa(DIAMETER_REQ_FAILURE);
+  }
 }
 
 void PushProfileTask::decide_if_send_ppa()
@@ -2604,7 +2627,7 @@ void PushProfileTask::decide_if_send_ppa()
   // If there is a charging address present, there may be further registration
   // sets which need updated charging information.
 
-  if (_default_public_id == _first_default_id)
+  if (check_if_first())
   {
     send_ppa(DIAMETER_REQ_SUCCESS);
   }
@@ -2613,6 +2636,53 @@ void PushProfileTask::decide_if_send_ppa()
   {
     get_registration_set();
   }
+  else
+  {
+    delete this;
+  }
+}
+
+void PushProfileTask::find_impus_to_delete()
+{
+  // If there is an IMPU present within an IRS in the cache, but
+  // it was not on the IMS subscription element provided by the PPR
+  // we will need to delete the IMPU from the cache.
+  for (std::vector<std::string>::iterator irs_impu = _irs_impus.begin();
+       irs_impu != _irs_impus.end();
+       irs_impu++)
+    {
+      for (std::vector<std::string>::iterator sub_impu = _impus.begin();
+           sub_impu != _impus.end();
+           sub_impu++)
+      {
+        if (*irs_impu == *sub_impu)
+        {
+          break;
+        }
+        if (sub_impu+1 == _impus.end())
+        {
+          _impus_to_delete.push_back(*irs_impu);
+        }
+      }
+    }
+  if (!_impus_to_delete.empty())
+  {
+    delete_impus();
+  }
+}
+
+void PushProfileTask::delete_impus()
+{
+  CassandraStore::Operation* delete_IMPU =
+    _cfg->cache->create_DeleteIMPUs(_impus_to_delete,
+			       Cache::generate_timestamp());
+  CassandraStore::Transaction* tsx = new CacheTransaction;
+  _cfg->cache->do_async(delete_IMPU, tsx);
+}
+
+bool PushProfileTask::check_impus_added()
+{
+  return ((_irs_impus.size() - _impus_to_delete.size()) != _impus.size());
 }
 
 void PushProfileTask::send_ppa(const std::string result_code)

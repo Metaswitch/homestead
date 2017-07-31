@@ -481,7 +481,6 @@ void Cache::GetRegData::get_result(Cache::GetRegData::Result& result)
   get_charging_addrs(result.charging_addrs);
 }
 
-
 //
 // GetAssociatedPublicIDs methods
 //
@@ -524,7 +523,7 @@ bool Cache::GetAssociatedPublicIDs::perform(CassandraStore::Client* client,
                                     ASSOC_PUBLIC_ID_COLUMN_PREFIX,
                                     columns,
                                     trail);
-   
+
   }
   catch(CassandraStore::RowNotFoundException& rnfe)
   {
@@ -538,7 +537,7 @@ bool Cache::GetAssociatedPublicIDs::perform(CassandraStore::Client* client,
       key_it != columns.end();
       ++key_it)
   {
-        
+
     for(std::vector<ColumnOrSuperColumn>::const_iterator column = key_it->second.begin();
         column != key_it->second.end();
         ++column)
@@ -980,6 +979,42 @@ bool Cache::DissociateImplicitRegistrationSetFromImpi::perform(CassandraStore::C
   }
 
   // Perform the batch deletion we've built up
+  client->delete_columns(to_delete, _timestamp);
+
+  return true;
+}
+
+
+//
+// Delete IMPUs methods for PPRs
+//
+
+
+Cache::DeleteIMPUs::
+DeleteIMPUs(const std::vector<std::string>& public_ids,
+            int64_t timestamp) :
+  CassandraStore::Operation(),
+  _public_ids(public_ids),
+  _timestamp(timestamp)
+{}
+
+Cache::DeleteIMPUs::
+~DeleteIMPUs()
+{}
+
+bool Cache::DeleteIMPUs::perform(CassandraStore::Client* client,
+  	    	 	         SAS::TrailId trail)
+{
+  std::vector<CassandraStore::RowColumns> to_delete;
+
+  for (std::vector<std::string>::const_iterator it = _public_ids.begin();
+       it != _public_ids.end();
+       ++it)
+  {
+    // Don't specify columns as we're deleting the whole row
+    to_delete.push_back(CassandraStore::RowColumns(IMPU, *it));
+  }
+
   client->delete_columns(to_delete, _timestamp);
 
   return true;

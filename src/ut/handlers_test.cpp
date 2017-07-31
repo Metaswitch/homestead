@@ -101,6 +101,7 @@ public:
   static const std::string IMPU6;
   static std::vector<std::string> IMPU_TEST;
   static std::vector<std::string> IMPUS;
+  static std::vector<std::string> IMPU_LIST;
   static std::vector<std::string> THREE_DEFAULT_IMPUS;
   static std::vector<std::string> THREE_DEFAULT_IMPUS2;
   static std::vector<std::string> ASSOCIATED_IDENTITY1_IN_VECTOR;
@@ -109,6 +110,7 @@ public:
   static std::vector<std::string> IMPU3_REG_SET;
   static std::vector<std::string> IMPU5_REG_SET;
   static const std::string IMPU_IMS_SUBSCRIPTION;
+  static const std::string IMPU_IMS_SUBSCRIPTION2;
   static const std::string IMPU_IMS_SUBSCRIPTION_INVALID;
   static const std::string IMPU3_IMS_SUBSCRIPTION;
   static const std::string IMPU5_IMS_SUBSCRIPTION;
@@ -151,6 +153,7 @@ public:
   static MockHttpStack* _httpstack;
   static MockHttpConnection* _mock_http_conn;
   static SproutConnection* _sprout_conn;
+
 
   // Two mock stats managers, so we can choose whether to ignore stats or not.
   static NiceMock<MockStatisticsManager>* _nice_stats;
@@ -1220,7 +1223,7 @@ public:
 
     t->on_success(&mock_op2);
 
-    // Turn the caught Diameter msg structure into a RTA and confirm it's contents.
+    // Turn the caught Diameter msg structure into a RTA and confirm its contents.
     Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
     Cx::RegistrationTerminationAnswer rta(msg);
     EXPECT_TRUE(rta.result_code(test_i32));
@@ -1310,7 +1313,7 @@ public:
 
     t->on_success(&mock_op);
 
-    // Turn the caught Diameter msg structure into a RTA and confirm it's contents.
+    // Turn the caught Diameter msg structure into a RTA and confirm its contents.
     Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
     Cx::RegistrationTerminationAnswer rta(msg);
     EXPECT_TRUE(rta.result_code(test_i32));
@@ -1322,6 +1325,7 @@ public:
     t = mock_op2.get_trx();
     ASSERT_FALSE(t == NULL);
   }
+
 
   void rtr_template_no_impus(int32_t dereg_reason,
                              std::string http_path,
@@ -1442,7 +1446,7 @@ public:
 
     t->on_success(&mock_op3);
 
-    // Turn the caught Diameter msg structure into a RTA and confirm it's contents.
+    // Turn the caught Diameter msg structure into a RTA and confirm its contents.
     Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
     Cx::RegistrationTerminationAnswer rta(msg);
     EXPECT_TRUE(rta.result_code(test_i32));
@@ -1461,6 +1465,128 @@ public:
       t = mock_op6.get_trx();
       ASSERT_FALSE(t == NULL);
     }
+  }
+
+  // PPR function templates
+  void ppr_setup(PushProfileTask** ptask,
+		 PushProfileTask::Config** pcfg,
+                 std::string impi,
+                 std::string ims_subscription,
+                 ChargingAddresses charging_addresses)
+  {
+     Cx::PushProfileRequest ppr(_cx_dict,
+                                _mock_stack,
+		                impi,
+                                ims_subscription,
+              			charging_addresses,
+                   		AUTH_SESSION_STATE);
+
+
+    // The free_on_delete flag controls whether we want to free the underlying
+    // fd_msg structure when we delete this PPR. We don't, since this will be
+    // freed when the answer is freed later in the test. If we leave this flag set
+    // then the request will be freed twice.
+    ppr._free_on_delete = false;
+
+    *pcfg = new PushProfileTask::Config(_cache, _cx_dict, 0, 3600);
+    *ptask = new PushProfileTask(_cx_dict, &ppr._fd_msg, *pcfg, FAKE_TRAIL_ID);
+
+    // We have to make sure the message is pointing at the mock stack.
+    (*ptask)->_msg._stack = _mock_stack;
+    (*ptask)->_ppr._stack = _mock_stack;
+  }
+
+  void ppr_expect_get_default_ids(MockCache::MockGetAssociatedPrimaryPublicIDs* mock_op, std::string impi)
+  {
+    EXPECT_CALL(*_cache, create_GetAssociatedPrimaryPublicIDs(impi))
+      .WillOnce(Return(mock_op));
+    EXPECT_DO_ASYNC(*_cache, *mock_op);
+  }
+
+  void ppr_get_default_ids(MockCache::MockGetAssociatedPrimaryPublicIDs* mock_op, std::vector<std::string> impus)
+  {
+    EXPECT_CALL(*mock_op, get_result(_))
+      .WillRepeatedly(SetArgReferee<0>(impus));
+  }
+
+  void ppr_expect_get_reg_data(MockCache::MockGetRegData* mock_op, std::string impu)
+  {
+    EXPECT_CALL(*_cache, create_GetRegData(impu))
+      .WillOnce(Return(mock_op));
+    EXPECT_DO_ASYNC(*_cache, *mock_op);
+  }
+
+  void ppr_get_reg_data(MockCache::MockGetRegData* mock_op,
+			std::string ims_subscription,
+			RegistrationState reg_state,
+                        ChargingAddresses charging_addresses,
+                        std::vector<std::string> impis)
+  {
+    EXPECT_CALL(*mock_op, get_xml(_, _))
+      .WillRepeatedly(SetArgReferee<0>(ims_subscription));
+    EXPECT_CALL(*mock_op, get_registration_state(_, _))
+      .WillRepeatedly(SetArgReferee<0>(reg_state));
+    EXPECT_CALL(*mock_op, get_charging_addrs(_))
+      .WillRepeatedly(SetArgReferee<0>(charging_addresses));
+    EXPECT_CALL(*mock_op, get_associated_impis(_))
+      .WillRepeatedly(SetArgReferee<0>(impis));
+  }
+
+  void ppr_put_reg_data(std::vector<std::string> impus,
+			std::string default_impu,
+                        MockCache::MockPutRegData* mock_op,
+			std::string ims_subscription,
+		        ChargingAddresses charging_addresses,
+			RegistrationState reg_state = RegistrationState::UNCHANGED)
+  {
+    EXPECT_CALL(*_cache, create_PutRegData(impus, default_impu, _, 7200))
+      .Times(1)
+      .WillOnce(Return(mock_op));
+    if (ims_subscription != "")
+    {
+      EXPECT_CALL(*mock_op, with_xml(ims_subscription))
+        .WillOnce(ReturnRef(*mock_op));
+    }
+    if (!charging_addresses.empty())
+    {
+    EXPECT_CALL(*mock_op, with_charging_addrs(_))
+      .WillOnce(ReturnRef(*mock_op));
+    }
+    if (reg_state != RegistrationState::UNCHANGED)
+    {
+    EXPECT_CALL(*mock_op, with_reg_state(reg_state))
+      .WillOnce(ReturnRef(*mock_op));
+    }
+    EXPECT_DO_ASYNC(*_cache, *mock_op);
+  }
+
+  void ppr_delete_IMPUs(MockCache::MockDeleteIMPUs* mock_op, std::vector<std::string> impus)
+  {
+    EXPECT_CALL(*_cache, create_DeleteIMPUs(impus, _))
+      .Times(1)
+      .WillOnce(Return(mock_op));
+    EXPECT_DO_ASYNC(*_cache, *mock_op);
+  }
+
+  void ppr_expect_ppa()
+  {
+    EXPECT_CALL(*_mock_stack, send(_, FAKE_TRAIL_ID))
+    .Times(1)
+    .WillOnce(WithArgs<0>(Invoke(store_msg)));
+  }
+
+  void ppr_send_ppa(int success_or_failure)
+  {
+    Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
+    Cx::PushProfileAnswer ppa(msg);
+    EXPECT_TRUE(ppa.result_code(test_i32));
+    EXPECT_EQ(success_or_failure, test_i32);
+    EXPECT_EQ(AUTH_SESSION_STATE, ppa.auth_session_state());
+  }
+
+  void ppr_tear_down(PushProfileTask::Config* pcfg)
+  {
+    delete pcfg;
   }
 
   // This is a template function for testing deregistration of unknown users
@@ -1526,7 +1652,7 @@ public:
     if (cache_fail)
     {
       // Fail the DeletePublicID task. Expect a 404 response (rather than the 500
-      // that the Delete failure would normally give us) as its more important to
+      // that the Delete failure would normally give us) as it's more important to
       // tell the user about the "Not Found" error)
       mock_op2._cass_status = CassandraStore::CONNECTION_ERROR;
       mock_op2._cass_error_text = "error";
@@ -1714,6 +1840,7 @@ const std::string HandlersTest::ASSOCIATED_IDENTITY2 = "associated_identity2@exa
 std::vector<std::string> HandlersTest::ASSOCIATED_IDENTITIES = {ASSOCIATED_IDENTITY1, ASSOCIATED_IDENTITY2};
 std::vector<std::string> HandlersTest::IMPU_TEST = {IMPU};
 std::vector<std::string> HandlersTest::IMPUS = {IMPU, IMPU2};
+std::vector<std::string> HandlersTest::IMPU_LIST = {IMPU2, IMPU};
 std::vector<std::string> HandlersTest::THREE_DEFAULT_IMPUS = {IMPU, IMPU2, IMPU3};
 std::vector<std::string> HandlersTest::THREE_DEFAULT_IMPUS2 = {IMPU, IMPU3, IMPU5};
 std::vector<std::string> HandlersTest::IMPU_IN_VECTOR = {IMPU};
@@ -1726,6 +1853,7 @@ std::vector<std::string> HandlersTest::IMPU_REG_SET2 = {IMPU, IMPU2};
 std::vector<std::string> HandlersTest::IMPU3_REG_SET = {IMPU3, IMPU2};
 std::vector<std::string> HandlersTest::IMPU5_REG_SET = {IMPU5, IMPU6};
 const std::string HandlersTest::IMPU_IMS_SUBSCRIPTION = "<?xml version=\"1.0\"?><IMSSubscription><PrivateID>" + IMPI + "</PrivateID><ServiceProfile><PublicIdentity><Identity>" + IMPU + "</Identity></PublicIdentity><PublicIdentity><Identity>" + IMPU4 + "</Identity></PublicIdentity></ServiceProfile></IMSSubscription>";
+const std::string HandlersTest::IMPU_IMS_SUBSCRIPTION2 = "<?xml version=\"1.0\"?><IMSSubscription><PrivateID>" + IMPI + "</PrivateID><ServiceProfile><PublicIdentity><Identity>" + IMPU + "</Identity></PublicIdentity><PublicIdentity><Identity>" + IMPU2 + "</Identity></PublicIdentity></ServiceProfile></IMSSubscription>";
 const std::string HandlersTest::IMPU_IMS_SUBSCRIPTION_INVALID = "<?xml version=\"1.0\"?><IMSSubscriptio></IMSSubscriptio>";
 const std::string HandlersTest::IMPU3_IMS_SUBSCRIPTION = "<?xml version=\"1.0\"?><IMSSubscription><PrivateID>" + IMPI + "</PrivateID><ServiceProfile><PublicIdentity><Identity>" + IMPU3 + "</Identity></PublicIdentity><PublicIdentity><Identity>" + IMPU2 + "</Identity></PublicIdentity></ServiceProfile></IMSSubscription>";
 const std::string HandlersTest::IMPU5_IMS_SUBSCRIPTION = "<?xml version=\"1.0\"?><IMSSubscription><PrivateID>" + IMPI + "</PrivateID><ServiceProfile><PublicIdentity><Identity>" + IMPU5 + "</Identity></PublicIdentity><PublicIdentity><Identity>" + IMPU6 + "</Identity></PublicIdentity></ServiceProfile></IMSSubscription>";
@@ -4442,142 +4570,107 @@ TEST_F(HandlersTest, RegistrationTerminationInvalidDeregReason)
 
 TEST_F(HandlersTest, PushProfile)
 {
-  // Build a PPR and create a Push Profile Task with this message. This PPR
-  // contains an IMS subscription and charging addresses.
-  Cx::PushProfileRequest ppr(_cx_dict,
-                             _mock_stack,
-                             IMPI,
-                             IMS_SUBSCRIPTION,
-                             FULL_CHARGING_ADDRESSES,
-                             AUTH_SESSION_STATE);
+  // Set up a PPR with an IMS subscription and charging addresses.
+  PushProfileTask* task = NULL;
+  PushProfileTask::Config* pcfg = NULL;
+  ppr_setup(&task, &pcfg, IMPI, IMS_SUBSCRIPTION, FULL_CHARGING_ADDRESSES);
 
-  // The free_on_delete flag controls whether we want to free the underlying
-  // fd_msg structure when we delete this PPR. We don't, since this will be
-  // freed when the answer is freed later in the test. If we leave this flag set
-  // then the request will be freed twice.
-  ppr._free_on_delete = false;
-
-  PushProfileTask::Config cfg(_cache, _cx_dict, 0, 3600);
-  PushProfileTask* task = new PushProfileTask(_cx_dict, &ppr._fd_msg, &cfg, FAKE_TRAIL_ID);
-
-  // We have to make sure the message is pointing at the mock stack.
-  task->_msg._stack = _mock_stack;
-  task->_ppr._stack = _mock_stack;
-
-  // Once the task's run function is called, we expect to search in the cache to
-  // check the default id hasn't changed.
+  // Get default IMPUs
   MockCache::MockGetAssociatedPrimaryPublicIDs mock_op;
-  EXPECT_CALL(*_cache, create_GetAssociatedPrimaryPublicIDs(IMPI))
-    .WillOnce(Return(&mock_op));
-  EXPECT_DO_ASYNC(*_cache, mock_op);
-
-  task->run();
-
-  // The cache successfully returns a list of public identities.
-  CassandraStore::Transaction* t = mock_op.get_trx();
-  ASSERT_FALSE(t == NULL);
-  EXPECT_CALL(mock_op, get_result(_))
-    .WillRepeatedly(SetArgReferee<0>(IMPU_IN_VECTOR));
-
-  // Then expect an attempt to update the IMS subscription of the charging
-  // addresses in the cache.
-  MockCache::MockPutRegData mock_op2;
-  EXPECT_CALL(*_cache, create_PutRegData(IMPU_IN_VECTOR, IMPU, _, 7200))
-    .WillOnce(Return(&mock_op2));
-  EXPECT_CALL(mock_op2, with_xml(IMS_SUBSCRIPTION))
-    .WillOnce(ReturnRef(mock_op2));
-  EXPECT_CALL(mock_op2, with_charging_addrs(_))
-    .WillOnce(ReturnRef(mock_op2));
-  EXPECT_DO_ASYNC(*_cache, mock_op2);
-
-  t->on_success(&mock_op);
-
-  t = mock_op2.get_trx();
-  ASSERT_FALSE(t == NULL);
-
-  // Finally we expect a PPA.
-  EXPECT_CALL(*_mock_stack, send(_, FAKE_TRAIL_ID))
-    .Times(1)
-    .WillOnce(WithArgs<0>(Invoke(store_msg)));
-
-  t->on_success(&mock_op2);
-
-  // Turn the caught Diameter msg structure into a PPA and confirm its contents.
-  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
-  Cx::PushProfileAnswer ppa(msg);
-  EXPECT_TRUE(ppa.result_code(test_i32));
-  EXPECT_EQ(DIAMETER_SUCCESS, test_i32);
-  EXPECT_EQ(AUTH_SESSION_STATE, ppa.auth_session_state());
-}
-
-TEST_F(HandlersTest, PushProfileChargingAddrs)
-{
-  // Build a PPR and create a Push Profile Task with this message. This PPR
-  // contains some charging addresses but no IMS subscription.
-  Cx::PushProfileRequest ppr(_cx_dict,
-                             _mock_stack,
-                             IMPI,
-                             "",
-                             FULL_CHARGING_ADDRESSES,
-                             AUTH_SESSION_STATE);
-
-  // The free_on_delete flag controls whether we want to free the underlying
-  // fd_msg structure when we delete this PPR. We don't, since this will be
-  // freed when the answer is freed later in the test. If we leave this flag set
-  // then the request will be freed twice.
-  ppr._free_on_delete = false;
-
-  PushProfileTask::Config cfg(_cache, _cx_dict, 0, 3600);
-  PushProfileTask* task = new PushProfileTask(_cx_dict, &ppr._fd_msg, &cfg, FAKE_TRAIL_ID);
-
-  // We have to make sure the message is pointing at the mock stack.
-  task->_msg._stack = _mock_stack;
-  task->_ppr._stack = _mock_stack;
-
-  // Do a cache search to find the default public identities for each IRS
-  // associated with the IMPI on the PPR.
-
-  MockCache::MockGetAssociatedPrimaryPublicIDs mock_op;
-  EXPECT_CALL(*_cache, create_GetAssociatedPrimaryPublicIDs(IMPI))
-    .WillOnce(Return(&mock_op));
-  EXPECT_DO_ASYNC(*_cache, mock_op);
+  ppr_expect_get_default_ids(&mock_op, IMPI);
 
   task->run();
 
   // The cache successfully returns a list of default public identities.
   CassandraStore::Transaction* t = mock_op.get_trx();
   ASSERT_FALSE(t == NULL);
-  EXPECT_CALL(mock_op, get_result(_))
-    .WillRepeatedly(SetArgReferee<0>(IMPU_IN_VECTOR));
+  ppr_get_default_ids(&mock_op, IMPU_IN_VECTOR);
 
   // Next, expect to obtain the other public identities in the IRS
   MockCache::MockGetRegData mock_op2;
-  EXPECT_CALL(*_cache, create_GetRegData(IMPU))
-    .WillOnce(Return(&mock_op2));
-  EXPECT_DO_ASYNC(*_cache, mock_op2);
+  ppr_expect_get_reg_data(&mock_op2, IMPU);
 
   t->on_success(&mock_op);
 
   t = mock_op2.get_trx();
   ASSERT_FALSE(t == NULL);
-  EXPECT_CALL(mock_op2, get_xml(_, _))
-    .WillRepeatedly(SetArgReferee<0>(IMPU_IMS_SUBSCRIPTION));
-  EXPECT_CALL(mock_op2, get_registration_state(_, _))
-    .WillRepeatedly(Return());
-  EXPECT_CALL(mock_op2, get_charging_addrs(_))
-    .WillRepeatedly(Return());
-  EXPECT_CALL(mock_op2, get_associated_impis(_))
-    .WillRepeatedly(Return());
 
-  // Next we expect to try and update the charging addresses (but not the IMS
-  // subscription) in the cache.
+  ppr_get_reg_data(&mock_op2,
+                   IMS_SUBSCRIPTION,
+                   RegistrationState::REGISTERED,
+                   FULL_CHARGING_ADDRESSES,
+                   IMPI_IN_VECTOR);
+
+  // After that we expect to try and update the IMS Subscription (but not the
+  // charging addresses) in the cache.
   MockCache::MockPutRegData mock_op3;
-  EXPECT_CALL(*_cache, create_PutRegData(IMPU_REG_SET, IMPU, _, 7200))
-    .Times(1)
-    .WillOnce(Return(&mock_op3));
-  EXPECT_CALL(mock_op3, with_charging_addrs(_))
-    .WillOnce(ReturnRef(mock_op3));
-  EXPECT_DO_ASYNC(*_cache, mock_op3);
+  ppr_put_reg_data(IMPU_IN_VECTOR,
+                   IMPU,
+                   &mock_op3,
+                   IMS_SUBSCRIPTION,
+                   FULL_CHARGING_ADDRESSES);
+
+  t->on_success(&mock_op2);
+  t = mock_op3.get_trx();
+  ASSERT_FALSE(t == NULL);
+
+  // Finally we expect a PPA.
+  ppr_expect_ppa();
+
+  t->on_success(&mock_op3);
+
+  // Turn the caught Diameter msg structure into a PPA and confirm its contents.
+  ppr_send_ppa(DIAMETER_SUCCESS);
+  ppr_tear_down(pcfg);
+}
+
+TEST_F(HandlersTest, PushProfileChangeIDs)
+{
+  // Set up a PPR with an IMS subscription and charging addresses
+  PushProfileTask* task = NULL;
+  PushProfileTask::Config* pcfg = NULL;
+  ppr_setup(&task, &pcfg, IMPI, IMPU_IMS_SUBSCRIPTION, FULL_CHARGING_ADDRESSES);
+
+  // Get default IMPUs
+  MockCache::MockGetAssociatedPrimaryPublicIDs mock_op;
+  ppr_expect_get_default_ids(&mock_op, IMPI);
+
+  task->run();
+
+  // The cache successfully returns a list of default public identities.
+  CassandraStore::Transaction* t = mock_op.get_trx();
+  ASSERT_FALSE(t == NULL);
+  ppr_get_default_ids(&mock_op, IMPU_IN_VECTOR);
+
+  // Next, expect to obtain the other public identities in the IRS
+  MockCache::MockGetRegData mock_op2;
+  ppr_expect_get_reg_data(&mock_op2, IMPU);
+
+  t->on_success(&mock_op);
+  t = mock_op2.get_trx();
+  ASSERT_FALSE(t == NULL);
+
+  // One IMPU is added and one deleted.
+  ppr_get_reg_data(&mock_op2,
+                   IMPU_IMS_SUBSCRIPTION2,
+                   RegistrationState::REGISTERED,
+                   FULL_CHARGING_ADDRESSES,
+                   IMPI_IN_VECTOR);
+
+  // Delete the relevant IMPU
+  MockCache::MockDeleteIMPUs mock_op3;
+  ppr_delete_IMPUs(&mock_op3, IMPU2_IN_VECTOR);
+
+
+  // After that we expect to try and update the IMS Subscription (but not the
+  // charging addresses) in the cache.
+  MockCache::MockPutRegData mock_op4;
+  ppr_put_reg_data(IMPU_REG_SET,
+                   IMPU,
+                   &mock_op4,
+                   IMPU_IMS_SUBSCRIPTION,
+                   FULL_CHARGING_ADDRESSES,
+                   RegistrationState::REGISTERED);
 
   t->on_success(&mock_op2);
 
@@ -4585,88 +4678,187 @@ TEST_F(HandlersTest, PushProfileChargingAddrs)
   ASSERT_FALSE(t == NULL);
 
   // Finally we expect a PPA.
-  EXPECT_CALL(*_mock_stack, send(_, FAKE_TRAIL_ID))
-    .Times(1)
-    .WillOnce(WithArgs<0>(Invoke(store_msg)));
+  ppr_expect_ppa();
+
+  t = mock_op4.get_trx();
+  ASSERT_FALSE(t == NULL);
+  t->on_success(&mock_op4);
+
+  // Turn the caught Diameter msg structure into a PPA and confirm its contents.
+  ppr_send_ppa(DIAMETER_SUCCESS);
+  ppr_tear_down(pcfg);
+}
+
+TEST_F(HandlersTest, PushProfileChargingAddrs)
+{
+  // Set up a PPR with charging addresses but no IMS Sub
+  PushProfileTask* task = NULL;
+  PushProfileTask::Config* pcfg = NULL;
+  ppr_setup(&task, &pcfg, IMPI, "", FULL_CHARGING_ADDRESSES);
+
+  // Do a cache search to find the default public identities for each IRS
+  // associated with the IMPI on the PPR.
+  MockCache::MockGetAssociatedPrimaryPublicIDs mock_op;
+  ppr_expect_get_default_ids(&mock_op, IMPI);
+
+  task->run();
+
+  // The cache successfully returns a list of default public identities.
+  CassandraStore::Transaction* t = mock_op.get_trx();
+  ASSERT_FALSE(t == NULL);
+  ppr_get_default_ids(&mock_op, IMPU_IN_VECTOR);
+
+  // Next, expect to obtain the other public identities in the IRS
+  MockCache::MockGetRegData mock_op2;
+  ppr_expect_get_reg_data(&mock_op2, IMPU);
+
+  t->on_success(&mock_op);
+  t = mock_op2.get_trx();
+  ASSERT_FALSE(t == NULL);
+
+  //get reg data. Will return the IMS sub, reg state, charging addresses and associated IMPIs provided.
+  ppr_get_reg_data(&mock_op2,
+                   IMPU_IMS_SUBSCRIPTION,
+                   RegistrationState::REGISTERED,
+                   FULL_CHARGING_ADDRESSES,
+                   IMPI_IN_VECTOR);
+
+  // Next we expect to try and update the charging addresses (but not the IMS
+  // subscription) in the cache.
+  MockCache::MockPutRegData mock_op3;
+  ppr_put_reg_data(IMPU_REG_SET, IMPU, &mock_op3, "", FULL_CHARGING_ADDRESSES);
+
+  t->on_success(&mock_op2);
+  t = mock_op3.get_trx();
+  ASSERT_FALSE(t == NULL);
+
+  // Finally we expect a PPA.
+  ppr_expect_ppa();
 
   t->on_success(&mock_op3);
 
-  // Turn the caught Diameter msg structure into a PPA and confirm its contents.
-  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
-  Cx::PushProfileAnswer ppa(msg);
-  EXPECT_TRUE(ppa.result_code(test_i32));
-  EXPECT_EQ(DIAMETER_SUCCESS, test_i32);
-  EXPECT_EQ(AUTH_SESSION_STATE, ppa.auth_session_state());
+  ppr_send_ppa(DIAMETER_SUCCESS);
+  ppr_tear_down(pcfg);
 }
 
 TEST_F(HandlersTest, PushProfileIMSSub)
 {
   // Build a PPR and create a Push Profile Task with this message. This PPR
   // contains an IMS subscription and no charging addresses.
-  Cx::PushProfileRequest ppr(_cx_dict,
-                             _mock_stack,
-                             IMPI,
-                             IMS_SUBSCRIPTION,
-                             NO_CHARGING_ADDRESSES,
-                             AUTH_SESSION_STATE);
-
-  // The free_on_delete flag controls whether we want to free the underlying
-  // fd_msg structure when we delete this PPR. We don't, since this will be
-  // freed when the answer is freed later in the test. If we leave this flag set
-  // then the request will be freed twice.
-  ppr._free_on_delete = false;
-
-  PushProfileTask::Config cfg(_cache, _cx_dict, 0, 3600);
-  PushProfileTask* task = new PushProfileTask(_cx_dict, &ppr._fd_msg, &cfg, FAKE_TRAIL_ID);
-
-  // We have to make sure the message is pointing at the mock stack.
-  task->_msg._stack = _mock_stack;
-  task->_ppr._stack = _mock_stack;
+  PushProfileTask* task = NULL;
+  PushProfileTask::Config* pcfg = NULL;
+  ppr_setup(&task, &pcfg, IMPI, IMS_SUBSCRIPTION, NO_CHARGING_ADDRESSES);
 
   // Once the task's run function is called, we expect to search in the cache to
   // check the default id hasn't changed.
   MockCache::MockGetAssociatedPrimaryPublicIDs mock_op;
-  EXPECT_CALL(*_cache, create_GetAssociatedPrimaryPublicIDs(IMPI))
-    .WillOnce(Return(&mock_op));
-  EXPECT_DO_ASYNC(*_cache, mock_op);
-
+  ppr_expect_get_default_ids(&mock_op, IMPI);
   task->run();
 
   // The cache successfully returns a list of default public identities from
   // each IRS the IMPI is associated with.
   CassandraStore::Transaction* t = mock_op.get_trx();
-  std::vector<std::string> impu_list = {IMPU2, IMPU};
   ASSERT_FALSE(t == NULL);
-  EXPECT_CALL(mock_op, get_result(_))
-    .WillRepeatedly(SetArgReferee<0>(impu_list));
+  ppr_get_default_ids(&mock_op, IMPU_LIST);
 
-  // After that we expect to try and update the IMS Subscription (but not the
-  // charging addresses) in the cache.
-  MockCache::MockPutRegData mock_op2;
-  EXPECT_CALL(*_cache, create_PutRegData(IMPU_IN_VECTOR, IMPU, _, 7200))
-    .WillOnce(Return(&mock_op2));
-  EXPECT_CALL(mock_op2, with_xml(IMS_SUBSCRIPTION))
-    .WillOnce(ReturnRef(mock_op2));
-  EXPECT_DO_ASYNC(*_cache, mock_op2);
+  MockCache::MockGetRegData mock_op2;
+  ppr_expect_get_reg_data(&mock_op2, IMPU);
 
   t->on_success(&mock_op);
 
   t = mock_op2.get_trx();
   ASSERT_FALSE(t == NULL);
 
+  ppr_get_reg_data(&mock_op2,
+                   IMS_SUBSCRIPTION,
+                   RegistrationState::REGISTERED,
+                   FULL_CHARGING_ADDRESSES,
+                   IMPI_IN_VECTOR);
+
+  // After that we expect to try and update the IMS Subscription (but not the
+  // charging addresses) in the cache.
+  MockCache::MockPutRegData mock_op3;
+  ppr_put_reg_data(IMPU_IN_VECTOR,
+                   IMPU,
+                   &mock_op3,
+                   IMS_SUBSCRIPTION,
+                   NO_CHARGING_ADDRESSES);
+
+  t->on_success(&mock_op2);
+  t = mock_op3.get_trx();
+  ASSERT_FALSE(t == NULL);
+
   // Finally we expect a PPA.
-  EXPECT_CALL(*_mock_stack, send(_, FAKE_TRAIL_ID))
-    .Times(1)
-    .WillOnce(WithArgs<0>(Invoke(store_msg)));
+  ppr_expect_ppa();
+
+  t->on_success(&mock_op3);
+
+  // Turn the caught Diameter msg structure into a PPA and confirm its contents.
+  ppr_send_ppa(DIAMETER_SUCCESS);
+  ppr_tear_down(pcfg);
+}
+
+TEST_F(HandlersTest, PushProfileIMSSubChangeIDs)
+{
+  // Build a PPR and create a Push Profile Task with this message. This PPR
+  // contains an IMS subscription and no charging addresses.
+  PushProfileTask* task = NULL;
+  PushProfileTask::Config* pcfg = NULL;
+  ppr_setup(&task, &pcfg, IMPI, IMPU_IMS_SUBSCRIPTION, NO_CHARGING_ADDRESSES);
+
+  // Search in the Cache for the default IMPUs
+  MockCache::MockGetAssociatedPrimaryPublicIDs mock_op;
+  ppr_expect_get_default_ids(&mock_op, IMPI);
+
+  task->run();
+
+  // The cache successfully returns a list of default public identities.
+  CassandraStore::Transaction* t = mock_op.get_trx();
+  ASSERT_FALSE(t == NULL);
+  ppr_get_default_ids(&mock_op, IMPU_IN_VECTOR);
+
+  // Next, expect to obtain the other public identities in the IRS
+  MockCache::MockGetRegData mock_op2;
+  ppr_expect_get_reg_data(&mock_op2, IMPU);
+
+  t->on_success(&mock_op);
+  t = mock_op2.get_trx();
+  ASSERT_FALSE(t == NULL);
+
+  ppr_get_reg_data(&mock_op2,
+                   IMPU_IMS_SUBSCRIPTION2,
+                   RegistrationState::REGISTERED,
+                   FULL_CHARGING_ADDRESSES,
+                   IMPI_IN_VECTOR);
+
+  MockCache::MockDeleteIMPUs mock_op3;
+  ppr_delete_IMPUs(&mock_op3, IMPU2_IN_VECTOR);
+
+  // After that we expect to try and update the IMS Subscription (but not the
+  // charging addresses) in the cache.
+  MockCache::MockPutRegData mock_op4;
+  ppr_put_reg_data(IMPU_REG_SET,
+                   IMPU,
+                   &mock_op4,
+                   IMPU_IMS_SUBSCRIPTION,
+                   FULL_CHARGING_ADDRESSES,
+                   RegistrationState::REGISTERED);
 
   t->on_success(&mock_op2);
 
-  // Turn the caught Diameter msg structure into a PPA and confirm it's contents.
-  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
-  Cx::PushProfileAnswer ppa(msg);
-  EXPECT_TRUE(ppa.result_code(test_i32));
-  EXPECT_EQ(DIAMETER_SUCCESS, test_i32);
-  EXPECT_EQ(AUTH_SESSION_STATE, ppa.auth_session_state());
+  t = mock_op3.get_trx();
+  ASSERT_FALSE(t == NULL);
+
+  // Finally we expect a PPA.
+  ppr_expect_ppa();
+
+  t = mock_op4.get_trx();
+  ASSERT_FALSE(t == NULL);
+  t->on_success(&mock_op4);
+
+  // Turn the caught Diameter msg structure into a PPA and confirm its contents.
+  ppr_send_ppa(DIAMETER_SUCCESS);
+  ppr_tear_down(pcfg);
 }
 
 TEST_F(HandlersTest, PushProfileIMSSubNoSIPURI)
@@ -4675,135 +4867,164 @@ TEST_F(HandlersTest, PushProfileIMSSubNoSIPURI)
 
   // Build a PPR and create a Push Profile Task with this message. This PPR
   // contains an IMS subscription with no SIP URIs.
-  Cx::PushProfileRequest ppr(_cx_dict,
-                             _mock_stack,
-                             IMPI,
-                             TEL_URIS_IMS_SUBSCRIPTION,
-                             NO_CHARGING_ADDRESSES,
-                             AUTH_SESSION_STATE);
 
-  // The free_on_delete flag controls whether we want to free the underlying
-  // fd_msg structure when we delete this PPR. We don't, since this will be
-  // freed when the answer is freed later in the test. If we leave this flag set
-  // then the request will be freed twice.
-  ppr._free_on_delete = false;
-
-  PushProfileTask::Config cfg(_cache, _cx_dict, 0, 3600);
-  PushProfileTask* task = new PushProfileTask(_cx_dict, &ppr._fd_msg, &cfg, FAKE_TRAIL_ID);
-
-  // We have to make sure the message is pointing at the mock stack.
-  task->_msg._stack = _mock_stack;
-  task->_ppr._stack = _mock_stack;
+  PushProfileTask* task = NULL;
+  PushProfileTask::Config* pcfg = NULL;
+  ppr_setup(&task, &pcfg, IMPI, TEL_URIS_IMS_SUBSCRIPTION, NO_CHARGING_ADDRESSES);
 
   // Once the task's run funtion is called, we expect to try and search the
   // cache to check if the default id has changed.
   MockCache::MockGetAssociatedPrimaryPublicIDs mock_op;
-  EXPECT_CALL(*_cache, create_GetAssociatedPrimaryPublicIDs(IMPI))
-    .WillOnce(Return(&mock_op));
-  EXPECT_DO_ASYNC(*_cache, mock_op);
-
+  ppr_expect_get_default_ids(&mock_op, IMPI);
   task->run();
 
   // The cache successfully returns a list of public identities.
   CassandraStore::Transaction* t = mock_op.get_trx();
   std::vector<std::string> def_id_list = {TEL_URI};
   ASSERT_FALSE(t == NULL);
-  EXPECT_CALL(mock_op, get_result(_))
-    .WillRepeatedly(SetArgReferee<0>(def_id_list));
+  ppr_get_default_ids(&mock_op, def_id_list);
 
-  // Then we expect to try and update the IMS Subscription (but not the charging
-  // addresses) in the cache.
-  MockCache::MockPutRegData mock_op2;
-  EXPECT_CALL(*_cache, create_PutRegData(TEL_URIS_IN_VECTOR, TEL_URI, _, 7200))
-    .WillOnce(Return(&mock_op2));
-  EXPECT_CALL(mock_op2, with_xml(TEL_URIS_IMS_SUBSCRIPTION))
-    .WillOnce(ReturnRef(mock_op2));
-  EXPECT_DO_ASYNC(*_cache, mock_op2);
+  MockCache::MockGetRegData mock_op2;
+  ppr_expect_get_reg_data(&mock_op2, TEL_URI);
 
   t->on_success(&mock_op);
-
   t = mock_op2.get_trx();
   ASSERT_FALSE(t == NULL);
 
-  // Finally we expect a PPA.
-  EXPECT_CALL(*_mock_stack, send(_, FAKE_TRAIL_ID))
-    .Times(1)
-    .WillOnce(WithArgs<0>(Invoke(store_msg)));
+  ppr_get_reg_data(&mock_op2,
+                   TEL_URIS_IMS_SUBSCRIPTION,
+                   RegistrationState::REGISTERED,
+                   NO_CHARGING_ADDRESSES,
+                   IMPI_IN_VECTOR);
+
+  // Then we expect to try and update the IMS Subscription (but not the charging
+  // addresses) in the cache.
+  MockCache::MockPutRegData mock_op3;
+  ppr_put_reg_data(TEL_URIS_IN_VECTOR,
+                   TEL_URI,
+                   &mock_op3,
+                   TEL_URIS_IMS_SUBSCRIPTION,
+                   NO_CHARGING_ADDRESSES);
 
   t->on_success(&mock_op2);
+  t = mock_op3.get_trx();
+  ASSERT_FALSE(t == NULL);
+
+  // Finally we expect a PPA.
+  ppr_expect_ppa();
+
+  t->on_success(&mock_op3);
 
   // Turn the caught Diameter msg structure so it gets deleted properly.
   Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
 
   // Check for the log indicating there were no SIP URIs in the IRS.
   EXPECT_TRUE(log.contains("No SIP URI in Implicit Registration Set"));
+  ppr_tear_down(pcfg);
 }
 
 TEST_F(HandlersTest, PushProfileCacheFailure)
 {
   // Build a PPR and create a Push Profile Task with this message. This PPR
   // contains an IMS subscription.
-  Cx::PushProfileRequest ppr(_cx_dict,
-                             _mock_stack,
-                             IMPI,
-                             IMS_SUBSCRIPTION,
-                             NO_CHARGING_ADDRESSES,
-                             AUTH_SESSION_STATE);
-
-  // The free_on_delete flag controls whether we want to free the underlying
-  // fd_msg structure when we delete this PPR. We don't, since this will be
-  // freed when the answer is freed later in the test. If we leave this flag set
-  // then the request will be freed twice.
-  ppr._free_on_delete = false;
-
-  PushProfileTask::Config cfg(_cache, _cx_dict, 0, 3600);
-  PushProfileTask* task = new PushProfileTask(_cx_dict, &ppr._fd_msg, &cfg, FAKE_TRAIL_ID);
-
-  // We have to make sure the message is pointing at the mock stack.
-  task->_msg._stack = _mock_stack;
-  task->_ppr._stack = _mock_stack;
+  PushProfileTask* task = NULL;
+  PushProfileTask::Config* pcfg = NULL;
+  ppr_setup(&task, &pcfg, IMPI, IMS_SUBSCRIPTION, NO_CHARGING_ADDRESSES);
 
   // Once the task's run function is called, we expect to search the cache to
   // check the default id hasn't changed.
   MockCache::MockGetAssociatedPrimaryPublicIDs mock_op;
-  EXPECT_CALL(*_cache, create_GetAssociatedPrimaryPublicIDs(IMPI))
-    .WillOnce(Return(&mock_op));
-  EXPECT_DO_ASYNC(*_cache, mock_op);
+  ppr_expect_get_default_ids(&mock_op, IMPI);
 
   task->run();
 
   // The cache successfully returns a list of public identities.
   CassandraStore::Transaction* t = mock_op.get_trx();
   ASSERT_FALSE(t == NULL);
-  EXPECT_CALL(mock_op, get_result(_))
-    .WillRepeatedly(SetArgReferee<0>(IMPU_IN_VECTOR));
+  ppr_get_default_ids(&mock_op, IMPU_IN_VECTOR);
 
-  // Next, we expect to try and update the IMS Subscription in the cache.
-  MockCache::MockPutRegData mock_op2;
-  EXPECT_CALL(*_cache, create_PutRegData(IMPU_IN_VECTOR, IMPU, _, 7200))
-    .WillOnce(Return(&mock_op2));
-  EXPECT_CALL(mock_op2, with_xml(IMS_SUBSCRIPTION))
-    .WillOnce(ReturnRef(mock_op2));
-  EXPECT_DO_ASYNC(*_cache, mock_op2);
+  MockCache::MockGetRegData mock_op2;
+  ppr_expect_get_reg_data(&mock_op2, IMPU);
 
   t->on_success(&mock_op);
 
   t = mock_op2.get_trx();
   ASSERT_FALSE(t == NULL);
-  EXPECT_CALL(*_mock_stack, send(_, FAKE_TRAIL_ID))
-    .Times(1)
-    .WillOnce(WithArgs<0>(Invoke(store_msg)));
+
+  ppr_get_reg_data(&mock_op2,
+                   IMS_SUBSCRIPTION,
+                   RegistrationState::REGISTERED,
+                   NO_CHARGING_ADDRESSES,
+                   IMPI_IN_VECTOR);
+
+  // Next, we expect to try and update the IMS Subscription in the cache.
+  MockCache::MockPutRegData mock_op3;
+  ppr_put_reg_data(IMPU_IN_VECTOR,
+                   IMPU,
+                   &mock_op3,
+                   IMS_SUBSCRIPTION,
+                   NO_CHARGING_ADDRESSES);
+  t->on_success(&mock_op2);
+
+  t = mock_op3.get_trx();
+  ASSERT_FALSE(t == NULL);
+
+  ppr_expect_ppa();
 
   // The cache request fails.
+  mock_op3._cass_status = CassandraStore::INVALID_REQUEST;
+  mock_op3._cass_error_text = "error";
+  t->on_failure(&mock_op3);
+
+  ppr_send_ppa(DIAMETER_UNABLE_TO_COMPLY);
+
+  ppr_tear_down(pcfg);
+}
+
+TEST_F(HandlersTest, PushProfileGetRegSetFailure)
+{
+  // Build a PPR and create a Push Profile Task with this message. This PPR
+  // contains an IMS subscription.
+  PushProfileTask* task = NULL;
+  PushProfileTask::Config* pcfg = NULL;
+  ppr_setup(&task, &pcfg, IMPI, IMS_SUBSCRIPTION, NO_CHARGING_ADDRESSES);
+
+  // Once the task's run function is called, we expect to search the cache to
+  // check the default id hasn't changed.
+  MockCache::MockGetAssociatedPrimaryPublicIDs mock_op;
+  ppr_expect_get_default_ids(&mock_op, IMPI);
+
+  task->run();
+
+  // The cache successfully returns a list of public identities.
+  CassandraStore::Transaction* t = mock_op.get_trx();
+  ASSERT_FALSE(t == NULL);
+  ppr_get_default_ids(&mock_op, IMPU_IN_VECTOR);
+
+  MockCache::MockGetRegData mock_op2;
+  ppr_expect_get_reg_data(&mock_op2, IMPU);
+
+  t->on_success(&mock_op);
+
+  t = mock_op2.get_trx();
+  ASSERT_FALSE(t == NULL);
+
+  ppr_get_reg_data(&mock_op2,
+                   IMS_SUBSCRIPTION,
+                   RegistrationState::REGISTERED,
+                   NO_CHARGING_ADDRESSES,
+                   IMPI_IN_VECTOR);
+
+  // Fail to get registration data, and send PPA indicating failure.
+  ppr_expect_ppa();
+
   mock_op2._cass_status = CassandraStore::INVALID_REQUEST;
   mock_op2._cass_error_text = "error";
   t->on_failure(&mock_op2);
 
-  // Turn the caught Diameter msg structure into a PPA and confirm the result code.
-  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
-  Cx::PushProfileAnswer ppa(msg);
-  EXPECT_TRUE(ppa.result_code(test_i32));
-  EXPECT_EQ(DIAMETER_UNABLE_TO_COMPLY, test_i32);
+  ppr_send_ppa(DIAMETER_UNABLE_TO_COMPLY);
+
+  ppr_tear_down(pcfg);
 }
 
 TEST_F(HandlersTest, PushProfileMultipleIRS)
@@ -4811,32 +5032,14 @@ TEST_F(HandlersTest, PushProfileMultipleIRS)
   // Build a PPR and create a Push Profile Task with this message. This PPR
   // contains both an IMS subscription and a charging address. There are also multiple
   // implicit registration sets which the charging address needs to update for.
-    Cx::PushProfileRequest ppr(_cx_dict,
-                             _mock_stack,
-                             IMPI,
-                             IMPU3_IMS_SUBSCRIPTION,
-                             FULL_CHARGING_ADDRESSES,
-                             AUTH_SESSION_STATE);
-
-  // The free_on_delete flag controls whether we want to free the underlying
-  // fd_msg structure when we delete this PPR. We don't, since this will be
-  // freed when the answer is freed later in the test. If we leave this flag set
-  // then the request will be freed twice.
-  ppr._free_on_delete = false;
-
-  PushProfileTask::Config cfg(_cache, _cx_dict, 0, 3600);
-  PushProfileTask* task = new PushProfileTask(_cx_dict, &ppr._fd_msg, &cfg, FAKE_TRAIL_ID);
-
-  // We have to make sure the message is pointing at the mock stack.
-  task->_msg._stack = _mock_stack;
-  task->_ppr._stack = _mock_stack;
+  PushProfileTask* task = NULL;
+  PushProfileTask::Config* pcfg = NULL;
+  ppr_setup(&task, &pcfg, IMPI, IMPU3_IMS_SUBSCRIPTION, FULL_CHARGING_ADDRESSES);
 
   // Once the task's run function is called, we expect to search in the cache to
   // check the default id hasn't changed.
   MockCache::MockGetAssociatedPrimaryPublicIDs mock_op;
-  EXPECT_CALL(*_cache, create_GetAssociatedPrimaryPublicIDs(IMPI))
-    .WillOnce(Return(&mock_op));
-  EXPECT_DO_ASYNC(*_cache, mock_op);
+  ppr_expect_get_default_ids(&mock_op, IMPI);
 
   task->run();
 
@@ -4846,107 +5049,91 @@ TEST_F(HandlersTest, PushProfileMultipleIRS)
   // PPR is the second.
   CassandraStore::Transaction* t = mock_op.get_trx();
   ASSERT_FALSE(t == NULL);
-  EXPECT_CALL(mock_op, get_result(_))
-    .WillRepeatedly(SetArgReferee<0>(THREE_DEFAULT_IMPUS2));
+  ppr_get_default_ids(&mock_op, THREE_DEFAULT_IMPUS2);
 
-  // Then expect an attempt to update the IMS subscription of the charging
-  // addresses in the cache.
-  MockCache::MockPutRegData mock_op2;
-  EXPECT_CALL(*_cache, create_PutRegData(IMPU3_REG_SET, IMPU3, _, 7200))
-    .WillOnce(Return(&mock_op2));
-  EXPECT_CALL(mock_op2, with_xml(IMPU3_IMS_SUBSCRIPTION))
-    .WillOnce(ReturnRef(mock_op2));
-  EXPECT_CALL(mock_op2, with_charging_addrs(_))
-    .WillOnce(ReturnRef(mock_op2));
-  EXPECT_DO_ASYNC(*_cache, mock_op2);
+  MockCache::MockGetRegData mock_op2;
+  ppr_expect_get_reg_data(&mock_op2, IMPU3);
 
   t->on_success(&mock_op);
 
   t = mock_op2.get_trx();
   ASSERT_FALSE(t == NULL);
 
-  // Next, we expect a PPA.
-  EXPECT_CALL(*_mock_stack, send(_, FAKE_TRAIL_ID))
-    .Times(1)
-    .WillOnce(WithArgs<0>(Invoke(store_msg)));
+  ppr_get_reg_data(&mock_op2,
+                   IMPU3_IMS_SUBSCRIPTION,
+                   RegistrationState::REGISTERED,
+                   FULL_CHARGING_ADDRESSES,
+                   IMPI_IN_VECTOR);
 
-  // Next, expect to obtain the other public identities in the IRS
-  // for the next default ID
-  MockCache::MockGetRegData mock_op3;
-  EXPECT_CALL(*_cache, create_GetRegData(IMPU5))
-    .WillOnce(Return(&mock_op3));
-  EXPECT_DO_ASYNC(*_cache, mock_op3);
-
-  EXPECT_CALL(mock_op3, get_xml(_, _))
-    .WillRepeatedly(SetArgReferee<0>(IMPU5_IMS_SUBSCRIPTION));
-  EXPECT_CALL(mock_op3, get_registration_state(_, _))
-    .WillRepeatedly(Return());
-  EXPECT_CALL(mock_op3, get_charging_addrs(_))
-    .WillRepeatedly(Return());
-  EXPECT_CALL(mock_op3, get_associated_impis(_))
-    .WillRepeatedly(Return());
-
-  //expect an attempt to update the charging addresses for this default IMPU.
-  MockCache::MockPutRegData mock_op4;
-  EXPECT_CALL(*_cache, create_PutRegData(IMPU5_REG_SET, IMPU5, _, 7200))
-    .WillOnce(Return(&mock_op4));
-  EXPECT_CALL(mock_op4, with_charging_addrs(_))
-    .WillOnce(ReturnRef(mock_op4));
-  EXPECT_DO_ASYNC(*_cache, mock_op4);
-
-  // Next, expect to obtain the other public identities in the IRS
-  // for the final default ID
-  MockCache::MockGetRegData mock_op5;
-  EXPECT_CALL(*_cache, create_GetRegData(IMPU))
-    .WillOnce(Return(&mock_op5));
-  EXPECT_DO_ASYNC(*_cache, mock_op5);
-
-  EXPECT_CALL(mock_op5, get_xml(_, _))
-    .WillRepeatedly(SetArgReferee<0>(IMPU_IMS_SUBSCRIPTION));
-  EXPECT_CALL(mock_op5, get_registration_state(_, _))
-    .WillRepeatedly(Return());
-  EXPECT_CALL(mock_op5, get_charging_addrs(_))
-    .WillRepeatedly(Return());
-  EXPECT_CALL(mock_op5, get_associated_impis(_))
-    .WillRepeatedly(Return());
-
-  //expect an attempt to update the charging addresses for this default IMPU.
-  MockCache::MockPutRegData mock_op6;
-  EXPECT_CALL(*_cache, create_PutRegData(IMPU_REG_SET, IMPU, _, 7200))
-    .WillOnce(Return(&mock_op6));
-  EXPECT_CALL(mock_op6, with_charging_addrs(_))
-    .WillOnce(ReturnRef(mock_op6));
-  EXPECT_DO_ASYNC(*_cache, mock_op6);
+  // Then expect an attempt to update the IMS subscription of the charging
+  // addresses in the cache.
+  MockCache::MockPutRegData mock_op3;
+  ppr_put_reg_data(IMPU3_REG_SET,
+                   IMPU3,
+                   &mock_op3,
+                   IMPU3_IMS_SUBSCRIPTION,
+                   FULL_CHARGING_ADDRESSES);
 
   t->on_success(&mock_op2);
-
-  // Turn the caught Diameter msg structure into a PPA and confirm its contents.
-  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
-  Cx::PushProfileAnswer ppa(msg);
-  EXPECT_TRUE(ppa.result_code(test_i32));
-  EXPECT_EQ(DIAMETER_SUCCESS, test_i32);
-  EXPECT_EQ(AUTH_SESSION_STATE, ppa.auth_session_state());
 
   t = mock_op3.get_trx();
   ASSERT_FALSE(t == NULL);
 
+  // Next, we expect a PPA.
+  ppr_expect_ppa();
+
+  // Next, expect to obtain the other public identities in the IRS
+  // for the next default ID
+  MockCache::MockGetRegData mock_op4;
+  ppr_expect_get_reg_data(&mock_op4, IMPU5);
+
+  ppr_get_reg_data(&mock_op4,
+                   IMPU5_IMS_SUBSCRIPTION,
+                   RegistrationState::REGISTERED,
+                   FULL_CHARGING_ADDRESSES,
+                   IMPI_IN_VECTOR);
+
+  //expect an attempt to update the charging addresses for this default IMPU.
+  MockCache::MockPutRegData mock_op5;
+  ppr_put_reg_data(IMPU5_REG_SET, IMPU5, &mock_op5, "", FULL_CHARGING_ADDRESSES);
+
+  // Next, expect to obtain the other public identities in the IRS
+  // for the final default ID
+  MockCache::MockGetRegData mock_op6;
+  ppr_expect_get_reg_data(&mock_op6, IMPU);
+
+  ppr_get_reg_data(&mock_op6,
+                   IMPU_IMS_SUBSCRIPTION,
+                   RegistrationState::REGISTERED,
+                   FULL_CHARGING_ADDRESSES,
+                   IMPI_IN_VECTOR);
+
+  //expect an attempt to update the charging addresses for this default IMPU.
+  MockCache::MockPutRegData mock_op7;
+  ppr_put_reg_data(IMPU_REG_SET, IMPU, &mock_op7, "", FULL_CHARGING_ADDRESSES);
+
   t->on_success(&mock_op3);
+
+  // Turn the caught Diameter msg structure into a PPA and confirm its contents.
+  ppr_send_ppa(DIAMETER_SUCCESS);
 
   t = mock_op4.get_trx();
   ASSERT_FALSE(t == NULL);
-
   t->on_success(&mock_op4);
 
   t = mock_op5.get_trx();
   ASSERT_FALSE(t == NULL);
-
   t->on_success(&mock_op5);
 
   t = mock_op6.get_trx();
   ASSERT_FALSE(t == NULL);
-
   t->on_success(&mock_op6);
 
+  t = mock_op7.get_trx();
+  ASSERT_FALSE(t == NULL);
+  t->on_success(&mock_op7);
+
+  ppr_tear_down(pcfg);
 }
 
 
@@ -4955,73 +5142,44 @@ TEST_F(HandlersTest, PushProfileChargingAddrsMultipleIRS)
   // Build a PPR and create a Push Profile Task with this message. This PPR
   // contains some charging addresses but no IMS subscription. There are also
   // multiple implicit registration sets.
-  Cx::PushProfileRequest ppr(_cx_dict,
-                             _mock_stack,
-                             IMPI,
-                             "",
-                             FULL_CHARGING_ADDRESSES,
-                             AUTH_SESSION_STATE);
-
-  // The free_on_delete flag controls whether we want to free the underlying
-  // fd_msg structure when we delete this PPR. We don't, since this will be
-  // freed when the answer is freed later in the test. If we leave this flag set
-  // then the request will be freed twice.
-  ppr._free_on_delete = false;
-
-  PushProfileTask::Config cfg(_cache, _cx_dict, 0, 3600);
-  PushProfileTask* task = new PushProfileTask(_cx_dict, &ppr._fd_msg, &cfg, FAKE_TRAIL_ID);
-
-  // We have to make sure the message is pointing at the mock stack.
-  task->_msg._stack = _mock_stack;
-  task->_ppr._stack = _mock_stack;
+  PushProfileTask* task = NULL;
+  PushProfileTask::Config* pcfg = NULL;
+  ppr_setup(&task, &pcfg, IMPI, "", FULL_CHARGING_ADDRESSES);
 
   // Do a cache search to find the default public identities for each IRS
   // associated with the IMPI on the PPR.
 
   MockCache::MockGetAssociatedPrimaryPublicIDs mock_op;
-  EXPECT_CALL(*_cache, create_GetAssociatedPrimaryPublicIDs(IMPI))
-    .WillOnce(Return(&mock_op));
-  EXPECT_DO_ASYNC(*_cache, mock_op);
+  ppr_expect_get_default_ids(&mock_op, IMPI);
 
   task->run();
 
-  // The cache successfully returns a list of default public identities.
-  // It will return a list of 3 default identities.
+  // The cache successfully returns a list of default public identities from
+  // each IRS the IMPI is associated with. It will return a list of
+  // three default IMPUs, and the one in the IMS subscription element on the
+  // PPR is the second.
   CassandraStore::Transaction* t = mock_op.get_trx();
   ASSERT_FALSE(t == NULL);
-  EXPECT_CALL(mock_op, get_result(_))
-    .WillRepeatedly(SetArgReferee<0>(THREE_DEFAULT_IMPUS2));
+  ppr_get_default_ids(&mock_op, THREE_DEFAULT_IMPUS2);
 
-  // Next, expect to obtain the other public identities in the IRS
-  // for the first default ID
   MockCache::MockGetRegData mock_op2;
-  EXPECT_CALL(*_cache, create_GetRegData(IMPU5))
-    .WillOnce(Return(&mock_op2));
-  EXPECT_DO_ASYNC(*_cache, mock_op2);
-
-  EXPECT_CALL(mock_op2, get_xml(_, _))
-    .WillRepeatedly(SetArgReferee<0>(IMPU5_IMS_SUBSCRIPTION));
-  EXPECT_CALL(mock_op2, get_registration_state(_, _))
-    .WillRepeatedly(Return());
-  EXPECT_CALL(mock_op2, get_charging_addrs(_))
-    .WillRepeatedly(Return());
-  EXPECT_CALL(mock_op2, get_associated_impis(_))
-    .WillRepeatedly(Return());
+  ppr_expect_get_reg_data(&mock_op2, IMPU5);
 
   t->on_success(&mock_op);
 
   t = mock_op2.get_trx();
   ASSERT_FALSE(t == NULL);
 
+  ppr_get_reg_data(&mock_op2,
+                   IMPU5_IMS_SUBSCRIPTION,
+                   RegistrationState::REGISTERED,
+                   FULL_CHARGING_ADDRESSES,
+                   IMPI_IN_VECTOR);
 
-  // Next we expect to try and update the charging addresses in the cache.
+  // Then expect an attempt to update the IMS subscription of the charging
+  // addresses in the cache.
   MockCache::MockPutRegData mock_op3;
-  EXPECT_CALL(*_cache, create_PutRegData(IMPU5_REG_SET, IMPU5, _, 7200))
-    .Times(1)
-    .WillOnce(Return(&mock_op3));
-  EXPECT_CALL(mock_op3, with_charging_addrs(_))
-    .WillOnce(ReturnRef(mock_op3));
-  EXPECT_DO_ASYNC(*_cache, mock_op3);
+  ppr_put_reg_data(IMPU5_REG_SET, IMPU5, &mock_op3, "", FULL_CHARGING_ADDRESSES);
 
   t->on_success(&mock_op2);
 
@@ -5029,126 +5187,80 @@ TEST_F(HandlersTest, PushProfileChargingAddrsMultipleIRS)
   ASSERT_FALSE(t == NULL);
 
   // Next, we expect a PPA.
-  EXPECT_CALL(*_mock_stack, send(_, FAKE_TRAIL_ID))
-    .Times(1)
-    .WillOnce(WithArgs<0>(Invoke(store_msg)));
+  ppr_expect_ppa();
 
   // Next, expect to obtain the other public identities in the IRS
   // for the next default ID
   MockCache::MockGetRegData mock_op4;
-  EXPECT_CALL(*_cache, create_GetRegData(IMPU3))
-    .WillOnce(Return(&mock_op4));
-  EXPECT_DO_ASYNC(*_cache, mock_op4);
+  ppr_expect_get_reg_data(&mock_op4, IMPU3);
 
-  EXPECT_CALL(mock_op4, get_xml(_, _))
-    .WillRepeatedly(SetArgReferee<0>(IMPU3_IMS_SUBSCRIPTION));
-  EXPECT_CALL(mock_op4, get_registration_state(_, _))
-    .WillRepeatedly(Return());
-  EXPECT_CALL(mock_op4, get_charging_addrs(_))
-    .WillRepeatedly(Return());
-  EXPECT_CALL(mock_op4, get_associated_impis(_))
-    .WillRepeatedly(Return());
+  ppr_get_reg_data(&mock_op4,
+                   IMPU3_IMS_SUBSCRIPTION,
+                   RegistrationState::REGISTERED,
+                   FULL_CHARGING_ADDRESSES,
+                   IMPI_IN_VECTOR);
 
-  // Expect an attempt to update the charging addresses for this default IMPU.
+  //expect an attempt to update the charging addresses for this default IMPU.
   MockCache::MockPutRegData mock_op5;
-  EXPECT_CALL(*_cache, create_PutRegData(IMPU3_REG_SET, IMPU3, _, 7200))
-    .WillOnce(Return(&mock_op5));
-  EXPECT_CALL(mock_op5, with_charging_addrs(_))
-    .WillOnce(ReturnRef(mock_op5));
-  EXPECT_DO_ASYNC(*_cache, mock_op5);
+  ppr_put_reg_data(IMPU3_REG_SET, IMPU3, &mock_op5, "", FULL_CHARGING_ADDRESSES);
 
   // Next, expect to obtain the other public identities in the IRS
   // for the final default ID
   MockCache::MockGetRegData mock_op6;
-  EXPECT_CALL(*_cache, create_GetRegData(IMPU))
-    .WillOnce(Return(&mock_op6));
-  EXPECT_DO_ASYNC(*_cache, mock_op6);
+  ppr_expect_get_reg_data(&mock_op6, IMPU);
 
-  EXPECT_CALL(mock_op6, get_xml(_, _))
-    .WillRepeatedly(SetArgReferee<0>(IMPU_IMS_SUBSCRIPTION));
-  EXPECT_CALL(mock_op6, get_registration_state(_, _))
-    .WillRepeatedly(Return());
-  EXPECT_CALL(mock_op6, get_charging_addrs(_))
-    .WillRepeatedly(Return());
-  EXPECT_CALL(mock_op6, get_associated_impis(_))
-    .WillRepeatedly(Return());
+  ppr_get_reg_data(&mock_op6,
+                   IMPU_IMS_SUBSCRIPTION,
+                   RegistrationState::REGISTERED,
+                   FULL_CHARGING_ADDRESSES,
+                   IMPI_IN_VECTOR);
 
-  // Expect an attempt to update the charging addresses for this default IMPU.
+  //expect an attempt to update the charging addresses for this default IMPU.
   MockCache::MockPutRegData mock_op7;
-  EXPECT_CALL(*_cache, create_PutRegData(IMPU_REG_SET, IMPU, _, 7200))
-    .WillOnce(Return(&mock_op7));
-  EXPECT_CALL(mock_op7, with_charging_addrs(_))
-    .WillOnce(ReturnRef(mock_op7));
-  EXPECT_DO_ASYNC(*_cache, mock_op7);
+  ppr_put_reg_data(IMPU_REG_SET, IMPU, &mock_op7, "", FULL_CHARGING_ADDRESSES);
 
   t->on_success(&mock_op3);
 
   // Turn the caught Diameter msg structure into a PPA and confirm its contents.
-  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
-  Cx::PushProfileAnswer ppa(msg);
-  EXPECT_TRUE(ppa.result_code(test_i32));
-  EXPECT_EQ(DIAMETER_SUCCESS, test_i32);
-  EXPECT_EQ(AUTH_SESSION_STATE, ppa.auth_session_state());
+  ppr_send_ppa(DIAMETER_SUCCESS);
 
   t = mock_op4.get_trx();
   ASSERT_FALSE(t == NULL);
-
   t->on_success(&mock_op4);
 
   t = mock_op5.get_trx();
   ASSERT_FALSE(t == NULL);
-
   t->on_success(&mock_op5);
 
   t = mock_op6.get_trx();
   ASSERT_FALSE(t == NULL);
-
   t->on_success(&mock_op6);
 
   t = mock_op7.get_trx();
   ASSERT_FALSE(t == NULL);
-
   t->on_success(&mock_op7);
-}
 
+  ppr_tear_down(pcfg);
+}
 
 TEST_F(HandlersTest, PushProfileNoIMSSubNoChargingAddrs)
 {
   // Build a PPR and create a Push Profile Task with this message. This PPR
   // does not contain an IMS subscription.
-  Cx::PushProfileRequest ppr(_cx_dict,
-                             _mock_stack,
-                             IMPI,
-                             "",
-                             NO_CHARGING_ADDRESSES,
-                             AUTH_SESSION_STATE);
-
-  // The free_on_delete flag controls whether we want to free the underlying
-  // fd_msg structure when we delete this PPR. We don't, since this will be
-  // freed when the answer is freed later in the test. If we leave this flag set
-  // then the request will be freed twice.
-  ppr._free_on_delete = false;
-
-  PushProfileTask::Config cfg(_cache, _cx_dict, 0, 3600);
-  PushProfileTask* task = new PushProfileTask(_cx_dict, &ppr._fd_msg, &cfg, FAKE_TRAIL_ID);
-
-  // We have to make sure the message representations are pointing at the mock stack.
-  task->_msg._stack = _mock_stack;
-  task->_ppr._stack = _mock_stack;
+  PushProfileTask* task = NULL;
+  PushProfileTask::Config* pcfg = NULL;
+  ppr_setup(&task, &pcfg, IMPI, "", NO_CHARGING_ADDRESSES);
 
   // Once the task's run function is called, we just expect a PPA to be sent
   // since there was nothing to do on this PPR.
-  EXPECT_CALL(*_mock_stack, send(_, FAKE_TRAIL_ID))
-    .Times(1)
-    .WillOnce(WithArgs<0>(Invoke(store_msg)));
+  ppr_expect_ppa();
 
   task->run();
 
   // Turn the caught Diameter msg structure into a PPA and confirm the result code.
-  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
-  Cx::PushProfileAnswer ppa(msg);
-  EXPECT_TRUE(ppa.result_code(test_i32));
-  EXPECT_EQ(DIAMETER_SUCCESS, test_i32);
+  ppr_send_ppa(DIAMETER_SUCCESS);
+
+  ppr_tear_down(pcfg);
 }
 
 // Test that when we encounter a cache failure when getting the default identity
@@ -5158,57 +5270,32 @@ TEST_F(HandlersTest, PushProfileCacheDefaultLookupFail)
 {
   // Build a PPR and create a Push Profile Task with this message. This PPR
   // contains an IMS subscription and charging addresses.
-  Cx::PushProfileRequest ppr(_cx_dict,
-                             _mock_stack,
-                             IMPI,
-                             IMS_SUBSCRIPTION,
-                             NO_CHARGING_ADDRESSES,
-                             AUTH_SESSION_STATE);
-
-  // The free_on_delete flag controls whether we want to free the underlying
-  // fd_msg structure when we delete this PPR. We don't, since this will be
-  // freed when the answer is freed later in the test. If we leave this flag set
-  // then the request will be freed twice.
-  ppr._free_on_delete = false;
-
-  PushProfileTask::Config cfg(_cache, _cx_dict, 0, 3600);
-  PushProfileTask* task = new PushProfileTask(_cx_dict, &ppr._fd_msg, &cfg, FAKE_TRAIL_ID);
-
-  // We have to make sure the message is pointing at the mock stack.
-  task->_msg._stack = _mock_stack;
-  task->_ppr._stack = _mock_stack;
+  PushProfileTask* task = NULL;
+  PushProfileTask::Config* pcfg = NULL;
+  ppr_setup(&task, &pcfg, IMPI, IMS_SUBSCRIPTION, NO_CHARGING_ADDRESSES);
 
   // Once the task's run function is called, we expect to search in the cache to
   // check the default id hasn't changed.
   MockCache::MockGetAssociatedPrimaryPublicIDs mock_op;
-  EXPECT_CALL(*_cache, create_GetAssociatedPrimaryPublicIDs(IMPI))
-    .WillOnce(Return(&mock_op));
-   EXPECT_DO_ASYNC(*_cache, mock_op);
+  ppr_expect_get_default_ids(&mock_op, IMPI);
 
-   task->run();
+  task->run();
 
-   CassandraStore::Transaction* t = mock_op.get_trx();
-   ASSERT_FALSE(t == NULL);
-   EXPECT_CALL(mock_op, get_result(_))
-     .WillRepeatedly(SetArgReferee<0>(IMPU_IN_VECTOR));
+  CassandraStore::Transaction* t = mock_op.get_trx();
+  ASSERT_FALSE(t == NULL);
+  ppr_get_default_ids(&mock_op, IMPU_IN_VECTOR);
 
-   // Catch the expected PPA.
-   EXPECT_CALL(*_mock_stack, send(_, FAKE_TRAIL_ID))
-     .Times(1)
-     .WillOnce(WithArgs<0>(Invoke(store_msg)));
+  ppr_expect_ppa();
 
-   // The cache request fails.
-   mock_op._cass_status = CassandraStore::INVALID_REQUEST;
-   mock_op._cass_error_text = "error";
+  // The cache request fails.
+  mock_op._cass_status = CassandraStore::INVALID_REQUEST;
+  mock_op._cass_error_text = "error";
 
-   t->on_failure(&mock_op);
+  t->on_failure(&mock_op);
 
-  // Turn the caught Diameter msg structure into a PPA and confirm the result
-  // code.
-  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
-  Cx::PushProfileAnswer ppa(msg);
-  EXPECT_TRUE(ppa.result_code(test_i32));
-  EXPECT_EQ(DIAMETER_UNABLE_TO_COMPLY, test_i32);
+  ppr_send_ppa(DIAMETER_UNABLE_TO_COMPLY);
+
+  ppr_tear_down(pcfg);
 }
 
 // Test that when a PPR is received with a different default public id than the
@@ -5218,56 +5305,32 @@ TEST_F(HandlersTest, PushProfileChangesDefaultRejected)
 {
   // Build a PPR and create a Push Profile Task with this message. This PPR
   // contains an IMS subscription and charging addresses.
-  Cx::PushProfileRequest ppr(_cx_dict,
-                             _mock_stack,
-                             IMPI,
-                             IMS_SUBSCRIPTION,
-                             FULL_CHARGING_ADDRESSES,
-                             AUTH_SESSION_STATE);
-
-  // The free_on_delete flag controls whether we want to free the underlying
-  // fd_msg structure when we delete this PPR. We don't, since this will be
-  // freed when the answer is freed later in the test. If we leave this flag set
-  // then the request will be freed twice.
-  ppr._free_on_delete = false;
-
-  PushProfileTask::Config cfg(_cache, _cx_dict, 0, 3600);
-  PushProfileTask* task = new PushProfileTask(_cx_dict, &ppr._fd_msg, &cfg, FAKE_TRAIL_ID);
-
-  // We have to make sure the message is pointing at the mock stack.
-  task->_msg._stack = _mock_stack;
-  task->_ppr._stack = _mock_stack;
+  PushProfileTask* task = NULL;
+  PushProfileTask::Config* pcfg = NULL;
+  ppr_setup(&task, &pcfg, IMPI, IMS_SUBSCRIPTION, FULL_CHARGING_ADDRESSES);
 
   // Once the task's run function is called, we expect to search in the cache to
   // check the default id hasn't changed.
   MockCache::MockGetAssociatedPrimaryPublicIDs mock_op;
-  EXPECT_CALL(*_cache, create_GetAssociatedPrimaryPublicIDs(IMPI))
-    .WillOnce(Return(&mock_op));
-  EXPECT_DO_ASYNC(*_cache, mock_op);
+  ppr_expect_get_default_ids(&mock_op, IMPI);
 
   task->run();
 
-  // The cache successfully returns a default identity which doesn't match the
-  // one in the PPR.
   CassandraStore::Transaction* t = mock_op.get_trx();
-  std::vector<std::string> different_default_id = {IMPU2};
   ASSERT_FALSE(t == NULL);
-  EXPECT_CALL(mock_op, get_result(_))
-    .WillRepeatedly(SetArgReferee<0>(different_default_id));
+  std::vector<std::string> different_default_id = {IMPU2};
+  ppr_get_default_ids(&mock_op, different_default_id);
 
   // We expect a PPA rejecting this PPR as it changes the default public id.
-  EXPECT_CALL(*_mock_stack, send(_, FAKE_TRAIL_ID))
-    .Times(1)
-    .WillOnce(WithArgs<0>(Invoke(store_msg)));
+  ppr_expect_ppa();
 
   t->on_success(&mock_op);
 
   // Turn the caught Diameter msg structure into a PPA and confirm the result
   // code.
-  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
-  Cx::PushProfileAnswer ppa(msg);
-  EXPECT_TRUE(ppa.result_code(test_i32));
-  EXPECT_EQ(DIAMETER_UNABLE_TO_COMPLY, test_i32);
+  ppr_send_ppa(DIAMETER_UNABLE_TO_COMPLY);
+
+  ppr_tear_down(pcfg);
 }
 
 // Test that when no default id can be found in the cache for an IMPI, the PPR
@@ -5277,32 +5340,14 @@ TEST_F(HandlersTest, PushProfileUnfoundDefaultRejected)
 {
   // Build a PPR and create a Push Profile Task with this message. This PPR
   // contains an IMS subscription and charging addresses.
-  Cx::PushProfileRequest ppr(_cx_dict,
-                             _mock_stack,
-                             IMPI,
-                             IMS_SUBSCRIPTION,
-                             FULL_CHARGING_ADDRESSES,
-                             AUTH_SESSION_STATE);
-
-  // The free_on_delete flag controls whether we want to free the underlying
-  // fd_msg structure when we delete this PPR. We don't, since this will be
-  // freed when the answer is freed later in the test. If we leave this flag set
-  // then the request will be freed twice.
-  ppr._free_on_delete = false;
-
-  PushProfileTask::Config cfg(_cache, _cx_dict, 0, 3600);
-  PushProfileTask* task = new PushProfileTask(_cx_dict, &ppr._fd_msg, &cfg, FAKE_TRAIL_ID);
-
-  // We have to make sure the message is pointing at the mock stack.
-  task->_msg._stack = _mock_stack;
-  task->_ppr._stack = _mock_stack;
+  PushProfileTask* task = NULL;
+  PushProfileTask::Config* pcfg = NULL;
+  ppr_setup(&task, &pcfg, IMPI, IMS_SUBSCRIPTION, FULL_CHARGING_ADDRESSES);
 
   // Once the task's run function is called, we expect to search in the cache to
   // check the default id hasn't changed.
   MockCache::MockGetAssociatedPrimaryPublicIDs mock_op;
-  EXPECT_CALL(*_cache, create_GetAssociatedPrimaryPublicIDs(IMPI))
-    .WillOnce(Return(&mock_op));
-  EXPECT_DO_ASYNC(*_cache, mock_op);
+  ppr_expect_get_default_ids(&mock_op, IMPI);
 
   task->run();
 
@@ -5310,23 +5355,18 @@ TEST_F(HandlersTest, PushProfileUnfoundDefaultRejected)
   CassandraStore::Transaction* t = mock_op.get_trx();
   std::vector<std::string> empty_list = {};
   ASSERT_FALSE(t == NULL);
-  EXPECT_CALL(mock_op, get_result(_))
-    .WillRepeatedly(SetArgReferee<0>(empty_list));
+  ppr_get_default_ids(&mock_op, empty_list);
 
   // We expect a PPA rejecting this PPR as we couldn't find a default public id
-  // relating to it.
-  EXPECT_CALL(*_mock_stack, send(_, FAKE_TRAIL_ID))
-    .Times(1)
-    .WillOnce(WithArgs<0>(Invoke(store_msg)));
+  ppr_expect_ppa();
 
   t->on_success(&mock_op);
 
   // Turn the caught Diameter msg structure into a PPA and confirm the result
   // code.
-  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
-  Cx::PushProfileAnswer ppa(msg);
-  EXPECT_TRUE(ppa.result_code(test_i32));
-  EXPECT_EQ(DIAMETER_UNABLE_TO_COMPLY, test_i32);
+  ppr_send_ppa(DIAMETER_UNABLE_TO_COMPLY);
+
+  ppr_tear_down(pcfg);
 }
 
 // Test that when a PPR is recieved which includes barring, but doesn't change
@@ -5338,68 +5378,61 @@ TEST_F(HandlersTest, PushProfileTelUrisAndBarring)
 
   // Build a PPR and create a Push Profile Task with this message. This PPR
   // contains an IMS subscription with no SIP URIs.
-  Cx::PushProfileRequest ppr(_cx_dict,
-                             _mock_stack,
-                             IMPI,
-                             TEL_URIS_IMS_SUBSCRIPTION_WITH_BARRING,
-                             NO_CHARGING_ADDRESSES,
-                             AUTH_SESSION_STATE);
-
-  // The free_on_delete flag controls whether we want to free the underlying
-  // fd_msg structure when we delete this PPR. We don't, since this will be
-  // freed when the answer is freed later in the test. If we leave this flag set
-  // then the request will be freed twice.
-  ppr._free_on_delete = false;
-
-  PushProfileTask::Config cfg(_cache, _cx_dict, 0, 3600);
-  PushProfileTask* task = new PushProfileTask(_cx_dict, &ppr._fd_msg, &cfg, FAKE_TRAIL_ID);
-
-  // We have to make sure the message is pointing at the mock stack.
-  task->_msg._stack = _mock_stack;
-  task->_ppr._stack = _mock_stack;
+  PushProfileTask* task = NULL;
+  PushProfileTask::Config* pcfg = NULL;
+  ppr_setup(&task, &pcfg, IMPI, TEL_URIS_IMS_SUBSCRIPTION_WITH_BARRING, NO_CHARGING_ADDRESSES);
 
   // Once the task's run funtion is called, we expect to try and search the
   // cache to check if the default id has changed.
   MockCache::MockGetAssociatedPrimaryPublicIDs mock_op;
-  EXPECT_CALL(*_cache, create_GetAssociatedPrimaryPublicIDs(IMPI))
-    .WillOnce(Return(&mock_op));
-  EXPECT_DO_ASYNC(*_cache, mock_op);
+  ppr_expect_get_default_ids(&mock_op, IMPI);
 
-   task->run();
+  task->run();
 
   // The cache successfully returns a list of public identities.
   CassandraStore::Transaction* t = mock_op.get_trx();
   std::vector<std::string> def_id_list = {TEL_URI2};
   ASSERT_FALSE(t == NULL);
-  EXPECT_CALL(mock_op, get_result(_))
-    .WillRepeatedly(SetArgReferee<0>(def_id_list));
+  ppr_get_default_ids(&mock_op, def_id_list);
+
+  MockCache::MockGetRegData mock_op2;
+  ppr_expect_get_reg_data(&mock_op2, TEL_URI2);
+
+  t->on_success(&mock_op);
+  t = mock_op2.get_trx();
+
+  ppr_get_reg_data(&mock_op2,
+                   TEL_URIS_IMS_SUBSCRIPTION_WITH_BARRING,
+                   RegistrationState::REGISTERED,
+                   FULL_CHARGING_ADDRESSES,
+                   IMPI_IN_VECTOR);
 
   // Then we expect to try and update the IMS Subscription (but not the charging
   // addresses) in the cache.
-  MockCache::MockPutRegData mock_op2;
-  EXPECT_CALL(*_cache, create_PutRegData(TEL_URIS_IN_VECTOR, TEL_URI2, _, 7200))
-    .WillOnce(Return(&mock_op2));
-  EXPECT_CALL(mock_op2, with_xml(TEL_URIS_IMS_SUBSCRIPTION_WITH_BARRING))
-    .WillOnce(ReturnRef(mock_op2));
-  EXPECT_DO_ASYNC(*_cache, mock_op2);
+  MockCache::MockPutRegData mock_op3;
+  ppr_put_reg_data(TEL_URIS_IN_VECTOR,
+                   TEL_URI2,
+                   &mock_op3,
+                   TEL_URIS_IMS_SUBSCRIPTION_WITH_BARRING,
+                   NO_CHARGING_ADDRESSES);
 
-  t->on_success(&mock_op);
+  t->on_success(&mock_op2);
 
-  t = mock_op2.get_trx();
+  t = mock_op3.get_trx();
   ASSERT_FALSE(t == NULL);
 
   // Finally we expect a PPA.
-  EXPECT_CALL(*_mock_stack, send(_, FAKE_TRAIL_ID))
-    .Times(1)
-    .WillOnce(WithArgs<0>(Invoke(store_msg)));
+  ppr_expect_ppa();
 
-  t->on_success(&mock_op2);
+  t->on_success(&mock_op3);
 
   // Turn the caught Diameter msg structure so it gets deleted properly.
   Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
 
   // Check for the log indicating there were no SIP URIs in the IRS.
   EXPECT_TRUE(log.contains("No SIP URI in Implicit Registration Set"));
+
+  ppr_tear_down(pcfg);
 }
 
 //

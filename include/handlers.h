@@ -629,6 +629,10 @@ private:
   std::string _first_default_id;
   std::vector<std::string> _impus;
   std::vector<std::string> _default_impus;
+  std::vector<std::string> _irs_impus;
+  std::vector<std::string> _impus_to_delete;
+  RegistrationState _reg_state;
+  ChargingAddresses _reg_charging_addrs;
 
   void update_reg_data();
   void update_reg_data_success(CassandraStore::Operation* op);
@@ -644,9 +648,18 @@ private:
   void on_get_primary_impus_failure(CassandraStore::Operation* op,
                                     CassandraStore::ResultCode error,
                                     std::string& text);
+  // Return true if the default ID is the first to be updated.
+  // Else return false (if updating a further registration set.)
+  inline bool check_if_first()
+  {
+  return (_default_public_id == _first_default_id);
+  }
   void ims_sub_compare_default_ids();
   void ims_sub_get_ids();
   void no_ims_set_first_default();
+  void find_impus_to_delete();
+  void delete_impus();
+  bool check_impus_added();
   void decide_if_send_ppa();
   void send_ppa(const std::string result_code);
 };
