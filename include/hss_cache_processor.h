@@ -42,7 +42,7 @@ public:
   // Get the IRS for a given impu
   void get_implicit_registration_set(std::function<void(ImplicitRegistrationSet*)> success_cb,
                                      std::function<void(Store::Status)> failure_cb,
-                                     std::string* impu);
+                                     std::string impu);
 
   // Save the IRS in the cache
   // Must include updating the impi mapping table if impis have been added
@@ -78,7 +78,7 @@ public:
   // as we'll need to updated every IRS that we've stored
   void get_ims_subscription(std::function<void(ImsSubscription*)> success_cb,
                             std::function<void(Store::Status)> failure_cb,
-                            std::string* impi);
+                            std::string impi);
 
   // This is used to save the state that we changed in the PPR
   void put_ims_subscription(std::function<void()> success_cb,
