@@ -1474,7 +1474,7 @@ public:
                  std::string ims_subscription,
                  ChargingAddresses charging_addresses)
   {
-     Cx::PushProfileRequest ppr(_cx_dict,
+    Cx::PushProfileRequest ppr(_cx_dict,
                                 _mock_stack,
 		                impi,
                                 ims_subscription,
@@ -1498,6 +1498,7 @@ public:
 
   void ppr_expect_get_default_ids(MockCache::MockGetAssociatedPrimaryPublicIDs* mock_op, std::string impi)
   {
+    // Get Default IDs for impi
     EXPECT_CALL(*_cache, create_GetAssociatedPrimaryPublicIDs(impi))
       .WillOnce(Return(mock_op));
     EXPECT_DO_ASYNC(*_cache, *mock_op);
@@ -1505,12 +1506,14 @@ public:
 
   void ppr_get_default_ids(MockCache::MockGetAssociatedPrimaryPublicIDs* mock_op, std::vector<std::string> impus)
   {
+    // Get Default IDs will return impus
     EXPECT_CALL(*mock_op, get_result(_))
       .WillRepeatedly(SetArgReferee<0>(impus));
   }
 
   void ppr_expect_get_reg_data(MockCache::MockGetRegData* mock_op, std::string impu)
   {
+    // Get reg data for impu
     EXPECT_CALL(*_cache, create_GetRegData(impu))
       .WillOnce(Return(mock_op));
     EXPECT_DO_ASYNC(*_cache, *mock_op);
@@ -1522,6 +1525,8 @@ public:
                         ChargingAddresses charging_addresses,
                         std::vector<std::string> impis)
   {
+    // Get reg data will return ims_subscription, reg_state, charging_addresses
+    // and impis
     EXPECT_CALL(*mock_op, get_xml(_, _))
       .WillRepeatedly(SetArgReferee<0>(ims_subscription));
     EXPECT_CALL(*mock_op, get_registration_state(_, _))
@@ -1539,6 +1544,9 @@ public:
 		        ChargingAddresses charging_addresses,
 			RegistrationState reg_state = RegistrationState::UNCHANGED)
   {
+    // Put reg data against list of impus in reg set impus, with default
+    // identity default_impu. Put ims_subscription, charging_addresses and
+    // reg_state, if they are provided.
     EXPECT_CALL(*_cache, create_PutRegData(impus, default_impu, _, 7200))
       .Times(1)
       .WillOnce(Return(mock_op));
@@ -1562,6 +1570,7 @@ public:
 
   void ppr_delete_IMPUs(MockCache::MockDeleteIMPUs* mock_op, std::vector<std::string> impus)
   {
+    // Delete the IMPUs from cache in vector impus.
     EXPECT_CALL(*_cache, create_DeleteIMPUs(impus, _))
       .Times(1)
       .WillOnce(Return(mock_op));
@@ -1577,6 +1586,7 @@ public:
 
   void ppr_send_ppa(int success_or_failure)
   {
+    // Send a PPA indicating success or failure.
     Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
     Cx::PushProfileAnswer ppa(msg);
     EXPECT_TRUE(ppa.result_code(test_i32));

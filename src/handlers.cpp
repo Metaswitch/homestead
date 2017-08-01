@@ -2383,7 +2383,11 @@ void PushProfileTask::update_reg_data()
     TRC_INFO("Updating IMS subscription from PPR");
     put_reg_data->with_xml(_ims_subscription);
     event.add_compressed_param(_ims_subscription, &SASEvent::PROFILE_SERVICE_PROFILE);
+    // Find if any IMPUs have been deleted from the registration set and delete from
+    // cache accordingly.
     find_impus_to_delete();
+    // Find if any IMPUs have been added, and if so, also put the registration state
+    // and charging information.
     if (check_impus_added())
     {
       TRC_INFO("Updating registration state");
@@ -2394,6 +2398,7 @@ void PushProfileTask::update_reg_data()
       }
     }
   }
+  // If first time round and no IMS subscription was present.
   else if (check_if_first())
   {
     event.add_compressed_param("IMS subscription unchanged", &SASEvent::PROFILE_SERVICE_PROFILE);
