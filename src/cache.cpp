@@ -32,6 +32,8 @@ const static std::string SECONDARY_CCF_COLUMN_NAME = "secondary_ccf";
 const static std::string PRIMARY_ECF_COLUMN_NAME = "primary_ecf";
 const static std::string SECONDARY_ECF_COLUMN_NAME = "secondary_ecf";
 const static std::string IMPI_COLUMN_PREFIX = "associated_impi__";
+
+// Column names in the IMPI_MAPPING column family
 const static std::string IMPI_MAPPING_PREFIX = "associated_primary_impu__";
 
 // Column names in the IMPI column family.
