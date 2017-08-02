@@ -11,11 +11,11 @@
 #ifndef HSS_CACHE_H_
 #define HSS_CACHE_H_
 
-#include "handlers.h"
 #include "store.h"
 #include <vector>
 #include <string>
 #include "ims_subscription.h"
+#include "implicit_reg_set.h"
 
 class HssCache
 {
@@ -26,51 +26,44 @@ public:
   // They return Store::Status (from cpp-common's Store) which is used to determine which callback to use
   // If they are getting/listing data, the data is put into the supplied datastructure
 
-  // Give a set of public IDs (representing an implicit registration set) an associated private ID.
-  // used for regdata task
-  // only adds public id to impi_mapping table
-  Store::Status put_associated_private_id(std::vector<std::string> impus, std::string default_public_id, std::string impi, int ttl);
+  // Get the IRS for a given impu
+  virtual Store::Status get_implicit_registration_set_for_impu(std::string impu,
+                                                               ImplicitRegistrationSet*& result) = 0;
 
-  // Get the cached IMS subscription XML for a public identity.
-  // Basically the equivalent of GetRegData in Cassandra
-  Store::Status get_ims_subscription_xml(std::string impu, ImsSubscription& subscription);
+  // Get the list of IRSs for the given list of impus
+  // Used for RTR when we have a list of impus
+  virtual Store::Status get_implicit_registration_sets_for_impis(std::vector<std::string>* impis,
+                                                                 std::vector<ImplicitRegistrationSet*>& result) = 0;
 
-  // Cache the IMS subscription XML
-  // basically the equivalent of PutRegData in Cassandra
-  Store::Status put_ims_subscription_xml(ImsSubscription subscription);
+  // Get the list of IRSs for the given list of imps
+  // Used for RTR when we have a list of impis
+  virtual Store::Status get_implicit_registration_sets_for_impus(std::vector<std::string>* impus,
+                                                                 std::vector<ImplicitRegistrationSet*>& result) = 0;
 
-  // Deletes the specified impu entries from the impu table, and removes the first impu in the
-  // list from the impi mapping table for these impis (the list is assumed to have the default at the front)
-  // used for de-registrations
-  Store::Status delete_public_ids(std::vector<std::string> impis, std::vector<std::string> impus);
+  // Save the IRS in the cache
+  // Must include updating the impi mapping table if impis have been added
+  virtual Store::Status put_implicit_registration_set(ImplicitRegistrationSet* irs) = 0;
 
-  // Returns a list of all impus in the cache
-  // used for listing impus
-  Store::Status list_impus(std::vector<std::string>& impus);
+  // Used for de-registration
+  virtual Store::Status delete_implicit_registration_set(ImplicitRegistrationSet* irs) = 0;
 
-  // Used for RTRs
-  // just returns list of default impus for these impis
-  Store::Status get_associated_primary_public_ids(std::vector<std::string> impis, std::vector<std::string>& impus);
+  // Deletes several registration sets
+  // Used for an RTR when we have several registration sets to delete
+  virtual Store::Status delete_implicit_registration_sets(std::vector<ImplicitRegistrationSet*>* irss) = 0;
 
-  // As the method says:
-  //  - for every impi that's mapped to this IRS, remove the default impu of the IRS from the impi mapping table
-  //    - if we're deleting all the impis for this IRS, then we should remove the impu entries as well
-  //    - if we're not, we need to remove the impi from the default impus entry in the impu table
-  // - if delete_impi_mappings is true, also remove the entries in the impi_mapping table for these impis
-  // Used for RTRs
-  Store::Status dissociate_irs_from_impis(std::vector<std::string> impis, std::vector<std::string> impus, bool delete_impi_mappings);
+  // Gets the whole IMS subscription for this impi
+  // This is used when we get a PPR, and we have to update charging functions
+  // as we'll need to updated every IRS that we've stored
+  virtual Store::Status get_ims_subscription(std::string impi,
+                                             ImsSubscription*& result) = 0;
 
-  // If we just have charging functions and no profile xml:
-  //    * look up the default impus for the given impi
-  //    * update the cached ims subscription xml for all default and associated impus with new charging functions,
-  //      and refresh the TTL
-  // If we have profile xml,we need to lookup the default public ids for any IRS the IMPI is part of to determine
-  // whether this PPR will change the default public id.
-  //    * If it will, reject it
-  //    * else update the saved ims subscription for the default and associated impus, and remove any old
-  //    * impus that are no longer associated with this IRS
-  Store::Status put_ppr_data(std::string impis, ImsSubscription ppr_data);
+  // This is used to save the state that we changed in the PPR
+  virtual Store::Status put_ims_subscription(ImsSubscription* subscription) = 0;
 
+  // Lists impus, starting at starting_from, limited to count
+  virtual Store::Status list_impus(int count,
+                                   std::string last_impu,
+                                   std::vector<std::string>*& result) = 0;
 };
 
 #endif

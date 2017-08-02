@@ -15,6 +15,13 @@
 #include "threadpool.h"
 #include "ims_subscription.h"
 
+typedef std::function<void(Store::Status)> failure_callback;
+typedef std::function<void(ImplicitRegistrationSet*)> irs_success_callback;
+typedef std::function<void(std::vector<ImplicitRegistrationSet*>)> irs_vector_success_callback;
+typedef std::function<void()> void_success_cb;
+typedef std::function<void(ImsSubscription*)> ims_sub_success_cb;
+typedef std::function<void(std::vector<std::string>*)> impi_vector_success_callback;
+
 class HssCacheProcessor
 {
 public:
@@ -29,6 +36,12 @@ public:
                      ExceptionHandler* exception_handler,
                      unsigned int max_queue);
 
+  // Stops the threadpool
+  void stop();
+
+  // Waits for the threadpool to terminate
+  void wait_stopped();
+
   // ---------------------------------------------------------------------------
   // Funtions to get/set data in the cache.
   // Each one must provide a success and failure callback.
@@ -40,56 +53,56 @@ public:
   // ---------------------------------------------------------------------------
 
   // Get the IRS for a given impu
-  void get_implicit_registration_set(std::function<void(ImplicitRegistrationSet*)> success_cb,
-                                     std::function<void(Store::Status)> failure_cb,
-                                     std::string impu);
-
-  // Save the IRS in the cache
-  // Must include updating the impi mapping table if impis have been added
-  void put_implicit_registration_set(std::function<void()> success_cb,
-                                     std::function<void(Store::Status)> failure_cb,
-                                     ImplicitRegistrationSet* irs);
-
-  // Used for de-registration
-  void delete_implicit_registration_set(std::function<void()> success_cb,
-                                        std::function<void(Store::Status)> failure_cb,
-                                        ImplicitRegistrationSet* irs);
+  void get_implicit_registration_set_for_impu(irs_success_callback success_cb,
+                                              failure_callback failure_cb,
+                                              std::string impu);
 
   // Get the list of IRSs for the given list of impus
   // Used for RTR when we have a list of impus
-  void get_implicit_registration_sets(std::function<void(std::vector<ImplicitRegistrationSet*>)> success_cb,
-                                      std::function<void(Store::Status)> failure_cb,
-                                      std::vector<std::string>* impus);
+  void get_implicit_registration_sets_for_impis(irs_vector_success_callback success_cb,
+                                                failure_callback failure_cb,
+                                                std::vector<std::string>* impis);
 
   // Get the list of IRSs for the given list of imps
   // Used for RTR when we have a list of impis
-  void get_implicit_registration_sets(std::function<void(std::vector<ImplicitRegistrationSet*>)> success_cb,
-                                      std::function<void(Store::Status)> failure_cb,
-                                      std::vector<std::string>* impis);
+  void get_implicit_registration_sets_for_impus(irs_vector_success_callback success_cb,
+                                                failure_callback failure_cb,
+                                                std::vector<std::string>* impus);
+
+  // Save the IRS in the cache
+  // Must include updating the impi mapping table if impis have been added
+  void put_implicit_registration_set(void_success_cb success_cb,
+                                     failure_callback failure_cb,
+                                     ImplicitRegistrationSet* irs);
+
+  // Used for de-registration
+  void delete_implicit_registration_set(void_success_cb success_cb,
+                                        failure_callback failure_cb,
+                                        ImplicitRegistrationSet* irs);
 
   // Deletes several registration sets
   // Used for an RTR when we have several registration sets to delete
-  void delete_implicit_registration_sets(std::function<void()> success_cb,
-                                         std::function<void(Store::Status)> failure_cb,
+  void delete_implicit_registration_sets(void_success_cb success_cb,
+                                         failure_callback failure_cb,
                                          std::vector<ImplicitRegistrationSet*>* irss);
 
   // Gets the whole IMS subscription for this impi
   // This is used when we get a PPR, and we have to update charging functions
   // as we'll need to updated every IRS that we've stored
-  void get_ims_subscription(std::function<void(ImsSubscription*)> success_cb,
-                            std::function<void(Store::Status)> failure_cb,
+  void get_ims_subscription(ims_sub_success_cb success_cb,
+                            failure_callback failure_cb,
                             std::string impi);
 
   // This is used to save the state that we changed in the PPR
-  void put_ims_subscription(std::function<void()> success_cb,
-                            std::function<void(Store::Status)> failure_cb,
-                            ImsSubscription* subscription)
+  void put_ims_subscription(void_success_cb success_cb,
+                            failure_callback failure_cb,
+                            ImsSubscription* subscription);
 
   // Lists impus, starting at starting_from, limited to count
-  void list_impus(std::function<void(std::vector<std::string>*)> success_cb,
-                  std::function<void(Store::Status)> failure_cb,
+  void list_impus(impi_vector_success_callback success_cb,
+                  failure_callback failure_cb,
                   int count,
-                  int starting_from);
+                  std::string last_impu);
 private:
   // Dummy exception handler callback for the thread pool
   static void inline exception_callback(std::function<void()> callable)
