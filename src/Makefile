@@ -21,6 +21,7 @@ COMMON_SOURCES := accesslogger.cpp \
                   handlers.cpp \
                   health_checker.cpp \
                   homestead_xml_utils.cpp \
+                  hss_cache_processor.cpp \
                   http_connection_pool.cpp \
                   httpclient.cpp \
                   httpconnection.cpp \
@@ -56,7 +57,6 @@ homestead_test_SOURCES := ${COMMON_SOURCES} \
                           cx_test.cpp \
                           cache_test.cpp \
                           handlers_test.cpp \
-                          homestead_xml_utils_test.cpp \
                           fakelogger.cpp \
                           fakesnmp.cpp \
                           mockfreediameter.cpp \
