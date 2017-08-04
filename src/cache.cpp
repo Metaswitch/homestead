@@ -983,10 +983,7 @@ bool Cache::DissociateImplicitRegistrationSetFromImpi::perform(CassandraStore::C
 }
 
 
-//
 // Delete IMPUs methods for PPRs
-//
-
 
 Cache::DeleteIMPUs::
 DeleteIMPUs(const std::vector<std::string>& public_ids,
@@ -996,8 +993,7 @@ DeleteIMPUs(const std::vector<std::string>& public_ids,
   _timestamp(timestamp)
 {}
 
-Cache::DeleteIMPUs::
-~DeleteIMPUs()
+Cache::DeleteIMPUs::~DeleteIMPUs()
 {}
 
 bool Cache::DeleteIMPUs::perform(CassandraStore::Client* client,
