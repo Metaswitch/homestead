@@ -25,12 +25,9 @@
 
 const std::string SIP_URI_PRE = "sip:";
 
-Diameter::Stack* HssCacheTask::_diameter_stack = NULL;
-std::string HssCacheTask::_dest_realm;
-std::string HssCacheTask::_dest_host;
 std::string HssCacheTask::_configured_server_name;
-Cx::Dictionary* HssCacheTask::_dict;
-Cache* HssCacheTask::_cache = NULL;
+HssConnection::HssConnection* HssCacheTask::_hss = NULL;
+HssCacheProcessor* HssCacheTask::_cache = NULL;
 StatisticsManager* HssCacheTask::_stats_manager = NULL;
 HealthChecker* HssCacheTask::_health_checker = NULL;
 
@@ -51,24 +48,14 @@ static SNMP::CxCounterTable* lir_results_tbl;
 static SNMP::CxCounterTable* ppr_results_tbl;
 static SNMP::CxCounterTable* rtr_results_tbl;
 
-void HssCacheTask::configure_diameter(Diameter::Stack* diameter_stack,
-                                      const std::string& dest_realm,
-                                      const std::string& dest_host,
-                                      const std::string& server_name,
-                                      Cx::Dictionary* dict)
+void HssCacheTask::configure_hss_connection(HssConnection::HssConnection* hss,
+                                            std::string configured_server_name)
 {
-  TRC_STATUS("Configuring HssCacheTask");
-  TRC_STATUS("  Dest-Realm:  %s", dest_realm.c_str());
-  TRC_STATUS("  Dest-Host:   %s", dest_host.c_str());
-  TRC_STATUS("  Server-Name: %s", server_name.c_str());
-  _diameter_stack = diameter_stack;
-  _dest_realm = dest_realm;
-  _dest_host = dest_host;
-  _configured_server_name = server_name;
-  _dict = dict;
+  _hss = hss;
+  _configured_server_name = configured_server_name;
 }
 
-void HssCacheTask::configure_cache(Cache* cache)
+void HssCacheTask::configure_cache(HssCacheProcessor* cache)
 {
   _cache = cache;
 }
@@ -97,7 +84,7 @@ void HssCacheTask::on_diameter_timeout()
 }
 
 // Common SAS log function
-
+/*TODO
 static void sas_log_get_reg_data_success(Cache::GetRegData* get_reg_data, SAS::TrailId trail)
 {
   std::string xml;
@@ -118,7 +105,7 @@ static void sas_log_get_reg_data_success(Cache::GetRegData* get_reg_data, SAS::T
   event.add_var_param(associated_impis_str);
   event.add_var_param(charging_addrs.log_string());
   SAS::report_event(event);
-}
+}*/
 
 // General IMPI handling.
 
@@ -128,15 +115,7 @@ void ImpiTask::run()
   {
     TRC_DEBUG("Parsed HTTP request: private ID %s, public ID %s, scheme %s, authorization %s",
               _impi.c_str(), _impu.c_str(), _scheme.c_str(), _authorization.c_str());
-    if (_cfg->query_cache_av)
-    {
-      query_cache_av();
-    }
-    else
-    {
-      TRC_DEBUG("Authentication vector cache query disabled - query HSS");
-      get_av();
-    }
+    get_av();
   }
   else
   {
@@ -151,164 +130,103 @@ ImpiTask::~ImpiTask()
   _maa = NULL;
 }
 
-void ImpiTask::query_cache_av()
-{
-  TRC_DEBUG("Querying cache for authentication vector for %s/%s", _impi.c_str(), _impu.c_str());
-  SAS::Event event(this->trail(), SASEvent::CACHE_GET_AV, 0);
-  event.add_var_param(_impi);
-  event.add_var_param(_impu);
-  SAS::report_event(event);
-  CassandraStore::Operation* get_av = _cache->create_GetAuthVector(_impi, _impu);
-  CassandraStore::Transaction* tsx =
-    new CacheTransaction(this,
-                         &ImpiTask::on_get_av_success,
-                         &ImpiTask::on_get_av_failure);
-  _cache->do_async(get_av, tsx);
-}
-
-void ImpiTask::on_get_av_success(CassandraStore::Operation* op)
-{
-  SAS::Event event(this->trail(), SASEvent::CACHE_GET_AV_SUCCESS, 0);
-  SAS::report_event(event);
-  Cache::GetAuthVector* get_av = (Cache::GetAuthVector*)op;
-  DigestAuthVector av;
-  get_av->get_result(av);
-  TRC_DEBUG("Got authentication vector with digest %s from cache", av.ha1.c_str());
-  send_reply(av);
-  delete this;
-}
-
-void ImpiTask::on_get_av_failure(CassandraStore::Operation* op,
-                                 CassandraStore::ResultCode error,
-                                 std::string& text)
-{
-  TRC_DEBUG("Cache query failed - reject request");
-  SAS::Event event(this->trail(), SASEvent::NO_AV_CACHE, 0);
-  SAS::report_event(event);
-  if (error == CassandraStore::NOT_FOUND)
-  {
-    TRC_DEBUG("No cached av found for private ID %s, public ID %s - reject", _impi.c_str(), _impu.c_str());
-    send_http_reply(HTTP_NOT_FOUND);
-  }
-  else
-  {
-    // Send a 504 in all other cases (the request won't be retried)
-    TRC_DEBUG("Cache query failed with rc %d", error);
-    send_http_reply(HTTP_GATEWAY_TIMEOUT);
-  }
-
-  delete this;
-}
-
 void ImpiTask::get_av()
 {
   if (_impu.empty())
   {
-    if ((_scheme == _cfg->scheme_akav1) || (_scheme == _cfg->scheme_akav2))
-    {
-      // If the requested scheme is AKA, there's no point in looking up the cached public ID.
-      // Even if we find it, we can't use it due to restrictions in the AKA protocol.
-      TRC_INFO("Public ID unknown and requested scheme AKA - reject");
-      SAS::Event event(this->trail(), SASEvent::NO_IMPU_AKA, 0);
-      SAS::report_event(event);
-      send_http_reply(HTTP_NOT_FOUND);
-      delete this;
-    }
-    else
-    {
-      TRC_DEBUG("Public ID unknown - look up in cache");
-      query_cache_impu();
-    }
-  }
-  else
-  {
-    send_mar();
-  }
-}
-
-void ImpiTask::query_cache_impu()
-{
-  TRC_DEBUG("Querying cache to find public IDs associated with %s", _impi.c_str());
-  SAS::Event event(this->trail(), SASEvent::CACHE_GET_ASSOC_IMPU, 0);
-  event.add_var_param(_impi);
-  SAS::report_event(event);
-  CassandraStore::Operation* get_public_ids = _cache->create_GetAssociatedPublicIDs(_impi);
-  CassandraStore::Transaction* tsx =
-    new CacheTransaction(this,
-                         &ImpiTask::on_get_impu_success,
-                         &ImpiTask::on_get_impu_failure);
-  _cache->do_async(get_public_ids, tsx);
-}
-
-void ImpiTask::on_get_impu_success(CassandraStore::Operation* op)
-{
-  Cache::GetAssociatedPublicIDs* get_public_ids = (Cache::GetAssociatedPublicIDs*)op;
-  std::vector<std::string> ids;
-  get_public_ids->get_result(ids);
-  if (!ids.empty())
-  {
-    _impu = ids[0];
-    SAS::Event event(this->trail(), SASEvent::CACHE_GET_ASSOC_IMPU_SUCCESS, 0);
-    event.add_var_param(_impu);
-    SAS::report_event(event);
-    TRC_DEBUG("Found cached public ID %s for private ID %s - now send Multimedia-Auth request",
-              _impu.c_str(), _impi.c_str());
-    send_mar();
-  }
-  else
-  {
-    TRC_INFO("No cached public ID found for private ID %s - reject", _impi.c_str());
-    SAS::Event event(this->trail(), SASEvent::CACHE_GET_ASSOC_IMPU_FAIL, 0);
+    TRC_INFO("Public ID unknown - reject");
+    // TODO - should change this SAS event to just be "NO_IMPU"
+    SAS::Event event(this->trail(), SASEvent::NO_IMPU_AKA, 0);
     SAS::report_event(event);
     send_http_reply(HTTP_NOT_FOUND);
     delete this;
   }
-}
-
-void ImpiTask::on_get_impu_failure(CassandraStore::Operation* op, CassandraStore::ResultCode error, std::string& text)
-{
-  SAS::Event event(this->trail(), SASEvent::CACHE_GET_ASSOC_IMPU_FAIL, 0);
-  SAS::report_event(event);
-  if (error == CassandraStore::NOT_FOUND)
-  {
-    TRC_DEBUG("No cached public ID found for private ID %s - reject", _impi.c_str());
-    send_http_reply(HTTP_NOT_FOUND);
-  }
   else
   {
-    // Send a 504 in all other cases (the request won't be retried)
-    TRC_DEBUG("Cache query failed with rc %d", error);
-    send_http_reply(HTTP_GATEWAY_TIMEOUT);
+    send_mar();
   }
-
-  delete this;
 }
 
 void ImpiTask::send_mar()
 {
-  Cx::MultimediaAuthRequest mar(_dict,
-                                _diameter_stack,
-                                _dest_realm,
-                                _dest_host,
-                                _impi,
-                                _impu,
-                               (_provided_server_name == "" ? _configured_server_name :
-                                _provided_server_name),
-                                _scheme,
-                                _authorization);
-  DiameterTransaction* tsx =
-    new DiameterTransaction(_dict, this, DIGEST_STATS, &ImpiTask::on_mar_response, mar_results_tbl);
-  mar.send(tsx, _cfg->diameter_timeout_ms);
+  // Create the MAR to send to the hss
+  HssConnection::MultimediaAuthRequest request = {
+    _impi,
+    _impu,
+    (_provided_server_name == "" ? _configured_server_name :
+     _provided_server_name),
+    _scheme,
+    _authorization
+  };
+
+  // Create the callback that will be invoked on a response
+  HssConnection::maa_cb callback =
+    std::bind(&ImpiTask::on_mar_response, this, std::placeholders::_1);
+
+  // Send the request
+  _hss->send_multimedia_auth_request(callback, request);
 }
 
-void ImpiTask::on_mar_response(Diameter::Message& rsp)
+void ImpiTask::on_mar_response(HssConnection::MultimediaAuthAnswer* maa)
 {
-  _maa = new Cx::MultimediaAuthAnswer(rsp);
-  int32_t result_code = 0;
-  _maa->result_code(result_code);
-  int32_t experimental_result_code = 0;
-  uint32_t vendor_id = 0;
-  _maa->experimental_result(experimental_result_code, vendor_id);
+  HssConnection::ResultCode rc = maa->get_result();
+  if (rc == HssConnection::ResultCode::SUCCESS)
+  {
+    std::string sip_auth_scheme = maa->get_scheme();
+    if (sip_auth_scheme == _cfg->scheme_digest)
+    {
+      DigestAuthVector* av = (DigestAuthVector*)(maa->get_av());
+      send_reply(*av);
+    }
+    else if (sip_auth_scheme == _cfg->scheme_akav1)
+    {
+      AKAAuthVector* av = (AKAAuthVector*)(maa->get_av());
+      send_reply(*av);
+    }
+    else if (sip_auth_scheme == _cfg->scheme_akav2)
+    {
+      AKAAuthVector* av = (AKAAuthVector*)(maa->get_av());
+      av->version = 2;
+      send_reply(*av);
+    }
+    else
+    {
+      TRC_DEBUG("Unsupported auth scheme: %s", sip_auth_scheme.c_str());
+      SAS::Event event(this->trail(), SASEvent::UNSUPPORTED_SCHEME, 0);
+      event.add_var_param(sip_auth_scheme);
+      event.add_var_param(_cfg->scheme_digest);
+      event.add_var_param(_cfg->scheme_akav1);
+      event.add_var_param(_cfg->scheme_akav2);
+      SAS::report_event(event);
+      send_http_reply(HTTP_NOT_FOUND);
+    }
+  }
+  else if (rc == HssConnection::SERVER_UNAVAILABLE)
+  {
+    // LCOV_EXCL_START - nothing interesting to UT.
+    // This may mean we don't have any Diameter connections. Another Homestead
+    // node might have Diameter connections (either to the HSS, or to an SLF
+    // which is able to talk to the HSS), and we should return a 503 so that
+    // Sprout tries a different Homestead.
+    send_http_reply(HTTP_SERVER_UNAVAILABLE);
+    // LCOV_EXCL_STOP
+  }
+  else if (rc == HssConnection::ResultCode::NOT_FOUND)
+  {
+    TRC_INFO("Multimedia-Auth answer - user unknown");
+    SAS::Event event(this->trail(), SASEvent::NO_AV_HSS, 0);
+    SAS::report_event(event);
+    send_http_reply(HTTP_NOT_FOUND);
+  }
+  else
+  {
+    TRC_INFO("Multimedia-Auth answer with error %d - reject", rc);
+    SAS::Event event(this->trail(), SASEvent::NO_AV_HSS, 0);
+    SAS::report_event(event);
+    send_http_reply(HTTP_SERVER_ERROR);
+  }
+
+  /* TODO
 
   // IMS mandates that exactly one of result code or experimental result code
   // will be set, so we can unambiguously assume that, if one is set, then the
@@ -324,110 +242,8 @@ void ImpiTask::on_mar_response(Diameter::Message& rsp)
   TRC_DEBUG("Received Multimedia-Auth answer with result code %d and experimental result code %d with vendor id %d",
             result_code, experimental_result_code, vendor_id);
 
-  bool updating_assoc_public_ids = false;
 
-  if (result_code == DIAMETER_SUCCESS)
-  {
-    std::string sip_auth_scheme = _maa->sip_auth_scheme();
-    if (sip_auth_scheme == _cfg->scheme_digest)
-    {
-      if (_cfg->impu_cache_ttl != 0)
-      {
-        TRC_DEBUG("Caching that private ID %s includes public ID %s",
-                  _impi.c_str(), _impu.c_str());
-        SAS::Event event(this->trail(), SASEvent::CACHE_PUT_ASSOC_IMPU, 0);
-        event.add_var_param(_impi);
-        event.add_var_param(_impu);
-        SAS::report_event(event);
-
-        CassandraStore::Operation* put_public_id =
-          _cache->create_PutAssociatedPublicID(_impi,
-                                               _impu,
-                                               Cache::generate_timestamp(),
-                                               _cfg->impu_cache_ttl);
-        CassandraStore::Transaction* tsx = new CacheTransaction(this,
-                                                                &ImpiTask::on_put_assoc_impu_success,
-                                                                &ImpiTask::on_put_assoc_impu_failure);
-        _cache->do_async(put_public_id, tsx);
-        updating_assoc_public_ids = true;
-      }
-      else
-      {
-        send_reply(_maa->digest_auth_vector());
-      }
-    }
-    else if (sip_auth_scheme == _cfg->scheme_akav1)
-    {
-      send_reply(_maa->aka_auth_vector());
-    }
-    else if (sip_auth_scheme == _cfg->scheme_akav2)
-    {
-      send_reply(_maa->akav2_auth_vector());
-    }
-    else
-    {
-      TRC_DEBUG("Unsupported auth scheme: %s", sip_auth_scheme.c_str());
-      SAS::Event event(this->trail(), SASEvent::UNSUPPORTED_SCHEME, 0);
-      event.add_var_param(sip_auth_scheme);
-      event.add_var_param(_cfg->scheme_digest);
-      event.add_var_param(_cfg->scheme_akav1);
-      event.add_var_param(_cfg->scheme_akav2);
-      SAS::report_event(event);
-      send_http_reply(HTTP_NOT_FOUND);
-    }
-  }
-  else if (result_code == DIAMETER_UNABLE_TO_DELIVER)
-  {
-    // LCOV_EXCL_START - nothing interesting to UT.
-    // This may mean we don't have any Diameter connections. Another Homestead
-    // node might have Diameter connections (either to the HSS, or to an SLF
-    // which is able to talk to the HSS), and we should return a 503 so that
-    // Sprout tries a different Homestead.
-    send_http_reply(HTTP_SERVER_UNAVAILABLE);
-    // LCOV_EXCL_STOP
-  }
-  else if (experimental_result_code == DIAMETER_ERROR_USER_UNKNOWN &&
-           vendor_id == VENDOR_ID_3GPP)
-  {
-    TRC_INFO("Multimedia-Auth answer - user unknown");
-    SAS::Event event(this->trail(), SASEvent::NO_AV_HSS, 0);
-    SAS::report_event(event);
-    send_http_reply(HTTP_NOT_FOUND);
-  }
-  else
-  {
-    TRC_INFO("Multimedia-Auth answer with result code %d and experimental result code %d and vendor id %d - reject",
-             result_code, experimental_result_code, vendor_id);
-    SAS::Event event(this->trail(), SASEvent::NO_AV_HSS, 0);
-    SAS::report_event(event);
-    send_http_reply(HTTP_SERVER_ERROR);
-  }
-
-  // If not waiting for the assoicated IMPU put to succeed, tidy up now
-  if (!updating_assoc_public_ids)
-  {
-    delete this;
-  }
-}
-
-void ImpiTask::on_put_assoc_impu_success(CassandraStore::Operation* op)
-{
-  SAS::Event event(this->trail(), SASEvent::CACHE_PUT_ASSOC_IMPU_SUCCESS, 0);
-  SAS::report_event(event);
-
-  send_reply(_maa->digest_auth_vector());
-  delete this;
-}
-
-void ImpiTask::on_put_assoc_impu_failure(CassandraStore::Operation* op, CassandraStore::ResultCode error, std::string& text)
-{
-  SAS::Event event(this->trail(), SASEvent::CACHE_PUT_ASSOC_IMPU_FAIL, 0);
-  event.add_static_param(error);
-  event.add_var_param(text);
-  SAS::report_event(event);
-
-  // We have successfully read the MAA, so we might as well send this
-  send_reply(_maa->digest_auth_vector());
+  TODO*/
   delete this;
 }
 
@@ -576,43 +392,38 @@ void ImpiAvTask::send_reply(const AKAAuthVector& av)
 
 void ImpiRegistrationStatusTask::run()
 {
-  if (_cfg->hss_configured)
+  const std::string prefix = "/impi/";
+  std::string path = _req.path();
+  _impi = path.substr(prefix.length(), path.find_first_of("/", prefix.length()) - prefix.length());
+  _impu = _req.param("impu");
+  _visited_network = _req.param("visited-network");
+  if (_visited_network.empty())
   {
-    const std::string prefix = "/impi/";
-    std::string path = _req.path();
-    _impi = path.substr(prefix.length(), path.find_first_of("/", prefix.length()) - prefix.length());
-    _impu = _req.param("impu");
-    _visited_network = _req.param("visited-network");
-    if (_visited_network.empty())
-    {
-      _visited_network = _dest_realm;
-    }
-    _authorization_type = _req.param("auth-type");
-    std::string sos = _req.param("sos");
-    _emergency = sos == "true" ? true : false;
-    TRC_DEBUG("Parsed HTTP request: private ID %s, public ID %s, visited network %s, authorization type %s",
-              _impi.c_str(), _impu.c_str(), _visited_network.c_str(), _authorization_type.c_str());
-
-    Cx::UserAuthorizationRequest uar(_dict,
-                                     _diameter_stack,
-                                     _dest_host,
-                                     _dest_realm,
-                                     _impi,
-                                     _impu,
-                                     _visited_network,
-                                     _authorization_type,
-                                     _emergency);
-    DiameterTransaction* tsx =
-      new DiameterTransaction(_dict,
-                              this,
-                              SUBSCRIPTION_STATS,
-                              &ImpiRegistrationStatusTask::on_uar_response,
-                              uar_results_tbl);
-    uar.send(tsx, _cfg->diameter_timeout_ms);
+    _visited_network = _cfg->default_realm;
   }
-  else
-  {
-    TRC_DEBUG("No HSS configured - fake response if subscriber exists");
+  _authorization_type = _req.param("auth-type");
+  std::string sos = _req.param("sos");
+  _emergency = sos == "true" ? true : false;
+  TRC_DEBUG("Parsed HTTP request: private ID %s, public ID %s, visited network %s, authorization type %s",
+            _impi.c_str(), _impu.c_str(), _visited_network.c_str(), _authorization_type.c_str());
+
+  // Create the request
+  HssConnection::UserAuthRequest request = {
+    _impi,
+    _impu,
+    _visited_network,
+    _authorization_type,
+    _emergency
+  };
+
+  // Create the callback that will be invoked on a response
+  HssConnection::uaa_cb callback =
+    std::bind(&ImpiRegistrationStatusTask::on_uar_response, this, std::placeholders::_1);
+
+  // Send the request
+  _hss->send_user_auth_request(callback, request);
+  /*TODO
+     TRC_DEBUG("No HSS configured - fake response if subscriber exists");
     SAS::Event event(this->trail(), SASEvent::ICSCF_NO_HSS, 0);
     SAS::report_event(event);
     rapidjson::StringBuffer sb;
@@ -631,10 +442,95 @@ void ImpiRegistrationStatusTask::run()
     }
     delete this;
   }
+  TODO*/
 }
 
-void ImpiRegistrationStatusTask::on_uar_response(Diameter::Message& rsp)
+void ImpiRegistrationStatusTask::on_uar_response(HssConnection::UserAuthAnswer* uaa)
 {
+  HssConnection::ResultCode rc = uaa->get_result();
+  TRC_DEBUG("Received User-Authorization answer with result %d", rc);
+
+  if (rc == HssConnection::ResultCode::SUCCESS)
+  {
+    rapidjson::StringBuffer sb;
+    rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
+    writer.StartObject();
+    writer.String(JSON_RC.c_str());
+    writer.Int(uaa->get_json_result());
+
+    std::string server_name = uaa->get_server();
+    if (!server_name.empty())
+    {
+      // If we have a server name, use that
+      TRC_DEBUG("Got Server-Name %s", server_name.c_str());
+      writer.String(JSON_SCSCF.c_str());
+      writer.String(server_name.c_str());
+    }
+    else
+    {
+      TRC_DEBUG("Got Server-Capabilities");
+      ServerCapabilities* capabilities = uaa->get_server_capabilities();
+
+      if (!capabilities->server_name.empty())
+      {
+        TRC_DEBUG("Got Server-Name %s from Capabilities AVP", capabilities->server_name.c_str());
+        writer.String(JSON_SCSCF.c_str());
+        writer.String(capabilities->server_name.c_str());
+      }
+
+      capabilities->write_capabilities(&writer);
+    }
+
+    writer.EndObject();
+
+    _req.add_content(sb.GetString());
+    send_http_reply(HTTP_OK);
+
+    if (_health_checker)
+    {
+      _health_checker->health_check_passed();
+    }
+  }
+  else if (rc == HssConnection::ResultCode::NOT_FOUND)
+  {
+    TRC_INFO("User unknown or public/private ID conflict - reject");
+    // TODO SAS logging?
+    //sas_log_hss_failure(rc, experimental_rc);
+    send_http_reply(HTTP_NOT_FOUND);
+  }
+  else if (rc == HssConnection::ResultCode::FORBIDDEN)
+  {
+    TRC_INFO("Authorization rejected due to roaming not allowed - reject");
+        // TODO SAS logging?
+    //sas_log_hss_failure(result_code, experimental_result_code);
+    send_http_reply(HTTP_FORBIDDEN);
+  }
+  else if (rc == HssConnection::ResultCode::TIMEOUT)
+  {
+    TRC_INFO("HSS busy - reject");
+        // TODO SAS logging?
+    //sas_log_hss_failure(result_code, experimental_result_code);
+    send_http_reply(HTTP_GATEWAY_TIMEOUT);
+  }
+  else if (rc == HssConnection::ResultCode::SERVER_UNAVAILABLE)
+  {
+    // LCOV_EXCL_START - nothing interesting to UT.
+    // This may mean we don't have any Diameter connections. Another Homestead
+    // node might have Diameter connections (either to the HSS, or to an SLF
+    // which is able to talk to the HSS), and we should return a 503 so that
+    // Sprout tries a different Homestead.
+    send_http_reply(HTTP_SERVER_UNAVAILABLE);
+    // LCOV_EXCL_STOP
+  }
+  else
+  {
+    TRC_INFO("User-Authorization answer with result %d - reject", rc);
+    //TODO SAS logging
+    //sas_log_hss_failure(result_code, experimental_result_code);
+    send_http_reply(HTTP_SERVER_ERROR);
+  }
+
+  /*TODO
   Cx::UserAuthorizationAnswer uaa(rsp);
   int32_t result_code = 0;
   uaa.result_code(result_code);
@@ -655,90 +551,8 @@ void ImpiRegistrationStatusTask::on_uar_response(Diameter::Message& rsp)
     uar_results_tbl->increment(SNMP::DiameterAppId::_3GPP, experimental_result_code);
   }
 
-  TRC_DEBUG("Received User-Authorization answer with result %d/%d",
-            result_code, experimental_result_code);
+  */
 
-  if ((result_code == DIAMETER_SUCCESS) ||
-      (experimental_result_code == DIAMETER_FIRST_REGISTRATION) ||
-      (experimental_result_code == DIAMETER_SUBSEQUENT_REGISTRATION))
-  {
-    rapidjson::StringBuffer sb;
-    rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
-    writer.StartObject();
-    writer.String(JSON_RC.c_str());
-    writer.Int(result_code ? result_code : experimental_result_code);
-    std::string server_name;
-
-    // If the HSS returned a server_name, return that. If not, return the
-    // server capabilities, even if none are returned by the HSS.
-    if (uaa.server_name(server_name))
-    {
-      TRC_DEBUG("Got Server-Name %s", server_name.c_str());
-      writer.String(JSON_SCSCF.c_str());
-      writer.String(server_name.c_str());
-    }
-    else
-    {
-      TRC_DEBUG("Got Server-Capabilities");
-      ServerCapabilities server_capabilities = uaa.server_capabilities();
-
-      if (!server_capabilities.server_name.empty())
-      {
-        TRC_DEBUG("Got Server-Name %s from Capabilities AVP", server_capabilities.server_name.c_str());
-        writer.String(JSON_SCSCF.c_str());
-        writer.String(server_capabilities.server_name.c_str());
-      }
-
-      server_capabilities.write_capabilities(&writer);
-    }
-
-    writer.EndObject();
-
-    _req.add_content(sb.GetString());
-    send_http_reply(HTTP_OK);
-
-    if (_health_checker)
-    {
-      _health_checker->health_check_passed();
-    }
-  }
-  else if ((experimental_result_code == DIAMETER_ERROR_USER_UNKNOWN) ||
-           (experimental_result_code == DIAMETER_ERROR_IDENTITIES_DONT_MATCH))
-  {
-    TRC_INFO("User unknown or public/private ID conflict - reject");
-    sas_log_hss_failure(result_code, experimental_result_code);
-    send_http_reply(HTTP_NOT_FOUND);
-  }
-  else if ((result_code == DIAMETER_AUTHORIZATION_REJECTED) ||
-           (experimental_result_code == DIAMETER_ERROR_ROAMING_NOT_ALLOWED))
-  {
-    TRC_INFO("Authorization rejected due to roaming not allowed - reject");
-    sas_log_hss_failure(result_code, experimental_result_code);
-    send_http_reply(HTTP_FORBIDDEN);
-  }
-  else if (result_code == DIAMETER_TOO_BUSY)
-  {
-    TRC_INFO("HSS busy - reject");
-    sas_log_hss_failure(result_code, experimental_result_code);
-    send_http_reply(HTTP_GATEWAY_TIMEOUT);
-  }
-  else if (result_code == DIAMETER_UNABLE_TO_DELIVER)
-  {
-    // LCOV_EXCL_START - nothing interesting to UT.
-    // This may mean we don't have any Diameter connections. Another Homestead
-    // node might have Diameter connections (either to the HSS, or to an SLF
-    // which is able to talk to the HSS), and we should return a 503 so that
-    // Sprout tries a different Homestead.
-    send_http_reply(HTTP_SERVER_UNAVAILABLE);
-    // LCOV_EXCL_STOP
-  }
-  else
-  {
-    TRC_INFO("User-Authorization answer with result %d/%d - reject",
-             result_code, experimental_result_code);
-    sas_log_hss_failure(result_code, experimental_result_code);
-    send_http_reply(HTTP_SERVER_ERROR);
-  }
   delete this;
 }
 
@@ -760,40 +574,105 @@ void ImpuLocationInfoTask::run()
   const std::string prefix = "/impu/";
   std::string path = _req.path();
   _impu = path.substr(prefix.length(), path.find_first_of("/", prefix.length()) - prefix.length());
+  _originating = _req.param("originating");
+  _authorization_type = _req.param("auth-type");
+  TRC_DEBUG("Parsed HTTP request: public ID %s, originating %s, authorization type %s",
+            _impu.c_str(), _originating.c_str(), _authorization_type.c_str());
 
-  if (_cfg->hss_configured)
+  // Create the request
+  HssConnection::LocationInfoRequest request = {
+    _impu,
+    _originating,
+    _authorization_type
+  };
+
+  // Create the callback that will be invoked on a response
+  HssConnection::lia_cb callback =
+    std::bind(&ImpuLocationInfoTask::on_lir_response, this, std::placeholders::_1);
+
+  // Send the request
+  _hss->send_location_info_request(callback, request);
+}
+
+void ImpuLocationInfoTask::on_lir_response(HssConnection::LocationInfoAnswer* lia)
+{
+  HssConnection::ResultCode rc = lia->get_result();
+  if (rc == HssConnection::ResultCode::SUCCESS)
   {
-    _originating = _req.param("originating");
-    _authorization_type = _req.param("auth-type");
-    TRC_DEBUG("Parsed HTTP request: public ID %s, originating %s, authorization type %s",
-              _impu.c_str(), _originating.c_str(), _authorization_type.c_str());
+    rapidjson::StringBuffer sb;
+    rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
+    writer.StartObject();
+    writer.String(JSON_RC.c_str());
+    writer.Int(lia->get_json_result());
 
-    Cx::LocationInfoRequest lir(_dict,
-                                _diameter_stack,
-                                _dest_host,
-                                _dest_realm,
-                                _originating,
-                                _impu,
-                                _authorization_type);
-    DiameterTransaction* tsx =
-      new DiameterTransaction(_dict,
-                              this,
-                              SUBSCRIPTION_STATS,
-                              &ImpuLocationInfoTask::on_lir_response,
-                              lir_results_tbl);
-    lir.send(tsx, _cfg->diameter_timeout_ms);
+    std::string server_name = lia->get_server();
+    if (!server_name.empty())
+    {
+      // If we have a server name, use that
+      TRC_DEBUG("Got Server-Name %s", server_name.c_str());
+      writer.String(JSON_SCSCF.c_str());
+      writer.String(server_name.c_str());
+    }
+    else
+    {
+      TRC_DEBUG("Got Server-Capabilities");
+      ServerCapabilities* capabilities = lia->get_server_capabilities();
+      if (!capabilities->server_name.empty())
+      {
+        TRC_DEBUG("Got Server-Name %s from Capabilities AVP", capabilities->server_name.c_str());
+        writer.String(JSON_SCSCF.c_str());
+        writer.String(capabilities->server_name.c_str());
+      }
+
+      capabilities->write_capabilities(&writer);
+    }
+
+    // If the HSS returned a wildcarded public user identity, add this to
+    // the response.
+    std::string wildcard_impu = lia->get_wildcard_impu();
+    if (!wildcard_impu.empty())
+    {
+      TRC_DEBUG("Got Wildcarded-Public-Identity %s", wildcard_impu.c_str());
+      writer.String(JSON_WILDCARD.c_str());
+      writer.String(wildcard_impu.c_str());
+    }
+
+    writer.EndObject();
+    _req.add_content(sb.GetString());
+    send_http_reply(HTTP_OK);
+  }
+  else if (rc == HssConnection::ResultCode::NOT_FOUND)
+  {
+    TRC_INFO("User unknown or public/private ID conflict - reject");
+    //TODO sas log
+    //sas_log_hss_failure(result_code, experimental_result_code);
+    send_http_reply(HTTP_NOT_FOUND);
+  }
+  else if (rc == HssConnection::ResultCode::TIMEOUT)
+  {
+    TRC_INFO("HSS busy - reject");
+    //TODO SAS
+    //sas_log_hss_failure(result_code, experimental_result_code);
+    send_http_reply(HTTP_GATEWAY_TIMEOUT);
+  }
+  else if (rc == HssConnection::ResultCode::SERVER_UNAVAILABLE)
+  {
+    // LCOV_EXCL_START - nothing interesting to UT.
+    // This may mean we don't have any Diameter connections. Another Homestead
+    // node might have Diameter connections (either to the HSS, or to an SLF
+    // which is able to talk to the HSS), and we should return a 503 so that
+    // Sprout tries a different Homestead.
+    send_http_reply(HTTP_SERVER_UNAVAILABLE);
+    // LCOV_EXCL_STOP
   }
   else
   {
-    TRC_DEBUG("No HSS configured - fake up response if subscriber exists");
-    SAS::Event event(this->trail(), SASEvent::ICSCF_NO_HSS_CHECK_CASSANDRA, 0);
-    SAS::report_event(event);
-    query_cache_reg_data();
+    TRC_INFO("Location-Info answer with result %d - reject", rc);
+    //TODO SAS
+    //sas_log_hss_failure(result_code, experimental_result_code);
+    send_http_reply(HTTP_SERVER_ERROR);
   }
-}
-
-void ImpuLocationInfoTask::on_lir_response(Diameter::Message& rsp)
-{
+  /*TODO
   Cx::LocationInfoAnswer lia(rsp);
   int32_t result_code = 0;
   lia.result_code(result_code);
@@ -816,87 +695,7 @@ void ImpuLocationInfoTask::on_lir_response(Diameter::Message& rsp)
   TRC_DEBUG("Received Location-Info answer with result %d/%d (vendor %d)",
             result_code, experimental_result_code, vendor_id);
 
-  if ((result_code == DIAMETER_SUCCESS) ||
-      (vendor_id == VENDOR_ID_3GPP &&
-       ((experimental_result_code == DIAMETER_UNREGISTERED_SERVICE) ||
-        (experimental_result_code == DIAMETER_ERROR_IDENTITY_NOT_REGISTERED))))
-  {
-    rapidjson::StringBuffer sb;
-    rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
-    writer.StartObject();
-    writer.String(JSON_RC.c_str());
-    writer.Int(result_code ? result_code : experimental_result_code);
-    std::string server_name;
-    std::string wildcarded_public_identity;
-
-    // If the HSS returned a server_name, return that. If not, return the
-    // server capabilities, even if none are returned by the HSS.
-    if ((result_code == DIAMETER_SUCCESS) && (lia.server_name(server_name)))
-    {
-      TRC_DEBUG("Got Server-Name %s", server_name.c_str());
-      writer.String(JSON_SCSCF.c_str());
-      writer.String(server_name.c_str());
-    }
-    else
-    {
-      TRC_DEBUG("Got Server-Capabilities");
-      ServerCapabilities server_capabilities = lia.server_capabilities();
-
-      if (!server_capabilities.server_name.empty())
-      {
-        TRC_DEBUG("Got Server-Name %s from Capabilities AVP", server_capabilities.server_name.c_str());
-        writer.String(JSON_SCSCF.c_str());
-        writer.String(server_capabilities.server_name.c_str());
-      }
-
-      server_capabilities.write_capabilities(&writer);
-    }
-
-    // If the HSS returned a wildcarded public user identity, add this to
-    // the response.
-    if (lia.wildcarded_public_identity(wildcarded_public_identity))
-    {
-      TRC_DEBUG("Got Wildcarded-Public-Identity %s",
-                wildcarded_public_identity.c_str());
-      writer.String(JSON_WILDCARD.c_str());
-      writer.String(wildcarded_public_identity.c_str());
-    }
-
-    writer.EndObject();
-    _req.add_content(sb.GetString());
-    send_http_reply(HTTP_OK);
-  }
-  else if (vendor_id == VENDOR_ID_3GPP &&
-           ((experimental_result_code == DIAMETER_ERROR_USER_UNKNOWN) ||
-            (experimental_result_code == DIAMETER_ERROR_IDENTITY_NOT_REGISTERED)))
-  {
-    TRC_INFO("User unknown or public/private ID conflict - reject");
-    sas_log_hss_failure(result_code, experimental_result_code);
-    send_http_reply(HTTP_NOT_FOUND);
-  }
-  else if (result_code == DIAMETER_TOO_BUSY)
-  {
-    TRC_INFO("HSS busy - reject");
-    sas_log_hss_failure(result_code, experimental_result_code);
-    send_http_reply(HTTP_GATEWAY_TIMEOUT);
-  }
-  else if (result_code == DIAMETER_UNABLE_TO_DELIVER)
-  {
-    // LCOV_EXCL_START - nothing interesting to UT.
-    // This may mean we don't have any Diameter connections. Another Homestead
-    // node might have Diameter connections (either to the HSS, or to an SLF
-    // which is able to talk to the HSS), and we should return a 503 so that
-    // Sprout tries a different Homestead.
-    send_http_reply(HTTP_SERVER_UNAVAILABLE);
-    // LCOV_EXCL_STOP
-  }
-  else
-  {
-    TRC_INFO("Location-Info answer with result %d/%d (vendor %d) - reject",
-             result_code, experimental_result_code, vendor_id);
-    sas_log_hss_failure(result_code, experimental_result_code);
-    send_http_reply(HTTP_SERVER_ERROR);
-  }
+  */
   delete this;
 }
 
@@ -907,67 +706,6 @@ void ImpuLocationInfoTask::sas_log_hss_failure(int32_t result_code,
   event.add_static_param(result_code);
   event.add_static_param(experimental_result_code);
   SAS::report_event(event);
-}
-
-void ImpuLocationInfoTask::query_cache_reg_data()
-{
-  TRC_DEBUG("Querying cache for registration data for %s", _impu.c_str());
-  SAS::Event event(this->trail(), SASEvent::CACHE_GET_REG_DATA, 0);
-  event.add_var_param(_impu);
-  SAS::report_event(event);
-  CassandraStore::Operation* get_reg_data = _cache->create_GetRegData(_impu);
-  CassandraStore::Transaction* tsx =
-    new CacheTransaction(this,
-                         &ImpuLocationInfoTask::on_get_reg_data_success,
-                         &ImpuLocationInfoTask::on_get_reg_data_failure);
-  _cache->do_async(get_reg_data, tsx);
-}
-
-void ImpuLocationInfoTask::on_get_reg_data_success(CassandraStore::Operation* op)
-{
-  sas_log_get_reg_data_success((Cache::GetRegData*)op, trail());
-
-  // GetRegData returns success even if no entry was found, but the XML will be blank in this case.
-  std::string xml;
-  int32_t ttl;
-  ((Cache::GetRegData*)op)->get_xml(xml, ttl);
-  if (!xml.empty())
-  {
-    TRC_DEBUG("Got IMS subscription XML from cache - fake response for server %s", _configured_server_name.c_str());
-    rapidjson::StringBuffer sb;
-    rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
-    writer.StartObject();
-    writer.String(JSON_RC.c_str());
-    writer.Int(DIAMETER_SUCCESS);
-    writer.String(JSON_SCSCF.c_str());
-    writer.String(_configured_server_name.c_str());
-    writer.EndObject();
-    _req.add_content(sb.GetString());
-    send_http_reply(HTTP_OK);
-  }
-  else
-  {
-    SAS::Event event(this->trail(), SASEvent::ICSCF_NO_HSS_CASSANDRA_NO_SUBSCRIBER, 0);
-    SAS::report_event(event);
-    TRC_DEBUG("No IMS subscription XML found for public ID %s - reject", _impu.c_str());
-    send_http_reply(HTTP_NOT_FOUND);
-  }
-  delete this;
-}
-
-void ImpuLocationInfoTask::on_get_reg_data_failure(CassandraStore::Operation* op,
-                                                   CassandraStore::ResultCode error,
-                                                   std::string& text)
-{
-  TRC_DEBUG("IMS subscription cache query failed: %u, %s", error, text.c_str());
-  SAS::Event event(this->trail(), SASEvent::NO_REG_DATA_CACHE, 0);
-  SAS::report_event(event);
-
-  // Send a a 504, as this request will have been retried to 2 Cassandras already
-  TRC_DEBUG("Cache query failed with rc %d", error);
-  send_http_reply(HTTP_GATEWAY_TIMEOUT);
-
-  delete this;
 }
 
 //
@@ -1173,12 +911,19 @@ void ImpuRegDataTask::get_reg_data()
   SAS::Event event(this->trail(), SASEvent::CACHE_GET_REG_DATA, 0);
   event.add_var_param(public_id());
   SAS::report_event(event);
-  CassandraStore::Operation* get_reg_data = _cache->create_GetRegData(public_id());
-  CassandraStore::Transaction* tsx =
-    new CacheTransaction(this,
-                         &ImpuRegDataTask::on_get_reg_data_success,
-                         &ImpuRegDataTask::on_get_reg_data_failure);
-  _cache->do_async(get_reg_data, tsx);
+
+  // Create the success and failure callbacks
+  irs_success_callback success_cb =
+    std::bind(&ImpuRegDataTask::on_get_reg_data_success, this, std::placeholders::_1);
+
+  failure_callback failure_cb =
+    std::bind(&ImpuRegDataTask::on_get_reg_data_failure, this, std::placeholders::_1);
+
+  // Request the IRS from the cache
+  _cache->get_implicit_registration_set_for_impu(success_cb,
+                                                 failure_cb,
+                                                 public_id(),
+                                                 this->trail());
 }
 
 std::string regstate_to_str(RegistrationState state)
@@ -1196,9 +941,180 @@ std::string regstate_to_str(RegistrationState state)
   }
 }
 
-void ImpuRegDataTask::on_get_reg_data_success(CassandraStore::Operation* op)
+void ImpuRegDataTask::on_get_reg_data_success(ImplicitRegistrationSet* irs)
 {
   TRC_DEBUG("Got IMS subscription from cache");
+  //TODO SAS
+  //sas_log_get_reg_data_success(get_reg_data, trail());
+  // We take ownership of the ImplicitRegistrationSet that the Cache has created
+  _irs = irs;
+
+  int32_t ttl = irs->get_ttl();
+  std::string service_profile = irs->get_service_profile();
+  RegistrationState reg_state = irs->get_reg_state();
+  std::vector<std::string> associated_impis = irs->get_associated_impis();
+  ChargingAddresses charging_addrs = irs->get_charging_addresses();
+
+  TRC_DEBUG("TTL for this database record is %d, IMS Subscription XML is %s, registration state is %s, and the charging addresses are %s",
+            ttl,
+            service_profile.empty() ? "empty" : "not empty",
+            regstate_to_str(reg_state).c_str(),
+            charging_addrs.empty() ? "empty" : charging_addrs.log_string().c_str());
+
+  // GET requests shouldn't change the state - just respond with what we have in
+  // the cache
+  if (_req.method() == htp_method_GET)
+  {
+    send_reply();
+    delete this;
+    return;
+  }
+
+  bool new_binding = false;
+
+  // If Sprout didn't specify a private Id on the request, we may have one
+  // embedded in the cached User-Data which we can retrieve.
+  // If Sprout did specify a private Id on the request, check whether we have a
+  // record of this binding.
+  if (_impi.empty())
+  {
+    _impi = XmlUtils::get_private_id(service_profile);
+  }
+  else if ((!service_profile.empty()) &&
+           ((associated_impis.empty()) ||
+            (std::find(associated_impis.begin(), associated_impis.end(), _impi) == associated_impis.end())))
+  {
+    TRC_DEBUG("Subscriber registering with new binding");
+    new_binding = true;
+  }
+
+ //TODO sr2sr2 reg_state vs _original and _new states
+
+  // Work out whether we're allowed to answer only using the cache. If not we
+  // will have to contact the HSS.
+  bool cache_not_allowed = (_req.header("Cache-control") == "no-cache");
+
+  if (_type == RequestType::REG)
+  {
+    // This message was based on a REGISTER request from Sprout. Check the
+    // cached subscriber state to determine whether this is an initial
+    // registration or a re-registration. If this subscriber is already
+    // registered but is registering with a new binding, we still need to tell
+    // the HSS.
+    if ((reg_state == RegistrationState::REGISTERED) && (!new_binding))
+    {
+      int record_age = _cfg->record_ttl - ttl;
+      TRC_DEBUG("Handling re-registration with binding age of %d", record_age);
+      _irs->set_reg_state(RegistrationState::REGISTERED);
+
+      // We refresh the record's TTL everytime we receive an SAA from
+      // the HSS. As such once the record is older than the HSS Reregistration
+      // time, we need to send a new SAR to the HSS.
+      //
+      // Alternatively we need to notify the HSS if the HTTP request does not
+      // allow cached responses.
+      if (record_age >= _cfg->hss_reregistration_time)
+      {
+        TRC_DEBUG("Sending re-registration to HSS as %d seconds have passed",
+                  record_age, _cfg->hss_reregistration_time);
+        send_server_assignment_request(Cx::ServerAssignmentType::RE_REGISTRATION);
+      }
+      else if (cache_not_allowed)
+      {
+        TRC_DEBUG("Sending re-registration to HSS as cached responses are not allowed");
+        send_server_assignment_request(Cx::ServerAssignmentType::RE_REGISTRATION);
+      }
+      else
+      {
+        // TODO - should we be writing to the cache to update the TTL?
+        // No state changes are required for a re-register if we're not
+        // notifying a HSS - just respond.
+        send_reply();
+        delete _irs; _irs = NULL;
+        delete this;
+        return;
+      }
+    }
+    else
+    {
+      // Send a Server-Assignment-Request and cache the response.
+      TRC_DEBUG("Handling initial registration");
+      _irs->set_reg_state(RegistrationState::REGISTERED);
+      send_server_assignment_request(Cx::ServerAssignmentType::REGISTRATION);
+    }
+  }
+  else if (_type == RequestType::CALL)
+  {
+    // This message was based on an initial non-REGISTER request
+    // (INVITE, PUBLISH, MESSAGE etc.).
+    TRC_DEBUG("Handling call");
+
+    if (reg_state == RegistrationState::NOT_REGISTERED)
+    {
+      // We don't know anything about this subscriber. Send a
+      // Server-Assignment-Request to provide unregistered service for
+      // this subscriber.
+      TRC_DEBUG("Moving to unregistered state");
+      _irs->set_reg_state(RegistrationState::UNREGISTERED);
+      send_server_assignment_request(Cx::ServerAssignmentType::UNREGISTERED_USER);
+    }
+    else
+    {
+      // We're already assigned to handle this subscriber - respond with the
+      // iFCs anfd whether they're in registered state or not.
+      send_reply();
+      delete _irs; _irs = NULL;
+      delete this;
+      return;
+    }
+  }
+  else if (is_deregistration_request(_type))
+  {
+    // Sprout wants to deregister this subscriber (because of a
+    // REGISTER with Expires: 0, a timeout of all bindings, a failed
+    // app server, etc.).
+    if (reg_state != RegistrationState::NOT_REGISTERED)
+    {
+      // Forget about this subscriber entirely and send an appropriate SAR.
+      TRC_DEBUG("Handling deregistration");
+      _irs->set_reg_state(RegistrationState::NOT_REGISTERED);
+      send_server_assignment_request(sar_type_for_request(_type));
+    }
+    else
+    {
+      // We treat a deregistration for a deregistered user as an error
+      // - this is useful for preventing loops, where we try and continually
+      // deregister a user.
+      TRC_DEBUG("Rejecting deregistration for user who was not registered");
+      SAS::Event event(this->trail(), SASEvent::SUB_NOT_REG, 0);
+      SAS::report_event(event);
+      send_http_reply(HTTP_BAD_REQUEST);
+      delete _irs; _irs = NULL;
+      delete this;
+      return;
+    }
+  }
+  else if (is_auth_failure_request(_type))
+  {
+    // Authentication failures don't change our state (if a user's already
+    // registered, failing to log in with a new binding shouldn't deregister
+    // them - if they're not registered and fail to log in, they're already in
+    // the right state).
+
+    // Notify the HSS, so that it removes the Auth-Pending flag.
+    TRC_DEBUG("Handling authentication failure/timeout");
+    send_server_assignment_request(sar_type_for_request(_type));
+  }
+  else
+  {
+    // LCOV_EXCL_START - unreachable
+    TRC_ERROR("Invalid type %d", _type);
+    delete _irs; _irs = NULL;
+    delete this;
+    return;
+    // LCOV_EXCL_STOP - unreachable
+  }
+  /*TODO
   Cache::GetRegData* get_reg_data = (Cache::GetRegData*)op;
   sas_log_get_reg_data_success(get_reg_data, trail());
 
@@ -1209,11 +1125,7 @@ void ImpuRegDataTask::on_get_reg_data_success(CassandraStore::Operation* op)
   get_reg_data->get_associated_impis(associated_impis);
   get_reg_data->get_charging_addrs(_charging_addrs);
   bool new_binding = false;
-  TRC_DEBUG("TTL for this database record is %d, IMS Subscription XML is %s, registration state is %s, and the charging addresses are %s",
-            ttl,
-            _xml.empty() ? "empty" : "not empty",
-            regstate_to_str(_original_state).c_str(),
-            _charging_addrs.empty() ? "empty" : _charging_addrs.log_string().c_str());
+
 
   // By default, we should remain in the existing state.
   _new_state = _original_state;
@@ -1250,6 +1162,10 @@ void ImpuRegDataTask::on_get_reg_data_success(CassandraStore::Operation* op)
     // the private Id in the cache.
     if (new_binding)
     {
+      /////////////////////////////////////////////////////////
+      // sr2sr2 This is actually done on save iRS now
+      /////////////////////////////////////////////////////////
+      
       TRC_DEBUG("Associating private identity %s to IRS for %s",
                 _impi.c_str(),
                 _impu.c_str());
@@ -1492,6 +1408,7 @@ void ImpuRegDataTask::on_get_reg_data_success(CassandraStore::Operation* op)
       delete this;
     }
   }
+  TODO*/
 }
 
 void ImpuRegDataTask::send_reply()
@@ -1506,10 +1423,7 @@ void ImpuRegDataTask::send_reply()
   }
   else
   {
-    rc = XmlUtils::build_ClearwaterRegData_xml(_new_state,
-                                               _xml,
-                                               _charging_addrs,
-                                               xml_str);
+    rc = XmlUtils::build_ClearwaterRegData_xml(_irs, xml_str);
 
     if (rc == HTTP_OK)
     {
@@ -1527,15 +1441,13 @@ void ImpuRegDataTask::send_reply()
   send_http_reply(rc);
 }
 
-void ImpuRegDataTask::on_get_reg_data_failure(CassandraStore::Operation* op,
-                                              CassandraStore::ResultCode error,
-                                              std::string& text)
+void ImpuRegDataTask::on_get_reg_data_failure(Store::Status rc)
 {
-  TRC_DEBUG("IMS subscription cache query failed: %u, %s", error, text.c_str());
+  TRC_DEBUG("IMS subscription cache query failed: %d", rc);
   SAS::Event event(this->trail(), SASEvent::NO_REG_DATA_CACHE, 0);
   SAS::report_event(event);
 
-  if (error == CassandraStore::NOT_FOUND)
+  if (rc == Store::Status::NOT_FOUND)
   {
     TRC_DEBUG("No IMS subscription found for public ID %s - reject", _impu.c_str());
     send_http_reply(HTTP_NOT_FOUND);
@@ -1543,7 +1455,7 @@ void ImpuRegDataTask::on_get_reg_data_failure(CassandraStore::Operation* op,
   else
   {
     // Send a 504 in all other cases (the request won't be retried)
-    TRC_DEBUG("Cache query failed with rc %d", error);
+    TRC_DEBUG("Cache query failed with rc %d", rc);
     send_http_reply(HTTP_GATEWAY_TIMEOUT);
   }
 
@@ -1552,24 +1464,23 @@ void ImpuRegDataTask::on_get_reg_data_failure(CassandraStore::Operation* op,
 
 void ImpuRegDataTask::send_server_assignment_request(Cx::ServerAssignmentType type)
 {
-  Cx::ServerAssignmentRequest sar(_dict,
-                                  _diameter_stack,
-                                  _dest_host,
-                                  _dest_realm,
-                                  _impi,
-                                  _impu,
-                                  (_provided_server_name == "" ? _configured_server_name :
-                                   _provided_server_name),
-                                  type,
-                                  _cfg->support_shared_ifcs,
-                                  (_hss_wildcard.empty() ? _sprout_wildcard : _hss_wildcard));
-  DiameterTransaction* tsx =
-    new DiameterTransaction(_dict,
-                            this,
-                            SUBSCRIPTION_STATS,
-                            &ImpuRegDataTask::on_sar_response,
-                            sar_results_tbl);
-  sar.send(tsx, _cfg->diameter_timeout_ms);
+  // Create the SAR to send to the hss
+  HssConnection::ServerAssignmentRequest request = {
+    _impi,
+    _impu,
+    (_provided_server_name == "" ? _configured_server_name :
+    _provided_server_name),
+    type,
+    _cfg->support_shared_ifcs,
+    (_hss_wildcard.empty() ? _sprout_wildcard : _hss_wildcard)
+  };
+
+  // Create the callback
+  HssConnection::saa_cb callback =
+    std::bind(&ImpuRegDataTask::on_sar_response, this, std::placeholders::_1);
+
+  // Send the request
+  _hss->send_server_assignment_request(callback, request);
 }
 
 std::vector<std::string> ImpuRegDataTask::get_associated_private_ids()
@@ -1591,31 +1502,22 @@ std::vector<std::string> ImpuRegDataTask::get_associated_private_ids()
 
 void ImpuRegDataTask::put_in_cache()
 {
-  int ttl;
-  if (_cfg->hss_configured)
-  {
-    ttl = _cfg->record_ttl;
-  }
-  else
-  {
-    // No TTL if we don't have a HSS - we should never expire the
-    // data because we're the master.
-    ttl = 0;
-  }
+  //TODO - TTL should be registration based, no?
 
-  TRC_DEBUG("Attempting to cache IMS subscription for public IDs");
-  std::string default_public_id;
+  _irs->set_ttl(_cfg->record_ttl);
+
+  // TODO want ttl for non-hss too, don't we?
+
+  // TODO - if all the impus are barred, there will be no default id
+  //        Old code would just cache it anyway. Still do that?
+  std::string default_public_id = "";
   std::vector<std::string> public_ids =
     XmlUtils::get_public_and_default_ids(_xml, default_public_id);
+
   if (!public_ids.empty())
   {
-    TRC_DEBUG("Got public IDs to cache against - doing it");
-    for (std::vector<std::string>::iterator i = public_ids.begin();
-         i != public_ids.end();
-         i++)
-    {
-      TRC_DEBUG("Public ID %s", i->c_str());
-    }
+    TRC_DEBUG("Attempting to cache IMS subscription for default public ID %s",
+              default_public_id.c_str());
 
     // If we're caching an IMS subscription from the HSS we should check
     // the IRS contains a SIP URI and throw an error log if it doesn't.
@@ -1645,70 +1547,29 @@ void ImpuRegDataTask::put_in_cache()
       }
     }
 
-    std::vector<std::string> associated_private_ids;
-    if (_cfg->hss_configured)
-    {
-      associated_private_ids = get_associated_private_ids();
-    }
+    // Create the callbacks
+    void_success_cb success_cb =
+      std::bind(&ImpuRegDataTask::on_put_reg_data_success, this);
 
-    SAS::Event event(this->trail(), SASEvent::CACHE_PUT_REG_DATA, 0);
-    std::string public_ids_str = boost::algorithm::join(public_ids, ", ");
-    event.add_var_param(public_ids_str);
-    event.add_compressed_param(_xml, &SASEvent::PROFILE_SERVICE_PROFILE);
-    event.add_static_param(_new_state);
-    std::string associated_private_ids_str = boost::algorithm::join(associated_private_ids, ", ");
-    event.add_var_param(associated_private_ids_str);
-    event.add_var_param(_charging_addrs.log_string());
-    SAS::report_event(event);
+    failure_callback failure_cb =
+      std::bind(&ImpuRegDataTask::on_put_reg_data_failure, this, std::placeholders::_1);
 
-    Cache::PutRegData* put_reg_data = _cache->create_PutRegData(public_ids,
-                                                                default_public_id,
-                                                                Cache::generate_timestamp(),
-                                                                ttl);
-    put_reg_data->with_xml(_xml);
+    // Cache the IRS
+    _cache->put_implicit_registration_set(success_cb, failure_cb, _irs, this->trail());
 
-    // Fix for https://github.com/Metaswitch/homestead/issues/345 - don't write
-    // the registration column when moving to unregistered state. This means
-    // that, if we're in a split-brain scenario, a registration in the other
-    // site will be honoured when the clusters rejoin, as there's no
-    // conflicting write to this column to overwrite it.
-    //
-    // We treat an empty value in this column as "unregistered" if we have some
-    // XML, so this doesn't affect any call flows.
-    bool moving_to_unregistered = (_original_state == RegistrationState::NOT_REGISTERED) &&
-                                  (_new_state == RegistrationState::UNREGISTERED);
-    if ((_new_state != RegistrationState::UNCHANGED) &&
-        !moving_to_unregistered)
-    {
-      put_reg_data->with_reg_state(_new_state);
-    }
-
-    if (!associated_private_ids.empty())
-    {
-      put_reg_data->with_associated_impis(associated_private_ids);
-    }
-
-    // Don't touch the charging addresses if there is no HSS.
-    if (_cfg->hss_configured)
-    {
-      put_reg_data->with_charging_addrs(_charging_addrs);
-    }
-
-    CassandraStore::Transaction* tsx = new CacheTransaction(this,
-                                    &ImpuRegDataTask::on_put_reg_data_success,
-                                    &ImpuRegDataTask::on_put_reg_data_failure);
-    CassandraStore::Operation*& op = (CassandraStore::Operation*&)put_reg_data;
-    _cache->do_async(op, tsx);
+    // We've relinquished ownership of _irs to the cache
+    _irs = NULL;
   }
   else
   {
     // No need to wait for a cache write.  Just reply inline.
     send_reply();
+    delete _irs; _irs = NULL;
     delete this;
   }
 }
 
-void ImpuRegDataTask::on_put_reg_data_success(CassandraStore::Operation* op)
+void ImpuRegDataTask::on_put_reg_data_success()
 {
   SAS::Event event(this->trail(), SASEvent::CACHE_PUT_REG_DATA_SUCCESS, 0);
   SAS::report_event(event);
@@ -1718,12 +1579,12 @@ void ImpuRegDataTask::on_put_reg_data_success(CassandraStore::Operation* op)
   delete this;
 }
 
-void ImpuRegDataTask::on_put_reg_data_failure(CassandraStore::Operation* op, CassandraStore::ResultCode error, std::string& text)
+void ImpuRegDataTask::on_put_reg_data_failure(Store::Status rc)
 {
-  SAS::Event event(this->trail(), SASEvent::CACHE_PUT_REG_DATA_FAIL, 0);
-  event.add_static_param(error);
-  event.add_var_param(text);
-  SAS::report_event(event);
+  //TODOSAS::Event event(this->trail(), SASEvent::CACHE_PUT_REG_DATA_FAIL, 0);
+  //TODOevent.add_static_param(error);
+  //TODOevent.add_var_param(text);
+  //TODOSAS::report_event(event);
 
   // Failed to cache Reg Data.  Return an error in the hope that the client might try again
   send_http_reply(HTTP_SERVER_UNAVAILABLE);
@@ -1731,8 +1592,139 @@ void ImpuRegDataTask::on_put_reg_data_failure(CassandraStore::Operation* op, Cas
   delete this;
 }
 
-void ImpuRegDataTask::on_sar_response(Diameter::Message& rsp)
+void ImpuRegDataTask::on_sar_response(HssConnection::ServerAssignmentAnswer* saa)
 {
+  HssConnection::ResultCode rc = saa->get_result();
+
+  TRC_DEBUG("Received Server-Assignment answer with result code %d", rc);
+
+  if (rc == HssConnection::ResultCode::SUCCESS)
+  {
+    // Get the charging addresses and user data.
+    _irs->set_charging_addresses(saa->get_charging_addresses());
+    _irs->set_service_profile(saa->get_service_profile());
+  }
+  else if (rc == HssConnection::ResultCode::SERVER_UNAVAILABLE)
+  {
+    // LCOV_EXCL_START - nothing interesting to UT.
+    // This may mean we don't have any Diameter connections. Another Homestead
+    // node might have Diameter connections (either to the HSS, or to an SLF
+    // which is able to talk to the HSS), and we should return a 503 so that
+    // Sprout tries a different Homestead.
+    _http_rc = HTTP_SERVER_UNAVAILABLE;
+    // LCOV_EXCL_STOP
+  }
+  else if (rc == HssConnection::ResultCode::NOT_FOUND)
+  {
+    TRC_INFO("Server-Assignment answer - user unknown");
+    //todo sas log
+    //SAS::Event event(this->trail(), SASEvent::REG_DATA_HSS_FAIL, 0);
+    //event.add_static_param(result_code);
+    //event.add_static_param(experimental_result_code);
+    //SAS::report_event(event);
+    _http_rc = HTTP_NOT_FOUND;
+  }
+  else if (rc == HssConnection::ResultCode::NEW_WILDCARD)
+  {
+    // An error has been recieved in the SAA, and the wildcard has been
+    // updated. Return to searching the cache with the new wildcarded public
+    // identity,and continue the processing from there - possibly send another
+    // SAR and recieve an SAA, and send an http response.
+    //SAS::Event event(this->trail(), SASEvent::REG_DATA_HSS_UPDATED_WILDCARD, 0);
+    //event.add_var_param(current_wildcard);
+    //event.add_var_param(_hss_wildcard);
+    //SAS::report_event(event);
+
+    // Since we're going to do a new lookup in the cache, we need to delete
+    // the old IRS
+    delete _irs; _irs = NULL;
+
+    get_reg_data();
+
+    // Since processing has been redone, we can stop processing this SAA now.
+    return;
+  }
+  else
+  {
+    TRC_INFO("Server-Assignment answer with result code %d - reject", rc);
+    /*TODOSAS::Event event(this->trail(), SASEvent::REG_DATA_HSS_FAIL, 0);
+    event.add_static_param(result_code);
+    event.add_static_param(experimental_result_code);
+    SAS::report_event(event);*/
+    _http_rc = HTTP_SERVER_ERROR;
+  }
+    /*TODO this should be in the diameterhssconnection
+    std::string current_wildcard = wildcard_id();
+    saa.wildcarded_public_identity(_hss_wildcard);
+    if (current_wildcard == _hss_wildcard)
+    {
+      // An error has been recieved in the SAA, and the wildcard has not been
+      // updated. Return an error instead of retrying to avoid being stuck in a
+      // loop.
+      int type = 0;
+      saa.server_assignment_type(type);
+      TRC_INFO("Server-Assignment answer with experimental result code "
+               "DIAMETER_ERROR_IN_ASSIGNMENT_TYPE and wildcarded public id %s, "
+               "with vendor id %d and assignment type %d - reject",
+               _hss_wildcard.c_str(), vendor_id, type);
+      SAS::Event event(this->trail(), SASEvent::REG_DATA_HSS_FAIL_ASSIGNMENT_TYPE, 0);
+      event.add_static_param(type);
+      SAS::report_event(event);
+      _http_rc = HTTP_SERVER_ERROR;
+    }
+    */
+
+  // Update the cache if required.
+  bool pending_cache_op = false;
+  if ((rc == HssConnection::ResultCode::SUCCESS) &&
+      (!is_deregistration_request(_type)) &&
+      (!is_auth_failure_request(_type)))
+  {
+    // This request assigned the user to us (i.e. it was successful and wasn't
+    // triggered by a deregistration or auth failure) so cache the User-Data.
+    SAS::Event event(this->trail(), SASEvent::REG_DATA_HSS_SUCCESS, 0);
+    SAS::report_event(event);
+    put_in_cache();
+    pending_cache_op = true;
+  }
+  else if ((is_deregistration_request(_type)) &&
+           (rc != HssConnection::ResultCode::SERVER_UNAVAILABLE))
+  {
+    // We're deregistering, so clear the cache.
+    //
+    // Even if the HSS rejects our deregistration request, we should
+    // still delete our cached data - this reflects the fact that Sprout
+    // has no bindings for it. If we were unable to deliver the Diameter
+    // message, we might retry to a new Homestead node, and in this case we
+    // don't want to delete the data (since the new Homestead node will receive
+    // the request, not find the subscriber registered in the cache and reject
+    // the request without trying to notify the HSS).
+
+    // TODO: previously we created a batch delete fro multiple impus on the xml,
+    // but pretty sure that's an implementation detail so not doing that
+    void_success_cb success_cb =
+      std::bind(&ImpuRegDataTask::on_del_impu_success, this);
+
+    failure_callback failure_cb =
+      std::bind(&ImpuRegDataTask::on_del_impu_failure, this, std::placeholders::_1);
+
+    _cache->delete_implicit_registration_set(success_cb, failure_cb, _irs, this->trail());
+
+    // We've relinquished ownership of _irs to the cache
+    _irs = NULL;
+    pending_cache_op = true;
+  }
+
+  // If we're not pending a cache operation, send a reply and delete the task.
+  if (!pending_cache_op)
+  {
+    send_reply();
+    delete _irs; _irs = NULL;
+    delete this;
+  }
+  return;
+
+  /*TODO
   Cx::ServerAssignmentAnswer saa(rsp);
   int32_t result_code = 0;
   saa.result_code(result_code);
@@ -1754,142 +1746,8 @@ void ImpuRegDataTask::on_sar_response(Diameter::Message& rsp)
   }
   TRC_DEBUG("Received Server-Assignment answer with result code %d and experimental result code %d with vendor id %d",
             result_code, experimental_result_code);
+TODO*/
 
-  if (result_code == DIAMETER_SUCCESS)
-  {
-    // Get the charging addresses and user data.
-    saa.charging_addrs(_charging_addrs);
-    saa.user_data(_xml);
-  }
-  else if (result_code == DIAMETER_UNABLE_TO_DELIVER)
-  {
-    // LCOV_EXCL_START - nothing interesting to UT.
-    // This may mean we don't have any Diameter connections. Another Homestead
-    // node might have Diameter connections (either to the HSS, or to an SLF
-    // which is able to talk to the HSS), and we should return a 503 so that
-    // Sprout tries a different Homestead.
-    _http_rc = HTTP_SERVER_UNAVAILABLE;
-    // LCOV_EXCL_STOP
-  }
-  else if (experimental_result_code == DIAMETER_ERROR_USER_UNKNOWN &&
-           vendor_id == VENDOR_ID_3GPP)
-  {
-    TRC_INFO("Server-Assignment answer - user unknown",
-             result_code, experimental_result_code, vendor_id);
-    SAS::Event event(this->trail(), SASEvent::REG_DATA_HSS_FAIL, 0);
-    event.add_static_param(result_code);
-    event.add_static_param(experimental_result_code);
-    SAS::report_event(event);
-    _http_rc = HTTP_NOT_FOUND;
-  }
-  else if (experimental_result_code == DIAMETER_ERROR_IN_ASSIGNMENT_TYPE)
-  {
-    std::string current_wildcard = wildcard_id();
-    saa.wildcarded_public_identity(_hss_wildcard);
-    if (current_wildcard == _hss_wildcard)
-    {
-      // An error has been recieved in the SAA, and the wildcard has not been
-      // updated. Return an error instead of retrying to avoid being stuck in a
-      // loop.
-      int type = 0;
-      saa.server_assignment_type(type);
-      TRC_INFO("Server-Assignment answer with experimental result code "
-               "DIAMETER_ERROR_IN_ASSIGNMENT_TYPE and wildcarded public id %s, "
-               "with vendor id %d and assignment type %d - reject",
-               _hss_wildcard.c_str(), vendor_id, type);
-      SAS::Event event(this->trail(), SASEvent::REG_DATA_HSS_FAIL_ASSIGNMENT_TYPE, 0);
-      event.add_static_param(type);
-      SAS::report_event(event);
-      _http_rc = HTTP_SERVER_ERROR;
-    }
-    else
-    {
-      // An error has been recieved in the SAA, and the wildcard has been
-      // updated. Return to searching the cache with the new wildcarded public
-      // identity,and continue the processing from there - possibly send another
-      // SAR and recieve an SAA, and send an http response.
-      SAS::Event event(this->trail(), SASEvent::REG_DATA_HSS_UPDATED_WILDCARD, 0);
-      event.add_var_param(current_wildcard);
-      event.add_var_param(_hss_wildcard);
-      SAS::report_event(event);
-      get_reg_data();
-      // Since processing has been redone, we can stop processing this SAA now.
-      return;
-    }
-  }
-  else
-  {
-    TRC_INFO("Server-Assignment answer with result code %d and experimental result code %d with vendor id %d - reject",
-             result_code, experimental_result_code, vendor_id);
-    SAS::Event event(this->trail(), SASEvent::REG_DATA_HSS_FAIL, 0);
-    event.add_static_param(result_code);
-    event.add_static_param(experimental_result_code);
-    SAS::report_event(event);
-    _http_rc = HTTP_SERVER_ERROR;
-  }
-
-  // Update the cache if required.
-  bool pending_cache_op = false;
-  if ((result_code == DIAMETER_SUCCESS) &&
-      (!is_deregistration_request(_type)) &&
-      (!is_auth_failure_request(_type)))
-  {
-    // This request assigned the user to us (i.e. it was successful and wasn't
-    // triggered by a deregistration or auth failure) so cache the User-Data.
-    SAS::Event event(this->trail(), SASEvent::REG_DATA_HSS_SUCCESS, 0);
-    SAS::report_event(event);
-    put_in_cache();
-    pending_cache_op = true;
-  }
-  else if ((is_deregistration_request(_type)) &&
-           (result_code != DIAMETER_UNABLE_TO_DELIVER))
-  {
-    // We're deregistering, so clear the cache.
-    //
-    // Even if the HSS rejects our deregistration request, we should
-    // still delete our cached data - this reflects the fact that Sprout
-    // has no bindings for it. If we were unable to deliver the Diameter
-    // message, we might retry to a new Homestead node, and in this case we
-    // don't want to delete the data (since the new Homestead node will receive
-    // the request, not find the subscriber registered in Cassandra and reject
-    // the request without trying to notify the HSS).
-    std::vector<std::string> public_ids = XmlUtils::get_public_ids(_xml);
-    if (!public_ids.empty())
-    {
-      TRC_DEBUG("Got public IDs to delete from cache - doing it");
-      for (std::vector<std::string>::iterator i = public_ids.begin();
-           i != public_ids.end();
-           i++)
-      {
-        TRC_DEBUG("Public ID %s", i->c_str());
-      }
-
-      SAS::Event event(this->trail(), SASEvent::CACHE_DELETE_IMPUS, 0);
-      std::string public_ids_str = boost::algorithm::join(public_ids, ", ");
-      event.add_var_param(public_ids_str);
-      std::vector<std::string> associated_private_ids = get_associated_private_ids();
-      std::string associated_private_ids_str = boost::algorithm::join(associated_private_ids, ", ");
-      event.add_var_param(associated_private_ids_str);
-      SAS::report_event(event);
-      CassandraStore::Operation* delete_public_id =
-        _cache->create_DeletePublicIDs(public_ids,
-                                       associated_private_ids,
-                                       Cache::generate_timestamp());
-      CassandraStore::Transaction* tsx = new CacheTransaction(this,
-                                      &ImpuRegDataTask::on_del_impu_success,
-                                      &ImpuRegDataTask::on_del_impu_failure);
-      _cache->do_async(delete_public_id, tsx);
-      pending_cache_op = true;
-    }
-  }
-
-  // If we're not pending a cache operation, send a reply and delete the task.
-  if (!pending_cache_op)
-  {
-    send_reply();
-    delete this;
-  }
-  return;
 }
 
 // Returns the public id to use - priorities any wildcarded public id.
@@ -1906,7 +1764,7 @@ std::string ImpuRegDataTask::wildcard_id()
   return (_hss_wildcard.empty() ? _sprout_wildcard : _hss_wildcard);
 }
 
-void ImpuRegDataTask::on_del_impu_benign(CassandraStore::Operation* op, bool not_found)
+void ImpuRegDataTask::on_del_impu_benign(bool not_found)
 {
   SAS::Event event(this->trail(), (not_found) ? SASEvent::CACHE_DELETE_IMPUS_NOT_FOUND : SASEvent::CACHE_DELETE_IMPUS_SUCCESS, 0);
   SAS::report_event(event);
@@ -1916,25 +1774,25 @@ void ImpuRegDataTask::on_del_impu_benign(CassandraStore::Operation* op, bool not
   delete this;
 }
 
-void ImpuRegDataTask::on_del_impu_success(CassandraStore::Operation* op)
+void ImpuRegDataTask::on_del_impu_success()
 {
-  on_del_impu_benign(op, false);
+  on_del_impu_benign(false);
 }
 
-void ImpuRegDataTask::on_del_impu_failure(CassandraStore::Operation* op, CassandraStore::ResultCode error, std::string& text)
+void ImpuRegDataTask::on_del_impu_failure(Store::Status status)
 {
   // Failed to delete IMPUs. If the error was "Not Found", just pass back the
   // stored error code.  "Not Found" errors are benign on deletion
-  if (error == CassandraStore::NOT_FOUND)
+  if (status == Store::Status::NOT_FOUND)
   {
-    on_del_impu_benign(op, true);
+    on_del_impu_benign(true);
   }
   else
   {
     // Not benign.  Return the original error if it wasn't OK
     SAS::Event event(this->trail(), SASEvent::CACHE_DELETE_IMPUS_FAIL, 0);
-    event.add_static_param(error);
-    event.add_var_param(text);
+    //TODOevent.add_static_param(error);
+    //TODOevent.add_var_param(text);
     SAS::report_event(event);
 
     send_http_reply((_http_rc == HTTP_OK) ? HTTP_SERVER_UNAVAILABLE : _http_rc);
@@ -1986,35 +1844,48 @@ void RegistrationTerminationTask::run()
   rtr_received.add_static_param(associated_identities.size());
   SAS::report_event(rtr_received);
 
+  // Create the cache success and failure callbacks
+  irs_vector_success_callback success_cb =
+    std::bind(&RegistrationTerminationTask::get_registration_sets_success, this, std::placeholders::_1);
+
+  failure_callback failure_cb =
+    std::bind(&RegistrationTerminationTask::get_registration_sets_failure, this, std::placeholders::_1);
+
   if ((_impus.empty()) && ((_deregistration_reason == PERMANENT_TERMINATION) ||
                            (_deregistration_reason == REMOVE_SCSCF) ||
                            (_deregistration_reason == SERVER_CHANGE) ||
                            (_deregistration_reason == NEW_SERVER_ASSIGNED)))
   {
-    // Find all the default public identities associated with the
-    // private identities specified on the request.
+    // Get the IRSs associated with these impis
+    // TODO - SAS logging - change as no longer assoc primary impus
     std::string impis_str = boost::algorithm::join(_impis, ", ");
     TRC_DEBUG("Finding associated default public identities for impis %s", impis_str.c_str());
     SAS::Event event(this->trail(), SASEvent::CACHE_GET_ASSOC_PRIMARY_IMPUS, 0);
     event.add_var_param(impis_str);
     SAS::report_event(event);
-    CassandraStore::Operation* get_associated_impus = _cfg->cache->create_GetAssociatedPrimaryPublicIDs(_impis);
-    CassandraStore::Transaction* tsx =
-      new CacheTransaction(this,
-                           &RegistrationTerminationTask::get_assoc_primary_public_ids_success,
-                           &RegistrationTerminationTask::get_assoc_primary_public_ids_failure);
-    _cfg->cache->do_async(get_associated_impus, tsx);
+
+    _cfg->cache->get_implicit_registration_sets_for_impis(success_cb,
+                                                          failure_cb,
+                                                          _impis,
+                                                          this->trail());
   }
   else if ((!_impus.empty()) && ((_deregistration_reason == PERMANENT_TERMINATION) ||
                                  (_deregistration_reason == REMOVE_SCSCF)))
   {
-    // Find information about the registration sets for the public
-    // identities specified on the request.
-    get_registration_sets();
+    // Get the IRSs associated with these impus
+    // TODO - SAS logging
+    /*TRC_DEBUG("Finding registration set for public identity %s", impu.c_str());
+    SAS::Event event(this->trail(), SASEvent::CACHE_GET_REG_DATA, 0);
+    event.add_var_param(impu);
+    SAS::report_event(event);*/
+    _cfg->cache->get_implicit_registration_sets_for_impus(success_cb,
+                                                          failure_cb,
+                                                          _impus,
+                                                          this->trail());
   }
   else
   {
-    // This is either an invalid deregistration reason.
+    // This is an invalid deregistration reason.
     TRC_ERROR("Registration-Termination request received with invalid deregistration reason %d",
               _deregistration_reason);
     SAS::Event event(this->trail(), SASEvent::INVALID_DEREG_REASON, 0);
@@ -2024,14 +1895,12 @@ void RegistrationTerminationTask::run()
   }
 }
 
-void RegistrationTerminationTask::get_assoc_primary_public_ids_success(CassandraStore::Operation* op)
+void RegistrationTerminationTask::get_registration_sets_success(std::vector<ImplicitRegistrationSet*> reg_sets)
 {
-  // Get the default public identities returned by the cache.
-  Cache::GetAssociatedPrimaryPublicIDs* get_associated_impus_result =
-    (Cache::GetAssociatedPrimaryPublicIDs*)op;
-  get_associated_impus_result->get_result(_impus);
+  // Save the vector of reg_sets?
+  //TODO
 
-  if (_impus.empty())
+  if (reg_sets.empty())
   {
     TRC_DEBUG("No registered IMPUs to deregister found");
     SAS::Event event(this->trail(), SASEvent::NO_IMPU_DEREG, 0);
@@ -2041,115 +1910,112 @@ void RegistrationTerminationTask::get_assoc_primary_public_ids_success(Cassandra
   }
   else
   {
-    // We have all the default public identities. Find their registration sets.
-    // Remove any duplicates first. We do this by sorting the vector, using unique
-    // to move the unique values to the front and erasing everything after the last
-    // unique value.
-    SAS::Event event(this->trail(), SASEvent::CACHE_GET_ASSOC_PRIMARY_IMPUS_SUCCESS, 0);
-    std::string impus_str = boost::algorithm::join(_impus, ", ");
-    event.add_var_param(impus_str);
-    SAS::report_event(event);
-    sort(_impus.begin(), _impus.end());
-    _impus.erase(unique(_impus.begin(), _impus.end()), _impus.end());
-    get_registration_sets();
-  }
-}
+    // We have some registration sets to delete
+    HTTPCode ret_code = 0;
+    std::vector<std::string> empty_vector;
+    std::vector<std::string> default_public_identities;
 
-void RegistrationTerminationTask::get_assoc_primary_public_ids_failure(CassandraStore::Operation* op,
-                                                                       CassandraStore::ResultCode error,
-                                                                       std::string& text)
-{
-  TRC_DEBUG("Failed to get associated default public identities");
-  SAS::Event event(this->trail(), SASEvent::DEREG_FAIL, 0);
+    // Extract the default public identities from the registration sets.
+    for (ImplicitRegistrationSet* reg_set : reg_sets)
+    {
+      default_public_identities.push_back(reg_set->get_default_impu());
+    }
+
+    // We need to notify sprout of the deregistrations. What we send to sprout
+    // depends on the deregistration reason.
+    switch (_deregistration_reason)
+    {
+    case PERMANENT_TERMINATION:
+      ret_code = _cfg->sprout_conn->deregister_bindings(false,
+                                                        default_public_identities,
+                                                        _impis,
+                                                        this->trail());
+      break;
+
+    case REMOVE_SCSCF:
+    case SERVER_CHANGE:
+      ret_code = _cfg->sprout_conn->deregister_bindings(true,
+                                                        default_public_identities,
+                                                        empty_vector,
+                                                        this->trail());
+      break;
+
+    case NEW_SERVER_ASSIGNED:
+      ret_code = _cfg->sprout_conn->deregister_bindings(false,
+                                                        default_public_identities,
+                                                        empty_vector,
+                                                        this->trail());
+      break;
+
+    default:
+      // LCOV_EXCL_START - We can't get here because we've already filtered these out.
+      TRC_ERROR("Unexpected deregistration reason %d on RTR", _deregistration_reason);
+      break;
+      // LCOV_EXCL_STOP
+    }
+
+    switch (ret_code)
+    {
+      case HTTP_OK:
+      {
+        TRC_DEBUG("Send Registration-Termination answer indicating success");
+        SAS::Event event(this->trail(), SASEvent::DEREG_SUCCESS, 0);
+        SAS::report_event(event);
+        send_rta(DIAMETER_REQ_SUCCESS);
+      }
+      break;
+
+      case HTTP_BADMETHOD:
+      case HTTP_BAD_REQUEST:
+      case HTTP_SERVER_ERROR:
+      {
+        TRC_DEBUG("Send Registration-Termination answer indicating failure");
+        SAS::Event event(this->trail(), SASEvent::DEREG_FAIL, 0);
+        SAS::report_event(event);
+        send_rta(DIAMETER_REQ_FAILURE);
+      }
+      break;
+
+      default:
+      {
+        TRC_ERROR("Unexpected HTTP return code, send Registration-Termination answer indicating failure");
+        SAS::Event event(this->trail(), SASEvent::DEREG_FAIL, 0);
+        SAS::report_event(event);
+        send_rta(DIAMETER_REQ_FAILURE);
+      }
+      break;
+    }
+
+    // Now delete our cached registration sets
+    /* TODO SAS log
+    SAS::Event event(this->trail(), SASEvent::CACHE_DISASSOC_REG_SET, 0);
+    std::string reg_set_str = boost::algorithm::join(reg_set.second, ", ");
+    event.add_var_param(reg_set_str);
+    std::string impis_str = boost::algorithm::join(_impis, ", ");
+    event.add_var_param(impis_str);
+    SAS::report_event(event);
+
+      std::string _impis_str = boost::algorithm::join(_impis, ", ");
+  TRC_DEBUG("Deleting IMPI mappings for the following IMPIs: %s",
+            _impis_str.c_str());
+  SAS::Event event(this->trail(), SASEvent::CACHE_DELETE_IMPI_MAP, 0);
+  event.add_var_param(_impis_str);
   SAS::report_event(event);
-  send_rta(DIAMETER_REQ_FAILURE);
-  delete this;
-}
 
-void RegistrationTerminationTask::get_registration_sets()
-{
-  // This function issues a GetRegData cache request for a public identity
-  // on the list of IMPUs and then removes that public identity from the list. It
-  // should get called again after the cache response by the callback functions.
-  // Once there are no public identities remaining, it deletes the registrations.
-  if (!_impus.empty())
-  {
-    std::string impu = _impus.back();
-    _impus.pop_back();
-    TRC_DEBUG("Finding registration set for public identity %s", impu.c_str());
-    SAS::Event event(this->trail(), SASEvent::CACHE_GET_REG_DATA, 0);
-    event.add_var_param(impu);
-    SAS::report_event(event);
-    CassandraStore::Operation* get_reg_data = _cfg->cache->create_GetRegData(impu);
-    CassandraStore::Transaction* tsx =
-      new CacheTransaction(this,
-                           &RegistrationTerminationTask::get_registration_set_success,
-                           &RegistrationTerminationTask::get_registration_set_failure);
-    _cfg->cache->do_async(get_reg_data, tsx);
-  }
-  else if (_registration_sets.empty())
-  {
-    TRC_DEBUG("No registered IMPUs to deregister found");
-    SAS::Event event(this->trail(), SASEvent::NO_IMPU_DEREG, 0);
-    SAS::report_event(event);
-    send_rta(DIAMETER_REQ_SUCCESS);
-    delete this;
-  }
-  else
-  {
-    // We now have all the registration sets, and we can delete the registrations.
-    // First remove any duplicates in the list of _impis. We do this
-    // by sorting the vector, using unique to move the unique values to the front
-    // and erasing everything after the last unique value.
-    sort(_impis.begin(), _impis.end());
-    _impis.erase(unique(_impis.begin(), _impis.end()), _impis.end());
+    */
+    void_success_cb success_cb =
+      std::bind(&RegistrationTerminationTask::delete_reg_sets_success, this);
 
-    delete_registrations();
+    failure_callback failure_cb =
+      std::bind(&RegistrationTerminationTask::delete_reg_sets_failure, this, std::placeholders::_1);
+
+    _cfg->cache->delete_implicit_registration_sets(success_cb, failure_cb, reg_sets, this->trail());
   }
 }
 
-void RegistrationTerminationTask::get_registration_set_success(CassandraStore::Operation* op)
-{
-  Cache::GetRegData* get_reg_data_result = (Cache::GetRegData*)op;
-  sas_log_get_reg_data_success(get_reg_data_result, trail());
-  std::string ims_sub;
-  int32_t temp;
-  get_reg_data_result->get_xml(ims_sub, temp);
 
-  // Add the list of public identities in the IMS subscription to
-  // the list of registration sets.
-  std::string default_id;
-  std::vector<std::string> public_ids = XmlUtils::get_public_and_default_ids(
-                                                           ims_sub, default_id);
-  if (!public_ids.empty())
-  {
-    std::pair<std::string, std::vector<std::string>> reg_set;
-    reg_set = make_pair(default_id, public_ids);
-    _registration_sets.push_back(reg_set);
-  }
 
-  if ((_deregistration_reason == SERVER_CHANGE) ||
-      (_deregistration_reason == NEW_SERVER_ASSIGNED))
-  {
-    // GetRegData also returns a list of associated private
-    // identities. Save these off.
-    std::vector<std::string> associated_impis;
-    get_reg_data_result->get_associated_impis(associated_impis);
-    std::string associated_impis_str = boost::algorithm::join(associated_impis, ", ");
-    TRC_DEBUG("GetRegData returned associated identites: %s",
-              associated_impis_str.c_str());
-    _impis.insert(_impis.end(),
-                  associated_impis.begin(),
-                  associated_impis.end());
-  }
-
-  // Call back into get_registration_sets
-  get_registration_sets();
-}
-
-void RegistrationTerminationTask::get_registration_set_failure(CassandraStore::Operation* op,
-                                                               CassandraStore::ResultCode error,
-                                                               std::string& text)
+void RegistrationTerminationTask::get_registration_sets_failure(Store::Status rc)
 {
   TRC_DEBUG("Failed to get a registration set - report failure to HSS");
   SAS::Event event(this->trail(), SASEvent::DEREG_FAIL, 0);
@@ -2158,141 +2024,20 @@ void RegistrationTerminationTask::get_registration_set_failure(CassandraStore::O
   delete this;
 }
 
-void RegistrationTerminationTask::delete_registrations()
+// These two callbacks are used so that we don't delete the task until we're
+// completely done with Cache operations.
+// This allows us to delete each of the ImplicitRegistrationSets in the
+// _reg_sets vector in the task's destructor.
+void RegistrationTerminationTask::delete_reg_sets_success()
 {
-  HTTPCode ret_code = 0;
-  std::vector<std::string> empty_vector;
-  std::vector<std::string> default_public_identities;
-
-  // Extract the default public identities from the registration sets.
-  for (std::pair<std::string, std::vector<std::string>> reg_set : _registration_sets)
-  {
-    default_public_identities.push_back(reg_set.first);
-  }
-
-  // We need to notify sprout of the deregistrations. What we send to sprout depends
-  // on the deregistration reason.
-  switch (_deregistration_reason)
-  {
-  case PERMANENT_TERMINATION:
-    ret_code = _cfg->sprout_conn->deregister_bindings(false,
-                                                      default_public_identities,
-                                                      _impis,
-                                                      this->trail());
-    break;
-
-  case REMOVE_SCSCF:
-  case SERVER_CHANGE:
-    ret_code = _cfg->sprout_conn->deregister_bindings(true,
-                                                      default_public_identities,
-                                                      empty_vector,
-                                                      this->trail());
-    break;
-
-  case NEW_SERVER_ASSIGNED:
-    ret_code = _cfg->sprout_conn->deregister_bindings(false,
-                                                      default_public_identities,
-                                                      empty_vector,
-                                                      this->trail());
-    break;
-
-  default:
-    // LCOV_EXCL_START - We can't get here because we've already filtered these out.
-    TRC_ERROR("Unexpected deregistration reason %d on RTR", _deregistration_reason);
-    break;
-    // LCOV_EXCL_STOP
-  }
-
-  switch (ret_code)
-  {
-  case HTTP_OK:
-  {
-    TRC_DEBUG("Send Registration-Termination answer indicating success");
-    SAS::Event event(this->trail(), SASEvent::DEREG_SUCCESS, 0);
-    SAS::report_event(event);
-    send_rta(DIAMETER_REQ_SUCCESS);
-  }
-  break;
-
-  case HTTP_BADMETHOD:
-  case HTTP_BAD_REQUEST:
-  case HTTP_SERVER_ERROR:
-  {
-    TRC_DEBUG("Send Registration-Termination answer indicating failure");
-    SAS::Event event(this->trail(), SASEvent::DEREG_FAIL, 0);
-    SAS::report_event(event);
-    send_rta(DIAMETER_REQ_FAILURE);
-  }
-  break;
-
-  default:
-  {
-    TRC_ERROR("Unexpected HTTP return code, send Registration-Termination answer indicating failure");
-    SAS::Event event(this->trail(), SASEvent::DEREG_FAIL, 0);
-    SAS::report_event(event);
-    send_rta(DIAMETER_REQ_FAILURE);
-  }
-  break;
-  }
-
-  // Remove the relevant registration information from Cassandra.
-  dissociate_implicit_registration_sets();
-
-  if ((_deregistration_reason == SERVER_CHANGE) ||
-      (_deregistration_reason == NEW_SERVER_ASSIGNED))
-  {
-    TRC_DEBUG("Delete IMPI mappings");
-    delete_impi_mappings();
-  }
-
+  // We have already sent the reponse, so we do nothing here
   delete this;
 }
 
-void RegistrationTerminationTask::dissociate_implicit_registration_sets()
+void RegistrationTerminationTask::delete_reg_sets_failure(Store::Status rc)
 {
-  // Dissociate the private identities from each registration set.
-  for (std::pair<std::string, std::vector<std::string>> reg_set : _registration_sets)
-  {
-    SAS::Event event(this->trail(), SASEvent::CACHE_DISASSOC_REG_SET, 0);
-    std::string reg_set_str = boost::algorithm::join(reg_set.second, ", ");
-    event.add_var_param(reg_set_str);
-    std::string impis_str = boost::algorithm::join(_impis, ", ");
-    event.add_var_param(impis_str);
-    SAS::report_event(event);
-    CassandraStore::Operation* dissociate_reg_set =
-      _cfg->cache->create_DissociateImplicitRegistrationSetFromImpi(reg_set.second, _impis, Cache::generate_timestamp());
-    CassandraStore::Transaction* tsx = new CacheTransaction;
-
-    // Note that this is an asynchronous operation and we are not attempting to
-    // wait for completion.  This is deliberate: Registration Termination is not
-    // driven by a client, and so there are no agents in the system that need to
-    // know when the async operation is complete (unlike a REGISTER from a SIP
-    // client which might follow the operation immediately with a request, such
-    // as a reg-event SUBSCRIBE, that relies on the cache being up to date).
-    _cfg->cache->do_async(dissociate_reg_set, tsx);
-  }
-}
-
-void RegistrationTerminationTask::delete_impi_mappings()
-{
-  // Delete rows from the IMPI table for all associated IMPIs.
-  std::string _impis_str = boost::algorithm::join(_impis, ", ");
-  TRC_DEBUG("Deleting IMPI mappings for the following IMPIs: %s",
-            _impis_str.c_str());
-  SAS::Event event(this->trail(), SASEvent::CACHE_DELETE_IMPI_MAP, 0);
-  event.add_var_param(_impis_str);
-  SAS::report_event(event);
-  CassandraStore::Operation* delete_impis =
-    _cfg->cache->create_DeleteIMPIMapping(_impis, Cache::generate_timestamp());
-  CassandraStore::Transaction* tsx = new CacheTransaction;
-
-  // Note that this is an asynchronous operation and we are not attempting to
-  // wait for completion.  This is deliberate: Registration Termination is not
-  // driven by a client, and so there are no agents in the system that need to
-  // know when the async operation is complete (unlike a REGISTER from a SIP
-  // client which might follow the operation immediately with a request, such
-  // as a reg-event SUBSCRIBE, that relies on the cache being up to date).
-  _cfg->cache->do_async(delete_impis, tsx);
+  // We have already sent the reponse, so we do nothing here
+  delete this;
 }
 
 void RegistrationTerminationTask::send_rta(const std::string result_code)
@@ -2350,347 +2095,112 @@ void PushProfileTask::run()
   }
   else
   {
-    CassandraStore::Operation* get_current_default =
-      _cfg->cache->create_GetAssociatedPrimaryPublicIDs(_impi);
-    CassandraStore::Transaction* tsx =
-      new CacheTransaction(this,
-                           &PushProfileTask::on_get_primary_impus_success,
-                           &PushProfileTask::on_get_primary_impus_failure);
-    _cfg->cache->do_async(get_current_default, tsx);
+    // We have an impi, so get the Ims Subscription data from the cache
+    ims_sub_success_cb success_cb =
+      std::bind(&PushProfileTask::on_get_ims_sub_success, this, std::placeholders::_1);
+
+    failure_callback failure_cb =
+      std::bind(&PushProfileTask::on_get_ims_sub_failure, this, std::placeholders::_1);
+
+    _cfg->cache->get_ims_subscription(success_cb, failure_cb, _impi, this->trail());
   }
 }
 
-
-void PushProfileTask::update_reg_data()
+void PushProfileTask::on_get_ims_sub_success(ImsSubscription* ims_sub)
 {
-  if (!_ims_sub_present || !check_if_first())
-  {
-    _impus = _irs_impus;
-  }
-
-  Cache::PutRegData* put_reg_data =
-    _cfg->cache->create_PutRegData(_impus,
-                                   _default_public_id,
-                                   Cache::generate_timestamp(),
-                                   _cfg->record_ttl);
-  SAS::Event event(this->trail(), SASEvent::CACHE_PUT_REG_DATA, 0);
-
-  std::string impus_str = boost::algorithm::join(_impus, ", ");
-  event.add_var_param(impus_str);
-
-  // Only need to update the IMS sub for the one default ID in the subscription
-  // This will be done first
-
-  if (_ims_sub_present && check_if_first())
-  {
-    TRC_INFO("Updating IMS subscription from PPR");
-    put_reg_data->with_xml(_ims_subscription);
-    event.add_compressed_param(_ims_subscription, &SASEvent::PROFILE_SERVICE_PROFILE);
-    // Find if any IMPUs have been deleted from the registration set and delete from
-    // cache accordingly.
-    find_impus_to_delete();
-    // Find if any IMPUs have been added, and if so, also put the registration state
-    // and charging information.
-    if (check_impus_added())
-    {
-      TRC_INFO("Updating registration state");
-      put_reg_data->with_reg_state(_reg_state);
-      if (!_charging_addrs_present)
-      {
-        put_reg_data->with_charging_addrs(_reg_charging_addrs);
-      }
-    }
-  }
-  // If first time round and no IMS subscription was present.
-  else if (check_if_first())
-  {
-    event.add_compressed_param("IMS subscription unchanged", &SASEvent::PROFILE_SERVICE_PROFILE);
-  }
-
-  event.add_static_param(RegistrationState::UNCHANGED);
-  event.add_var_param("");
-
-  // Need to update the charging address for all default IDs.
-  if (_charging_addrs_present)
-  {
-    TRC_INFO("Updating charging addresses from PPR");
-    event.add_var_param(_charging_addrs.log_string());
-    put_reg_data->with_charging_addrs(_charging_addrs);
-  }
-
-  else
-  {
-    event.add_var_param("Charging addresses unchanged");
-  }
-
-
-  CassandraStore::Transaction* tsx =
-    new CacheTransaction(this,
-                         &PushProfileTask::update_reg_data_success,
-                         &PushProfileTask::update_reg_data_failure);
-  CassandraStore::Operation*& op = (CassandraStore::Operation*&)put_reg_data;
-  _cfg->cache->do_async(op, tsx);
-
-  SAS::report_event(event);
-}
-
-void PushProfileTask::get_registration_set()
-{
-  // If _default_impus is not empty, there are still registration sets which
-  // require updated charging information. Set the next default public ID
-  // and get the registration set for this identity.
-  // If it is empty, there are no further registration sets to update the
-  // charging information for, and the update is complete.
-
-  if (!_default_impus.empty())
-  {
-    _default_public_id = _default_impus.back();
-    _default_impus.pop_back();
-    TRC_DEBUG("Finding registration set for public identity %s", _default_public_id.c_str());
-    SAS::Event event(this->trail(), SASEvent::CACHE_GET_REG_DATA, 0);
-    event.add_var_param(_default_public_id);
-    SAS::report_event(event);
-    CassandraStore::Operation* get_reg_data = _cfg->cache->create_GetRegData(_default_public_id);
-    CassandraStore::Transaction* tsx =
-      new CacheTransaction(this,
-                           &PushProfileTask::on_get_registration_set_success,
-                           &PushProfileTask::on_get_registration_set_failure);
-      _cfg->cache->do_async(get_reg_data, tsx);
-  }
-  else
-  {
-    TRC_INFO("Finished updating charging addresses");
-    delete this;
-  }
-}
-
-void PushProfileTask::on_get_registration_set_success(CassandraStore::Operation* op)
-{
-  Cache::GetRegData* get_reg_data_result = (Cache::GetRegData*)op;
-  sas_log_get_reg_data_success(get_reg_data_result, trail());
-  std::string ims_sub;
-  int32_t temp;
-  get_reg_data_result->get_xml(ims_sub, temp);
-  get_reg_data_result->get_registration_state(_reg_state, temp);
-  get_reg_data_result->get_charging_addrs(_reg_charging_addrs);
-
-  // Add the list of public identities in the IMS subscription obtained to
-  // _impus, to update and update the charging information for these IMPUs.
-  _irs_impus = XmlUtils::get_public_and_default_ids(ims_sub, _default_public_id);
-  update_reg_data();
-}
-
-void PushProfileTask::on_get_registration_set_failure(CassandraStore::Operation* op,
-	                                              CassandraStore::ResultCode error,
-                                                      std::string& text)
-{
-  TRC_DEBUG("Failed to get a registration set - report failure to HSS");
-  send_ppa(DIAMETER_REQ_FAILURE);
-}
-
-void PushProfileTask::on_get_primary_impus_failure(CassandraStore::Operation* op,
-                                                   CassandraStore::ResultCode error,
-                                                   std::string& text)
-{
-  SAS::Event event(this->trail(), SASEvent::CACHE_GET_ASSOC_DEF_IMPU_FAIL, 0);
-  SAS::report_event(event);
-  TRC_DEBUG("Cache query failed with rc %d", error);
-  send_ppa(DIAMETER_REQ_FAILURE);
-}
-
-void PushProfileTask::on_get_primary_impus_success(CassandraStore::Operation* op)
-{
-  // will return a list of default IMPUs, one default IMPU per IRS.
-  Cache::GetAssociatedPrimaryPublicIDs* get_primary_public_ids =
-    (Cache::GetAssociatedPrimaryPublicIDs*)op;
-  get_primary_public_ids->get_result(_default_impus);
-
-  if (_default_impus.empty())
-  {
-    TRC_INFO("No cached default public IDs found for private ID %s - failed to "
-             "update charging addresses", _impi.c_str());
-    SAS::Event event(this->trail(), SASEvent::CACHE_GET_ASSOC_DEF_IMPU_FAIL, 1);
-    SAS::report_event(event);
-    send_ppa(DIAMETER_REQ_FAILURE);
-    return;
-  }
-
+  // If we have IMS Subscription XML on the PPR, then we need to verify that
+  // it's not going to change the default impu for that IRS
   if (_ims_sub_present)
   {
-    ims_sub_compare_default_ids();
-  }
+    std::string new_default_id;
+    XmlUtils::get_default_id(_ims_subscription, new_default_id);
 
-  else
-  {
-    no_ims_set_first_default();
-  }
-}
-
-void PushProfileTask::ims_sub_compare_default_ids()
-{
-  // Attempt to find a match between any of the default ids of the sets the
-  // private id corresponds to, and the default id in the PPR. If no match is
-  // found the PPR is changing the default id (which is not permitted), so
-  // reject it. Otherwise, continue.
-  std::string new_default_id;
-  XmlUtils::get_default_id(_ims_subscription, new_default_id);
-  bool impu_match_found = false;
-  for (std::string current_default_id : _default_impus)
-  {
-    if (current_default_id == new_default_id)
+    ImplicitRegistrationSet* irs = ims_sub->get_irs_for_default_impu(new_default_id);
+    if (!irs)
     {
-      impu_match_found = true;
-      break;
+        TRC_INFO("The default id of the PPR doesn't match a default id already "
+                "known be belong to the IMPI %s - reject the PPR", _impi.c_str());
+        SAS::Event event(this->trail(), SASEvent::PPR_CHANGE_DEFAULT_IMPU, 0);
+        event.add_var_param(_impi);
+        event.add_var_param(new_default_id);
+        SAS::report_event(event);
+        send_ppa(DIAMETER_REQ_FAILURE);
+        
+        // Need to delete the ImsSubscription* as we own it
+        delete ims_sub; ims_sub = NULL;
+        delete this;
+        return;
     }
-  }
 
-   if (!impu_match_found)
-   {
-    TRC_INFO("The default id of the PPR doesn't match a default id already "
-               "known be belong to the IMPI %s - reject the PPR", _impi.c_str());
-      SAS::Event event(this->trail(), SASEvent::PPR_CHANGE_DEFAULT_IMPU, 0);
-      event.add_var_param(_impi);
-      event.add_var_param(new_default_id);
+    // If we've got here, the PPR is allowed. We should now check that the IRS
+    // from the PPR contains a SIP URI and throw an error log if it doesn't,
+    // although we continue as normal even if it doesn't.
+    _impus = XmlUtils::get_public_ids(_ims_subscription);
+    bool found_sip_uri = false;
+
+    for (std::vector<std::string>::iterator it = _impus.begin();
+        (it != _impus.end()) && (!found_sip_uri);
+        ++it)
+    {
+      if ((*it).compare(0, SIP_URI_PRE.length(), SIP_URI_PRE) == 0)
+      {
+        found_sip_uri = true;
+        break;
+      }
+    }
+
+    if (!found_sip_uri)
+    {
+      TRC_ERROR("No SIP URI in Implicit Registration Set");
+      SAS::Event event(this->trail(), SASEvent::NO_SIP_URI_IN_IRS, 0);
+      event.add_compressed_param(_ims_subscription, &SASEvent::PROFILE_SERVICE_PROFILE);
       SAS::report_event(event);
-      send_ppa(DIAMETER_REQ_FAILURE);
-      return;
     }
-  ims_sub_get_ids();
-}
 
-void PushProfileTask::ims_sub_get_ids()
-{
-  // If we've reached this point, we can safely update the reg data in the
-  // knowledge it will not change the default public identity.
-
-  _impus = XmlUtils::get_public_ids(_ims_subscription);
-
-  // We should check the IRS contains a SIP URI and throw an error log if
-  // it doesn't. We continue as normal even if it doesn't.
-  bool found_sip_uri = false;
-
-  for (std::vector<std::string>::iterator it = _impus.begin();
-      (it != _impus.end()) && (!found_sip_uri);
-       ++it)
-  {
-    if ((*it).compare(0, SIP_URI_PRE.length(), SIP_URI_PRE) == 0)
-    {
-      found_sip_uri = true;
-    }
+    // We can now update the IRS with the new XML. We will handle updating
+    // charging addresses later
+    irs->set_service_profile(_ims_subscription);
   }
 
-  if (!found_sip_uri)
+  // We now may have to update the charging addresses
+  if (_charging_addrs_present)
   {
-    TRC_ERROR("No SIP URI in Implicit Registration Set");
-    SAS::Event event(this->trail(), SASEvent::NO_SIP_URI_IN_IRS, 0);
-    event.add_compressed_param(_ims_subscription, &SASEvent::PROFILE_SERVICE_PROFILE);
-    SAS::report_event(event);
+    ims_sub->set_charging_addrs(_charging_addrs);
   }
 
-  // Get the default ID out of the subscription. Set the first default.
-  // Remove this default from the _default_impus vector, such that it will only
-  // contain the default IDs still left for updating charging addresses for
-  // after this one. Then, call to update reg data.
-  XmlUtils::get_default_id(_ims_subscription, _default_public_id);
-  _first_default_id = _default_public_id;
-  _default_impus.erase(std::remove(_default_impus.begin(),
-                                   _default_impus.end(),
-                                   _default_public_id),
-                       _default_impus.end());
-  _default_impus.push_back(_first_default_id);
-  get_registration_set();
+  // TODO SAS logging?
+
+  // Now, save the updated ImsSubscription in the cache
+  void_success_cb success_cb =
+    std::bind(&PushProfileTask::on_save_ims_sub_success, this);
+
+  failure_callback failure_cb =
+    std::bind(&PushProfileTask::on_save_ims_sub_failure, this, std::placeholders::_1);
+
+  _cfg->cache->put_ims_subscription(success_cb, failure_cb, ims_sub, this->trail());
 }
 
-void PushProfileTask::no_ims_set_first_default()
+void PushProfileTask::on_get_ims_sub_failure(Store::Status rc)
 {
-  // Set the first default ID, to update the charging information for,
-  // to be the last one in the _default_impus vector.
-  _default_public_id = _default_impus.back();
-  _first_default_id = _default_public_id;
-  get_registration_set();
+  //TODO
+  TRC_DEBUG("Failed to get IMS subscription from cache - report to HSS");
+  send_ppa(DIAMETER_REQ_FAILURE);
+  delete this;
 }
 
-void PushProfileTask::update_reg_data_success(CassandraStore::Operation* op)
+void PushProfileTask::on_save_ims_sub_success()
 {
   SAS::Event event(this->trail(), SASEvent::UPDATED_REG_DATA, 0);
   SAS::report_event(event);
-  decide_if_send_ppa();
+  send_ppa(DIAMETER_REQ_SUCCESS);
+  delete this;
 }
 
-void PushProfileTask::update_reg_data_failure(CassandraStore::Operation* op,
-                                              CassandraStore::ResultCode error,
-                                              std::string& text)
+void PushProfileTask::on_save_ims_sub_failure(Store::Status rc)
 {
   TRC_DEBUG("Failed to update registration data - report failure to HSS");
-  if (check_if_first())
-  {
-    send_ppa(DIAMETER_REQ_FAILURE);
-  }
-}
-
-void PushProfileTask::decide_if_send_ppa()
-{
-  // If on the first IRS belonging to the IMPU, and the cache has been updated
-  // send a PPA. If not, a PPA will already have been sent.
-  // If there is a charging address present, there may be further registration
-  // sets which need updated charging information.
-
-  if (check_if_first())
-  {
-    send_ppa(DIAMETER_REQ_SUCCESS);
-  }
-
-  if (_charging_addrs_present)
-  {
-    get_registration_set();
-  }
-  else
-  {
-    delete this;
-  }
-}
-
-void PushProfileTask::find_impus_to_delete()
-{
-  // If there is an IMPU present within an IRS in the cache, but
-  // it was not on the IMS subscription element provided by the PPR
-  // we will need to delete the IMPU from the cache.
-  for (std::vector<std::string>::iterator irs_impu = _irs_impus.begin();
-       irs_impu != _irs_impus.end();
-       irs_impu++)
-    {
-      for (std::vector<std::string>::iterator sub_impu = _impus.begin();
-           sub_impu != _impus.end();
-           sub_impu++)
-      {
-        if (*irs_impu == *sub_impu)
-        {
-          break;
-        }
-        if (sub_impu+1 == _impus.end())
-        {
-          _impus_to_delete.push_back(*irs_impu);
-        }
-      }
-    }
-  if (!_impus_to_delete.empty())
-  {
-    delete_impus();
-  }
-}
-
-void PushProfileTask::delete_impus()
-{
-  CassandraStore::Operation* delete_IMPU =
-    _cfg->cache->create_DeleteIMPUs(_impus_to_delete,
-			       Cache::generate_timestamp());
-  CassandraStore::Transaction* tsx = new CacheTransaction;
-  _cfg->cache->do_async(delete_IMPU, tsx);
-}
-
-bool PushProfileTask::check_impus_added()
-{
-  return ((_irs_impus.size() - _impus_to_delete.size()) != _impus.size());
+  send_ppa(DIAMETER_REQ_FAILURE);
+  delete this;
 }
 
 void PushProfileTask::send_ppa(const std::string result_code)
@@ -2714,68 +2224,6 @@ void PushProfileTask::send_ppa(const std::string result_code)
   // Send the PPA back to the HSS.
   TRC_INFO("Ready to send PPA");
   ppa.send(trail());
-
-  if (result_code == DIAMETER_REQ_FAILURE)
-  {
-  delete this;
-  }
-}
-
-void ImpuListTask::run()
-{
-  if (_req.method() != htp_method_GET)
-  {
-    send_http_reply(HTTP_BADMETHOD);
-    delete this;
-    return;
-  }
-
-  CassandraStore::Operation* list_impus = _cache->create_ListImpus();
-  CassandraStore::Transaction* tsx =
-    new CacheTransaction(this,
-                         &ImpuListTask::on_list_impu_success,
-                         &ImpuListTask::on_list_impu_failure);
-  _cache->do_async(list_impus, tsx);
-}
-
-void ImpuListTask::on_list_impu_success(CassandraStore::Operation* op)
-{
-  Cache::ListImpus* list_impus = (Cache::ListImpus*)op;
-  const std::vector<std::string>& impus = list_impus->get_impus_reference();
-  TRC_DEBUG("Listing impus returned %d results", impus.size());
-
-  rapidjson::StringBuffer sb;
-  rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
-
-  writer.StartObject();
-  {
-    writer.String(JSON_IMPUS.c_str());
-    writer.StartArray();
-    {
-      for (const std::string& impu: impus)
-      {
-        writer.String(impu.c_str());
-      }
-    }
-    writer.EndArray();
-  }
-  writer.EndObject();
-
-  _req.add_content(sb.GetString());
-  send_http_reply(HTTP_OK);
-
-  delete this;
-  return;
-}
-
-void ImpuListTask::on_list_impu_failure(CassandraStore::Operation* op,
-                                        CassandraStore::ResultCode error,
-                                        std::string& text)
-{
-  TRC_INFO("Could not list impus. Error: %d (%s)", error, text.c_str());
-  send_http_reply(HTTP_SERVER_ERROR);
-  delete this;
-  return;
 }
 
 void configure_cx_results_tables(SNMP::CxCounterTable* mar_results_table,

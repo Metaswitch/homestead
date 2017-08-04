@@ -23,6 +23,9 @@
 #include "sproutconnection.h"
 #include "health_checker.h"
 #include "snmp_cx_counter_table.h"
+#include "hss_connection.h"
+#include "hss_cache_processor.h"
+#include "implicit_reg_set.h"
 
 // Result-Code AVP constants
 const int32_t DIAMETER_SUCCESS = 2001;
@@ -82,16 +85,13 @@ public:
     HttpStackUtils::Task(req, trail)
   {};
 
-  static void configure_diameter(Diameter::Stack* diameter_stack,
-                                 const std::string& dest_realm,
-                                 const std::string& dest_host,
-                                 const std::string& server_name,
-                                 Cx::Dictionary* dict);
-  static void configure_cache(Cache* cache);
+  static void configure_hss_connection(HssConnection::HssConnection* hss,
+                                       std::string server_name);
+  static void configure_cache(HssCacheProcessor* cache);
   static void configure_health_checker(HealthChecker* hc);
   static void configure_stats(StatisticsManager* stats_manager);
 
-  inline Cache* cache() const
+  inline HssCacheProcessor* cache() const
   {
     return _cache;
   }
@@ -259,12 +259,9 @@ public:
   };
 
 protected:
-  static Diameter::Stack* _diameter_stack;
-  static std::string _dest_realm;
-  static std::string _dest_host;
   static std::string _configured_server_name;
-  static Cx::Dictionary* _dict;
-  static Cache* _cache;
+  static HssCacheProcessor* _cache;
+  static HssConnection::HssConnection* _hss;
   static HealthChecker* _health_checker;
   static StatisticsManager* _stats_manager;
 };
@@ -274,28 +271,20 @@ class ImpiTask : public HssCacheTask
 public:
   struct Config
   {
-    Config(bool _hss_configured,
-           int _impu_cache_ttl,
-           std::string _scheme_unknown,
+    Config(std::string _scheme_unknown,
            std::string _scheme_digest,
            std::string _scheme_akav1,
-           std::string _scheme_akav2,
-           int _diameter_timeout_ms = 200) :
-      query_cache_av(!_hss_configured),
-      impu_cache_ttl(_impu_cache_ttl),
+           std::string _scheme_akav2) :
       scheme_unknown(_scheme_unknown),
       scheme_digest(_scheme_digest),
       scheme_akav1(_scheme_akav1),
-      scheme_akav2(_scheme_akav2),
-      diameter_timeout_ms(_diameter_timeout_ms) {}
+      scheme_akav2(_scheme_akav2) {}
 
-    bool query_cache_av;
-    int impu_cache_ttl;
     std::string scheme_unknown;
     std::string scheme_digest;
     std::string scheme_akav1;
     std::string scheme_akav2;
-    int diameter_timeout_ms;
+    std::string default_realm;
   };
 
   ImpiTask(HttpStack::Request& req, const Config* cfg, SAS::TrailId trail) :
@@ -305,21 +294,11 @@ public:
   void run();
   virtual ~ImpiTask();
   virtual bool parse_request() = 0;
-  void query_cache_av();
-  void on_get_av_success(CassandraStore::Operation* op);
-  void on_get_av_failure(CassandraStore::Operation* op, CassandraStore::ResultCode error, std::string& text);
   void get_av();
-  void query_cache_impu();
-  void on_get_impu_success(CassandraStore::Operation* op);
-  void on_get_impu_failure(CassandraStore::Operation* op, CassandraStore::ResultCode error, std::string& text);
-  void on_put_assoc_impu_success(CassandraStore::Operation* op);
-  void on_put_assoc_impu_failure(CassandraStore::Operation* op, CassandraStore::ResultCode error, std::string& text);
   void send_mar();
-  void on_mar_response(Diameter::Message& rsp);
+  void on_mar_response(HssConnection::MultimediaAuthAnswer*);
   virtual void send_reply(const DigestAuthVector& av) = 0;
   virtual void send_reply(const AKAAuthVector& av) = 0;
-  typedef HssCacheTask::CacheTransaction<ImpiTask> CacheTransaction;
-  typedef HssCacheTask::DiameterTransaction<ImpiTask> DiameterTransaction;
 
 protected:
   const Config* _cfg;
@@ -365,12 +344,9 @@ class ImpiRegistrationStatusTask : public HssCacheTask
 public:
   struct Config
   {
-    Config(bool _hss_configured = true,
-           int _diameter_timeout_ms = 200) :
-      hss_configured(_hss_configured),
-      diameter_timeout_ms(_diameter_timeout_ms) {}
-    bool hss_configured;
-    int diameter_timeout_ms;
+    Config(std::string default_realm) :
+      default_realm(default_realm) {}
+    std::string default_realm;
   };
 
   ImpiRegistrationStatusTask(HttpStack::Request& req, const Config* cfg, SAS::TrailId trail) :
@@ -378,7 +354,7 @@ public:
   {}
 
   void run();
-  void on_uar_response(Diameter::Message& rsp);
+  void on_uar_response(HssConnection::UserAuthAnswer* uaa);
   void sas_log_hss_failure(int32_t result_code,int32_t experimental_result_code);
 
   typedef HssCacheTask::DiameterTransaction<ImpiRegistrationStatusTask> DiameterTransaction;
@@ -410,16 +386,11 @@ public:
   {}
 
   void run();
-  void on_lir_response(Diameter::Message& rsp);
+  void on_lir_response(HssConnection::LocationInfoAnswer* lia);
   void sas_log_hss_failure(int32_t result_code,int32_t experimental_result_code);
-  void query_cache_reg_data();
-  void on_get_reg_data_success(CassandraStore::Operation* op);
-  void on_get_reg_data_failure(CassandraStore::Operation* op,
-                               CassandraStore::ResultCode error,
-                               std::string& text);
 
+  // TODO remove these
   typedef HssCacheTask::DiameterTransaction<ImpuLocationInfoTask> DiameterTransaction;
-  typedef HssCacheTask::CacheTransaction<ImpuLocationInfoTask> CacheTransaction;
 
 private:
   const Config* _cfg;
@@ -457,17 +428,15 @@ public:
   virtual ~ImpuRegDataTask() {};
   virtual void run();
   void get_reg_data();
-  void on_get_reg_data_success(CassandraStore::Operation* op);
-  void on_get_reg_data_failure(CassandraStore::Operation* op,
-                               CassandraStore::ResultCode error,
-                               std::string& text);
+  void on_get_reg_data_success(ImplicitRegistrationSet* irs);
+  void on_get_reg_data_failure(Store::Status rc);
   void send_server_assignment_request(Cx::ServerAssignmentType type);
-  void on_sar_response(Diameter::Message& rsp);
-  void on_put_reg_data_success(CassandraStore::Operation* op);
-  void on_put_reg_data_failure(CassandraStore::Operation* op, CassandraStore::ResultCode error, std::string& text);
-  void on_del_impu_success(CassandraStore::Operation* op);
-  void on_del_impu_benign(CassandraStore::Operation* op, bool not_found);
-  void on_del_impu_failure(CassandraStore::Operation* op, CassandraStore::ResultCode error, std::string& text);
+  void on_sar_response(HssConnection::ServerAssignmentAnswer* saa);
+  void on_put_reg_data_success();
+  void on_put_reg_data_failure(Store::Status rc);
+  void on_del_impu_success();
+  void on_del_impu_benign(bool not_found);
+  void on_del_impu_failure(Store::Status rc);
 
   typedef HssCacheTask::CacheTransaction<ImpuRegDataTask> CacheTransaction;
   typedef HssCacheTask::DiameterTransaction<ImpuRegDataTask> DiameterTransaction;
@@ -502,10 +471,16 @@ protected:
   std::string _impu;
   std::string _type_param;
   RequestType _type;
-  std::string _xml;
   RegistrationState _original_state;
+
+  // These are now in the ImplicitRegistrationSet*
+  std::string _xml;
   RegistrationState _new_state;
   ChargingAddresses _charging_addrs;
+
+  // TODO
+  ImplicitRegistrationSet* _irs;
+
   long _http_rc;
   std::string _provided_server_name;
 
@@ -533,7 +508,7 @@ class RegistrationTerminationTask : public Diameter::Task
 public:
   struct Config
   {
-    Config(Cache* _cache,
+    Config(HssCacheProcessor* _cache,
            Cx::Dictionary* _dict,
            SproutConnection* _sprout_conn,
            int _hss_reregistration_time = 3600) :
@@ -542,7 +517,7 @@ public:
       sprout_conn(_sprout_conn),
       hss_reregistration_time(_hss_reregistration_time) {}
 
-    Cache* cache;
+    HssCacheProcessor* cache;
     Cx::Dictionary* dict;
     SproutConnection* sprout_conn;
     int hss_reregistration_time;
@@ -573,14 +548,11 @@ private:
   void get_assoc_primary_public_ids_failure(CassandraStore::Operation* op,
                                             CassandraStore::ResultCode error,
                                             std::string& text);
-  void get_registration_sets();
-  void get_registration_set_success(CassandraStore::Operation* op);
-  void get_registration_set_failure(CassandraStore::Operation* op,
-                                    CassandraStore::ResultCode error,
-                                    std::string& text);
-  void delete_registrations();
-  void dissociate_implicit_registration_sets();
-  void delete_impi_mappings();
+  void get_registration_sets_success(std::vector<ImplicitRegistrationSet*> reg_sets);
+  void get_registration_sets_failure(Store::Status rc);
+  void delete_reg_sets_success();
+  void delete_reg_sets_failure(Store::Status rc);
+
   void send_rta(const std::string result_code);
 };
 
@@ -589,7 +561,7 @@ class PushProfileTask : public Diameter::Task
 public:
   struct Config
   {
-    Config(Cache* _cache,
+    Config(HssCacheProcessor* _cache,
            Cx::Dictionary* _dict,
            int _impu_cache_ttl = 0,
            int _hss_reregistration_time = 3600,
@@ -600,7 +572,7 @@ public:
       hss_reregistration_time(_hss_reregistration_time),
       record_ttl(_record_ttl) {}
 
-    Cache* cache;
+    HssCacheProcessor* cache;
     Cx::Dictionary* dict;
     int impu_cache_ttl;
     int hss_reregistration_time;
@@ -636,20 +608,13 @@ private:
   RegistrationState _reg_state;
   ChargingAddresses _reg_charging_addrs;
 
-  void update_reg_data();
-  void update_reg_data_success(CassandraStore::Operation* op);
-  void update_reg_data_failure(CassandraStore::Operation* op,
-                               CassandraStore::ResultCode error,
-                               std::string& text);
-  void get_registration_set();
-  void on_get_registration_set_success(CassandraStore::Operation* op);
-  void on_get_registration_set_failure(CassandraStore::Operation* op,
-                                      CassandraStore::ResultCode error,
-                                      std::string& text);
-  void on_get_primary_impus_success(CassandraStore::Operation* op);
-  void on_get_primary_impus_failure(CassandraStore::Operation* op,
-                                    CassandraStore::ResultCode error,
-                                    std::string& text);
+
+  void on_get_ims_sub_success(ImsSubscription* ims_sub);
+  void on_get_ims_sub_failure(Store::Status rc);
+
+  void on_save_ims_sub_success();
+  void on_save_ims_sub_failure(Store::Status rc);
+
   // Return true if the default ID is the first to be updated.
   // Else return false (if updating a further registration set.)
   inline bool check_if_first()

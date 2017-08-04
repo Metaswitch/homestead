@@ -24,9 +24,7 @@ namespace XmlUtils
 
 // Builds a ClearwaterRegData XML document for passing to Sprout,
 // based on the given registration state and User-Data XML from the HSS.
-int build_ClearwaterRegData_xml(RegistrationState state,
-                                std::string xml,
-                                const ChargingAddresses& charging_addrs,
+int build_ClearwaterRegData_xml(ImplicitRegistrationSet* irs,
                                 std::string& xml_str)
 {
   rapidxml::xml_document<> doc;
@@ -36,8 +34,9 @@ int build_ClearwaterRegData_xml(RegistrationState state,
   // Add the registration state - note we need to pass in the regtype string
   // here to ensure it isn't destroyed before the XML is printed.
   std::string regtype;
-  add_reg_state_node(state, doc, root, regtype);
+  add_reg_state_node(irs->get_reg_state(), doc, root, regtype);
 
+  std::string xml = irs->get_service_profile();
   if (xml != "")
   {
     // Parse the XML document - note we need to pass in the prev_doc here to
@@ -51,6 +50,7 @@ int build_ClearwaterRegData_xml(RegistrationState state,
     }
   }
 
+  ChargingAddresses charging_addrs = irs->get_charging_addresses();
   if (!charging_addrs.empty())
   {
     add_charging_addr_node(charging_addrs, doc, root);
