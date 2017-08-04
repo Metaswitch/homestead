@@ -46,8 +46,10 @@ public:
   // Funtions to get/set data in the cache.
   // Each one must provide a success and failure callback.
   // The request is run on the threadpool and the appropriate callback called.
+  //
   // The result of a get request is provided as the argument to the success
-  // callback.
+  // callback. Ownership of pointer results is passed to the calling function.
+  //
   // If the request fails, the Store::Status code is provided as an argument to
   // the failure callback.
   // ---------------------------------------------------------------------------

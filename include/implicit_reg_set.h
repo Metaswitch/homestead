@@ -20,19 +20,71 @@
 
 class ImplicitRegistrationSet
 {
-    //TODO implementation, constructor, destructor, getters etc.
+  //TODO implementation, constructor, destructor, getters etc.
 public:
-    void update_service_profile(std::string new_profile);
-    void update_reg_state(RegistrationState new_state);
-    void add_impi(std::string impi);
-    void remove_impi(std::string impi);
-    void set_charging_addresses(ChargingAddresses new_addresses);
+
+  void add_impi(std::string impi);
+  void remove_impi(std::string impi);
+
+  // TODO - get the default imput from the service profile
+  std::string get_default_impu();
+
+  std::string get_service_profile()
+  {
+    return _service_profile;
+  }
+
+  RegistrationState get_reg_state()
+  {
+    return _reg_state;
+  }
+
+  std::vector<std::string> get_associated_impis()
+  {
+    return _associated_impis;
+  }
+
+  const ChargingAddresses& get_charging_addresses()
+  {
+    return _charging_addresses;
+  }
+
+  int32_t get_ttl()
+  {
+    return _ttl;
+  }
+
+  void set_service_profile(std::string profile)
+  {
+    _service_profile = profile;
+  }
+
+  void set_reg_state(RegistrationState state)
+  {
+    _reg_state = state;
+  }
+
+  void set_associated_impis (std::vector<std::string> impis)
+  {
+    _associated_impis = impis;
+  }
+
+  void set_charging_addresses(ChargingAddresses addresses)
+  {
+    _charging_addresses = addresses;
+  }
+
+  void set_ttl(int32_t ttl)
+  {
+    _ttl = ttl;
+  }
 
 private:
     std::string _service_profile;
     RegistrationState _reg_state;
     std::vector<std::string> _associated_impis;
     ChargingAddresses _charging_addresses;
+    int32_t _ttl;
 };
 
 #endif

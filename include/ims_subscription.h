@@ -12,9 +12,10 @@
 #ifndef IMS_SUBSCRIPTION_H__
 #define IMS_SUBSCRIPTION_H__
 
+#include <set>
+
 #include "charging_addresses.h"
 #include "implicit_reg_set.h"
-
 
 class ImsSubscription
 {
@@ -23,7 +24,7 @@ public:
   void update_charging_addresses(ChargingAddresses new_addresses);
 
 private:
-  std::map<ImplicitRegistrationSet> _irs_map;
+  std::set<ImplicitRegistrationSet> _irs_map;
 };
 
 #endif
