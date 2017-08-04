@@ -28,42 +28,45 @@ public:
 
   // Get the IRS for a given impu
   virtual Store::Status get_implicit_registration_set_for_impu(std::string impu,
+                                                               SAS::TrailId trail,
                                                                ImplicitRegistrationSet*& result) = 0;
 
   // Get the list of IRSs for the given list of impus
   // Used for RTR when we have a list of impus
   virtual Store::Status get_implicit_registration_sets_for_impis(std::vector<std::string> impis,
+                                                                 SAS::TrailId trail,
                                                                  std::vector<ImplicitRegistrationSet*>& result) = 0;
 
   // Get the list of IRSs for the given list of imps
   // Used for RTR when we have a list of impis
   virtual Store::Status get_implicit_registration_sets_for_impus(std::vector<std::string> impus,
+                                                                 SAS::TrailId trail,
                                                                  std::vector<ImplicitRegistrationSet*>& result) = 0;
 
   // Save the IRS in the cache
   // Must include updating the impi mapping table if impis have been added
-  virtual Store::Status put_implicit_registration_set(ImplicitRegistrationSet* irs) = 0;
+  virtual Store::Status put_implicit_registration_set(ImplicitRegistrationSet* irs,
+                                                      SAS::TrailId trail) = 0;
 
   // Used for de-registration
-  virtual Store::Status delete_implicit_registration_set(ImplicitRegistrationSet* irs) = 0;
+  virtual Store::Status delete_implicit_registration_set(ImplicitRegistrationSet* irs,
+                                                         SAS::TrailId trail) = 0;
 
   // Deletes several registration sets
   // Used for an RTR when we have several registration sets to delete
-  virtual Store::Status delete_implicit_registration_sets(std::vector<ImplicitRegistrationSet*> irss) = 0;
+  virtual Store::Status delete_implicit_registration_sets(std::vector<ImplicitRegistrationSet*> irss,
+                                                          SAS::TrailId trail) = 0;
 
   // Gets the whole IMS subscription for this impi
   // This is used when we get a PPR, and we have to update charging functions
   // as we'll need to updated every IRS that we've stored
   virtual Store::Status get_ims_subscription(std::string impi,
+                                             SAS::TrailId trail,
                                              ImsSubscription*& result) = 0;
 
   // This is used to save the state that we changed in the PPR
-  virtual Store::Status put_ims_subscription(ImsSubscription* subscription) = 0;
-
-  // Lists impus, starting at starting_from, limited to count
-  virtual Store::Status list_impus(int count,
-                                   std::string last_impu,
-                                   std::vector<std::string>& result) = 0;
+  virtual Store::Status put_ims_subscription(ImsSubscription* subscription,
+                                             SAS::TrailId trail) = 0;
 };
 
 #endif

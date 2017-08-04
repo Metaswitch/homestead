@@ -51,13 +51,16 @@ void HssCacheProcessor::wait_stopped()
 
 void HssCacheProcessor::get_implicit_registration_set_for_impu(irs_success_callback success_cb,
                                                                failure_callback failure_cb,
-                                                               std::string impu)
+                                                               std::string impu,
+                                                               SAS::TrailId trail)
 {
   // Create a work item that can run on the thread pool, capturing required
   // variables to complete the work
-  std::function<void()> work = [this, impu, success_cb, failure_cb]()->void {
+  std::function<void()> work = [this, impu, trail, success_cb, failure_cb]()->void {
     ImplicitRegistrationSet* result = NULL;
-    Store::Status rc = _cache->get_implicit_registration_set_for_impu(impu, result);
+    Store::Status rc = _cache->get_implicit_registration_set_for_impu(impu,
+                                                                      trail,
+                                                                      result);
 
     if (rc == Store::Status::OK)
     {
@@ -75,13 +78,16 @@ void HssCacheProcessor::get_implicit_registration_set_for_impu(irs_success_callb
 
 void get_implicit_registration_sets_for_impis(irs_vector_success_callback success_cb,
                                               failure_callback failure_cb,
-                                              std::vector<std::string> impis)
+                                              std::vector<std::string> impis,
+                                              SAS::TrailId trail)
 {
   // Create a work item that can run on the thread pool, capturing required
   // variables to complete the work
-  std::function<void()> work = [this, impis, success_cb, failure_cb]()->void {
+  std::function<void()> work = [this, impis, trail, success_cb, failure_cb]()->void {
     std::vector<ImplicitRegistrationSet*> result;
-    Store::Status rc = _cache->get_implicit_registration_sets_for_impis(impis, result);
+    Store::Status rc = _cache->get_implicit_registration_sets_for_impis(impis,
+                                                                        trail,
+                                                                        result);
 
     if (rc == Store::Status::OK)
     {
@@ -99,13 +105,16 @@ void get_implicit_registration_sets_for_impis(irs_vector_success_callback succes
 
 void get_implicit_registration_sets_for_impus(irs_vector_success_callback success_cb,
                                               failure_callback failure_cb,
-                                              std::vector<std::string> impus)
+                                              std::vector<std::string> impus,
+                                              SAS::TrailId trail)
 {
   // Create a work item that can run on the thread pool, capturing required
   // variables to complete the work
-  std::function<void()> work = [this, impus, success_cb, failure_cb]()->void {
+  std::function<void()> work = [this, impus, trail, success_cb, failure_cb]()->void {
     std::vector<ImplicitRegistrationSet*> result;
-    Store::Status rc = _cache->get_implicit_registration_sets_for_impus(impus, result);
+    Store::Status rc = _cache->get_implicit_registration_sets_for_impus(impus,
+                                                                        trail,
+                                                                        result);
 
     if (rc == Store::Status::OK)
     {
@@ -123,12 +132,13 @@ void get_implicit_registration_sets_for_impus(irs_vector_success_callback succes
 
 void put_implicit_registration_set(void_success_cb success_cb,
                                    failure_callback failure_cb,
-                                   ImplicitRegistrationSet* irs)
+                                   ImplicitRegistrationSet* irs,
+                                   SAS::TrailId trail)
 {
   // Create a work item that can run on the thread pool, capturing required
   // variables to complete the work
-  std::function<void()> work = [this, irs, success_cb, failure_cb]()->void {
-    Store::Status rc = _cache->put_implicit_registration_set(irs);
+  std::function<void()> work = [this, irs, trail, success_cb, failure_cb]()->void {
+    Store::Status rc = _cache->put_implicit_registration_set(irs, trail);
 
     if (rc == Store::Status::OK)
     {
@@ -146,12 +156,13 @@ void put_implicit_registration_set(void_success_cb success_cb,
 
 void delete_implicit_registration_set(void_success_cb success_cb,
                                       failure_callback failure_cb,
-                                      ImplicitRegistrationSet* irs)
+                                      ImplicitRegistrationSet* irs,
+                                      SAS::TrailId trail)
 {
   // Create a work item that can run on the thread pool, capturing required
   // variables to complete the work
-  std::function<void()> work = [this, irs, success_cb, failure_cb]()->void {
-    Store::Status rc = _cache->delete_implicit_registration_set(irs);
+  std::function<void()> work = [this, irs, trail, success_cb, failure_cb]()->void {
+    Store::Status rc = _cache->delete_implicit_registration_set(irs, trail);
 
     if (rc == Store::Status::OK)
     {
@@ -169,12 +180,13 @@ void delete_implicit_registration_set(void_success_cb success_cb,
 
 void delete_implicit_registration_sets(void_success_cb success_cb,
                                        failure_callback failure_cb,
-                                       std::vector<ImplicitRegistrationSet*> irss)
+                                       std::vector<ImplicitRegistrationSet*> irss,
+                                       SAS::TrailId trail)
 {
   // Create a work item that can run on the thread pool, capturing required
   // variables to complete the work
-  std::function<void()> work = [this, irss, success_cb, failure_cb]()->void {
-    Store::Status rc = _cache->delete_implicit_registration_sets(irss);
+  std::function<void()> work = [this, irss, trail, success_cb, failure_cb]()->void {
+    Store::Status rc = _cache->delete_implicit_registration_sets(irss, trail);
 
     if (rc == Store::Status::OK)
     {
@@ -192,13 +204,14 @@ void delete_implicit_registration_sets(void_success_cb success_cb,
 
 void get_ims_subscription(ims_sub_success_cb success_cb,
                           failure_callback failure_cb,
-                          std::string impi)
+                          std::string impi,
+                          SAS::TrailId trail)
 {
   // Create a work item that can run on the thread pool, capturing required
   // variables to complete the work
-  std::function<void()> work = [this, impi, success_cb, failure_cb]()->void {
+  std::function<void()> work = [this, impi, trail, success_cb, failure_cb]()->void {
     ImsSubscription* result = NULL;
-    Store::Status rc = _cache->get_ims_subscription(impi, result);
+    Store::Status rc = _cache->get_ims_subscription(impi, trail, result);
 
     if (rc == Store::Status::OK)
     {
@@ -216,41 +229,17 @@ void get_ims_subscription(ims_sub_success_cb success_cb,
 
 void put_ims_subscription(void_success_cb success_cb,
                           failure_callback failure_cb,
-                          ImsSubscription* subscription);
+                          ImsSubscription* subscription,
+                          SAS::TrailId trail);
 {
   // Create a work item that can run on the thread pool, capturing required
   // variables to complete the work
-  std::function<void()> work = [this, subscription, success_cb, failure_cb]()->void {
-    Store::Status rc = _cache->put_ims_subscription(subscription);
+  std::function<void()> work = [this, subscription, trail, success_cb, failure_cb]()->void {
+    Store::Status rc = _cache->put_ims_subscription(subscription, trail);
 
     if (rc == Store::Status::OK)
     {
       success_cb();
-    }
-    else
-    {
-      failure_cb(rc);
-    }
-  };
-
-  // Add the work to the pool
-  _thread_pool->add_work(work);
-}
-
-void list_impus(impi_vector_success_callback success_cb,
-                failure_callback failure_cb,
-                int count,
-                std::string last_impu)
-{
-  // Create a work item that can run on the thread pool, capturing required
-  // variables to complete the work
-  std::function<void()> work = [this, count, last_impu, success_cb, failure_cb]()->void {
-    std::vector<std::string>* result = NULL;
-    Store::Status rc = _cache->list_impus(count, last_impu, result);
-
-    if (rc == Store::Status::OK)
-    {
-      success_cb(result);
     }
     else
     {
