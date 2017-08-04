@@ -575,6 +575,30 @@ public:
     return new DissociateImplicitRegistrationSetFromImpi(impus, impis, timestamp);
   }
 
+  class DeleteIMPUs : public CassandraStore::Operation
+  {
+  public:
+    /// Delete several public IDs from the cache.
+    /// @param public_ids the public IDs to delete.
+    DeleteIMPUs(const std::vector<std::string>& public_ids,
+                int64_t timestamp);
+
+    virtual ~DeleteIMPUs();
+
+  protected:
+    std::vector<std::string> _public_ids;
+    int64_t _timestamp;
+
+    bool perform(CassandraStore::Client* client, SAS::TrailId trail);
+  };
+
+  virtual DeleteIMPUs* create_DeleteIMPUs(const std::vector<std::string>& public_ids,
+					  const int64_t timestamp)
+  {
+    return new DeleteIMPUs(public_ids,
+                           timestamp);
+  }
+
   /// List the IMPUs for which Homestead has data in its cache.
   ///
   /// -  When an HSS is in use, this lists all subscribers for which homestead
