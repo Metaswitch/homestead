@@ -20,7 +20,7 @@ typedef std::function<void(ImplicitRegistrationSet*)> irs_success_callback;
 typedef std::function<void(std::vector<ImplicitRegistrationSet*>)> irs_vector_success_callback;
 typedef std::function<void()> void_success_cb;
 typedef std::function<void(ImsSubscription*)> ims_sub_success_cb;
-typedef std::function<void(std::vector<std::string>*)> impi_vector_success_callback;
+typedef std::function<void(std::vector<std::string>)> impi_vector_success_callback;
 
 class HssCacheProcessor
 {
@@ -63,13 +63,13 @@ public:
   // Used for RTR when we have a list of impus
   void get_implicit_registration_sets_for_impis(irs_vector_success_callback success_cb,
                                                 failure_callback failure_cb,
-                                                std::vector<std::string>* impis);
+                                                std::vector<std::string> impis);
 
   // Get the list of IRSs for the given list of imps
   // Used for RTR when we have a list of impis
   void get_implicit_registration_sets_for_impus(irs_vector_success_callback success_cb,
                                                 failure_callback failure_cb,
-                                                std::vector<std::string>* impus);
+                                                std::vector<std::string> impus);
 
   // Save the IRS in the cache
   // Must include updating the impi mapping table if impis have been added
@@ -86,7 +86,7 @@ public:
   // Used for an RTR when we have several registration sets to delete
   void delete_implicit_registration_sets(void_success_cb success_cb,
                                          failure_callback failure_cb,
-                                         std::vector<ImplicitRegistrationSet*>* irss);
+                                         std::vector<ImplicitRegistrationSet*> irss);
 
   // Gets the whole IMS subscription for this impi
   // This is used when we get a PPR, and we have to update charging functions

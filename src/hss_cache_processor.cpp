@@ -75,7 +75,7 @@ void HssCacheProcessor::get_implicit_registration_set_for_impu(irs_success_callb
 
 void get_implicit_registration_sets_for_impis(irs_vector_success_callback success_cb,
                                               failure_callback failure_cb,
-                                              std::vector<std::string>* impis)
+                                              std::vector<std::string> impis)
 {
   // Create a work item that can run on the thread pool, capturing required
   // variables to complete the work
@@ -99,7 +99,7 @@ void get_implicit_registration_sets_for_impis(irs_vector_success_callback succes
 
 void get_implicit_registration_sets_for_impus(irs_vector_success_callback success_cb,
                                               failure_callback failure_cb,
-                                              std::vector<std::string>* impus)
+                                              std::vector<std::string> impus)
 {
   // Create a work item that can run on the thread pool, capturing required
   // variables to complete the work
@@ -169,7 +169,7 @@ void delete_implicit_registration_set(void_success_cb success_cb,
 
 void delete_implicit_registration_sets(void_success_cb success_cb,
                                        failure_callback failure_cb,
-                                       std::vector<ImplicitRegistrationSet*>* irss)
+                                       std::vector<ImplicitRegistrationSet*> irss)
 {
   // Create a work item that can run on the thread pool, capturing required
   // variables to complete the work

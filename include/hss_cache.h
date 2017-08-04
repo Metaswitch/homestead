@@ -32,12 +32,12 @@ public:
 
   // Get the list of IRSs for the given list of impus
   // Used for RTR when we have a list of impus
-  virtual Store::Status get_implicit_registration_sets_for_impis(std::vector<std::string>* impis,
+  virtual Store::Status get_implicit_registration_sets_for_impis(std::vector<std::string> impis,
                                                                  std::vector<ImplicitRegistrationSet*>& result) = 0;
 
   // Get the list of IRSs for the given list of imps
   // Used for RTR when we have a list of impis
-  virtual Store::Status get_implicit_registration_sets_for_impus(std::vector<std::string>* impus,
+  virtual Store::Status get_implicit_registration_sets_for_impus(std::vector<std::string> impus,
                                                                  std::vector<ImplicitRegistrationSet*>& result) = 0;
 
   // Save the IRS in the cache
@@ -49,7 +49,7 @@ public:
 
   // Deletes several registration sets
   // Used for an RTR when we have several registration sets to delete
-  virtual Store::Status delete_implicit_registration_sets(std::vector<ImplicitRegistrationSet*>* irss) = 0;
+  virtual Store::Status delete_implicit_registration_sets(std::vector<ImplicitRegistrationSet*> irss) = 0;
 
   // Gets the whole IMS subscription for this impi
   // This is used when we get a PPR, and we have to update charging functions
@@ -63,7 +63,7 @@ public:
   // Lists impus, starting at starting_from, limited to count
   virtual Store::Status list_impus(int count,
                                    std::string last_impu,
-                                   std::vector<std::string>*& result) = 0;
+                                   std::vector<std::string>& result) = 0;
 };
 
 #endif
