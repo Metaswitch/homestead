@@ -25,7 +25,7 @@ typedef std::function<void(ImsSubscription*)> ims_sub_success_cb;
 class HssCacheProcessor
 {
 public:
-  ~HssCacheProcessor();
+  virtual ~HssCacheProcessor() {};
 
   // Creates the HssCacheProcessor, but not the thread pool.
   // start_threads must be called to create and start the thread pool.
@@ -58,41 +58,41 @@ public:
   // ---------------------------------------------------------------------------
 
   // Get the IRS for a given impu
-  void get_implicit_registration_set_for_impu(irs_success_callback success_cb,
+  virtual void get_implicit_registration_set_for_impu(irs_success_callback success_cb,
                                               failure_callback failure_cb,
                                               std::string impu,
                                               SAS::TrailId trail);
 
   // Get the list of IRSs for the given list of impus
   // Used for RTR when we have a list of impus
-  void get_implicit_registration_sets_for_impis(irs_vector_success_callback success_cb,
+  virtual void get_implicit_registration_sets_for_impis(irs_vector_success_callback success_cb,
                                                 failure_callback failure_cb,
                                                 std::vector<std::string> impis,
                                                 SAS::TrailId trail);
 
   // Get the list of IRSs for the given list of imps
   // Used for RTR when we have a list of impis
-  void get_implicit_registration_sets_for_impus(irs_vector_success_callback success_cb,
+  virtual void get_implicit_registration_sets_for_impus(irs_vector_success_callback success_cb,
                                                 failure_callback failure_cb,
                                                 std::vector<std::string> impus,
                                                 SAS::TrailId trail);
 
   // Save the IRS in the cache
   // Must include updating the impi mapping table if impis have been added
-  void put_implicit_registration_set(void_success_cb success_cb,
+  virtual void put_implicit_registration_set(void_success_cb success_cb,
                                      failure_callback failure_cb,
                                      ImplicitRegistrationSet* irs,
                                      SAS::TrailId trail);
 
   // Used for de-registration
-  void delete_implicit_registration_set(void_success_cb success_cb,
+  virtual void delete_implicit_registration_set(void_success_cb success_cb,
                                         failure_callback failure_cb,
                                         ImplicitRegistrationSet* irs,
                                         SAS::TrailId trail);
 
   // Deletes several registration sets
   // Used for an RTR when we have several registration sets to delete
-  void delete_implicit_registration_sets(void_success_cb success_cb,
+  virtual void delete_implicit_registration_sets(void_success_cb success_cb,
                                          failure_callback failure_cb,
                                          std::vector<ImplicitRegistrationSet*> irss,
                                          SAS::TrailId trail);
@@ -100,13 +100,13 @@ public:
   // Gets the whole IMS subscription for this impi
   // This is used when we get a PPR, and we have to update charging functions
   // as we'll need to updated every IRS that we've stored
-  void get_ims_subscription(ims_sub_success_cb success_cb,
+  virtual void get_ims_subscription(ims_sub_success_cb success_cb,
                             failure_callback failure_cb,
                             std::string impi,
                             SAS::TrailId trail);
 
   // This is used to save the state that we changed in the PPR
-  void put_ims_subscription(void_success_cb success_cb,
+  virtual void put_ims_subscription(void_success_cb success_cb,
                             failure_callback failure_cb,
                             ImsSubscription* subscription,
                             SAS::TrailId trail);

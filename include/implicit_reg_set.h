@@ -27,7 +27,11 @@ public:
   void remove_impi(std::string impi);
 
   // TODO - get the default imput from the service profile
-  std::string get_default_impu();
+  std::string get_default_impu()
+  {
+    //TODO
+    return "TODO";
+  }
 
   std::string get_service_profile()
   {

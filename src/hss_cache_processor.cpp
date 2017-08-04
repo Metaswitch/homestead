@@ -45,7 +45,8 @@ void HssCacheProcessor::wait_stopped()
   TRC_STATUS("Waiting for threadpool to stop");
   if (_thread_pool)
   {
-    _thread_pool->wait_stopped();
+    _thread_pool->join();
+    delete _thread_pool; _thread_pool = NULL;
   }
 }
 
@@ -76,10 +77,10 @@ void HssCacheProcessor::get_implicit_registration_set_for_impu(irs_success_callb
   _thread_pool->add_work(work);
 }
 
-void get_implicit_registration_sets_for_impis(irs_vector_success_callback success_cb,
-                                              failure_callback failure_cb,
-                                              std::vector<std::string> impis,
-                                              SAS::TrailId trail)
+void HssCacheProcessor::get_implicit_registration_sets_for_impis(irs_vector_success_callback success_cb,
+                                                                 failure_callback failure_cb,
+                                                                 std::vector<std::string> impis,
+                                                                 SAS::TrailId trail)
 {
   // Create a work item that can run on the thread pool, capturing required
   // variables to complete the work
@@ -103,7 +104,7 @@ void get_implicit_registration_sets_for_impis(irs_vector_success_callback succes
   _thread_pool->add_work(work);
 }
 
-void get_implicit_registration_sets_for_impus(irs_vector_success_callback success_cb,
+void HssCacheProcessor::get_implicit_registration_sets_for_impus(irs_vector_success_callback success_cb,
                                               failure_callback failure_cb,
                                               std::vector<std::string> impus,
                                               SAS::TrailId trail)
@@ -130,7 +131,7 @@ void get_implicit_registration_sets_for_impus(irs_vector_success_callback succes
   _thread_pool->add_work(work);
 }
 
-void put_implicit_registration_set(void_success_cb success_cb,
+void HssCacheProcessor::put_implicit_registration_set(void_success_cb success_cb,
                                    failure_callback failure_cb,
                                    ImplicitRegistrationSet* irs,
                                    SAS::TrailId trail)
@@ -154,7 +155,7 @@ void put_implicit_registration_set(void_success_cb success_cb,
   _thread_pool->add_work(work);
 }
 
-void delete_implicit_registration_set(void_success_cb success_cb,
+void HssCacheProcessor::delete_implicit_registration_set(void_success_cb success_cb,
                                       failure_callback failure_cb,
                                       ImplicitRegistrationSet* irs,
                                       SAS::TrailId trail)
@@ -178,7 +179,7 @@ void delete_implicit_registration_set(void_success_cb success_cb,
   _thread_pool->add_work(work);
 }
 
-void delete_implicit_registration_sets(void_success_cb success_cb,
+void HssCacheProcessor::delete_implicit_registration_sets(void_success_cb success_cb,
                                        failure_callback failure_cb,
                                        std::vector<ImplicitRegistrationSet*> irss,
                                        SAS::TrailId trail)
@@ -202,10 +203,10 @@ void delete_implicit_registration_sets(void_success_cb success_cb,
   _thread_pool->add_work(work);
 }
 
-void get_ims_subscription(ims_sub_success_cb success_cb,
-                          failure_callback failure_cb,
-                          std::string impi,
-                          SAS::TrailId trail)
+void HssCacheProcessor::get_ims_subscription(ims_sub_success_cb success_cb,
+                                             failure_callback failure_cb,
+                                             std::string impi,
+                                             SAS::TrailId trail)
 {
   // Create a work item that can run on the thread pool, capturing required
   // variables to complete the work
@@ -227,10 +228,10 @@ void get_ims_subscription(ims_sub_success_cb success_cb,
   _thread_pool->add_work(work);
 }
 
-void put_ims_subscription(void_success_cb success_cb,
-                          failure_callback failure_cb,
-                          ImsSubscription* subscription,
-                          SAS::TrailId trail);
+void HssCacheProcessor::put_ims_subscription(void_success_cb success_cb,
+                                             failure_callback failure_cb,
+                                             ImsSubscription* subscription,
+                                             SAS::TrailId trail)
 {
   // Create a work item that can run on the thread pool, capturing required
   // variables to complete the work
