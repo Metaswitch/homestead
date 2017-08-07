@@ -2326,7 +2326,6 @@ void PushProfileTask::run()
   _ims_sub_present = _ppr.user_data(_ims_subscription);
   _charging_addrs_present = _ppr.charging_addrs(_charging_addrs);
 
-
   // If we have no charging addresses or IMS subscription, no actions need to be
   // taken, so send a PPA saying the PPR was successfully handled.
 
@@ -2472,7 +2471,6 @@ void PushProfileTask::ims_sub_get_ids()
   // Obtain the first default impu, then remove from the vector, and place at
   // the end, since the last item in the vector is the first to be considered
   // in obtaining the IRS.
-
   XmlUtils::get_default_id(_ims_subscription, _default_public_id);
   _first_default_impu = _default_public_id;
   _default_impus.erase(std::remove(_default_impus.begin(),

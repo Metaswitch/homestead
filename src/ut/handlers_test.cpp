@@ -1481,7 +1481,6 @@ public:
               			charging_addresses,
                    		AUTH_SESSION_STATE);
 
-
     // The free_on_delete flag controls whether we want to free the underlying
     // fd_msg structure when we delete this PPR. We don't, since this will be
     // freed when the answer is freed later in the test. If we leave this flag set
