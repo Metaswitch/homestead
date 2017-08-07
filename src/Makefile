@@ -29,6 +29,7 @@ COMMON_SOURCES := accesslogger.cpp \
                   a_record_resolver.cpp \
                   httpstack.cpp \
                   httpstack_utils.cpp \
+                  impu_store.cpp \
                   load_monitor.cpp \
                   logger.cpp \
                   log.cpp \

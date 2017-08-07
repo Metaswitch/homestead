@@ -13,8 +13,12 @@
 
 #include "store.h"
 
+#include <rapidjson/document.h>
+#include <rapidjson/writer.h>
+
 class ImpuStore
 {
+public:
   class Impu
   {
   protected:
@@ -25,6 +29,9 @@ class ImpuStore
     }
  
   public:
+    virtual ~Impu(){
+    }
+
     virtual bool is_default_impu() = 0;
 
     static Impu* from_json(rapidjson::Value* json, uint64_t cas);
@@ -84,12 +91,14 @@ class ImpuStore
 
     virtual void write_json(rapidjson::Writer<rapidjson::StringBuffer>* writer);
 
+    virtual ~ImpiMapping(){
+    }
+
     const std::string impi;
     std::vector<std::string> default_impus;
     const uint64_t cas;
   };
 
-public:
   ImpuStore(Store* store) : _store(store)
   {
 
