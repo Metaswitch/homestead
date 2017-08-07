@@ -1445,17 +1445,30 @@ void ImpuRegDataTask::on_get_reg_data_failure(Store::Status rc)
 
   if (rc == Store::Status::NOT_FOUND)
   {
-    TRC_DEBUG("No IMS subscription found for public ID %s - reject", _impu.c_str());
-    send_http_reply(HTTP_NOT_FOUND);
+    // If this is a PUT request, then not finding the data in the cache yet is
+    // expected.
+    // We create an empty IRS and pretend we got it from the cache.
+    if (_req.method() == htp_method_PUT)
+    {
+      ImplicitRegistrationSet* irs = new ImplicitRegistrationSet();
+      //TODO this should be done by a method on the HssCache
+      irs->set_reg_state(RegistrationState::UNREGISTERED);
+      on_get_reg_data_success(irs);
+    }
+    else
+    {
+      TRC_DEBUG("No IMS subscription found for public ID %s - reject", _impu.c_str());
+      send_http_reply(HTTP_NOT_FOUND);
+      delete this;
+    }
   }
   else
   {
     // Send a 504 in all other cases (the request won't be retried)
     TRC_DEBUG("Cache query failed with rc %d", rc);
     send_http_reply(HTTP_GATEWAY_TIMEOUT);
+    delete this;
   }
-
-  delete this;
 }
 
 void ImpuRegDataTask::send_server_assignment_request(Cx::ServerAssignmentType type)

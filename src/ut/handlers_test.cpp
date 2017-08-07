@@ -1349,6 +1349,31 @@ TEST_F(HandlersTest, ImpuReadRegDataMainline)
   EXPECT_EQ(REGDATA_RESULT, req.content());
 }
 
+TEST_F(HandlersTest, ImpuReadRegDataCacheGetNotFound)
+{
+  // Test that GET request not foudn in cache results in 404
+  MockHttpStack::Request req(_httpstack,
+                             "/impu/" + IMPU + "/reg-data",
+                             "",
+                             "",
+                             "",
+                             htp_method_GET);
+  ImpuRegDataTask::Config cfg(true, 3600);
+  ImpuReadRegDataTask* task = new ImpuReadRegDataTask(req, &cfg, FAKE_TRAIL_ID);
+
+  // Set up the cache to hit an error
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<1>(Store::Status::NOT_FOUND));
+
+  // 404 error expected
+  EXPECT_CALL(*_httpstack, send_reply(_, 404, _));
+
+  task->run();
+
+  // Expect no body in 404 response
+  EXPECT_EQ("", req.content());
+}
+
 TEST_F(HandlersTest, ImpuRegDataInitialReg)
 {
   MockHttpStack::Request req = make_request("reg", true, true, false);
@@ -1443,6 +1468,49 @@ TEST_F(HandlersTest, ImpuRegDataInitialRegNoServerName)
   EXPECT_EQ(REGDATA_RESULT, req.content());
 }
 
+TEST_F(HandlersTest, ImpuRegDataInitialRegCacheGetNotFound)
+{
+  // Tests that if we get a NOT_FOUND error from the cache on an initial
+  // register, we still send the SAR to the HSS and continue processing
+  MockHttpStack::Request req = make_request("reg", true, false, false);
+
+  ImpuRegDataTask::Config cfg(true, 3600, 7200);
+  ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
+
+  // Set up the cache to return NOT_FOUND
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<1>(Store::Status::NOT_FOUND));
+
+  // Create an SAA with which the mock hss will respond to our SAR
+  HssConnection::ServerAssignmentAnswer answer =
+    HssConnection::ServerAssignmentAnswer(HssConnection::ResultCode::SUCCESS,
+                                          NO_CHARGING_ADDRESSES,
+                                          IMPU_IMS_SUBSCRIPTION);
+
+  // Check the contents of the SAR, and respond with our SAA
+  EXPECT_CALL(*_hss, send_server_assignment_request(_,
+    AllOf(Field(&HssConnection::ServerAssignmentRequest::impi, IMPI),
+          Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
+          Field(&HssConnection::ServerAssignmentRequest::provided_server_name, DEFAULT_SERVER_NAME),
+          Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::REGISTRATION))))
+    .WillOnce(InvokeArgument<0>(ByRef(answer)));
+
+  // We now expect it to be put in the cache with an updated TTL and state REGISTERED
+  EXPECT_CALL(*_cache, put_implicit_registration_set(_, _,
+    AllOf(Field(&ImplicitRegistrationSet::_reg_state, RegistrationState::REGISTERED),
+          Field(&ImplicitRegistrationSet::_ttl, 7200)),
+    FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<0>());
+
+  // Expect 200 response
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
+
+  task->run();
+
+  // Build the expected response and check it matches the actual response
+  EXPECT_EQ(REGDATA_RESULT, req.content());
+}
+
 TEST_F(HandlersTest, ImpuRegDataInitialRegCacheGetError)
 {
   MockHttpStack::Request req = make_request("reg", true, false, false);
@@ -1460,26 +1528,6 @@ TEST_F(HandlersTest, ImpuRegDataInitialRegCacheGetError)
   task->run();
 
   // Expect no body in 504 response
-  EXPECT_EQ("", req.content());
-}
-
-TEST_F(HandlersTest, ImpuRegDataInitialRegCacheGetErrorNotFound)
-{
-  MockHttpStack::Request req = make_request("reg", true, false, false);
-
-  ImpuRegDataTask::Config cfg(true, 3600, 7200);
-  ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
-
-  // Set up the cache to hit an error
-  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
-    .WillOnce(InvokeArgument<1>(Store::Status::NOT_FOUND));
-  
-  // 404 error expected
-  EXPECT_CALL(*_httpstack, send_reply(_, 404, _));
-
-  task->run();
-
-  // Expect no body in 404 response
   EXPECT_EQ("", req.content());
 }
 
