@@ -22,6 +22,8 @@
 #include "httpstack.h"
 #include "handlers.h"
 #include "logger.h"
+#include "memcached_cache.h"
+#include "memcachedstore.h"
 #include "cache.h"
 #include "saslogger.h"
 #include "sas.h"
@@ -51,6 +53,8 @@ struct options
   unsigned short http_port;
   int http_threads;
   std::string cassandra;
+  std::vector<std::string> impu_stores;
+  std::string local_site_name;
   std::string dest_realm;
   std::string dest_host;
   std::string force_hss_peer;
@@ -78,6 +82,7 @@ struct options
   float init_token_rate;
   float min_token_rate;
   int exception_max_ttl;
+  int astaire_blacklist_duration;
   int http_blacklist_duration;
   int diameter_blacklist_duration;
   int dns_timeout;
@@ -103,10 +108,12 @@ enum OptionTypes
   INIT_TOKEN_RATE,
   MIN_TOKEN_RATE,
   EXCEPTION_MAX_TTL,
+  ASTAIRE_BLACKLIST_DURATION,
   HTTP_BLACKLIST_DURATION,
   DIAMETER_BLACKLIST_DURATION,
   DNS_TIMEOUT,
   FORCE_HSS_PEER,
+  LOCAL_SITE_NAME,
   SAS_USE_SIGNALING_IF,
   REQUEST_SHARED_IFCS,
   PIDFILE,
@@ -124,6 +131,8 @@ const static struct option long_opt[] =
   {"http-threads",                required_argument, NULL, 't'},
   {"cache-threads",               required_argument, NULL, 'u'},
   {"cassandra",                   required_argument, NULL, 'S'},
+  {"local-site-name",             required_argument, NULL, LOCAL_SITE_NAME},
+  {"impu-stores",                 required_argument, NULL, 'M'},
   {"dest-realm",                  required_argument, NULL, 'D'},
   {"dest-host",                   required_argument, NULL, 'd'},
   {"hss-peer",                    required_argument, NULL, FORCE_HSS_PEER},
@@ -148,6 +157,7 @@ const static struct option long_opt[] =
   {"init-token-rate",             required_argument, NULL, INIT_TOKEN_RATE},
   {"min-token-rate",              required_argument, NULL, MIN_TOKEN_RATE},
   {"exception-max-ttl",           required_argument, NULL, EXCEPTION_MAX_TTL},
+  {"astaire-blacklist-duration",  required_argument, NULL, ASTAIRE_BLACKLIST_DURATION},
   {"http-blacklist-duration",     required_argument, NULL, HTTP_BLACKLIST_DURATION},
   {"diameter-blacklist-duration", required_argument, NULL, DIAMETER_BLACKLIST_DURATION},
   {"dns-timeout",                 required_argument, NULL, DNS_TIMEOUT},
@@ -174,6 +184,13 @@ void usage(void)
        " -t, --http-threads N       Number of HTTP threads (default: 1)\n"
        " -u, --cache-threads N      Number of cache threads (default: 10)\n"
        " -S, --cassandra <address>  Set the IP address or FQDN of the Cassandra database (default: 127.0.0.1 or [::1])"
+       " -M  --impu-stores <site_name>=domain[:<port>][,<site_name>=<domain>:<port>,...]\n"
+       "                            Enables memcached store for IMPU cache data\n"
+       "                            and specifies the location of the memcached\n"
+       "                            store in each site. One of the sites must\n"
+       "                            be the local site. Remote sites for\n"
+       "                            geo-redundant storage are optional.\n "
+       "                            (If not provided, localhost is used.)\n"
        " -D, --dest-realm <name>    Set Destination-Realm on Cx messages\n"
        " -d, --dest-host <name>     Set Destination-Host on Cx messages\n"
        "     --hss-peer <name>      IP address of HSS to connect to (rather than resolving Destination-Realm/Destination-Host)\n"
@@ -185,6 +202,8 @@ void usage(void)
        "                            How often a RE_REGISTRATION SAR should be sent to the HSS in seconds (default: 1800)\n"
        " -j, --http-sprout-name <name>\n"
        "                            Set HTTP address to send deregistration information from RTRs\n"
+       "     --local-site-name <name>\n"
+       "                            The name of the local site (used in a geo-redundant deployment)\n"
        "     --scheme-unknown <string>\n"
        "                            String to use to specify unknown SIP-Auth-Scheme (default: Unknown)\n"
        "     --scheme-digest <string>\n"
@@ -306,6 +325,21 @@ int init_options(int argc, char**argv, struct options& options)
       options.cassandra = std::string(optarg);
       break;
 
+    case 'M':
+      {
+        // This option has the format
+        // <site_name>=<domain>,[<site_name>=<domain>,<site_name=<domain>,...].
+        // For now, just split into a vector of <site_name>=<domain> strings. We
+        // need to know the local site name to parse this properly, so we'll do
+        // that later.
+        TRC_INFO("IMPU Stores: %s", optarg);
+        std::string stores_arg = std::string(optarg);
+        boost::split(options.impu_stores,
+                     stores_arg,
+                     boost::is_any_of(","));
+      }
+      break;
+
     case 'D':
       TRC_INFO("Destination realm: %s", optarg);
       options.dest_realm = std::string(optarg);
@@ -370,6 +404,17 @@ int init_options(int argc, char**argv, struct options& options)
       TRC_INFO("Access log: %s", optarg);
       options.access_log_enabled = true;
       options.access_log_directory = std::string(optarg);
+      break;
+
+    case LOCAL_SITE_NAME:
+      options.local_site_name = std::string(optarg);
+      TRC_INFO("Local site name = %s", optarg);
+      break;
+
+    case ASTAIRE_BLACKLIST_DURATION:
+      options.astaire_blacklist_duration = atoi(optarg);
+      TRC_INFO("Astaire blacklist duration set to %d",
+               options.astaire_blacklist_duration);
       break;
 
     case SAS_CONFIG:
@@ -603,6 +648,19 @@ int main(int argc, char**argv)
     return 1;
   }
 
+  // Parse the impu-stores argument.
+  std::string impu_store_location;
+  std::vector<std::string> remote_impu_stores_locations;
+
+  if (!Utils::parse_multi_site_stores_arg(options.impu_stores,
+                                          options.local_site_name,
+                                          "impu-store",
+                                          impu_store_location,
+                                          remote_impu_stores_locations))
+  {
+    return 1;
+  }
+
   if (options.pidfile != "")
   {
     int rc = Utils::lock_and_write_pidfile(options.pidfile);
@@ -691,6 +749,20 @@ int main(int argc, char**argv)
                                                                           "Homestead",
                                                                           "Cassandra");
 
+  CommunicationMonitor* astaire_comm_monitor = new CommunicationMonitor(new Alarm(alarm_manager,
+                                                                                  "homestead",
+                                                                                  AlarmDef::HOMESTEAD_ASTAIRE_COMM_ERROR,
+                                                                                  AlarmDef::CRITICAL),
+                                                                        "Homestead",
+                                                                        "Astaire");
+
+  CommunicationMonitor* remote_astaire_comm_monitor = new CommunicationMonitor(new Alarm(alarm_manager,
+                                                                                         "homestead",
+                                                                                         AlarmDef::HOMESTEAD_REMOTE_ASTAIRE_COMM_ERROR,
+                                                                                         AlarmDef::CRITICAL),
+                                                                               "Homestead",
+                                                                               "remote Astaire");
+
   // Create an exception handler. The exception handler doesn't need
   // to quiesce the process before killing it.
   HealthChecker* hc = new HealthChecker();
@@ -752,6 +824,41 @@ int main(int argc, char**argv)
     TRC_ERROR("Failed to initialize the Cassandra cache with error code %d.", rc);
     TRC_STATUS("Homestead is shutting down");
     exit(2);
+  }
+
+  AstaireResolver* astaire_resolver = nullptr;
+  Store* local_impu_data_store = nullptr;
+  ImpuStore* local_impu_store = nullptr;
+  std::vector<Store*> remote_impu_data_stores;
+  std::vector<ImpuStore*> remote_impu_stores;
+  MemcachedCache* memcached_cache = nullptr;
+
+  astaire_resolver = new AstaireResolver(dns_resolver,
+                                         af,
+                                         options.astaire_blacklist_duration);
+
+  if (impu_store_location != "")
+  {
+    TRC_STATUS("Using local impu store: %s", impu_store_location.c_str());
+    local_impu_data_store = (Store*)new TopologyNeutralMemcachedStore(impu_store_location,
+                                                                      astaire_resolver,
+                                                                      false,
+                                                                      astaire_comm_monitor);
+    local_impu_store = new ImpuStore(local_impu_data_store);
+
+    for (std::vector<std::string>::iterator it = remote_impu_stores_locations.begin();
+           it != remote_impu_stores_locations.end();
+           ++it)
+      {
+        Store* remote_data_store = (Store*)new TopologyNeutralMemcachedStore(*it,
+                                                                             astaire_resolver,
+                                                                             true,
+                                                                             remote_astaire_comm_monitor);
+        remote_impu_data_stores.push_back(remote_data_store);
+        remote_impu_stores.push_back(new ImpuStore(remote_data_store));
+      }
+
+    memcached_cache = new MemcachedCache(local_impu_store, remote_impu_stores);
   }
 
   HttpConnection* http = new HttpConnection(options.sprout_http_name,
@@ -1017,11 +1124,14 @@ int main(int argc, char**argv)
   delete hc; hc = NULL;
   delete exception_handler; exception_handler = NULL;
 
+  delete memcached_cache; memcached_cache = nullptr;
   delete load_monitor; load_monitor = NULL;
 
   SAS::term();
 
   // Delete Homestead's alarm objects
+  delete astaire_comm_monitor;
+  delete remote_astaire_comm_monitor;
   delete hss_comm_monitor;
   delete cassandra_comm_monitor;
   delete alarm_manager;

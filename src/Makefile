@@ -4,6 +4,7 @@ TEST_TARGETS := homestead_test
 COMMON_SOURCES := accesslogger.cpp \
                   accumulator.cpp \
                   alarm.cpp \
+                  astaire_resolver.cpp \
                   base_communication_monitor.cpp \
                   baseresolver.cpp \
                   base64.cpp \
@@ -31,6 +32,8 @@ COMMON_SOURCES := accesslogger.cpp \
                   load_monitor.cpp \
                   logger.cpp \
                   log.cpp \
+                  memcachedstore.cpp \
+                  memcached_connection_pool.cpp \
                   namespace_hop.cpp \
                   realmmanager.cpp \
                   saslogger.cpp \
