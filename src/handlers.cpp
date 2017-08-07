@@ -2399,7 +2399,7 @@ void PushProfileTask::update_reg_data()
     }
     // If any IMPUs have been added to IRS, also put the registration state and
     // charging information.
-    if (check_impus_added())
+    if (any_new_impus())
     {
       TRC_INFO("Updating registration state");
       put_reg_data->with_reg_state(_reg_state);
@@ -2423,12 +2423,10 @@ void PushProfileTask::update_reg_data()
     event.add_var_param(_charging_addrs.log_string());
     put_reg_data->with_charging_addrs(_charging_addrs);
   }
-
   else
   {
     event.add_var_param("Charging addresses unchanged");
   }
-
 
   CassandraStore::Transaction* tsx =
     new CacheTransaction(this,
@@ -2438,63 +2436,6 @@ void PushProfileTask::update_reg_data()
   _cfg->cache->do_async(op, tsx);
 
   SAS::report_event(event);
-}
-
-void PushProfileTask::get_registration_set()
-{
-  // If _default_impus is not empty, there are still registration sets which
-  // require updated charging information.
-
-  if (!_default_impus.empty())
-  {
-    _default_public_id = _default_impus.back();
-    _default_impus.pop_back();
-    TRC_DEBUG("Finding registration set for public identity %s", _default_public_id.c_str());
-    SAS::Event event(this->trail(), SASEvent::CACHE_GET_REG_DATA, 0);
-    event.add_var_param(_default_public_id);
-    SAS::report_event(event);
-    CassandraStore::Operation* get_reg_data = _cfg->cache->create_GetRegData(_default_public_id);
-    CassandraStore::Transaction* tsx =
-      new CacheTransaction(this,
-                           &PushProfileTask::on_get_registration_set_success,
-                           &PushProfileTask::on_get_registration_set_failure);
-      _cfg->cache->do_async(get_reg_data, tsx);
-  }
-  else
-  {
-    TRC_INFO("Finished updating charging addresses");
-    delete this;
-  }
-}
-
-void PushProfileTask::on_get_registration_set_success(CassandraStore::Operation* op)
-{
-  Cache::GetRegData* get_reg_data_result = (Cache::GetRegData*)op;
-  sas_log_get_reg_data_success(get_reg_data_result, trail());
-  std::string ims_sub;
-  int32_t temp;
-  get_reg_data_result->get_xml(ims_sub, temp);
-  get_reg_data_result->get_registration_state(_reg_state, temp);
-  get_reg_data_result->get_charging_addrs(_reg_charging_addrs);
-
-  _irs_impus = XmlUtils::get_public_and_default_ids(ims_sub, _default_public_id);
-  update_reg_data();
-}
-
-void PushProfileTask::on_get_registration_set_failure(CassandraStore::Operation* op,
-	                                              CassandraStore::ResultCode error,
-                                                      std::string& text)
-{
-  TRC_DEBUG("Failed to get a registration set - report failure to HSS");
-  if (should_send_ppa())
-  {
-    send_ppa(DIAMETER_REQ_FAILURE);
-    delete this;
-  }
-  else
-  {
-    get_registration_set();
-  }
 }
 
 void PushProfileTask::on_get_primary_impus_failure(CassandraStore::Operation* op,
@@ -2510,7 +2451,7 @@ void PushProfileTask::on_get_primary_impus_failure(CassandraStore::Operation* op
 
 void PushProfileTask::on_get_primary_impus_success(CassandraStore::Operation* op)
 {
-  // will return a list of default IMPUs, one default IMPU per IRS.
+  // Returns a list of default IMPUs, one default IMPU per IRS.
   Cache::GetAssociatedPrimaryPublicIDs* get_primary_public_ids =
     (Cache::GetAssociatedPrimaryPublicIDs*)op;
   get_primary_public_ids->get_result(_default_impus);
@@ -2528,52 +2469,49 @@ void PushProfileTask::on_get_primary_impus_success(CassandraStore::Operation* op
 
   if (_ims_sub_present)
   {
-    if (default_ids_match())
+    // Attempt to find a match between any of the default ids of the sets the
+    // private id corresponds to, and the default impu in the PPR. If no match is
+    // found the PPR is changing the default id (which is not permitted), so
+    // reject it. Otherwise, continue.
+    if (default_impus_match())
     {
       ims_sub_get_ids();
-      get_registration_set();
+      get_irs();
     }
     else
     {
-      no_default_id_match_send_failure();
+      TRC_INFO("The default id of the PPR doesn't match a default id already "
+               "known to belong to the IMPI %s - reject the PPR", _impi.c_str());
+      SAS::Event event(this->trail(), SASEvent::PPR_CHANGE_DEFAULT_IMPU, 0);
+      event.add_var_param(_impi);
+      event.add_var_param(_new_default_impu);
+      SAS::report_event(event);
+      send_ppa(DIAMETER_REQ_FAILURE);
+      delete this;
     }
   }
   else
   {
-    no_ims_set_first_default();
-    get_registration_set();
+    // Set the first default IMPU and then get the IRS for this impu
+    _default_public_id = _default_impus.back();
+    _first_default_impu = _default_public_id;
+    get_irs();
   }
 }
 
-bool PushProfileTask::default_ids_match()
+bool PushProfileTask::default_impus_match()
 {
-  // Attempt to find a match between any of the default ids of the sets the
-  // private id corresponds to, and the default id in the PPR. If no match is
-  // found the PPR is changing the default id (which is not permitted), so
-  // reject it. Otherwise, continue.
-  XmlUtils::get_default_id(_ims_subscription, _new_default_id);
+  XmlUtils::get_default_id(_ims_subscription, _new_default_impu);
   bool impu_match_found = false;
-  for (std::string current_default_id : _default_impus)
+  for (std::string current_default_impu : _default_impus)
   {
-    if (current_default_id == _new_default_id)
+    if (current_default_impu == _new_default_impu)
     {
       impu_match_found = true;
       break;
     }
   }
   return impu_match_found;
-}
-
-void PushProfileTask::no_default_id_match_send_failure()
-{
-  TRC_INFO("The default id of the PPR doesn't match a default id already "
-           "known to belong to the IMPI %s - reject the PPR", _impi.c_str());
-  SAS::Event event(this->trail(), SASEvent::PPR_CHANGE_DEFAULT_IMPU, 0);
-  event.add_var_param(_impi);
-  event.add_var_param(_new_default_id);
-  SAS::report_event(event);
-  send_ppa(DIAMETER_REQ_FAILURE);
-  delete this;
 }
 
 void PushProfileTask::ims_sub_get_ids()
@@ -2603,18 +2541,72 @@ void PushProfileTask::ims_sub_get_ids()
   }
 
   XmlUtils::get_default_id(_ims_subscription, _default_public_id);
-  _first_default_id = _default_public_id;
+  _first_default_impu = _default_public_id;
+  // Remove the first default impu and place at the end, since the last item in the vector
+  // is the first to be considered in obtaining the IRS.
   _default_impus.erase(std::remove(_default_impus.begin(),
                                    _default_impus.end(),
                                    _default_public_id),
                        _default_impus.end());
-  _default_impus.push_back(_first_default_id);
+  _default_impus.push_back(_first_default_impu);
 }
 
-void PushProfileTask::no_ims_set_first_default()
+void PushProfileTask::get_irs()
 {
-  _default_public_id = _default_impus.back();
-  _first_default_id = _default_public_id;
+  // If _default_impus is not empty, there are still registration sets which
+  // require updated charging information. This function is only called into
+  // multiple times if there is a charging address present, since this is
+  // the only case where multiple IRS require updating.
+  if (!_default_impus.empty())
+  {
+    _default_public_id = _default_impus.back();
+    _default_impus.pop_back();
+    TRC_DEBUG("Finding registration set for public identity %s", _default_public_id.c_str());
+    SAS::Event event(this->trail(), SASEvent::CACHE_GET_REG_DATA, 0);
+    event.add_var_param(_default_public_id);
+    SAS::report_event(event);
+    CassandraStore::Operation* get_reg_data = _cfg->cache->create_GetRegData(_default_public_id);
+    CassandraStore::Transaction* tsx =
+      new CacheTransaction(this,
+                           &PushProfileTask::on_get_irs_success,
+                           &PushProfileTask::on_get_irs_failure);
+      _cfg->cache->do_async(get_reg_data, tsx);
+  }
+  else
+  {
+    TRC_INFO("Finished updating charging addresses");
+    delete this;
+  }
+}
+
+void PushProfileTask::on_get_irs_success(CassandraStore::Operation* op)
+{
+  Cache::GetRegData* get_reg_data_result = (Cache::GetRegData*)op;
+  sas_log_get_reg_data_success(get_reg_data_result, trail());
+  std::string ims_sub;
+  int32_t temp;
+  get_reg_data_result->get_xml(ims_sub, temp);
+  get_reg_data_result->get_registration_state(_reg_state, temp);
+  get_reg_data_result->get_charging_addrs(_reg_charging_addrs);
+
+  _irs_impus = XmlUtils::get_public_and_default_ids(ims_sub, _default_public_id);
+  update_reg_data();
+}
+
+void PushProfileTask::on_get_irs_failure(CassandraStore::Operation* op,
+                                                      CassandraStore::ResultCode error,
+                                                      std::string& text)
+{
+  TRC_DEBUG("Failed to get a registration set - report failure to HSS");
+  if (should_send_ppa())
+  {
+    send_ppa(DIAMETER_REQ_FAILURE);
+    delete this;
+  }
+  else
+  {
+    get_irs();
+  }
 }
 
 void PushProfileTask::update_reg_data_success(CassandraStore::Operation* op)
@@ -2626,9 +2618,13 @@ void PushProfileTask::update_reg_data_success(CassandraStore::Operation* op)
     send_ppa(DIAMETER_REQ_SUCCESS);
   }
 
+  // If there is a charging address present, there are still implicit
+  // registration sets to  update. If there is no charging address present,
+  // the update is complete after the first implicit regirstion set, and no
+  // more need to be obtained.
   if (_charging_addrs_present)
   {
-    get_registration_set();
+    get_irs();
   }
   else
   {
@@ -2649,7 +2645,7 @@ void PushProfileTask::update_reg_data_failure(CassandraStore::Operation* op,
   }
   else
   {
-    get_registration_set();
+    get_irs();
   }
 }
 
@@ -2667,6 +2663,7 @@ void PushProfileTask::find_impus_to_delete()
       {
         break;
       }
+
       if (sub_impu+1 == _impus.end())
       {
         _impus_to_delete.push_back(*irs_impu);
@@ -2684,7 +2681,7 @@ void PushProfileTask::delete_impus()
   _cfg->cache->do_async(delete_IMPU, tsx);
 }
 
-bool PushProfileTask::check_impus_added()
+bool PushProfileTask::any_new_impus()
 {
   return ((_irs_impus.size() - _impus_to_delete.size()) != _impus.size());
 }
