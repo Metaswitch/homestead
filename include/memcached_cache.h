@@ -14,6 +14,19 @@
 #include "hss_cache.h"
 #include "impu_store.h"
 
+class MemcachedImplicitRegistrationSet : public ImplicitRegistrationSet
+{
+public:
+  MemcachedImplicitRegistrationSet(ImpuStore::DefaultImpu* default_impu) : ImplicitRegistrationSet(default_impu->impu)
+  {
+  }
+
+  MemcachedImplicitRegistrationSet(const std::string& default_impu): ImplicitRegistrationSet(default_impu)
+  {
+  }
+
+};
+
 class MemcachedCache : public HssCache
 {
 public:
@@ -23,10 +36,17 @@ public:
     _local_store(local_store),
     _remote_stores(remote_stores)
   {
-
   }
 
-  virtual ~MemcachedCache();
+  virtual ~MemcachedCache()
+  {
+  }
+
+  // Create an IRS for the given IMPU
+  virtual ImplicitRegistrationSet* create_implicit_registration_set(const std::string& impu)
+  {
+    return new MemcachedImplicitRegistrationSet(impu);
+  }
 
   // Get the IRS for a given impu
   virtual Store::Status get_implicit_registration_set_for_impu(std::string impu,

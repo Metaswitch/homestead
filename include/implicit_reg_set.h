@@ -20,6 +20,13 @@
 
 class ImplicitRegistrationSet
 {
+public:
+  ImplicitRegistrationSet(const std::string& default_impu) :
+    _default_impu(default_impu)
+  {
+
+  }
+
   //TODO implementation, constructor, destructor, getters etc.
 public:
 

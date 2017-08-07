@@ -1333,7 +1333,7 @@ TEST_F(HandlersTest, ImpuReadRegDataMainline)
   ImpuReadRegDataTask* task = new ImpuReadRegDataTask(req, &cfg, FAKE_TRAIL_ID);
   
   // Create IRS to be returned from the cache
-  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet();
+  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet(IMPU);
   irs->set_associated_impis({ IMPI });
   irs->set_service_profile(IMPU_IMS_SUBSCRIPTION);
 
