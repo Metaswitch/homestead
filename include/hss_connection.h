@@ -99,9 +99,7 @@ public:
   {
     if (_auth_vector)
     {
-      TRC_ERROR("sr2sr2 deleting auth vector");
       delete _auth_vector; _auth_vector = NULL;
-      TRC_ERROR("sr2sr2 deleted auth vector");
     }
   }
 

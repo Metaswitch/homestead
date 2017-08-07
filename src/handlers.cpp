@@ -165,7 +165,6 @@ void ImpiTask::send_mar()
 
 void ImpiTask::on_mar_response(const HssConnection::MultimediaAuthAnswer& maa)
 {
-  TRC_DEBUG("sr2sr2 on mar response");
   HssConnection::ResultCode rc = maa.get_result();
   if (rc == HssConnection::ResultCode::SUCCESS)
   {
@@ -179,7 +178,6 @@ void ImpiTask::on_mar_response(const HssConnection::MultimediaAuthAnswer& maa)
     {
       AKAAuthVector* av = (AKAAuthVector*)(maa.get_av());
       send_reply(*av);
-      TRC_ERROR("sr2sr2 sent AKA");
     }
     else if (sip_auth_scheme == _cfg->scheme_akav2)
     {
@@ -223,7 +221,6 @@ void ImpiTask::on_mar_response(const HssConnection::MultimediaAuthAnswer& maa)
     SAS::report_event(event);
     send_http_reply(HTTP_SERVER_ERROR);
   }
-  TRC_ERROR("sr2sr2 done now");
   /* TODO
 
   // IMS mandates that exactly one of result code or experimental result code
@@ -242,7 +239,7 @@ void ImpiTask::on_mar_response(const HssConnection::MultimediaAuthAnswer& maa)
 
 
   TODO*/
-  TRC_ERROR("sr2sr2 deleiting");
+
   delete this;
 }
 
@@ -356,7 +353,6 @@ void ImpiAvTask::send_reply(const DigestAuthVector& av)
 
 void ImpiAvTask::send_reply(const AKAAuthVector& av)
 {
-  TRC_ERROR("sr2sr2 send reply");
   rapidjson::StringBuffer sb;
   rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
 
@@ -379,10 +375,8 @@ void ImpiAvTask::send_reply(const AKAAuthVector& av)
     writer.EndObject();
   }
   writer.EndObject();
-TRC_ERROR("sr2sr2 built reply");
   _req.add_content(sb.GetString());
   send_http_reply(HTTP_OK);
-  TRC_ERROR("sr2sr2 sent reply");
 }
 
 //
