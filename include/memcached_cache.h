@@ -14,14 +14,26 @@
 #include "hss_cache.h"
 #include "impu_store.h"
 
+class MemcachedImsSubscription : public ImsSubscription
+{
+public:
+  MemcachedImsSubscription(ImpuStore::ImpiMapping*& mapping,
+                           std::vector<ImplicitRegistrationSet*>& irss) :
+    ImsSubscription()
+  {
+  }
+};
+
 class MemcachedImplicitRegistrationSet : public ImplicitRegistrationSet
 {
 public:
-  MemcachedImplicitRegistrationSet(ImpuStore::DefaultImpu* default_impu) : ImplicitRegistrationSet(default_impu->impu)
+  MemcachedImplicitRegistrationSet(ImpuStore::DefaultImpu* default_impu) :
+    ImplicitRegistrationSet(default_impu->impu)
   {
   }
 
-  MemcachedImplicitRegistrationSet(const std::string& default_impu): ImplicitRegistrationSet(default_impu)
+  MemcachedImplicitRegistrationSet(const std::string& default_impu) :
+    ImplicitRegistrationSet(default_impu)
   {
   }
 
@@ -93,7 +105,11 @@ private:
   ImpuStore* _local_store;
   std::vector<ImpuStore*> _remote_stores;
 
+  ImpuStore::Impu* get_impu_for_impu_gr(const std::string& impu,
+                                        SAS::TrailId trail);
 
+  ImpuStore::ImpiMapping* get_impi_mapping_gr(const std::string& impi,
+                                              SAS::TrailId trail);
 };
 
 #endif

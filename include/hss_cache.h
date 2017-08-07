@@ -20,7 +20,9 @@
 class HssCache
 {
 public:
-  virtual ~HssCache();
+  virtual ~HssCache()
+  {
+  }
 
   // All of these methods are synchronous, and run on a thread that is OK to block
   // They return Store::Status (from cpp-common's Store) which is used to determine which callback to use

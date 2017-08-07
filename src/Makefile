@@ -34,6 +34,7 @@ COMMON_SOURCES := accesslogger.cpp \
                   logger.cpp \
                   log.cpp \
                   memcachedstore.cpp \
+                  memcached_cache.cpp \
                   memcached_connection_pool.cpp \
                   namespace_hop.cpp \
                   realmmanager.cpp \

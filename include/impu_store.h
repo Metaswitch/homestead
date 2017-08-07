@@ -13,6 +13,7 @@
 
 #include "store.h"
 
+#include <algorithm>
 #include <rapidjson/document.h>
 #include <rapidjson/writer.h>
 
@@ -57,6 +58,13 @@ public:
     }
 
     static Impu* from_json(rapidjson::Value* json, uint64_t cas);
+
+    bool has_associated_impu(const std::string& impu)
+    {
+      return std::find(associated_impus.begin(),
+                       associated_impus.end(),
+                       impu) != associated_impus.end();
+    }
 
     std::vector<std::string> associated_impus;
     std::vector<std::string> impis;
