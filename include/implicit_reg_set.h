@@ -91,11 +91,12 @@ public:
   }
 
 private:
-    std::string _service_profile;
-    RegistrationState _reg_state;
-    std::vector<std::string> _associated_impis;
-    ChargingAddresses _charging_addresses;
-    int32_t _ttl;
+  std::string _default_impu;
+  std::string _service_profile;
+  RegistrationState _reg_state;
+  std::vector<std::string> _associated_impis;
+  ChargingAddresses _charging_addresses;
+  int32_t _ttl;
 };
 
 #endif

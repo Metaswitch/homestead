@@ -1,7 +1,8 @@
 TARGETS := homestead
 TEST_TARGETS := homestead_test
 
-COMMON_SOURCES := accesslogger.cpp \
+COMMON_SOURCES := a_record_resolver.cpp \
+                  accesslogger.cpp \
                   accumulator.cpp \
                   alarm.cpp \
                   astaire_resolver.cpp \
@@ -26,7 +27,6 @@ COMMON_SOURCES := accesslogger.cpp \
                   http_connection_pool.cpp \
                   httpclient.cpp \
                   httpconnection.cpp \
-                  a_record_resolver.cpp \
                   httpstack.cpp \
                   httpstack_utils.cpp \
                   impu_store.cpp \
