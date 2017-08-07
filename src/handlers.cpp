@@ -1450,8 +1450,7 @@ void ImpuRegDataTask::on_get_reg_data_failure(Store::Status rc)
     // We create an empty IRS and pretend we got it from the cache.
     if (_req.method() == htp_method_PUT)
     {
-      ImplicitRegistrationSet* irs = new ImplicitRegistrationSet();
-      //TODO this should be done by a method on the HssCache
+      ImplicitRegistrationSet* irs = _cache->create_implicit_registration_set(public_id());
       irs->set_reg_state(RegistrationState::UNREGISTERED);
       on_get_reg_data_success(irs);
     }

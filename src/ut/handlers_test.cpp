@@ -1382,7 +1382,7 @@ TEST_F(HandlersTest, ImpuRegDataInitialReg)
   ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
     
   // Create IRS to be returned from the cache
-  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet();
+  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet(IMPU);
   irs->set_service_profile(IMPU_IMS_SUBSCRIPTION);
   irs->set_reg_state(RegistrationState::NOT_REGISTERED);
   irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
@@ -1429,7 +1429,7 @@ TEST_F(HandlersTest, ImpuRegDataInitialRegNoServerName)
   ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
     
   // Create IRS to be returned from the cache
-  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet();
+  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet(IMPU);
   irs->set_service_profile(IMPU_IMS_SUBSCRIPTION);
   irs->set_reg_state(RegistrationState::NOT_REGISTERED);
   irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
@@ -1495,6 +1495,13 @@ TEST_F(HandlersTest, ImpuRegDataInitialRegCacheGetNotFound)
           Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::REGISTRATION))))
     .WillOnce(InvokeArgument<0>(ByRef(answer)));
 
+  // Create IRS to be returned from the cache
+  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet(IMPU);
+
+  // Set up the cache to return our IRS
+  EXPECT_CALL(*_cache, create_implicit_registration_set(IMPU))
+    .WillOnce(Return(irs));
+
   // We now expect it to be put in the cache with an updated TTL and state REGISTERED
   EXPECT_CALL(*_cache, put_implicit_registration_set(_, _,
     AllOf(Field(&ImplicitRegistrationSet::_reg_state, RegistrationState::REGISTERED),
@@ -1539,7 +1546,7 @@ TEST_F(HandlersTest, ImpuRegDataInitialRegCachePutError)
   ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
     
   // Create IRS to be returned from the cache
-  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet();
+  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet(IMPU);
   irs->set_service_profile(IMPU_IMS_SUBSCRIPTION);
   irs->set_reg_state(RegistrationState::NOT_REGISTERED);
   irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
@@ -1587,7 +1594,7 @@ TEST_F(HandlersTest, ImpuRegDataReReg)
   ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
     
   // Create IRS to be returned from the cache
-  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet();
+  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet(IMPU);
   irs->set_service_profile(IMPU_IMS_SUBSCRIPTION);
   irs->set_reg_state(RegistrationState::REGISTERED);
   irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
@@ -1636,7 +1643,7 @@ TEST_F(HandlersTest, ImpuRegDataReRegNoCache)
   ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
     
   // Create IRS to be returned from the cache
-  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet();
+  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet(IMPU);
   irs->set_service_profile(IMPU_IMS_SUBSCRIPTION);
   irs->set_reg_state(RegistrationState::REGISTERED);
   irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
@@ -1685,7 +1692,7 @@ TEST_F(HandlersTest, ImpuRegDataReRegCached)
   ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
     
   // Create IRS to be returned from the cache
-  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet();
+  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet(IMPU);
   irs->set_service_profile(IMPU_IMS_SUBSCRIPTION);
   irs->set_reg_state(RegistrationState::REGISTERED);
   irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
@@ -1715,7 +1722,7 @@ TEST_F(HandlersTest, ImpuRegDataReRegNewBinding)
   ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
     
   // Create IRS to be returned from the cache
-  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet();
+  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet(IMPU);
   irs->set_service_profile(IMPU_IMS_SUBSCRIPTION);
   irs->set_reg_state(RegistrationState::REGISTERED);
   irs->set_charging_addresses(NO_CHARGING_ADDRESSES);

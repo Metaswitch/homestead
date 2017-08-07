@@ -42,6 +42,11 @@ public:
   // Waits for the threadpool to terminate
   void wait_stopped();
 
+  // Factory method for creating implicit registration sets.
+  // Note, this doesn't follow the async API that the rest of the
+  // HSS cache processor does.
+  virtual ImplicitRegistrationSet* create_implicit_registration_set(const std::string& impu);
+
   // ---------------------------------------------------------------------------
   // Funtions to get/set data in the cache.
   // Each one must provide a success and failure callback.
