@@ -899,6 +899,26 @@ TEST_F(CacheRequestTest, DeleteMultiPublicIds)
   execute_trx(op, trx);
 }
 
+TEST_F(CacheRequestTest, DeleteIMPUs)
+{
+  std::vector<std::string> ids;
+  ids.push_back("kermit");
+  ids.push_back("gonzo");
+  ids.push_back("miss piggy");
+
+  TestTransaction *trx = make_trx();
+  CassandraStore::Operation* op =
+    _cache.create_DeleteIMPUs(ids, 1000);
+
+  // The "kermit", "gonzo" and "miss piggy" IMPU rows should be deleted entirely
+  EXPECT_CALL(_client, remove("kermit", _, 1000, _));
+  EXPECT_CALL(_client, remove("gonzo", _, 1000, _));
+  EXPECT_CALL(_client, remove("miss piggy", _, 1000, _));
+
+  EXPECT_CALL(*trx, on_success(_));
+
+  execute_trx(op, trx);
+}
 
 TEST_F(CacheRequestTest, DeletePrivateId)
 {
