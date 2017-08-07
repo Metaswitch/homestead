@@ -961,6 +961,7 @@ void ImpuRegDataTask::on_get_reg_data_success(ImplicitRegistrationSet* irs)
   if (_req.method() == htp_method_GET)
   {
     send_reply();
+    delete _irs; _irs = NULL;
     delete this;
     return;
   }
@@ -1507,7 +1508,7 @@ void ImpuRegDataTask::put_in_cache()
   //        Old code would just cache it anyway. Still do that?
   std::string default_public_id = "";
   std::vector<std::string> public_ids =
-    XmlUtils::get_public_and_default_ids(_xml, default_public_id);
+    XmlUtils::get_public_and_default_ids(_irs->get_service_profile(), default_public_id);
 
   if (!public_ids.empty())
   {

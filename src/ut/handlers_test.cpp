@@ -372,6 +372,59 @@ public:
                                   "{\"reqtype\": \"" + req_type +"\"" + server_name + wildcard + "}",
                                   htp_method_PUT);
   }
+
+  // Template functions to test our processing when various error codes are returned by the HSS
+  // from UARs and LIRs.
+  static void registration_status_error_template(HssConnection::ResultCode hss_rc, int32_t http_rc)
+  {
+    // Build the HTTP request which will invoke a UAR to be sent to the HSS.
+    MockHttpStack::Request req(_httpstack,
+                                "/impi/" + IMPI + "/",
+                                "registration-status",
+                                "?impu=" + IMPU);
+
+    ImpiRegistrationStatusTask::Config cfg(DEST_REALM);
+    ImpiRegistrationStatusTask* task = new ImpiRegistrationStatusTask(req, &cfg, FAKE_TRAIL_ID);
+
+    // Once the task's run function is called, expect a UAR. We don't check the
+    // contents of the UAR explicitly here, as this is done by other tests.
+    HssConnection::UserAuthAnswer answer = HssConnection::UserAuthAnswer(hss_rc);
+    EXPECT_CALL(*_hss, send_user_auth_request(_, _)).WillOnce(InvokeArgument<0>(ByRef(answer)));
+
+    // Expect the correct HTTP code
+    EXPECT_CALL(*_httpstack, send_reply(_, http_rc, _));
+
+    // Ensure that the HTTP body on the response is empty.
+    EXPECT_EQ("", req.content());
+
+    task->run();
+  }
+
+  static void location_info_error_template(HssConnection::ResultCode hss_rc, int32_t http_rc)
+  {
+    // Build the HTTP request which will invoke an LIR to be sent to the HSS.
+    MockHttpStack::Request req(_httpstack,
+                                "/impu/" + IMPU + "/",
+                                "location",
+                                "");
+
+
+    ImpuLocationInfoTask::Config cfg = ImpuLocationInfoTask::Config();
+    ImpuLocationInfoTask* task = new ImpuLocationInfoTask(req, &cfg, FAKE_TRAIL_ID);
+
+    // Once the task's run function is called, expect an LIR. We don't check the
+    // contents of the LIR explicitly here, as this is done by other tests.
+    HssConnection::LocationInfoAnswer answer = HssConnection::LocationInfoAnswer(hss_rc);
+    EXPECT_CALL(*_hss, send_location_info_request(_, _)).WillOnce(InvokeArgument<0>(ByRef(answer)));
+
+    // Expect the correct HTTP code
+    EXPECT_CALL(*_httpstack, send_reply(_, http_rc, _));
+
+    // Ensure that the HTTP body on the response is empty.
+    EXPECT_EQ("", req.content());
+
+    task->run();
+  }
 };
 
 const std::string HandlersTest::DEST_REALM = "dest-realm";
@@ -477,7 +530,6 @@ std::vector<std::string> HandlersTest::TEL_URIS_IN_VECTOR = {TEL_URI, TEL_URI2};
 
 const std::string HandlersTest::HTTP_PATH_REG_TRUE = "/registrations?send-notifications=true";
 const std::string HandlersTest::HTTP_PATH_REG_FALSE = "/registrations?send-notifications=false";
-
 
 HttpResolver* HandlersTest::_mock_resolver = NULL;
 MockHssCacheProcessor* HandlersTest::_cache = NULL;
@@ -866,11 +918,411 @@ TEST_F(HandlersTest, ImpiAKANoImpu)
 }
 
 //
-// ReadRegData tests
+// ImpiRegistrationStatusTask tests
+//
+
+TEST_F(HandlersTest, ImpiRegStatusServerName)
+{
+  // Tests ImpiRegistrationStatusTask sends UAR to HSS and then sends correct
+  // response
+  MockHttpStack::Request req(_httpstack,
+                             "/impi/" + IMPI,
+                             "registration-status",
+                             "?impu=" + IMPU);
+
+  ImpiRegistrationStatusTask::Config cfg(DEST_REALM);
+  ImpiRegistrationStatusTask* task = new ImpiRegistrationStatusTask(req, &cfg, FAKE_TRAIL_ID);
+
+  // Create a UAA to return
+  HssConnection::UserAuthAnswer answer =
+    HssConnection::UserAuthAnswer(HssConnection::ResultCode::SUCCESS,
+                                  DIAMETER_SUCCESS,
+                                  SERVER_NAME,
+                                  NULL);
+
+  // Expect that the UAR has the correct IMPI, IMPU and visited network
+  EXPECT_CALL(*_hss, send_user_auth_request(_,
+    AllOf(Field(&HssConnection::UserAuthRequest::impi, IMPI),
+          Field(&HssConnection::UserAuthRequest::impu, IMPU),
+          Field(&HssConnection::UserAuthRequest::visited_network, DEST_REALM))))
+    .WillOnce(InvokeArgument<0>(ByRef(answer)));
+
+  // Expect a 200
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
+
+  task->run();
+
+  // Check the body matches the UAA
+  EXPECT_EQ(build_icscf_json(DIAMETER_SUCCESS, SERVER_NAME, CAPABILITIES, ""), req.content());
+}
+
+TEST_F(HandlersTest, ImpiRegStatusCapabilities)
+{
+  // Tests ImpiRegistrationStatusTask when UAA has capabilities with no server name
+  MockHttpStack::Request req(_httpstack,
+                             "/impi/" + IMPI,
+                             "registration-status",
+                             "?impu=" + IMPU);
+
+  ImpiRegistrationStatusTask::Config cfg(DEST_REALM);
+  ImpiRegistrationStatusTask* task = new ImpiRegistrationStatusTask(req, &cfg, FAKE_TRAIL_ID);
+
+  ServerCapabilities* capabilities = new ServerCapabilities(CAPABILITIES);
+
+  // Create a UAA to return
+  HssConnection::UserAuthAnswer answer =
+    HssConnection::UserAuthAnswer(HssConnection::ResultCode::SUCCESS,
+                                  DIAMETER_SUCCESS,
+                                  "",
+                                  capabilities);
+
+  // Expect that the UAR has the correct IMPI, IMPU and visited network
+  EXPECT_CALL(*_hss, send_user_auth_request(_,
+    AllOf(Field(&HssConnection::UserAuthRequest::impi, IMPI),
+          Field(&HssConnection::UserAuthRequest::impu, IMPU),
+          Field(&HssConnection::UserAuthRequest::visited_network, DEST_REALM))))
+    .WillOnce(InvokeArgument<0>(ByRef(answer)));
+
+  // Expect a 200
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
+
+  task->run();
+
+  // Check the body matches the UAA
+  EXPECT_EQ(build_icscf_json(DIAMETER_SUCCESS, "", CAPABILITIES, ""), req.content());
+}
+
+TEST_F(HandlersTest, ImpiRegStatusCapabilitiesWithServerName)
+{
+  // Tests ImpiRegistrationStatusTask when the UAA has capabilities with a server name
+  MockHttpStack::Request req(_httpstack,
+                             "/impi/" + IMPI,
+                             "registration-status",
+                             "?impu=" + IMPU);
+
+  ImpiRegistrationStatusTask::Config cfg(DEST_REALM);
+  ImpiRegistrationStatusTask* task = new ImpiRegistrationStatusTask(req, &cfg, FAKE_TRAIL_ID);
+
+  ServerCapabilities* capabilities = new ServerCapabilities(CAPABILITIES_WITH_SERVER_NAME);
+
+  // Create a UAA to return
+  HssConnection::UserAuthAnswer answer =
+    HssConnection::UserAuthAnswer(HssConnection::ResultCode::SUCCESS,
+                                  DIAMETER_SUCCESS,
+                                  "",
+                                  capabilities);
+
+  // Expect that the UAR has the correct IMPI, IMPU and visited network
+  EXPECT_CALL(*_hss, send_user_auth_request(_,
+    AllOf(Field(&HssConnection::UserAuthRequest::impi, IMPI),
+          Field(&HssConnection::UserAuthRequest::impu, IMPU),
+          Field(&HssConnection::UserAuthRequest::visited_network, DEST_REALM))))
+    .WillOnce(InvokeArgument<0>(ByRef(answer)));
+
+  // Expect a 200
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
+
+  task->run();
+
+  // Check the body matches the UAA
+  EXPECT_EQ(build_icscf_json(DIAMETER_SUCCESS, "", CAPABILITIES_WITH_SERVER_NAME, ""), req.content());
+}
+
+TEST_F(HandlersTest, ImpiRegStatusPassesHealthCheck)
+{
+  // Tests that a 200 reponse triggers the health-checker
+  MockHealthChecker* hc = new MockHealthChecker();
+  HssCacheTask::configure_health_checker(hc);
+
+  MockHttpStack::Request req(_httpstack,
+                             "/impi/" + IMPI,
+                             "registration-status",
+                             "?impu=" + IMPU);
+
+  ImpiRegistrationStatusTask::Config cfg(DEST_REALM);
+  ImpiRegistrationStatusTask* task = new ImpiRegistrationStatusTask(req, &cfg, FAKE_TRAIL_ID);
+
+  // Create a UAA to return
+  HssConnection::UserAuthAnswer answer =
+    HssConnection::UserAuthAnswer(HssConnection::ResultCode::SUCCESS,
+                                  DIAMETER_SUCCESS,
+                                  SERVER_NAME,
+                                  NULL);
+
+  // Expect that the UAR has the correct IMPI, IMPU and visited network
+  EXPECT_CALL(*_hss, send_user_auth_request(_,
+    AllOf(Field(&HssConnection::UserAuthRequest::impi, IMPI),
+          Field(&HssConnection::UserAuthRequest::impu, IMPU),
+          Field(&HssConnection::UserAuthRequest::visited_network, DEST_REALM))))
+    .WillOnce(InvokeArgument<0>(ByRef(answer)));
+
+  // Expect a 200 and the health-checker is notified
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
+  EXPECT_CALL(*hc, health_check_passed()).Times(1);
+
+  task->run();
+
+  // Need to clear the health_checker
+  HssCacheTask::configure_health_checker(NULL);
+  delete hc;
+}
+
+TEST_F(HandlersTest, ImpiRegStatusOptParams)
+{
+  // Tests that optional parameters are passed to the HSS on the UAR
+  MockHttpStack::Request req(_httpstack,
+                             "/impi/" + IMPI,
+                             "registration-status",
+                             "?impu=" + IMPU + "&visited-network=" + VISITED_NETWORK + "&auth-type=" + AUTH_TYPE_DEREG + "&sos=true");
+
+  ImpiRegistrationStatusTask::Config cfg(DEST_REALM);
+  ImpiRegistrationStatusTask* task = new ImpiRegistrationStatusTask(req, &cfg, FAKE_TRAIL_ID);
+
+  // Create a UAA to return
+  HssConnection::UserAuthAnswer answer =
+    HssConnection::UserAuthAnswer(HssConnection::ResultCode::SUCCESS,
+                                  DIAMETER_SUCCESS,
+                                  SERVER_NAME,
+                                  NULL);
+
+  // Expect that the UAR has the correct IMPI, IMPU and visited network
+  EXPECT_CALL(*_hss, send_user_auth_request(_,
+    AllOf(Field(&HssConnection::UserAuthRequest::impi, IMPI),
+          Field(&HssConnection::UserAuthRequest::impu, IMPU),
+          Field(&HssConnection::UserAuthRequest::visited_network, VISITED_NETWORK),
+          Field(&HssConnection::UserAuthRequest::authorization_type, AUTH_TYPE_DEREG))))
+    .WillOnce(InvokeArgument<0>(ByRef(answer)));
+
+  // Expect a 200
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
+
+  task->run();
+}
+
+// The following tests verify UAA error codes map to correct HTTP error codes
+TEST_F(HandlersTest, ImpiRegStatusUserUnknown)
+{
+  registration_status_error_template(HssConnection::ResultCode::NOT_FOUND, HTTP_NOT_FOUND);
+}
+
+TEST_F(HandlersTest, ImpiRegStatusForbidden)
+{
+  registration_status_error_template(HssConnection::ResultCode::FORBIDDEN, HTTP_FORBIDDEN);
+}
+
+TEST_F(HandlersTest, ImpiRegStatusTimeout)
+{
+  registration_status_error_template(HssConnection::ResultCode::TIMEOUT, HTTP_GATEWAY_TIMEOUT);
+}
+
+TEST_F(HandlersTest, ImpiRegStatusServerUnavailable)
+{
+  registration_status_error_template(HssConnection::ResultCode::SERVER_UNAVAILABLE, HTTP_SERVER_UNAVAILABLE);
+}
+
+TEST_F(HandlersTest, ImpiRegStatusOtherError)
+{
+  registration_status_error_template(HssConnection::ResultCode::UNKNOWN, HTTP_SERVER_ERROR);
+}
+
+//
+// Location Info tests
+//
+
+TEST_F(HandlersTest, LocationInfoMainline)
+{
+  // Tests mainline LocationInfo task
+  MockHttpStack::Request req(_httpstack,
+                             "/impu/" + IMPU,
+                             "location",
+                             "");
+
+  ImpuLocationInfoTask::Config cfg = ImpuLocationInfoTask::Config();
+  ImpuLocationInfoTask* task = new ImpuLocationInfoTask(req, &cfg, FAKE_TRAIL_ID);
+
+  // Create an LIA to return
+  HssConnection::LocationInfoAnswer answer =
+    HssConnection::LocationInfoAnswer(HssConnection::ResultCode::SUCCESS,
+                                      DIAMETER_SUCCESS,
+                                      SERVER_NAME,
+                                      NULL,
+                                      "");
+
+  // Check the contents of the LIR
+  EXPECT_CALL(*_hss, send_location_info_request(_, Field(&HssConnection::LocationInfoRequest::impu, IMPU)))
+    .WillOnce(InvokeArgument<0>(ByRef(answer)));
+
+  // Expect a 200
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
+
+  task->run();
+
+  // Check the body matches the LIA
+  EXPECT_EQ(build_icscf_json(DIAMETER_SUCCESS, SERVER_NAME, CAPABILITIES, ""), req.content());
+}
+
+TEST_F(HandlersTest, LocationInfoServerCapabilitiesNoServerName)
+{
+  // Tests a LocationInfo task when server capabilities are returned without a server name
+  MockHttpStack::Request req(_httpstack,
+                             "/impu/" + IMPU,
+                             "location",
+                             "");
+
+  ImpuLocationInfoTask::Config cfg = ImpuLocationInfoTask::Config();
+  ImpuLocationInfoTask* task = new ImpuLocationInfoTask(req, &cfg, FAKE_TRAIL_ID);
+
+  ServerCapabilities* capabilities = new ServerCapabilities(CAPABILITIES);
+
+  // Create an LIA to return
+  HssConnection::LocationInfoAnswer answer =
+    HssConnection::LocationInfoAnswer(HssConnection::ResultCode::SUCCESS,
+                                      DIAMETER_SUCCESS,
+                                      "",
+                                      capabilities,
+                                      "");
+
+  // Check the contents of the LIR
+  EXPECT_CALL(*_hss, send_location_info_request(_, Field(&HssConnection::LocationInfoRequest::impu, IMPU)))
+    .WillOnce(InvokeArgument<0>(ByRef(answer)));
+
+  // Expect a 200
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
+
+  task->run();
+
+  // Check the body matches the LIA
+  EXPECT_EQ(build_icscf_json(DIAMETER_SUCCESS, "", CAPABILITIES, ""), req.content());
+}
+
+TEST_F(HandlersTest, LocationInfoServerCapabilitiesWithServerName)
+{
+  // Tests a LocationInfo task when server capabilities are returned with a server name
+  MockHttpStack::Request req(_httpstack,
+                             "/impu/" + IMPU,
+                             "location",
+                             "");
+
+  ImpuLocationInfoTask::Config cfg = ImpuLocationInfoTask::Config();
+  ImpuLocationInfoTask* task = new ImpuLocationInfoTask(req, &cfg, FAKE_TRAIL_ID);
+
+  ServerCapabilities* capabilities = new ServerCapabilities(CAPABILITIES_WITH_SERVER_NAME);
+
+  // Create an LIA to return
+  HssConnection::LocationInfoAnswer answer =
+    HssConnection::LocationInfoAnswer(HssConnection::ResultCode::SUCCESS,
+                                      DIAMETER_SUCCESS,
+                                      "",
+                                      capabilities,
+                                      "");
+
+  // Check the contents of the LIR
+  EXPECT_CALL(*_hss, send_location_info_request(_, Field(&HssConnection::LocationInfoRequest::impu, IMPU)))
+    .WillOnce(InvokeArgument<0>(ByRef(answer)));
+
+  // Expect a 200
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
+
+  task->run();
+
+  // Check the body matches the LIA
+  EXPECT_EQ(build_icscf_json(DIAMETER_SUCCESS, "", CAPABILITIES_WITH_SERVER_NAME, ""), req.content());
+}
+
+TEST_F(HandlersTest, LocationInfoWithWildcard)
+{
+  // Tests LocationInfo with wildcarded public identity
+  MockHttpStack::Request req(_httpstack,
+                             "/impu/" + IMPU + "/",
+                             "location",
+                             "");
+
+  ImpuLocationInfoTask::Config cfg = ImpuLocationInfoTask::Config();
+  ImpuLocationInfoTask* task = new ImpuLocationInfoTask(req, &cfg, FAKE_TRAIL_ID);
+
+  // Create an LIA to return
+  HssConnection::LocationInfoAnswer answer =
+    HssConnection::LocationInfoAnswer(HssConnection::ResultCode::SUCCESS,
+                                      DIAMETER_SUCCESS,
+                                      SERVER_NAME,
+                                      NULL,
+                                      WILDCARD);
+
+  // Check the contents of the LIR
+  EXPECT_CALL(*_hss, send_location_info_request(_, Field(&HssConnection::LocationInfoRequest::impu, IMPU)))
+    .WillOnce(InvokeArgument<0>(ByRef(answer)));
+
+  // Expect a 200
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
+
+  task->run();
+
+  // Check the body matches the LIA
+  EXPECT_EQ(build_icscf_json(DIAMETER_SUCCESS, SERVER_NAME, CAPABILITIES, WILDCARD), req.content());
+}
+
+TEST_F(HandlersTest, LocationInfoOptParams)
+{
+  // Tests LocationInfo with optional parameters
+  MockHttpStack::Request req(_httpstack,
+                             "/impu/" + IMPU + "/",
+                             "location",
+                             "?originating=true&auth-type=" + AUTH_TYPE_CAPAB);
+
+  ImpuLocationInfoTask::Config cfg = ImpuLocationInfoTask::Config();
+  ImpuLocationInfoTask* task = new ImpuLocationInfoTask(req, &cfg, FAKE_TRAIL_ID);
+
+  // Create an LIA to return
+  HssConnection::LocationInfoAnswer answer =
+    HssConnection::LocationInfoAnswer(HssConnection::ResultCode::SUCCESS,
+                                      DIAMETER_SUCCESS,
+                                      SERVER_NAME,
+                                      NULL,
+                                      WILDCARD);
+
+  // Check the contents of the LIR
+  EXPECT_CALL(*_hss, send_location_info_request(_,
+    AllOf(Field(&HssConnection::LocationInfoRequest::impu, IMPU),
+          Field(&HssConnection::LocationInfoRequest::originating, "true"),
+          Field(&HssConnection::LocationInfoRequest::authorization_type, AUTH_TYPE_CAPAB))))
+    .WillOnce(InvokeArgument<0>(ByRef(answer)));
+
+  // Expect a 200
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
+
+  task->run();
+
+  // Check the body matches the LIA
+  EXPECT_EQ(build_icscf_json(DIAMETER_SUCCESS, SERVER_NAME, CAPABILITIES, WILDCARD), req.content());
+}
+
+TEST_F(HandlersTest, LocationInfoNotFound)
+{
+  location_info_error_template(HssConnection::ResultCode::NOT_FOUND, HTTP_NOT_FOUND);
+}
+
+TEST_F(HandlersTest, LocationInfoTimeout)
+{
+  location_info_error_template(HssConnection::ResultCode::TIMEOUT, HTTP_GATEWAY_TIMEOUT);
+}
+
+TEST_F(HandlersTest, LocationInfoServerUnavailable)
+{
+  location_info_error_template(HssConnection::ResultCode::SERVER_UNAVAILABLE, HTTP_SERVER_UNAVAILABLE);
+}
+
+TEST_F(HandlersTest, LocationInfoUnknownError)
+{
+  location_info_error_template(HssConnection::ResultCode::UNKNOWN, HTTP_SERVER_ERROR);
+}
+
+//
+// ImpuRegData tests
 //
 
 TEST_F(HandlersTest, ImpuReadRegDataMainline)
 {
+  // Test that GET request returns cached IRS
   MockHttpStack::Request req(_httpstack,
                              "/impu/" + IMPU + "/reg-data",
                              "",
@@ -889,6 +1341,364 @@ TEST_F(HandlersTest, ImpuReadRegDataMainline)
     .WillOnce(InvokeArgument<0>(irs));
 
   // HTTP response is sent straight back - no state is changed.
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
+
+  task->run();
+
+  // Build the expected response and check it matches the actual response
+  EXPECT_EQ(REGDATA_RESULT, req.content());
+}
+
+TEST_F(HandlersTest, ImpuRegDataInitialReg)
+{
+  MockHttpStack::Request req = make_request("reg", true, true, false);
+
+  ImpuRegDataTask::Config cfg(true, 3600, 7200);
+  ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
+    
+  // Create IRS to be returned from the cache
+  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet();
+  irs->set_service_profile(IMPU_IMS_SUBSCRIPTION);
+  irs->set_reg_state(RegistrationState::NOT_REGISTERED);
+  irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
+
+  // Set up the cache to return our IRS
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<0>(irs));
+
+  // Create an SAA with which the mock hss will respond to our SAR
+  HssConnection::ServerAssignmentAnswer answer =
+    HssConnection::ServerAssignmentAnswer(HssConnection::ResultCode::SUCCESS,
+                                          NO_CHARGING_ADDRESSES,
+                                          IMPU_IMS_SUBSCRIPTION);
+  
+  // Check the contents of the SAR, and respond with our SAA
+  EXPECT_CALL(*_hss, send_server_assignment_request(_,
+    AllOf(Field(&HssConnection::ServerAssignmentRequest::impi, IMPI),
+          Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
+          Field(&HssConnection::ServerAssignmentRequest::provided_server_name, SERVER_NAME),
+          Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::REGISTRATION))))
+    .WillOnce(InvokeArgument<0>(ByRef(answer)));
+
+  // We now expect it to be put in the cache with an updated TTL and state REGISTERED
+  EXPECT_CALL(*_cache, put_implicit_registration_set(_, _,
+    AllOf(Field(&ImplicitRegistrationSet::_reg_state, RegistrationState::REGISTERED),
+          Field(&ImplicitRegistrationSet::_ttl, 7200)),
+    FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<0>());
+  
+  // Expect 200 response
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
+
+  task->run();
+
+  // Build the expected response and check it matches the actual response
+  EXPECT_EQ(REGDATA_RESULT, req.content());
+}
+
+TEST_F(HandlersTest, ImpuRegDataInitialRegNoServerName)
+{
+  MockHttpStack::Request req = make_request("reg", true, false, false);
+
+  ImpuRegDataTask::Config cfg(true, 3600, 7200);
+  ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
+    
+  // Create IRS to be returned from the cache
+  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet();
+  irs->set_service_profile(IMPU_IMS_SUBSCRIPTION);
+  irs->set_reg_state(RegistrationState::NOT_REGISTERED);
+  irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
+
+  // Set up the cache to return our IRS
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<0>(irs));
+
+  // Create an SAA with which the mock hss will respond to our SAR
+  HssConnection::ServerAssignmentAnswer answer =
+    HssConnection::ServerAssignmentAnswer(HssConnection::ResultCode::SUCCESS,
+                                          NO_CHARGING_ADDRESSES,
+                                          IMPU_IMS_SUBSCRIPTION);
+  
+  // Check the contents of the SAR, and respond with our SAA
+  EXPECT_CALL(*_hss, send_server_assignment_request(_,
+    AllOf(Field(&HssConnection::ServerAssignmentRequest::impi, IMPI),
+          Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
+          Field(&HssConnection::ServerAssignmentRequest::provided_server_name, DEFAULT_SERVER_NAME),
+          Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::REGISTRATION))))
+    .WillOnce(InvokeArgument<0>(ByRef(answer)));
+
+  // We now expect it to be put in the cache with an updated TTL and state REGISTERED
+  EXPECT_CALL(*_cache, put_implicit_registration_set(_, _,
+    AllOf(Field(&ImplicitRegistrationSet::_reg_state, RegistrationState::REGISTERED),
+          Field(&ImplicitRegistrationSet::_ttl, 7200)),
+    FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<0>());
+  
+  // Expect 200 response
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
+
+  task->run();
+
+  // Build the expected response and check it matches the actual response
+  EXPECT_EQ(REGDATA_RESULT, req.content());
+}
+
+TEST_F(HandlersTest, ImpuRegDataInitialRegCacheGetError)
+{
+  MockHttpStack::Request req = make_request("reg", true, false, false);
+
+  ImpuRegDataTask::Config cfg(true, 3600, 7200);
+  ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
+
+  // Set up the cache to hit an error
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<1>(Store::Status::ERROR));
+  
+  // 504 error expected
+  EXPECT_CALL(*_httpstack, send_reply(_, 504, _));
+
+  task->run();
+
+  // Expect no body in 504 response
+  EXPECT_EQ("", req.content());
+}
+
+TEST_F(HandlersTest, ImpuRegDataInitialRegCacheGetErrorNotFound)
+{
+  MockHttpStack::Request req = make_request("reg", true, false, false);
+
+  ImpuRegDataTask::Config cfg(true, 3600, 7200);
+  ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
+
+  // Set up the cache to hit an error
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<1>(Store::Status::NOT_FOUND));
+  
+  // 404 error expected
+  EXPECT_CALL(*_httpstack, send_reply(_, 404, _));
+
+  task->run();
+
+  // Expect no body in 404 response
+  EXPECT_EQ("", req.content());
+}
+
+TEST_F(HandlersTest, ImpuRegDataInitialRegCachePutError)
+{
+  MockHttpStack::Request req = make_request("reg", true, true, false);
+
+  ImpuRegDataTask::Config cfg(true, 3600, 7200);
+  ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
+    
+  // Create IRS to be returned from the cache
+  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet();
+  irs->set_service_profile(IMPU_IMS_SUBSCRIPTION);
+  irs->set_reg_state(RegistrationState::NOT_REGISTERED);
+  irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
+
+  // Set up the cache to return our IRS
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<0>(irs));
+
+  // Create an SAA with which the mock hss will respond to our SAR
+  HssConnection::ServerAssignmentAnswer answer =
+    HssConnection::ServerAssignmentAnswer(HssConnection::ResultCode::SUCCESS,
+                                          NO_CHARGING_ADDRESSES,
+                                          IMPU_IMS_SUBSCRIPTION);
+  
+  // Check the contents of the SAR, and respond with our SAA
+  EXPECT_CALL(*_hss, send_server_assignment_request(_,
+    AllOf(Field(&HssConnection::ServerAssignmentRequest::impi, IMPI),
+          Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
+          Field(&HssConnection::ServerAssignmentRequest::provided_server_name, SERVER_NAME),
+          Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::REGISTRATION))))
+    .WillOnce(InvokeArgument<0>(ByRef(answer)));
+
+  // We simulate a cache error when trying to cache it
+  EXPECT_CALL(*_cache, put_implicit_registration_set(_, _,
+    AllOf(Field(&ImplicitRegistrationSet::_reg_state, RegistrationState::REGISTERED),
+          Field(&ImplicitRegistrationSet::_ttl, 7200)),
+    FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<1>(Store::Status::ERROR));
+  
+  // Expect 503 response
+  // sr2sr2 todo - why is this 503?
+  EXPECT_CALL(*_httpstack, send_reply(_, 503, _));
+
+  task->run();
+
+  // Expect no body in error response
+  EXPECT_EQ("", req.content());
+}
+
+TEST_F(HandlersTest, ImpuRegDataReReg)
+{
+  MockHttpStack::Request req = make_request("reg", true, true, false);
+
+  ImpuRegDataTask::Config cfg(true, 3600, 7200);
+  ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
+    
+  // Create IRS to be returned from the cache
+  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet();
+  irs->set_service_profile(IMPU_IMS_SUBSCRIPTION);
+  irs->set_reg_state(RegistrationState::REGISTERED);
+  irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
+  irs->set_associated_impis({ IMPI });
+
+  // Set up the cache to return our IRS
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<0>(irs));
+
+  // Create an SAA with which the mock hss will respond to our SAR
+  HssConnection::ServerAssignmentAnswer answer =
+    HssConnection::ServerAssignmentAnswer(HssConnection::ResultCode::SUCCESS,
+                                          NO_CHARGING_ADDRESSES,
+                                          IMPU_IMS_SUBSCRIPTION);
+  
+  // Check the contents of the SAR, and respond with our SAA
+  EXPECT_CALL(*_hss, send_server_assignment_request(_,
+    AllOf(Field(&HssConnection::ServerAssignmentRequest::impi, IMPI),
+          Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
+          Field(&HssConnection::ServerAssignmentRequest::provided_server_name, SERVER_NAME),
+          Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::RE_REGISTRATION))))
+    .WillOnce(InvokeArgument<0>(ByRef(answer)));
+
+  // We now expect it to be put in the cache with an updated TTL and state REGISTERED
+  EXPECT_CALL(*_cache, put_implicit_registration_set(_, _,
+    AllOf(Field(&ImplicitRegistrationSet::_reg_state, RegistrationState::REGISTERED),
+          Field(&ImplicitRegistrationSet::_ttl, 7200)),
+    FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<0>());
+  
+  // Expect 200 response
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
+
+  task->run();
+
+  // Build the expected response and check it matches the actual response
+  EXPECT_EQ(REGDATA_RESULT, req.content());
+}
+
+TEST_F(HandlersTest, ImpuRegDataReRegNoCache)
+{
+  MockHttpStack::Request req = make_request("reg", true, true, false);
+  req.add_header_to_incoming_req("Cache-control", "no-cache");
+
+  ImpuRegDataTask::Config cfg(true, 3600, 7200);
+  ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
+    
+  // Create IRS to be returned from the cache
+  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet();
+  irs->set_service_profile(IMPU_IMS_SUBSCRIPTION);
+  irs->set_reg_state(RegistrationState::REGISTERED);
+  irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
+  irs->set_associated_impis({ IMPI });
+
+  // Set up the cache to return our IRS
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<0>(irs));
+
+  // Create an SAA with which the mock hss will respond to our SAR
+  HssConnection::ServerAssignmentAnswer answer =
+    HssConnection::ServerAssignmentAnswer(HssConnection::ResultCode::SUCCESS,
+                                          NO_CHARGING_ADDRESSES,
+                                          IMPU_IMS_SUBSCRIPTION);
+  
+  // Check the contents of the SAR, and respond with our SAA
+  EXPECT_CALL(*_hss, send_server_assignment_request(_,
+    AllOf(Field(&HssConnection::ServerAssignmentRequest::impi, IMPI),
+          Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
+          Field(&HssConnection::ServerAssignmentRequest::provided_server_name, SERVER_NAME),
+          Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::RE_REGISTRATION))))
+    .WillOnce(InvokeArgument<0>(ByRef(answer)));
+
+  // We now expect it to be put in the cache with an updated TTL and state REGISTERED
+  EXPECT_CALL(*_cache, put_implicit_registration_set(_, _,
+    AllOf(Field(&ImplicitRegistrationSet::_reg_state, RegistrationState::REGISTERED),
+          Field(&ImplicitRegistrationSet::_ttl, 7200)),
+    FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<0>());
+  
+  // Expect 200 response
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
+
+  task->run();
+
+  // Build the expected response and check it matches the actual response
+  EXPECT_EQ(REGDATA_RESULT, req.content());
+}
+
+TEST_F(HandlersTest, ImpuRegDataReRegCached)
+{
+  // Tests that a new enough record in the cache will not trigger a SAR
+  MockHttpStack::Request req = make_request("reg", true, true, false);
+
+  ImpuRegDataTask::Config cfg(true, 3600, 7200);
+  ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
+    
+  // Create IRS to be returned from the cache
+  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet();
+  irs->set_service_profile(IMPU_IMS_SUBSCRIPTION);
+  irs->set_reg_state(RegistrationState::REGISTERED);
+  irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
+  irs->set_ttl(7200);
+  irs->set_associated_impis({ IMPI });
+
+  // Set up the cache to return our IRS
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<0>(irs));
+
+  // No SAR is made, and not new data added to cache
+  
+  // Expect 200 response
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
+
+  task->run();
+
+  // Build the expected response and check it matches the actual response
+  EXPECT_EQ(REGDATA_RESULT, req.content());
+}
+
+TEST_F(HandlersTest, ImpuRegDataReRegNewBinding)
+{
+  MockHttpStack::Request req = make_request("reg", true, true, false);
+
+  ImpuRegDataTask::Config cfg(true, 3600, 7200);
+  ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
+    
+  // Create IRS to be returned from the cache
+  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet();
+  irs->set_service_profile(IMPU_IMS_SUBSCRIPTION);
+  irs->set_reg_state(RegistrationState::REGISTERED);
+  irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
+
+  // Set up the cache to return our IRS
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<0>(irs));
+
+  // Create an SAA with which the mock hss will respond to our SAR
+  HssConnection::ServerAssignmentAnswer answer =
+    HssConnection::ServerAssignmentAnswer(HssConnection::ResultCode::SUCCESS,
+                                          NO_CHARGING_ADDRESSES,
+                                          IMPU_IMS_SUBSCRIPTION);
+  
+  // Check the contents of the SAR, and respond with our SAA
+  // A new binding triggers a REGISTRATION request, not a RE_REGISTRATION
+  EXPECT_CALL(*_hss, send_server_assignment_request(_,
+    AllOf(Field(&HssConnection::ServerAssignmentRequest::impi, IMPI),
+          Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
+          Field(&HssConnection::ServerAssignmentRequest::provided_server_name, SERVER_NAME),
+          Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::REGISTRATION))))
+    .WillOnce(InvokeArgument<0>(ByRef(answer)));
+
+  // We now expect it to be put in the cache with an updated TTL and state REGISTERED
+  EXPECT_CALL(*_cache, put_implicit_registration_set(_, _,
+    AllOf(Field(&ImplicitRegistrationSet::_reg_state, RegistrationState::REGISTERED),
+          Field(&ImplicitRegistrationSet::_ttl, 7200)),
+    FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<0>());
+  
+  // Expect 200 response
   EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
 
   task->run();

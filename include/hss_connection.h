@@ -148,6 +148,13 @@ public:
     }
   }
 
+  UserAuthAnswer(ResultCode rc) : HssResponse(rc),
+    _json_result(0),
+    _server_name(""),
+    _server_capabilities(NULL)
+  {
+  }
+
   // Takes ownership of the ServerCapabilities* passed in, and will delete it in its
   // destructor
   UserAuthAnswer(ResultCode rc,
@@ -191,6 +198,14 @@ public:
     {
       delete _server_capabilities; _server_capabilities = NULL;
     }
+  }
+
+  LocationInfoAnswer(ResultCode rc) : HssResponse(rc),
+    _json_result(0),
+    _server_name(""),
+    _server_capabilities(NULL),
+    _wildcard_impu("")
+  {
   }
 
   // Takes ownership of the ServerCapabilities* passed in, and will delete it in its
@@ -240,6 +255,12 @@ class ServerAssignmentAnswer : public HssResponse
 {
 public:
   ~ServerAssignmentAnswer(){}
+
+  ServerAssignmentAnswer(ResultCode rc) : HssResponse(rc),
+    _charging_addrs(),
+    _service_profile("")
+  {
+  }
 
   // Takes ownership of the ServerCapabilities* passed in, and will delete it in its
   // destructor
