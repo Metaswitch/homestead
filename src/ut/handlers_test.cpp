@@ -1395,7 +1395,8 @@ TEST_F(HandlersTest, ImpuRegDataInitialReg)
   HssConnection::ServerAssignmentAnswer answer =
     HssConnection::ServerAssignmentAnswer(HssConnection::ResultCode::SUCCESS,
                                           NO_CHARGING_ADDRESSES,
-                                          IMPU_IMS_SUBSCRIPTION);
+                                          IMPU_IMS_SUBSCRIPTION,
+                                          "");
   
   // Check the contents of the SAR, and respond with our SAA
   EXPECT_CALL(*_hss, send_server_assignment_request(_,
@@ -1442,7 +1443,8 @@ TEST_F(HandlersTest, ImpuRegDataInitialRegNoServerName)
   HssConnection::ServerAssignmentAnswer answer =
     HssConnection::ServerAssignmentAnswer(HssConnection::ResultCode::SUCCESS,
                                           NO_CHARGING_ADDRESSES,
-                                          IMPU_IMS_SUBSCRIPTION);
+                                          IMPU_IMS_SUBSCRIPTION,
+                                          "");
   
   // Check the contents of the SAR, and respond with our SAA
   EXPECT_CALL(*_hss, send_server_assignment_request(_,
@@ -1485,7 +1487,8 @@ TEST_F(HandlersTest, ImpuRegDataInitialRegCacheGetNotFound)
   HssConnection::ServerAssignmentAnswer answer =
     HssConnection::ServerAssignmentAnswer(HssConnection::ResultCode::SUCCESS,
                                           NO_CHARGING_ADDRESSES,
-                                          IMPU_IMS_SUBSCRIPTION);
+                                          IMPU_IMS_SUBSCRIPTION,
+                                          "");
 
   // Check the contents of the SAR, and respond with our SAA
   EXPECT_CALL(*_hss, send_server_assignment_request(_,
@@ -1559,7 +1562,8 @@ TEST_F(HandlersTest, ImpuRegDataInitialRegCachePutError)
   HssConnection::ServerAssignmentAnswer answer =
     HssConnection::ServerAssignmentAnswer(HssConnection::ResultCode::SUCCESS,
                                           NO_CHARGING_ADDRESSES,
-                                          IMPU_IMS_SUBSCRIPTION);
+                                          IMPU_IMS_SUBSCRIPTION,
+                                          "");
   
   // Check the contents of the SAR, and respond with our SAA
   EXPECT_CALL(*_hss, send_server_assignment_request(_,
@@ -1608,7 +1612,8 @@ TEST_F(HandlersTest, ImpuRegDataReReg)
   HssConnection::ServerAssignmentAnswer answer =
     HssConnection::ServerAssignmentAnswer(HssConnection::ResultCode::SUCCESS,
                                           NO_CHARGING_ADDRESSES,
-                                          IMPU_IMS_SUBSCRIPTION);
+                                          IMPU_IMS_SUBSCRIPTION,
+                                          "");
   
   // Check the contents of the SAR, and respond with our SAA
   EXPECT_CALL(*_hss, send_server_assignment_request(_,
@@ -1657,7 +1662,8 @@ TEST_F(HandlersTest, ImpuRegDataReRegNoCache)
   HssConnection::ServerAssignmentAnswer answer =
     HssConnection::ServerAssignmentAnswer(HssConnection::ResultCode::SUCCESS,
                                           NO_CHARGING_ADDRESSES,
-                                          IMPU_IMS_SUBSCRIPTION);
+                                          IMPU_IMS_SUBSCRIPTION,
+                                          "");
   
   // Check the contents of the SAR, and respond with our SAA
   EXPECT_CALL(*_hss, send_server_assignment_request(_,
@@ -1735,7 +1741,8 @@ TEST_F(HandlersTest, ImpuRegDataReRegNewBinding)
   HssConnection::ServerAssignmentAnswer answer =
     HssConnection::ServerAssignmentAnswer(HssConnection::ResultCode::SUCCESS,
                                           NO_CHARGING_ADDRESSES,
-                                          IMPU_IMS_SUBSCRIPTION);
+                                          IMPU_IMS_SUBSCRIPTION,
+                                          "");
   
   // Check the contents of the SAR, and respond with our SAA
   // A new binding triggers a REGISTRATION request, not a RE_REGISTRATION
@@ -1761,3 +1768,705 @@ TEST_F(HandlersTest, ImpuRegDataReRegNewBinding)
   // Build the expected response and check it matches the actual response
   EXPECT_EQ(REGDATA_RESULT, req.content());
 }
+
+// TODO does this test get us anything?
+// It's up to the cache to decide how to store the default impu
+TEST_F(HandlersTest, ImpuRegDataRegIncludesBarring)
+{
+  // Tests that the first unbarred public id is used when putting data into the
+  // cache
+  MockHttpStack::Request req = make_request("reg", true, true, false);
+
+  ImpuRegDataTask::Config cfg(true, 3600, 7200);
+  ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
+    
+  // Create IRS to be returned from the cache
+  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet();
+  irs->set_service_profile(IMPU_IMS_SUBSCRIPTION_WITH_BARRING);
+  irs->set_reg_state(RegistrationState::NOT_REGISTERED);
+  irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
+
+  // Set up the cache to return our IRS
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<0>(irs));
+
+  // Create an SAA with which the mock hss will respond to our SAR
+  HssConnection::ServerAssignmentAnswer answer =
+    HssConnection::ServerAssignmentAnswer(HssConnection::ResultCode::SUCCESS,
+                                          NO_CHARGING_ADDRESSES,
+                                          IMPU_IMS_SUBSCRIPTION_WITH_BARRING,
+                                          "");
+  
+  // Check the contents of the SAR, and respond with our SAA
+  EXPECT_CALL(*_hss, send_server_assignment_request(_,
+    AllOf(Field(&HssConnection::ServerAssignmentRequest::impi, IMPI),
+          Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
+          Field(&HssConnection::ServerAssignmentRequest::provided_server_name, SERVER_NAME),
+          Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::REGISTRATION))))
+    .WillOnce(InvokeArgument<0>(ByRef(answer)));
+
+  // We now expect it to be put in the cache with an updated TTL and state REGISTERED
+  EXPECT_CALL(*_cache, put_implicit_registration_set(_, _,
+    AllOf(Field(&ImplicitRegistrationSet::_reg_state, RegistrationState::REGISTERED),
+          Field(&ImplicitRegistrationSet::_ttl, 7200)),
+    FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<0>());
+  
+  // Expect 200 response
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
+
+  task->run();
+
+  // Build the expected response and check it matches the actual response
+  EXPECT_EQ(REGDATA_RESULT_INCLUDES_BARRING, req.content());
+}
+
+TEST_F(HandlersTest, ImpuRegDataCallWildcardWithSAR)
+{
+  // Tests that an SAA with a wildcard triggers a new lookup in the cache
+  // The initial request doesn't include a wildcard
+  MockHttpStack::Request req = make_request("call", false, false, false);
+
+  ImpuRegDataTask::Config cfg(true, 3600, 7200);
+  ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
+    
+  // Create IRS to be returned from the cache
+  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet();
+  irs->set_reg_state(RegistrationState::NOT_REGISTERED);
+
+  // Set up the cache to return our IRS
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<0>(irs));
+
+  // Create an SAA with which the mock hss will respond to our SAR
+  HssConnection::ServerAssignmentAnswer answer =
+    HssConnection::ServerAssignmentAnswer(HssConnection::ResultCode::NEW_WILDCARD,
+                                          NO_CHARGING_ADDRESSES,
+                                          "",
+                                          WILDCARD);
+  
+  // Check the contents of the SAR, and respond with our SAA
+  // The SAR is of type UNREGISTERED_USER because we've got NOT_REGISTERED from
+  // the cache.
+  EXPECT_CALL(*_hss, send_server_assignment_request(_,
+    AllOf(Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
+          Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::UNREGISTERED_USER))))
+    .WillOnce(InvokeArgument<0>(ByRef(answer)));
+
+  // We now expect another cache lookup for the new wildcard impu
+  // Create new IRS to be returned from the cache
+  ImplicitRegistrationSet* irs2 = new ImplicitRegistrationSet();
+  irs2->set_reg_state(RegistrationState::REGISTERED);
+
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, WILDCARD, FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<0>(irs2));
+
+  // Expect 200 response
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
+
+  task->run();
+}
+
+TEST_F(HandlersTest, ImpuRegDataCallNewWildcard)
+{
+  // Tests that an SAA with a new wildcard triggers a new lookup in the cache
+  MockHttpStack::Request req = make_request("call", false, false, true);
+
+  ImpuRegDataTask::Config cfg(true, 3600, 7200);
+  ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
+    
+  // Create IRS to be returned from the cache
+  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet();
+  irs->set_reg_state(RegistrationState::NOT_REGISTERED);
+
+  // Set up the cache to return our IRS
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, WILDCARD, FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<0>(irs));
+
+  // Create an SAA with which the mock hss will respond to our SAR
+  HssConnection::ServerAssignmentAnswer answer =
+    HssConnection::ServerAssignmentAnswer(HssConnection::ResultCode::NEW_WILDCARD,
+                                          NO_CHARGING_ADDRESSES,
+                                          "",
+                                          NEW_WILDCARD);
+  
+  // Check the contents of the SAR, and respond with our SAA
+  // The SAR is of type UNREGISTERED_USER because we've got NOT_REGISTERED from
+  // the cache.
+  EXPECT_CALL(*_hss, send_server_assignment_request(_,
+    AllOf(Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
+          Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::UNREGISTERED_USER),
+          Field(&HssConnection::ServerAssignmentRequest::wildcard_impu, WILDCARD))))
+    .WillOnce(InvokeArgument<0>(ByRef(answer)));
+
+  // We now expect another cache lookup for the new wildcard impu
+  // Create new IRS to be returned from the cache
+  ImplicitRegistrationSet* irs2 = new ImplicitRegistrationSet();
+  irs2->set_reg_state(RegistrationState::REGISTERED);
+
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, NEW_WILDCARD, FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<0>(irs2));
+
+  // Expect 200 response
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
+
+  task->run();
+}
+
+TEST_F(HandlersTest, ImpuRegDataCallNewWildcardNotFound)
+{
+  // Tests that an SAA with a new wildcard triggers a new lookup in the cache,
+  // and if that doesn't find anything we send another SAR with the new wildcard
+  MockHttpStack::Request req = make_request("call", false, false, true);
+
+  ImpuRegDataTask::Config cfg(true, 3600, 7200);
+  ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
+    
+  // Create IRS to be returned from the cache
+  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet();
+  irs->set_reg_state(RegistrationState::NOT_REGISTERED);
+
+  // Set up the cache to return our IRS
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, WILDCARD, FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<0>(irs));
+
+  // Create an SAA with which the mock hss will respond to our SAR
+  HssConnection::ServerAssignmentAnswer answer =
+    HssConnection::ServerAssignmentAnswer(HssConnection::ResultCode::NEW_WILDCARD,
+                                          NO_CHARGING_ADDRESSES,
+                                          "",
+                                          NEW_WILDCARD);
+  
+  // Check the contents of the SAR, and respond with our SAA
+  // The SAR is of type UNREGISTERED_USER because we've got NOT_REGISTERED from
+  // the cache.
+  EXPECT_CALL(*_hss, send_server_assignment_request(_,
+    AllOf(Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
+          Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::UNREGISTERED_USER),
+          Field(&HssConnection::ServerAssignmentRequest::wildcard_impu, WILDCARD))))
+    .WillOnce(InvokeArgument<0>(ByRef(answer)));
+
+  // We now expect another cache lookup for the new wildcard impu, which will
+  // return NOT_FOUND
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, NEW_WILDCARD, FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<1>(Store::Status::NOT_FOUND));
+  
+  // Now, we check that we send a new SAR to the HSS with the new wildcard,
+  // and then end the test by timing out that request
+  HssConnection::ServerAssignmentAnswer answer2 =
+    HssConnection::ServerAssignmentAnswer(HssConnection::ResultCode::TIMEOUT);
+
+  EXPECT_CALL(*_hss, send_server_assignment_request(_,
+    AllOf(Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
+          Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::UNREGISTERED_USER),
+          Field(&HssConnection::ServerAssignmentRequest::wildcard_impu, NEW_WILDCARD))))
+    .WillOnce(InvokeArgument<0>(ByRef(answer2)));
+
+  // Don't care about the response
+  EXPECT_CALL(*_httpstack, send_reply(_, _, _));
+
+  task->run();
+}
+
+TEST_F(HandlersTest, ImpuRegDataCallWildcardLoop)
+{
+  // Tests that if the SAA reports a new wildcard but it hasn't been updated,
+  // we send a 503
+  MockHttpStack::Request req = make_request("call", false, false, true);
+
+  ImpuRegDataTask::Config cfg(true, 3600, 7200);
+  ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
+    
+  // Create IRS to be returned from the cache
+  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet();
+  irs->set_reg_state(RegistrationState::NOT_REGISTERED);
+
+  // Set up the cache to return our IRS
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, WILDCARD, FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<0>(irs));
+
+  // Create an SAA with which the mock hss will respond to our SAR
+  HssConnection::ServerAssignmentAnswer answer =
+    HssConnection::ServerAssignmentAnswer(HssConnection::ResultCode::NEW_WILDCARD,
+                                          NO_CHARGING_ADDRESSES,
+                                          "",
+                                          WILDCARD);
+  
+  // Check the contents of the SAR, and respond with our SAA
+  // The SAR is of type UNREGISTERED_USER because we've got NOT_REGISTERED from
+  // the cache.
+  EXPECT_CALL(*_hss, send_server_assignment_request(_,
+    AllOf(Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
+          Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::UNREGISTERED_USER),
+          Field(&HssConnection::ServerAssignmentRequest::wildcard_impu, WILDCARD))))
+    .WillOnce(InvokeArgument<0>(ByRef(answer)));
+
+  // Expect the request to be rejected as the new wildcard is the same
+  EXPECT_CALL(*_httpstack, send_reply(_, 500, _));
+
+  task->run();
+}
+
+//TODO inappropriate wildcard request should be tested by diameter stuff
+
+TEST_F(HandlersTest, ImpuRegDataCallMainline)
+{
+  // Tests that a "call" request for a registered sub doesn't trigger an SAR
+  MockHttpStack::Request req = make_request("call", true, false, false);
+
+  ImpuRegDataTask::Config cfg(true, 3600, 7200);
+  ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
+    
+  // Create IRS to be returned from the cache
+  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet();
+  irs->set_service_profile(IMPU_IMS_SUBSCRIPTION);
+  irs->set_reg_state(RegistrationState::REGISTERED);
+  irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
+  irs->set_associated_impis(IMPI_IN_VECTOR);
+
+  // Set up the cache to return our IRS
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<0>(irs));
+
+  // Check the response
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
+
+  task->run();
+
+  EXPECT_EQ(REGDATA_RESULT, req.content());
+}
+
+TEST_F(HandlersTest, ImpuRegDataCallWildcard)
+{
+  // Tests a "call" request for a wildcard impu
+  MockHttpStack::Request req = make_request("call", true, false, true);
+
+  ImpuRegDataTask::Config cfg(true, 3600, 7200);
+  ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
+    
+  // Create IRS to be returned from the cache
+  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet();
+  irs->set_service_profile(IMPU_IMS_SUBSCRIPTION);
+  irs->set_reg_state(RegistrationState::REGISTERED);
+  irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
+  irs->set_associated_impis(IMPI_IN_VECTOR);
+
+  // Set up the cache to return our IRS
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, WILDCARD, FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<0>(irs));
+
+  // Check the response
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
+
+  task->run();
+
+  EXPECT_EQ(REGDATA_RESULT, req.content());
+}
+
+TEST_F(HandlersTest, ImpuRegDataCallUnregisteredService)
+{
+  // Tests "call" request handling for unregistered service
+  MockHttpStack::Request req = make_request("call", true, false, false);
+
+  ImpuRegDataTask::Config cfg(true, 3600, 7200);
+  ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
+    
+  // Create IRS to be returned from the cache
+  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet();
+  irs->set_service_profile(IMPU_IMS_SUBSCRIPTION);
+  irs->set_reg_state(RegistrationState::UNREGISTERED);
+  irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
+  irs->set_associated_impis(IMPI_IN_VECTOR);
+
+  // Set up the cache to return our IRS
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<0>(irs));
+
+  // Check the response
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
+
+  task->run();
+
+  EXPECT_EQ(REGDATA_RESULT_UNREG, req.content());
+}
+
+TEST_F(HandlersTest, ImpuRegDataCallNewUnregisteredService)
+{
+  // Tests "call" request handling for unregistered service for a subscriber
+  // whose data is not already in the cache
+  MockHttpStack::Request req = make_request("call", true, true, false);
+
+  ImpuRegDataTask::Config cfg(true, 3600, 7200);
+  ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
+    
+  // Get NOT_FOUND from the cache
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<1>(Store::Status::NOT_FOUND));
+
+  // Then send SAR, which gets SUCCESS back
+  HssConnection::ServerAssignmentAnswer answer =
+    HssConnection::ServerAssignmentAnswer(HssConnection::ResultCode::SUCCESS,
+                                          NO_CHARGING_ADDRESSES,
+                                          IMPU_IMS_SUBSCRIPTION,
+                                          "");
+  EXPECT_CALL(*_hss, send_server_assignment_request(_,
+    AllOf(Field(&HssConnection::ServerAssignmentRequest::impi, IMPI),
+          Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
+          Field(&HssConnection::ServerAssignmentRequest::provided_server_name, SERVER_NAME),
+          Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::UNREGISTERED_USER))))
+    .WillOnce(InvokeArgument<0>(ByRef(answer)));
+
+  // Data is cached with state UNREGISTERED
+  EXPECT_CALL(*_cache, put_implicit_registration_set(_, _,
+    AllOf(Field(&ImplicitRegistrationSet::_reg_state, RegistrationState::UNREGISTERED),
+          Field(&ImplicitRegistrationSet::_ttl, 7200)),
+    FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<0>());
+
+  // Check the response
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
+
+  task->run();
+
+  EXPECT_EQ(REGDATA_RESULT_UNREG, req.content());
+}
+
+TEST_F(HandlersTest, ImpuRegDataDeregUser)
+{
+  // Tests user-initiated de-registration
+  MockHttpStack::Request req = make_request("dereg-user", true, true, false);
+
+  ImpuRegDataTask::Config cfg(true, 3600, 7200);
+  ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
+    
+  // Create IRS to be returned from the cache
+  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet();
+  irs->set_service_profile(IMPU_IMS_SUBSCRIPTION);
+  irs->set_reg_state(RegistrationState::REGISTERED);
+  irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
+  irs->set_associated_impis(IMPI_IN_VECTOR);
+
+  // Lookup use in cache
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<0>(irs));
+
+  // Then send SAR, which gets SUCCESS back
+  HssConnection::ServerAssignmentAnswer answer =
+    HssConnection::ServerAssignmentAnswer(HssConnection::ResultCode::SUCCESS,
+                                          NO_CHARGING_ADDRESSES,
+                                          IMPU_IMS_SUBSCRIPTION,
+                                          "");
+  EXPECT_CALL(*_hss, send_server_assignment_request(_,
+    AllOf(Field(&HssConnection::ServerAssignmentRequest::impi, IMPI),
+          Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
+          Field(&HssConnection::ServerAssignmentRequest::provided_server_name, SERVER_NAME),
+          Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::USER_DEREGISTRATION))))
+    .WillOnce(InvokeArgument<0>(ByRef(answer)));
+
+  // Data is deleted from cache
+  // Check that the deletion request is using the correct service profile (as
+  // that's how the cache knows what to delete)
+  EXPECT_CALL(*_cache, delete_implicit_registration_set(_, _,
+    Field(&ImplicitRegistrationSet::_service_profile, IMPU_IMS_SUBSCRIPTION),
+    FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<0>());
+
+  // Check the response
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
+
+  task->run();
+
+  EXPECT_EQ(REGDATA_RESULT_DEREG, req.content());
+}
+
+TEST_F(HandlersTest, ImpuRegDataDeregTimeout)
+{
+  // Tests timeout-initiated de-registration
+  MockHttpStack::Request req = make_request("dereg-timeout", true, true, false);
+
+  ImpuRegDataTask::Config cfg(true, 3600, 7200);
+  ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
+    
+  // Create IRS to be returned from the cache
+  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet();
+  irs->set_service_profile(IMPU_IMS_SUBSCRIPTION);
+  irs->set_reg_state(RegistrationState::REGISTERED);
+  irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
+  irs->set_associated_impis(IMPI_IN_VECTOR);
+
+  // Lookup use in cache
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<0>(irs));
+
+  // Then send SAR, which gets SUCCESS back
+  HssConnection::ServerAssignmentAnswer answer =
+    HssConnection::ServerAssignmentAnswer(HssConnection::ResultCode::SUCCESS,
+                                          NO_CHARGING_ADDRESSES,
+                                          IMPU_IMS_SUBSCRIPTION,
+                                          "");
+  EXPECT_CALL(*_hss, send_server_assignment_request(_,
+    AllOf(Field(&HssConnection::ServerAssignmentRequest::impi, IMPI),
+          Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
+          Field(&HssConnection::ServerAssignmentRequest::provided_server_name, SERVER_NAME),
+          Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::TIMEOUT_DEREGISTRATION))))
+    .WillOnce(InvokeArgument<0>(ByRef(answer)));
+
+  // Data is deleted from cache
+  // Check that the deletion request is using the correct service profile (as
+  // that's how the cache knows what to delete)
+  EXPECT_CALL(*_cache, delete_implicit_registration_set(_, _,
+    Field(&ImplicitRegistrationSet::_service_profile, IMPU_IMS_SUBSCRIPTION),
+    FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<0>());
+
+  // Check the response
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
+
+  task->run();
+
+  EXPECT_EQ(REGDATA_RESULT_DEREG, req.content());
+}
+
+TEST_F(HandlersTest, ImpuRegDataDeregAdmin)
+{
+  // Tests administrative de-registration
+  MockHttpStack::Request req = make_request("dereg-admin", true, true, false);
+
+  ImpuRegDataTask::Config cfg(true, 3600, 7200);
+  ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
+    
+  // Create IRS to be returned from the cache
+  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet();
+  irs->set_service_profile(IMPU_IMS_SUBSCRIPTION);
+  irs->set_reg_state(RegistrationState::REGISTERED);
+  irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
+  irs->set_associated_impis(IMPI_IN_VECTOR);
+
+  // Lookup use in cache
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<0>(irs));
+
+  // Then send SAR, which gets SUCCESS back
+  HssConnection::ServerAssignmentAnswer answer =
+    HssConnection::ServerAssignmentAnswer(HssConnection::ResultCode::SUCCESS,
+                                          NO_CHARGING_ADDRESSES,
+                                          IMPU_IMS_SUBSCRIPTION,
+                                          "");
+  EXPECT_CALL(*_hss, send_server_assignment_request(_,
+    AllOf(Field(&HssConnection::ServerAssignmentRequest::impi, IMPI),
+          Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
+          Field(&HssConnection::ServerAssignmentRequest::provided_server_name, SERVER_NAME),
+          Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::ADMINISTRATIVE_DEREGISTRATION))))
+    .WillOnce(InvokeArgument<0>(ByRef(answer)));
+
+  // Data is deleted from cache
+  // Check that the deletion request is using the correct service profile (as
+  // that's how the cache knows what to delete)
+  EXPECT_CALL(*_cache, delete_implicit_registration_set(_, _,
+    Field(&ImplicitRegistrationSet::_service_profile, IMPU_IMS_SUBSCRIPTION),
+    FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<0>());
+
+  // Check the response
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
+
+  task->run();
+
+  EXPECT_EQ(REGDATA_RESULT_DEREG, req.content());
+}
+
+TEST_F(HandlersTest, ImpuRegDataDeregNoIMPI)
+{
+  // Tests that if an IMPI is not explicitly provided on a deregistration we use
+  // the one from the cached user-data
+  MockHttpStack::Request req = make_request("dereg-admin", false, true, false);
+
+  ImpuRegDataTask::Config cfg(true, 3600, 7200);
+  ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
+    
+  // Create IRS to be returned from the cache
+  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet();
+  irs->set_service_profile(IMPU_IMS_SUBSCRIPTION);
+  irs->set_reg_state(RegistrationState::REGISTERED);
+  irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
+  irs->set_associated_impis(IMPI_IN_VECTOR);
+
+  // Lookup use in cache
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<0>(irs));
+
+  // Then send SAR, which gets SUCCESS back
+  HssConnection::ServerAssignmentAnswer answer =
+    HssConnection::ServerAssignmentAnswer(HssConnection::ResultCode::SUCCESS,
+                                          NO_CHARGING_ADDRESSES,
+                                          IMPU_IMS_SUBSCRIPTION,
+                                          "");
+  EXPECT_CALL(*_hss, send_server_assignment_request(_,
+    AllOf(Field(&HssConnection::ServerAssignmentRequest::impi, IMPI),
+          Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
+          Field(&HssConnection::ServerAssignmentRequest::provided_server_name, SERVER_NAME),
+          Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::ADMINISTRATIVE_DEREGISTRATION))))
+    .WillOnce(InvokeArgument<0>(ByRef(answer)));
+
+  // Data is deleted from cache
+  // Check that the deletion request is using the correct service profile (as
+  // that's how the cache knows what to delete)
+  EXPECT_CALL(*_cache, delete_implicit_registration_set(_, _,
+    Field(&ImplicitRegistrationSet::_service_profile, IMPU_IMS_SUBSCRIPTION),
+    FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<0>());
+
+  // Check the response
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
+
+  task->run();
+
+  EXPECT_EQ(REGDATA_RESULT_DEREG, req.content());
+}
+
+TEST_F(HandlersTest, ImpuRegDataDeregCacheError)
+{
+  // Tests that if the cache delete operation fails, we send an appropriate error
+  MockHttpStack::Request req = make_request("dereg-admin", false, true, false);
+
+  ImpuRegDataTask::Config cfg(true, 3600, 7200);
+  ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
+    
+  // Create IRS to be returned from the cache
+  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet();
+  irs->set_service_profile(IMPU_IMS_SUBSCRIPTION);
+  irs->set_reg_state(RegistrationState::REGISTERED);
+  irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
+  irs->set_associated_impis(IMPI_IN_VECTOR);
+
+  // Lookup use in cache
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<0>(irs));
+
+  // Then send SAR, which gets SUCCESS back
+  HssConnection::ServerAssignmentAnswer answer =
+    HssConnection::ServerAssignmentAnswer(HssConnection::ResultCode::SUCCESS,
+                                          NO_CHARGING_ADDRESSES,
+                                          IMPU_IMS_SUBSCRIPTION,
+                                          "");
+  EXPECT_CALL(*_hss, send_server_assignment_request(_,
+    AllOf(Field(&HssConnection::ServerAssignmentRequest::impi, IMPI),
+          Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
+          Field(&HssConnection::ServerAssignmentRequest::provided_server_name, SERVER_NAME),
+          Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::ADMINISTRATIVE_DEREGISTRATION))))
+    .WillOnce(InvokeArgument<0>(ByRef(answer)));
+
+  // Data is deleted from cache
+  // Check that the deletion request is using the correct service profile (as
+  // that's how the cache knows what to delete)
+  EXPECT_CALL(*_cache, delete_implicit_registration_set(_, _,
+    Field(&ImplicitRegistrationSet::_service_profile, IMPU_IMS_SUBSCRIPTION),
+    FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<1>(Store::Status::ERROR));
+
+  // Check the response
+  // TODO - 503 seems pretty odd here
+  EXPECT_CALL(*_httpstack, send_reply(_, 503, _));
+
+  task->run();
+
+  EXPECT_EQ("", req.content());
+}
+
+TEST_F(HandlersTest, ImpuRegDataDeregCacheNotFound)
+{
+  // Tests that a NOT_FOUND error on deletion results in a 200 OK
+  MockHttpStack::Request req = make_request("dereg-admin", false, true, false);
+
+  ImpuRegDataTask::Config cfg(true, 3600, 7200);
+  ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
+    
+  // Create IRS to be returned from the cache
+  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet();
+  irs->set_service_profile(IMPU_IMS_SUBSCRIPTION);
+  irs->set_reg_state(RegistrationState::REGISTERED);
+  irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
+  irs->set_associated_impis(IMPI_IN_VECTOR);
+
+  // Lookup use in cache
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<0>(irs));
+
+  // Then send SAR, which gets SUCCESS back
+  HssConnection::ServerAssignmentAnswer answer =
+    HssConnection::ServerAssignmentAnswer(HssConnection::ResultCode::SUCCESS,
+                                          NO_CHARGING_ADDRESSES,
+                                          IMPU_IMS_SUBSCRIPTION,
+                                          "");
+  EXPECT_CALL(*_hss, send_server_assignment_request(_,
+    AllOf(Field(&HssConnection::ServerAssignmentRequest::impi, IMPI),
+          Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
+          Field(&HssConnection::ServerAssignmentRequest::provided_server_name, SERVER_NAME),
+          Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::ADMINISTRATIVE_DEREGISTRATION))))
+    .WillOnce(InvokeArgument<0>(ByRef(answer)));
+
+  // Cache delete gives a NOT_FOUND error
+  // Check that the deletion request is using the correct service profile (as
+  // that's how the cache knows what to delete)
+  EXPECT_CALL(*_cache, delete_implicit_registration_set(_, _,
+    Field(&ImplicitRegistrationSet::_service_profile, IMPU_IMS_SUBSCRIPTION),
+    FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<1>(Store::Status::NOT_FOUND));
+
+  // Check the response
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
+
+  task->run();
+
+  EXPECT_EQ(REGDATA_RESULT_DEREG, req.content());
+}
+
+TEST_F(HandlersTest, ImpuRegDataDeregUnregSub)
+{
+  // Tests that an unregistered user is deregistered wih the HSS
+  MockHttpStack::Request req = make_request("dereg-admin", true, true, false);
+
+  ImpuRegDataTask::Config cfg(true, 3600, 7200);
+  ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
+    
+  // Create IRS to be returned from the cache
+  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet();
+  irs->set_service_profile(IMPU_IMS_SUBSCRIPTION);
+  irs->set_reg_state(RegistrationState::UNREGISTERED);
+  irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
+  irs->set_associated_impis(IMPI_IN_VECTOR);
+
+  // Lookup use in cache
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<0>(irs));
+
+  // Then send SAR, which gets SUCCESS back
+  HssConnection::ServerAssignmentAnswer answer =
+    HssConnection::ServerAssignmentAnswer(HssConnection::ResultCode::SUCCESS,
+                                          NO_CHARGING_ADDRESSES,
+                                          IMPU_IMS_SUBSCRIPTION,
+                                          "");
+  EXPECT_CALL(*_hss, send_server_assignment_request(_,
+    AllOf(Field(&HssConnection::ServerAssignmentRequest::impi, IMPI),
+          Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
+          Field(&HssConnection::ServerAssignmentRequest::provided_server_name, SERVER_NAME),
+          Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::ADMINISTRATIVE_DEREGISTRATION))))
+    .WillOnce(InvokeArgument<0>(ByRef(answer)));
+
+  // Data is deleted from cache
+  // Check that the deletion request is using the correct service profile (as
+  // that's how the cache knows what to delete)
+  EXPECT_CALL(*_cache, delete_implicit_registration_set(_, _,
+    Field(&ImplicitRegistrationSet::_service_profile, IMPU_IMS_SUBSCRIPTION),
+    FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<0>());
+
+  // Check the response
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
+
+  task->run();
+
+  EXPECT_EQ(REGDATA_RESULT_DEREG, req.content());
+}
+
+//TODO - got up to ImsSubscriptionDeregUnregSub

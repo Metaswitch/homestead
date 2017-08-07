@@ -1057,7 +1057,7 @@ void ImpuRegDataTask::on_get_reg_data_success(ImplicitRegistrationSet* irs)
     else
     {
       // We're already assigned to handle this subscriber - respond with the
-      // iFCs anfd whether they're in registered state or not.
+      // iFCs and whether they're in registered state or not.
       send_reply();
       delete _irs; _irs = NULL;
       delete this;
@@ -1451,7 +1451,7 @@ void ImpuRegDataTask::on_get_reg_data_failure(Store::Status rc)
     if (_req.method() == htp_method_PUT)
     {
       ImplicitRegistrationSet* irs = _cache->create_implicit_registration_set(public_id());
-      irs->set_reg_state(RegistrationState::UNREGISTERED);
+      irs->set_reg_state(RegistrationState::NOT_REGISTERED);
       on_get_reg_data_success(irs);
     }
     else
@@ -1643,14 +1643,26 @@ void ImpuRegDataTask::on_sar_response(const HssConnection::ServerAssignmentAnswe
     //event.add_var_param(_hss_wildcard);
     //SAS::report_event(event);
 
-    // Since we're going to do a new lookup in the cache, we need to delete
-    // the old IRS
-    delete _irs; _irs = NULL;
+    std::string current_wildcard = wildcard_id();
+    _hss_wildcard = saa.get_wildcard_impu();
+    if (current_wildcard == _hss_wildcard)
+    {
+      // The wildcard has not actually been updated. Return an error rather than
+      // retrying to avoid looping.
+      //TODO sas logging
+      _http_rc = HTTP_SERVER_ERROR;
+    }
+    else
+    {
+      // We have an updated wildcard, so perform a new lookup. We need to
+      //delete the old IRS
+      delete _irs; _irs = NULL;
 
-    get_reg_data();
+      get_reg_data();
 
-    // Since processing has been redone, we can stop processing this SAA now.
-    return;
+      // Since processing has been redone, we can stop processing this SAA now.
+      return;
+    }
   }
   else
   {

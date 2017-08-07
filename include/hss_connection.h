@@ -266,9 +266,11 @@ public:
   // destructor
   ServerAssignmentAnswer(ResultCode rc,
                  ChargingAddresses charging_addrs,
-                 std::string service_profile) : HssResponse(rc),
+                 std::string service_profile,
+                 std::string wildcard_impu) : HssResponse(rc),
     _charging_addrs(charging_addrs),
-    _service_profile(service_profile)
+    _service_profile(service_profile),
+    _wildcard_impu(wildcard_impu)
   {
   }
 
@@ -283,9 +285,15 @@ public:
     return _service_profile;
   }
 
+  std::string get_wildcard_impu() const
+  {
+    return _wildcard_impu;
+  }
+
 private:
   ChargingAddresses _charging_addrs;
   std::string _service_profile;
+  std::string _wildcard_impu;
 };
 
 // Callback typedefs
