@@ -22,7 +22,8 @@ class ImplicitRegistrationSet
 {
 public:
   ImplicitRegistrationSet(const std::string& default_impu) :
-    _default_impu(default_impu)
+    _default_impu(default_impu),
+    _ttl(0)
   {
 
   }
