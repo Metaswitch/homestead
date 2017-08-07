@@ -75,6 +75,8 @@ homestead_CPPFLAGS := ${COMMON_CPPFLAGS}
 homestead_test_CPPFLAGS := ${COMMON_CPPFLAGS} -DGTEST_USE_OWN_TR1_TUPLE=0
 
 COMMON_LDFLAGS := -L../usr/lib \
+                  -lmemcached \
+                  -lmemcachedutil \
                   -lthrift \
                   -lcassandra \
                   -lzmq \

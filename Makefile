@@ -20,7 +20,7 @@ DEB_NAMES += homestead-cassandra
 INCLUDE_DIR := ${INSTALL_DIR}/include
 LIB_DIR := ${INSTALL_DIR}/lib
 
-SUBMODULES := c-ares libevhtp freeDiameter thrift cassandra sas-client
+SUBMODULES := c-ares libevhtp freeDiameter thrift cassandra sas-client libmemcached
 
 include $(patsubst %, ${MK_DIR}/%.mk, ${SUBMODULES})
 include ${MK_DIR}/homestead.mk
