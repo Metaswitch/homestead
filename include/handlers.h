@@ -635,26 +635,27 @@ private:
   RegistrationState _reg_state;
   ChargingAddresses _reg_charging_addrs;
 
-  void update_reg_data();
-  void update_reg_data_success(CassandraStore::Operation* op);
-  void update_reg_data_failure(CassandraStore::Operation* op,
-                               CassandraStore::ResultCode error,
-                               std::string& text);
+
+  void on_get_primary_impus_success(CassandraStore::Operation* op);
+  void on_get_primary_impus_failure(CassandraStore::Operation* op,
+                                    CassandraStore::ResultCode error,
+                                    std::string& text);
   void get_irs();
   void on_get_irs_success(CassandraStore::Operation* op);
   void on_get_irs_failure(CassandraStore::Operation* op,
                                       CassandraStore::ResultCode error,
                                       std::string& text);
-  void on_get_primary_impus_success(CassandraStore::Operation* op);
-  void on_get_primary_impus_failure(CassandraStore::Operation* op,
-                                    CassandraStore::ResultCode error,
-                                    std::string& text);
   inline bool is_first_irs()
   {
     return (_default_public_id == _first_default_impu);
   }
   bool default_impus_match();
   void ims_sub_get_ids();
+  void update_reg_data();
+  void update_reg_data_success(CassandraStore::Operation* op);
+  void update_reg_data_failure(CassandraStore::Operation* op,
+                               CassandraStore::ResultCode error,
+                               std::string& text);
   void find_impus_to_delete();
   void delete_impus();
   bool any_new_impus();

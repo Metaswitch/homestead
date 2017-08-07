@@ -2367,77 +2367,6 @@ void PushProfileTask::run()
   }
 }
 
-
-void PushProfileTask::update_reg_data()
-{
-  if (!_ims_sub_present || !is_first_irs())
-  {
-    _impus = _irs_impus;
-  }
-
-  Cache::PutRegData* put_reg_data =
-    _cfg->cache->create_PutRegData(_impus,
-                                   _default_public_id,
-                                   Cache::generate_timestamp(),
-                                   _cfg->record_ttl);
-  SAS::Event event(this->trail(), SASEvent::CACHE_PUT_REG_DATA, 0);
-
-  std::string impus_str = boost::algorithm::join(_impus, ", ");
-  event.add_var_param(impus_str);
-
-  // Only need to update the IMS sub for the one default ID in the subscription
-  if (_ims_sub_present && is_first_irs())
-  {
-    TRC_INFO("Updating IMS subscription from PPR");
-    put_reg_data->with_xml(_ims_subscription);
-    event.add_compressed_param(_ims_subscription, &SASEvent::PROFILE_SERVICE_PROFILE);
-    // Delete any IMPUs from the cache that have been deleted from IRS.
-    find_impus_to_delete();
-    if (!_impus_to_delete.empty())
-    {
-      delete_impus();
-    }
-    // If any IMPUs have been added to IRS, also put the registration state and
-    // charging information.
-    if (any_new_impus())
-    {
-      TRC_INFO("Updating registration state");
-      put_reg_data->with_reg_state(_reg_state);
-      if (!_charging_addrs_present)
-      {
-        put_reg_data->with_charging_addrs(_reg_charging_addrs);
-      }
-    }
-  }
-  else if (is_first_irs())
-  {
-    event.add_compressed_param("IMS subscription unchanged", &SASEvent::PROFILE_SERVICE_PROFILE);
-  }
-
-  event.add_static_param(RegistrationState::UNCHANGED);
-  event.add_var_param("");
-
-  if (_charging_addrs_present)
-  {
-    TRC_INFO("Updating charging addresses from PPR");
-    event.add_var_param(_charging_addrs.log_string());
-    put_reg_data->with_charging_addrs(_charging_addrs);
-  }
-  else
-  {
-    event.add_var_param("Charging addresses unchanged");
-  }
-
-  CassandraStore::Transaction* tsx =
-    new CacheTransaction(this,
-                         &PushProfileTask::update_reg_data_success,
-                         &PushProfileTask::update_reg_data_failure);
-  CassandraStore::Operation*& op = (CassandraStore::Operation*&)put_reg_data;
-  _cfg->cache->do_async(op, tsx);
-
-  SAS::report_event(event);
-}
-
 void PushProfileTask::on_get_primary_impus_failure(CassandraStore::Operation* op,
                                                    CassandraStore::ResultCode error,
                                                    std::string& text)
@@ -2540,10 +2469,12 @@ void PushProfileTask::ims_sub_get_ids()
     SAS::report_event(event);
   }
 
+  // Obtain the first default impu, then remove from the vector, and place at
+  // the end, since the last item in the vector is the first to be considered
+  // in obtaining the IRS.
+
   XmlUtils::get_default_id(_ims_subscription, _default_public_id);
   _first_default_impu = _default_public_id;
-  // Remove the first default impu and place at the end, since the last item in the vector
-  // is the first to be considered in obtaining the IRS.
   _default_impus.erase(std::remove(_default_impus.begin(),
                                    _default_impus.end(),
                                    _default_public_id),
@@ -2607,6 +2538,76 @@ void PushProfileTask::on_get_irs_failure(CassandraStore::Operation* op,
   {
     get_irs();
   }
+}
+
+void PushProfileTask::update_reg_data()
+{
+  if (!_ims_sub_present || !is_first_irs())
+  {
+    _impus = _irs_impus;
+  }
+
+  Cache::PutRegData* put_reg_data =
+    _cfg->cache->create_PutRegData(_impus,
+                                   _default_public_id,
+                                   Cache::generate_timestamp(),
+                                   _cfg->record_ttl);
+  SAS::Event event(this->trail(), SASEvent::CACHE_PUT_REG_DATA, 0);
+
+  std::string impus_str = boost::algorithm::join(_impus, ", ");
+  event.add_var_param(impus_str);
+
+  // Only need to update the IMS sub for the one default ID in the subscription
+  if (_ims_sub_present && is_first_irs())
+  {
+    TRC_INFO("Updating IMS subscription from PPR");
+    put_reg_data->with_xml(_ims_subscription);
+    event.add_compressed_param(_ims_subscription, &SASEvent::PROFILE_SERVICE_PROFILE);
+    // Delete any IMPUs from the cache that have been deleted from IRS.
+    find_impus_to_delete();
+    if (!_impus_to_delete.empty())
+    {
+      delete_impus();
+    }
+    // If any IMPUs have been added to IRS, also put the registration state and
+    // charging information.
+    if (any_new_impus())
+    {
+      TRC_INFO("Updating registration state");
+      put_reg_data->with_reg_state(_reg_state);
+      if (!_charging_addrs_present)
+      {
+        put_reg_data->with_charging_addrs(_reg_charging_addrs);
+      }
+    }
+  }
+  else if (is_first_irs())
+  {
+    event.add_compressed_param("IMS subscription unchanged", &SASEvent::PROFILE_SERVICE_PROFILE);
+  }
+
+  event.add_static_param(RegistrationState::UNCHANGED);
+  event.add_var_param("");
+
+  if (_charging_addrs_present)
+  {
+    TRC_INFO("Updating charging addresses from PPR");
+    event.add_var_param(_charging_addrs.log_string());
+    put_reg_data->with_charging_addrs(_charging_addrs);
+  }
+  else
+  {
+    event.add_var_param("Charging addresses unchanged");
+  }
+
+  CassandraStore::Transaction* tsx =
+    new CacheTransaction(this,
+                         &PushProfileTask::update_reg_data_success,
+                         &PushProfileTask::update_reg_data_failure);
+  CassandraStore::Operation*& op = (CassandraStore::Operation*&)put_reg_data;
+  _cfg->cache->do_async(op, tsx);
+
+  SAS::report_event(event);
 }
 
 void PushProfileTask::update_reg_data_success(CassandraStore::Operation* op)
