@@ -124,12 +124,6 @@ void ImpiTask::run()
   }
 }
 
-ImpiTask::~ImpiTask()
-{
-  delete _maa;
-  _maa = NULL;
-}
-
 void ImpiTask::get_av()
 {
   if (_impu.empty())
@@ -159,33 +153,37 @@ void ImpiTask::send_mar()
     _authorization
   };
 
+  TRC_DEBUG("Requesting HSS Connection sends MAR");
   // Create the callback that will be invoked on a response
   HssConnection::maa_cb callback =
     std::bind(&ImpiTask::on_mar_response, this, std::placeholders::_1);
 
   // Send the request
   _hss->send_multimedia_auth_request(callback, request);
+  //TRC_DEBUG("Sent");
 }
 
-void ImpiTask::on_mar_response(HssConnection::MultimediaAuthAnswer* maa)
+void ImpiTask::on_mar_response(const HssConnection::MultimediaAuthAnswer& maa)
 {
-  HssConnection::ResultCode rc = maa->get_result();
+  TRC_DEBUG("sr2sr2 on mar response");
+  HssConnection::ResultCode rc = maa.get_result();
   if (rc == HssConnection::ResultCode::SUCCESS)
   {
-    std::string sip_auth_scheme = maa->get_scheme();
+    std::string sip_auth_scheme = maa.get_scheme();
     if (sip_auth_scheme == _cfg->scheme_digest)
     {
-      DigestAuthVector* av = (DigestAuthVector*)(maa->get_av());
+      DigestAuthVector* av = (DigestAuthVector*)(maa.get_av());
       send_reply(*av);
     }
     else if (sip_auth_scheme == _cfg->scheme_akav1)
     {
-      AKAAuthVector* av = (AKAAuthVector*)(maa->get_av());
+      AKAAuthVector* av = (AKAAuthVector*)(maa.get_av());
       send_reply(*av);
+      TRC_ERROR("sr2sr2 sent AKA");
     }
     else if (sip_auth_scheme == _cfg->scheme_akav2)
     {
-      AKAAuthVector* av = (AKAAuthVector*)(maa->get_av());
+      AKAAuthVector* av = (AKAAuthVector*)(maa.get_av());
       av->version = 2;
       send_reply(*av);
     }
@@ -225,7 +223,7 @@ void ImpiTask::on_mar_response(HssConnection::MultimediaAuthAnswer* maa)
     SAS::report_event(event);
     send_http_reply(HTTP_SERVER_ERROR);
   }
-
+  TRC_ERROR("sr2sr2 done now");
   /* TODO
 
   // IMS mandates that exactly one of result code or experimental result code
@@ -244,6 +242,7 @@ void ImpiTask::on_mar_response(HssConnection::MultimediaAuthAnswer* maa)
 
 
   TODO*/
+  TRC_ERROR("sr2sr2 deleiting");
   delete this;
 }
 
@@ -357,6 +356,7 @@ void ImpiAvTask::send_reply(const DigestAuthVector& av)
 
 void ImpiAvTask::send_reply(const AKAAuthVector& av)
 {
+  TRC_ERROR("sr2sr2 send reply");
   rapidjson::StringBuffer sb;
   rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
 
@@ -379,9 +379,10 @@ void ImpiAvTask::send_reply(const AKAAuthVector& av)
     writer.EndObject();
   }
   writer.EndObject();
-
+TRC_ERROR("sr2sr2 built reply");
   _req.add_content(sb.GetString());
   send_http_reply(HTTP_OK);
+  TRC_ERROR("sr2sr2 sent reply");
 }
 
 //
@@ -445,9 +446,9 @@ void ImpiRegistrationStatusTask::run()
   TODO*/
 }
 
-void ImpiRegistrationStatusTask::on_uar_response(HssConnection::UserAuthAnswer* uaa)
+void ImpiRegistrationStatusTask::on_uar_response(const HssConnection::UserAuthAnswer& uaa)
 {
-  HssConnection::ResultCode rc = uaa->get_result();
+  HssConnection::ResultCode rc = uaa.get_result();
   TRC_DEBUG("Received User-Authorization answer with result %d", rc);
 
   if (rc == HssConnection::ResultCode::SUCCESS)
@@ -456,9 +457,9 @@ void ImpiRegistrationStatusTask::on_uar_response(HssConnection::UserAuthAnswer* 
     rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
     writer.StartObject();
     writer.String(JSON_RC.c_str());
-    writer.Int(uaa->get_json_result());
+    writer.Int(uaa.get_json_result());
 
-    std::string server_name = uaa->get_server();
+    std::string server_name = uaa.get_server();
     if (!server_name.empty())
     {
       // If we have a server name, use that
@@ -469,7 +470,7 @@ void ImpiRegistrationStatusTask::on_uar_response(HssConnection::UserAuthAnswer* 
     else
     {
       TRC_DEBUG("Got Server-Capabilities");
-      ServerCapabilities* capabilities = uaa->get_server_capabilities();
+      ServerCapabilities* capabilities = uaa.get_server_capabilities();
 
       if (!capabilities->server_name.empty())
       {
@@ -594,18 +595,18 @@ void ImpuLocationInfoTask::run()
   _hss->send_location_info_request(callback, request);
 }
 
-void ImpuLocationInfoTask::on_lir_response(HssConnection::LocationInfoAnswer* lia)
+void ImpuLocationInfoTask::on_lir_response(const HssConnection::LocationInfoAnswer& lia)
 {
-  HssConnection::ResultCode rc = lia->get_result();
+  HssConnection::ResultCode rc = lia.get_result();
   if (rc == HssConnection::ResultCode::SUCCESS)
   {
     rapidjson::StringBuffer sb;
     rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
     writer.StartObject();
     writer.String(JSON_RC.c_str());
-    writer.Int(lia->get_json_result());
+    writer.Int(lia.get_json_result());
 
-    std::string server_name = lia->get_server();
+    std::string server_name = lia.get_server();
     if (!server_name.empty())
     {
       // If we have a server name, use that
@@ -616,7 +617,7 @@ void ImpuLocationInfoTask::on_lir_response(HssConnection::LocationInfoAnswer* li
     else
     {
       TRC_DEBUG("Got Server-Capabilities");
-      ServerCapabilities* capabilities = lia->get_server_capabilities();
+      ServerCapabilities* capabilities = lia.get_server_capabilities();
       if (!capabilities->server_name.empty())
       {
         TRC_DEBUG("Got Server-Name %s from Capabilities AVP", capabilities->server_name.c_str());
@@ -629,7 +630,7 @@ void ImpuLocationInfoTask::on_lir_response(HssConnection::LocationInfoAnswer* li
 
     // If the HSS returned a wildcarded public user identity, add this to
     // the response.
-    std::string wildcard_impu = lia->get_wildcard_impu();
+    std::string wildcard_impu = lia.get_wildcard_impu();
     if (!wildcard_impu.empty())
     {
       TRC_DEBUG("Got Wildcarded-Public-Identity %s", wildcard_impu.c_str());
@@ -1592,17 +1593,17 @@ void ImpuRegDataTask::on_put_reg_data_failure(Store::Status rc)
   delete this;
 }
 
-void ImpuRegDataTask::on_sar_response(HssConnection::ServerAssignmentAnswer* saa)
+void ImpuRegDataTask::on_sar_response(const HssConnection::ServerAssignmentAnswer& saa)
 {
-  HssConnection::ResultCode rc = saa->get_result();
+  HssConnection::ResultCode rc = saa.get_result();
 
   TRC_DEBUG("Received Server-Assignment answer with result code %d", rc);
 
   if (rc == HssConnection::ResultCode::SUCCESS)
   {
     // Get the charging addresses and user data.
-    _irs->set_charging_addresses(saa->get_charging_addresses());
-    _irs->set_service_profile(saa->get_service_profile());
+    _irs->set_charging_addresses(saa.get_charging_addresses());
+    _irs->set_service_profile(saa.get_service_profile());
   }
   else if (rc == HssConnection::ResultCode::SERVER_UNAVAILABLE)
   {

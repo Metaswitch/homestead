@@ -288,15 +288,15 @@ public:
   };
 
   ImpiTask(HttpStack::Request& req, const Config* cfg, SAS::TrailId trail) :
-    HssCacheTask(req, trail), _cfg(cfg), _impi(), _impu(), _scheme(), _authorization(), _maa(NULL)
+    HssCacheTask(req, trail), _cfg(cfg), _impi(), _impu(), _scheme(), _authorization()
   {}
 
   void run();
-  virtual ~ImpiTask();
+  virtual ~ImpiTask() {};
   virtual bool parse_request() = 0;
   void get_av();
   void send_mar();
-  void on_mar_response(HssConnection::MultimediaAuthAnswer*);
+  void on_mar_response(const HssConnection::MultimediaAuthAnswer& maa);
   virtual void send_reply(const DigestAuthVector& av) = 0;
   virtual void send_reply(const AKAAuthVector& av) = 0;
 
@@ -307,7 +307,6 @@ protected:
   std::string _scheme;
   std::string _authorization;
   std::string _provided_server_name;
-  Cx::MultimediaAuthAnswer *_maa;
 };
 
 class ImpiDigestTask : public ImpiTask
@@ -354,7 +353,7 @@ public:
   {}
 
   void run();
-  void on_uar_response(HssConnection::UserAuthAnswer* uaa);
+  void on_uar_response(const HssConnection::UserAuthAnswer& uaa);
   void sas_log_hss_failure(int32_t result_code,int32_t experimental_result_code);
 
   typedef HssCacheTask::DiameterTransaction<ImpiRegistrationStatusTask> DiameterTransaction;
@@ -386,7 +385,7 @@ public:
   {}
 
   void run();
-  void on_lir_response(HssConnection::LocationInfoAnswer* lia);
+  void on_lir_response(const HssConnection::LocationInfoAnswer& lia);
   void sas_log_hss_failure(int32_t result_code,int32_t experimental_result_code);
 
   // TODO remove these
@@ -431,7 +430,7 @@ public:
   void on_get_reg_data_success(ImplicitRegistrationSet* irs);
   void on_get_reg_data_failure(Store::Status rc);
   void send_server_assignment_request(Cx::ServerAssignmentType type);
-  void on_sar_response(HssConnection::ServerAssignmentAnswer* saa);
+  void on_sar_response(const HssConnection::ServerAssignmentAnswer& saa);
   void on_put_reg_data_success();
   void on_put_reg_data_failure(Store::Status rc);
   void on_del_impu_success();

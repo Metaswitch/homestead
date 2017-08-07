@@ -80,7 +80,7 @@ public:
 
   HssResponse(ResultCode rc) : _result_code(rc) {}
 
-  ResultCode get_result()
+  ResultCode get_result() const
   {
     return _result_code;
   }
@@ -99,27 +99,37 @@ public:
   {
     if (_auth_vector)
     {
+      TRC_ERROR("sr2sr2 deleting auth vector");
       delete _auth_vector; _auth_vector = NULL;
+      TRC_ERROR("sr2sr2 deleted auth vector");
     }
   }
 
   // Takes ownership of the AuthVector* passed in, and will delete it in its
   // destructor
+  MultimediaAuthAnswer(ResultCode rc) : HssResponse(rc),
+    _auth_vector(NULL),
+    _sip_auth_scheme("")
+  {
+  }
+
+  // Takes ownership of the AuthVector* passed in, and will delete it in its
+  // destructor
   MultimediaAuthAnswer(ResultCode rc,
-                         AuthVector* av,
-                         std::string scheme) : HssResponse(rc),
+                       AuthVector* av,
+                       std::string scheme) : HssResponse(rc),
     _auth_vector(av),
     _sip_auth_scheme(scheme)
   {
   }
 
   // The pointer is only valid for the life of the MultimediaAuthAnswer
-  AuthVector* get_av()
+  AuthVector* get_av() const
   {
     return _auth_vector;
   }
 
-  std::string get_scheme()
+  std::string get_scheme() const
   {
     return _sip_auth_scheme;
   }
@@ -152,17 +162,17 @@ public:
   {
   }
 
-  int32_t get_json_result()
+  int32_t get_json_result() const
   {
     return _json_result;
   }
 
-  std::string get_server()
+  std::string get_server() const
   {
     return _server_name;
   }
   // The pointer is only valid for the life of the UserAuthAnswer
-  ServerCapabilities* get_server_capabilities()
+  ServerCapabilities* get_server_capabilities() const
   {
     return _server_capabilities;
   }
@@ -199,23 +209,23 @@ public:
   {
   }
 
-  int32_t get_json_result()
+  int32_t get_json_result() const
   {
     return _json_result;
   }
 
-  std::string get_server()
+  std::string get_server() const
   {
     return _server_name;
   }
 
   // The pointer is only valid for the life of the UserAuthAnswer
-  ServerCapabilities* get_server_capabilities()
+  ServerCapabilities* get_server_capabilities() const
   {
     return _server_capabilities;
   }
 
-  std::string get_wildcard_impu()
+  std::string get_wildcard_impu() const
   {
     return _wildcard_impu;
   }
@@ -244,12 +254,12 @@ public:
   }
 
   // The pointer is only valid for the life of the UserAuthAnswer
-  ChargingAddresses get_charging_addresses()
+  ChargingAddresses get_charging_addresses() const
   {
     return _charging_addrs;
   }
 
-  std::string get_service_profile()
+  std::string get_service_profile() const
   {
     return _service_profile;
   }
@@ -260,10 +270,10 @@ private:
 };
 
 // Callback typedefs
-typedef std::function<void(MultimediaAuthAnswer*)> maa_cb;
-typedef std::function<void(UserAuthAnswer*)> uaa_cb;
-typedef std::function<void(LocationInfoAnswer*)> lia_cb;
-typedef std::function<void(ServerAssignmentAnswer*)> saa_cb;
+typedef std::function<void(const MultimediaAuthAnswer&)> maa_cb;
+typedef std::function<void(const UserAuthAnswer&)> uaa_cb;
+typedef std::function<void(const LocationInfoAnswer&)> lia_cb;
+typedef std::function<void(const ServerAssignmentAnswer&)> saa_cb;
 
 // Abstract base class that represents connection to the HSS.
 // Has 4 methods, to make the 4 different requests to the HSS.
