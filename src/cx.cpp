@@ -777,6 +777,11 @@ void ServerAssignmentAnswer::charging_addrs(ChargingAddresses& charging_addrs) c
 {
   Diameter::AVP::iterator charging_information_avp =
                          begin(((Cx::Dictionary*)dict())->CHARGING_INFORMATION);
+  // charging_addrs is going to be pushed back to populate it, so need to make sure it is empty
+  // first, to avoid populating it incorrectly and duplicating charging addresses.
+  charging_addrs.ccfs.clear();
+  charging_addrs.ecfs.clear();
+
   if (charging_information_avp != end())
   {
     Diameter::AVP::iterator primary_ccf_name_avp =
@@ -1019,6 +1024,12 @@ bool PushProfileRequest::charging_addrs(ChargingAddresses& charging_addrs) const
 
   Diameter::AVP::iterator charging_information_avp =
                          begin(((Cx::Dictionary*)dict())->CHARGING_INFORMATION);
+
+  // charging_addrs is going to be pushed back to populate it, so need to make sure it is empty
+  // first, to avoid populating it incorrectly and duplicating charging addresses.
+  charging_addrs.ccfs.clear();
+  charging_addrs.ecfs.clear();
+
   if (charging_information_avp != end())
   {
     found_charging_info = true;

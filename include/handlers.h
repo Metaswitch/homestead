@@ -627,22 +627,44 @@ private:
   bool _charging_addrs_present;
   ChargingAddresses _charging_addrs;
   std::string _impi;
+  std::string _default_public_id;
+  std::string _first_default_impu;
+  std::string _new_default_impu;
   std::vector<std::string> _impus;
   std::vector<std::string> _default_impus;
+  std::vector<std::string> _irs_impus;
+  std::vector<std::string> _impus_to_delete;
+  RegistrationState _reg_state;
+  ChargingAddresses _reg_charging_addrs;
 
-  void on_get_impus_success(CassandraStore::Operation* op);
-  void on_get_impus_failure(CassandraStore::Operation* op,
-                            CassandraStore::ResultCode error,
-                            std::string& text);
+
   void on_get_primary_impus_success(CassandraStore::Operation* op);
   void on_get_primary_impus_failure(CassandraStore::Operation* op,
                                     CassandraStore::ResultCode error,
                                     std::string& text);
+  void get_irs();
+  void on_get_irs_success(CassandraStore::Operation* op);
+  void on_get_irs_failure(CassandraStore::Operation* op,
+                                      CassandraStore::ResultCode error,
+                                      std::string& text);
+  inline bool is_first_irs()
+  {
+    return (_default_public_id == _first_default_impu);
+  }
+  bool default_impus_match();
+  void ims_sub_get_ids();
   void update_reg_data();
   void update_reg_data_success(CassandraStore::Operation* op);
   void update_reg_data_failure(CassandraStore::Operation* op,
                                CassandraStore::ResultCode error,
                                std::string& text);
+  void find_impus_to_delete();
+  void delete_impus();
+  bool any_new_impus();
+  inline bool should_send_ppa()
+  {
+    return is_first_irs();
+  }
   void send_ppa(const std::string result_code);
 };
 
