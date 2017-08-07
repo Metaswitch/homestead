@@ -66,6 +66,7 @@ using ::testing::Mock;
 using ::testing::AtLeast;
 using ::testing::Field;
 using ::testing::AllOf;
+using ::testing::ByRef;
 
 const SAS::TrailId FAKE_TRAIL_ID = 0x12345678;
 
@@ -509,8 +510,210 @@ TEST_F(HandlersTest, ImpiDigestMainline)
   digest->qop = "qop";
 
   // Create an MAA* to return
-  HssConnection::MultimediaAuthAnswer* answer =
-    new HssConnection::MultimediaAuthAnswer(HssConnection::ResultCode::SUCCESS,
+  HssConnection::MultimediaAuthAnswer answer =
+    HssConnection::MultimediaAuthAnswer(HssConnection::ResultCode::SUCCESS,
+                                            digest,
+                                            SCHEME_DIGEST);
+
+  // Expect that the MAR has the correct IMPI, IMPU and scheme
+  
+  EXPECT_CALL(*_hss, send_multimedia_auth_request(_,
+    AllOf(Field(&HssConnection::MultimediaAuthRequest::impi, IMPI),
+          Field(&HssConnection::MultimediaAuthRequest::impu, IMPU),
+          Field(&HssConnection::MultimediaAuthRequest::scheme, SCHEME_DIGEST))))
+    .WillOnce(InvokeArgument<0>(ByRef(answer)));
+
+  // Expect a 200 OK
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
+
+  task->run();
+
+  // Build the expected response and check it matches the actual response
+  EXPECT_EQ(build_digest_json(*digest), req.content());
+}
+
+TEST_F(HandlersTest, ImpiDigestNoImpu)
+{
+  // Tests IMPI Digest task with no IMPU specified
+  MockHttpStack::Request req(_httpstack,
+                             "/impi/" + IMPI,
+                             "digest",
+                             "");
+
+  ImpiTask::Config cfg(SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA, SCHEME_AKAV2);
+  ImpiDigestTask* task = new ImpiDigestTask(req, &cfg, FAKE_TRAIL_ID);
+
+  // Expect a 404
+  EXPECT_CALL(*_httpstack, send_reply(_, HTTP_NOT_FOUND, _));
+
+  task->run();
+}
+
+TEST_F(HandlersTest, ImpiDigestHssTimeout)
+{
+  // Tests IMPI Digest task when HSS times out the request
+  MockHttpStack::Request req(_httpstack,
+                             "/impi/" + IMPI,
+                             "digest",
+                             "?public_id=" + IMPU);
+
+  ImpiTask::Config cfg(SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA, SCHEME_AKAV2);
+  ImpiDigestTask* task = new ImpiDigestTask(req, &cfg, FAKE_TRAIL_ID);
+
+  // Create an MAA* to return
+  HssConnection::MultimediaAuthAnswer answer =
+    HssConnection::MultimediaAuthAnswer(HssConnection::ResultCode::SERVER_UNAVAILABLE);
+
+  // Expect that the MAR has the correct IMPI, IMPU and scheme
+  EXPECT_CALL(*_hss, send_multimedia_auth_request(_,
+    AllOf(Field(&HssConnection::MultimediaAuthRequest::impi, IMPI),
+          Field(&HssConnection::MultimediaAuthRequest::impu, IMPU),
+          Field(&HssConnection::MultimediaAuthRequest::scheme, SCHEME_DIGEST))))
+    .WillOnce(InvokeArgument<0>(ByRef(answer)));
+
+  // Expect a 503
+  EXPECT_CALL(*_httpstack, send_reply(_, 503, _));
+
+  task->run();
+}
+
+TEST_F(HandlersTest, ImpiDigestHssUserUnknown)
+{
+  // Tests IMPI Digest task when HSS returns user unknown
+  MockHttpStack::Request req(_httpstack,
+                             "/impi/" + IMPI,
+                             "digest",
+                             "?public_id=" + IMPU);
+
+  ImpiTask::Config cfg(SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA, SCHEME_AKAV2);
+  ImpiDigestTask* task = new ImpiDigestTask(req, &cfg, FAKE_TRAIL_ID);
+
+  // Create an MAA* to return
+  HssConnection::MultimediaAuthAnswer answer =
+    HssConnection::MultimediaAuthAnswer(HssConnection::ResultCode::NOT_FOUND);
+
+  // Expect that the MAR has the correct IMPI, IMPU and scheme
+  EXPECT_CALL(*_hss, send_multimedia_auth_request(_,
+    AllOf(Field(&HssConnection::MultimediaAuthRequest::impi, IMPI),
+          Field(&HssConnection::MultimediaAuthRequest::impu, IMPU),
+          Field(&HssConnection::MultimediaAuthRequest::scheme, SCHEME_DIGEST))))
+    .WillOnce(InvokeArgument<0>(ByRef(answer)));
+
+  // Expect a 404
+  EXPECT_CALL(*_httpstack, send_reply(_, 404, _));
+
+  task->run();
+}
+
+TEST_F(HandlersTest, ImpiDigestHssOtherError)
+{
+  // Tests IMPI Digest task when HSS returns an unhandled error type
+  MockHttpStack::Request req(_httpstack,
+                             "/impi/" + IMPI,
+                             "digest",
+                             "?public_id=" + IMPU);
+
+  ImpiTask::Config cfg(SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA, SCHEME_AKAV2);
+  ImpiDigestTask* task = new ImpiDigestTask(req, &cfg, FAKE_TRAIL_ID);
+
+  // Create an MAA* to return
+  HssConnection::MultimediaAuthAnswer answer =
+    HssConnection::MultimediaAuthAnswer(HssConnection::ResultCode::UNKNOWN);
+
+  // Expect that the MAR has the correct IMPI, IMPU and scheme
+  EXPECT_CALL(*_hss, send_multimedia_auth_request(_,
+    AllOf(Field(&HssConnection::MultimediaAuthRequest::impi, IMPI),
+          Field(&HssConnection::MultimediaAuthRequest::impu, IMPU),
+          Field(&HssConnection::MultimediaAuthRequest::scheme, SCHEME_DIGEST))))
+    .WillOnce(InvokeArgument<0>(ByRef(answer)));
+
+  // Expect a 500
+  EXPECT_CALL(*_httpstack, send_reply(_, 500, _));
+
+  task->run();
+}
+
+TEST_F(HandlersTest, ImpiDigestHssUnknownScheme)
+{
+  // Tests IMPI Digest task when HSS returns SUCCESS but with unknown auth scheme
+  MockHttpStack::Request req(_httpstack,
+                             "/impi/" + IMPI,
+                             "digest",
+                             "?public_id=" + IMPU);
+
+  ImpiTask::Config cfg(SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA, SCHEME_AKAV2);
+  ImpiDigestTask* task = new ImpiDigestTask(req, &cfg, FAKE_TRAIL_ID);
+
+  // Create an MAA* to return
+  HssConnection::MultimediaAuthAnswer answer =
+    HssConnection::MultimediaAuthAnswer(HssConnection::ResultCode::SUCCESS,
+                                            NULL,
+                                            SCHEME_UNKNOWN);
+
+  // Expect that the MAR has the correct IMPI, IMPU and scheme
+  EXPECT_CALL(*_hss, send_multimedia_auth_request(_,
+    AllOf(Field(&HssConnection::MultimediaAuthRequest::impi, IMPI),
+          Field(&HssConnection::MultimediaAuthRequest::impu, IMPU),
+          Field(&HssConnection::MultimediaAuthRequest::scheme, SCHEME_DIGEST))))
+    .WillOnce(InvokeArgument<0>(ByRef(answer)));
+
+  // Expect a 404
+  EXPECT_CALL(*_httpstack, send_reply(_, 404, _));
+
+  task->run();
+}
+
+TEST_F(HandlersTest, ImpiDigestHssAKAReturned)
+{
+  // Tests IMPI Digest task when HSS returns SUCCESS but with AKA auth scheme
+  MockHttpStack::Request req(_httpstack,
+                             "/impi/" + IMPI,
+                             "digest",
+                             "?public_id=" + IMPU);
+
+  ImpiTask::Config cfg(SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA, SCHEME_AKAV2);
+  ImpiDigestTask* task = new ImpiDigestTask(req, &cfg, FAKE_TRAIL_ID);
+
+  // Create an MAA* to return
+  HssConnection::MultimediaAuthAnswer answer =
+    HssConnection::MultimediaAuthAnswer(HssConnection::ResultCode::SUCCESS,
+                                            NULL,
+                                            SCHEME_AKA);
+
+  // Expect that the MAR has the correct IMPI, IMPU and scheme
+  EXPECT_CALL(*_hss, send_multimedia_auth_request(_,
+    AllOf(Field(&HssConnection::MultimediaAuthRequest::impi, IMPI),
+          Field(&HssConnection::MultimediaAuthRequest::impu, IMPU),
+          Field(&HssConnection::MultimediaAuthRequest::scheme, SCHEME_DIGEST))))
+    .WillOnce(InvokeArgument<0>(ByRef(answer)));
+
+  // Expect a 404
+  EXPECT_CALL(*_httpstack, send_reply(_, 404, _));
+
+  task->run();
+}
+
+TEST_F(HandlersTest, ImpiAvEmptyQoP)
+{
+  // Tests IMPI AV task when no QoP is specified
+  MockHttpStack::Request req(_httpstack,
+                             "/impi/" + IMPI,
+                             "av",
+                             "?impu=" + IMPU);
+
+  ImpiTask::Config cfg(SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA, SCHEME_AKAV2);
+  ImpiAvTask* task = new ImpiAvTask(req, &cfg, FAKE_TRAIL_ID);
+
+
+  // Create a fake digest to be returned from the HSS
+  DigestAuthVector* digest = new DigestAuthVector();
+  digest->ha1 = "ha1";
+  digest->realm = "realm";
+  digest->qop = "";
+
+  // Create an MAA* to return
+  HssConnection::MultimediaAuthAnswer answer =
+    HssConnection::MultimediaAuthAnswer(HssConnection::ResultCode::SUCCESS,
                                             digest,
                                             SCHEME_DIGEST);
 
@@ -518,17 +721,153 @@ TEST_F(HandlersTest, ImpiDigestMainline)
   EXPECT_CALL(*_hss, send_multimedia_auth_request(_,
     AllOf(Field(&HssConnection::MultimediaAuthRequest::impi, IMPI),
           Field(&HssConnection::MultimediaAuthRequest::impu, IMPU),
-          Field(&HssConnection::MultimediaAuthRequest::scheme, SCHEME_DIGEST))))
-    .WillOnce(InvokeArgument<0>(answer));
+          Field(&HssConnection::MultimediaAuthRequest::scheme, SCHEME_UNKNOWN))))
+    .WillOnce(InvokeArgument<0>(ByRef(answer)));
 
   // Expect a 200 OK
   EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
 
   task->run();
 
-  // Build the expected response and check it's correct.
-  EXPECT_EQ(build_digest_json(*digest), req.content());
+  // Build the expected response and check it matches the actual response
+  EXPECT_EQ(build_av_json(*digest), req.content());
 }
+
+TEST_F(HandlersTest, ImpiAvNoPublicId)
+{
+  // Tests IMPI AV Task with no Public ID gives a 404
+  MockHttpStack::Request req(_httpstack,
+                             "/impi/" + IMPI,
+                             "av",
+                             "");
+
+  ImpiTask::Config cfg(SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA, SCHEME_AKAV2);
+  ImpiAvTask* task = new ImpiAvTask(req, &cfg, FAKE_TRAIL_ID);
+
+  // Expect a 404 OK
+  EXPECT_CALL(*_httpstack, send_reply(_, 404, _));
+
+  task->run();
+}
+
+TEST_F(HandlersTest, ImpiAKA)
+{
+  // Tests AKAv1 Impi AV Task
+  MockHttpStack::Request req(_httpstack,
+                             "/impi/" + IMPI,
+                             "aka",
+                             "?impu=" + IMPU + "&resync-auth=" + base64_encode(SIP_AUTHORIZATION) + "&server-name=" + PROVIDED_SERVER_NAME);
+
+  ImpiTask::Config cfg(SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA, SCHEME_AKAV2);
+  ImpiAvTask* task = new ImpiAvTask(req, &cfg, FAKE_TRAIL_ID);
+
+  // Create a fake digest to be returned from the HSS
+  AKAAuthVector* aka = new AKAAuthVector();
+  aka->challenge = "challenge";
+  aka->response = "response";
+  aka->crypt_key = "crypt_key";
+  aka->integrity_key = "integrity_key";
+
+  // Create an MAA* to return
+  HssConnection::MultimediaAuthAnswer answer =
+    HssConnection::MultimediaAuthAnswer(HssConnection::ResultCode::SUCCESS,
+                                            aka,
+                                            SCHEME_AKA);
+
+  // Expect that the MAR has the correct IMPI, IMPU and scheme
+  EXPECT_CALL(*_hss, send_multimedia_auth_request(_,
+    AllOf(Field(&HssConnection::MultimediaAuthRequest::impi, IMPI),
+          Field(&HssConnection::MultimediaAuthRequest::impu, IMPU),
+          Field(&HssConnection::MultimediaAuthRequest::scheme, SCHEME_AKA))))
+    .WillOnce(InvokeArgument<0>(ByRef(answer)));
+
+  // Expect a 200 OK
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
+
+  task->run();
+
+  // Build the expected response and check it matches the actual response
+  EXPECT_EQ(build_aka_json(*aka), req.content());
+}
+
+TEST_F(HandlersTest, ImpiAKAv2)
+{
+  // Tests AKAv1 Impi AV Task
+  MockHttpStack::Request req(_httpstack,
+                             "/impi/" + IMPI,
+                             "aka2",
+                             "?impu=" + IMPU + "&resync-auth=" + base64_encode(SIP_AUTHORIZATION) + "&server-name=" + PROVIDED_SERVER_NAME);
+
+  ImpiTask::Config cfg(SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA, SCHEME_AKAV2);
+  ImpiAvTask* task = new ImpiAvTask(req, &cfg, FAKE_TRAIL_ID);
+
+  // Create a fake digest to be returned from the HSS
+  AKAAuthVector* aka = new AKAAuthVector();
+  aka->challenge = "challenge";
+  aka->response = "response";
+  aka->crypt_key = "crypt_key";
+  aka->integrity_key = "integrity_key";
+  aka->version = 2;
+
+  // Create an MAA* to return
+  HssConnection::MultimediaAuthAnswer answer =
+    HssConnection::MultimediaAuthAnswer(HssConnection::ResultCode::SUCCESS,
+                                            aka,
+                                            SCHEME_AKA);
+
+  // Expect that the MAR has the correct IMPI, IMPU and scheme
+  EXPECT_CALL(*_hss, send_multimedia_auth_request(_,
+    AllOf(Field(&HssConnection::MultimediaAuthRequest::impi, IMPI),
+          Field(&HssConnection::MultimediaAuthRequest::impu, IMPU),
+          Field(&HssConnection::MultimediaAuthRequest::scheme, SCHEME_AKAV2))))
+    .WillOnce(InvokeArgument<0>(ByRef(answer)));
+
+  // Expect a 200 OK
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
+
+  task->run();
+
+  // Build the expected response and check it matches the actual response
+  EXPECT_EQ(build_aka_json(*aka), req.content());
+}
+
+TEST_F(HandlersTest, ImpiAuthInvalidScheme)
+{
+  // Tests Impi AV Task with invalid auth scheme
+  MockHttpStack::Request req(_httpstack,
+                             "/impi/" + IMPI,
+                             "invalid",
+                             "");
+
+  ImpiTask::Config cfg(SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA, SCHEME_AKAV2);
+  ImpiAvTask* task = new ImpiAvTask(req, &cfg, FAKE_TRAIL_ID);
+
+  // Expect a 404
+  EXPECT_CALL(*_httpstack, send_reply(_, 404, _));
+
+  task->run();
+}
+
+TEST_F(HandlersTest, ImpiAKANoImpu)
+{
+  // Tests Impi AV Task with no impu gets 404
+  MockHttpStack::Request req(_httpstack,
+                             "/impi/" + IMPI,
+                             "aka",
+                             "");
+
+  ImpiTask::Config cfg(SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA, SCHEME_AKAV2);
+  ImpiAvTask* task = new ImpiAvTask(req, &cfg, FAKE_TRAIL_ID);
+
+  // Expect a 404
+  EXPECT_CALL(*_httpstack, send_reply(_, 404, _));
+
+  task->run();
+}
+
+//
+// ReadRegData tests
+//
 
 TEST_F(HandlersTest, ImpuReadRegDataMainline)
 {
@@ -541,8 +880,10 @@ TEST_F(HandlersTest, ImpuReadRegDataMainline)
   ImpuRegDataTask::Config cfg(true, 3600);
   ImpuReadRegDataTask* task = new ImpuReadRegDataTask(req, &cfg, FAKE_TRAIL_ID);
   
+  // Create IRS to be returned from the cache
   ImplicitRegistrationSet* irs = new ImplicitRegistrationSet();
   irs->set_associated_impis({ IMPI });
+  irs->set_service_profile(IMPU_IMS_SUBSCRIPTION);
 
   EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
     .WillOnce(InvokeArgument<0>(irs));
@@ -551,7 +892,7 @@ TEST_F(HandlersTest, ImpuReadRegDataMainline)
   EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
 
   task->run();
-  // Build the expected response and check it's correct
-  //EXPECT_EQ(REGDATA_RESULT, req.content());
 
+  // Build the expected response and check it matches the actual response
+  EXPECT_EQ(REGDATA_RESULT, req.content());
 }
