@@ -233,16 +233,10 @@ public:
     _real_stack = NULL;
   }
 
-  //TODO do we need first one?
-  // We frequently invoke the following two methods on the send method of our
+
+  // We frequently invoke the following method on the send method of our
   // MockDiameterStack in order to catch the Diameter message we're trying
   // to send.
-  static void store_msg_tsx(struct msg* msg, Diameter::Transaction* tsx)
-  {
-    _caught_fd_msg = msg;
-    _caught_diam_tsx = tsx;
-  }
-
   static void store_msg(struct msg* msg)
   {
     _caught_fd_msg = msg;
@@ -3289,8 +3283,6 @@ TEST_F(HandlersTest, PPRMainline)
 
   ppr_check_ppa(DIAMETER_SUCCESS);
   ppr_tear_down(pcfg);
-
-  //TODO
   delete sub;
 }
 
@@ -3338,8 +3330,6 @@ TEST_F(HandlersTest, PPRChangeIDs)
 
   ppr_check_ppa(DIAMETER_SUCCESS);
   ppr_tear_down(pcfg);
-
-  //TODO
   delete sub;
 }
 
@@ -3381,8 +3371,6 @@ TEST_F(HandlersTest, PPRChargingAddrs)
 
   ppr_check_ppa(DIAMETER_SUCCESS);
   ppr_tear_down(pcfg);
-
-  //TODO
   delete sub;
 }
 
@@ -3422,8 +3410,6 @@ TEST_F(HandlersTest, PPRImsSub)
 
   ppr_check_ppa(DIAMETER_SUCCESS);
   ppr_tear_down(pcfg);
-
-  //TODO
   delete sub;
 }
 
@@ -3464,8 +3450,6 @@ TEST_F(HandlersTest, PPRIMSSubNoSIPURI)
 
   ppr_check_ppa(DIAMETER_SUCCESS);
   ppr_tear_down(pcfg);
-
-  //TODO
   delete sub;
 }
 
@@ -3503,8 +3487,6 @@ TEST_F(HandlersTest, PPRCacheFailure)
 
   ppr_check_ppa(DIAMETER_UNABLE_TO_COMPLY);
   ppr_tear_down(pcfg);
-
-  //TODO
   delete sub;
 }
 
