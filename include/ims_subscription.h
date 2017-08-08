@@ -20,6 +20,12 @@
 class ImsSubscription
 {
 public:
+
+  void set_irs_set(std::set<ImplicitRegistrationSet*> irs_set)
+  {
+    _irs_set = irs_set;
+  }
+
   // Updates the charging addresses for all the IRSs 
   void set_charging_addrs(ChargingAddresses new_addresses)
   {
@@ -29,12 +35,23 @@ public:
   // Returns the IRS* if there is one, else NULL
   ImplicitRegistrationSet* get_irs_for_default_impu(std::string impu)
   {
-    //TODO
-    return NULL;
+    ImplicitRegistrationSet* result = NULL;
+    for (ImplicitRegistrationSet* irs : _irs_set)
+    {
+      if (irs->get_default_impu() == impu)
+      {
+        result = irs;
+        break;
+      }
+    }
+
+    return result;
   }
 
 private:
-  std::set<ImplicitRegistrationSet*> _irs_map;
+  std::set<ImplicitRegistrationSet*> _irs_set;
+  //TODO
+  ChargingAddresses _addresses;
 };
 
 #endif

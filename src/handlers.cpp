@@ -2083,29 +2083,19 @@ void PushProfileTask::run()
   // subscription and/or charging address information in the cache
   _ims_sub_present = _ppr.user_data(_ims_subscription);
   _charging_addrs_present = _ppr.charging_addrs(_charging_addrs);
-
-
-  // If we have no charging addresses or IMS subscription, no actions need to be
-  // taken, so send a PPA saying the PPR was successfully handled.
-
-  // If we have charging addresses but no IMS subscription, we need to lookup
-  // which public IDs need updating based on the private ID specified in the
-  // PPR. Need to find the default public IDs.
-
-  // Otherwise, we have an IMS subscription, so we need to lookup the default
-  // public ids for any IRS the IMPI is part of to determine whether this PPR
-  // will change the default public id. If it will, reject it, otherwise
-  // continue.
   _impi = _ppr.impi();
 
   if ((!_charging_addrs_present) && (!_ims_sub_present))
   {
+    // If we have no charging addresses or IMS subscription, no actions need to
+    // be taken, so send a PPA saying the PPR was successfully handled.
     send_ppa(DIAMETER_REQ_SUCCESS);
     delete this;
   }
   else
   {
-    // We have an impi, so get the Ims Subscription data from the cache
+    // Otherwise, we need to get the specified IMPI's entire subscription from
+    // the cache
     ims_sub_success_cb success_cb =
       std::bind(&PushProfileTask::on_get_ims_sub_success, this, std::placeholders::_1);
 
@@ -2221,7 +2211,7 @@ void PushProfileTask::send_ppa(const std::string result_code)
                             _cfg->dict,
                             result_code,
                             _msg.auth_session_state());
-
+/* TODO
   if (result_code == DIAMETER_REQ_SUCCESS)
   {
     ppr_results_tbl->increment(SNMP::DiameterAppId::BASE, 2001);
@@ -2230,7 +2220,7 @@ void PushProfileTask::send_ppa(const std::string result_code)
   {
     ppr_results_tbl->increment(SNMP::DiameterAppId::BASE, 5012);
   }
-
+*/
   // Send the PPA back to the HSS.
   TRC_INFO("Ready to send PPA");
   ppa.send(trail());

@@ -558,6 +558,56 @@ public:
     EXPECT_EQ(impis, rta.associated_identities());
     EXPECT_EQ(AUTH_SESSION_STATE, rta.auth_session_state());
   }
+
+  // PPR function templates
+  void ppr_setup(PushProfileTask** ptask,
+		 PushProfileTask::Config** pcfg,
+                 std::string impi,
+                 std::string ims_subscription,
+                 ChargingAddresses charging_addresses)
+  {
+    Cx::PushProfileRequest ppr(_cx_dict,
+                               _mock_stack,
+                               impi,
+                               ims_subscription,
+                               charging_addresses,
+                               AUTH_SESSION_STATE);
+
+    // The free_on_delete flag controls whether we want to free the underlying
+    // fd_msg structure when we delete this PPR. We don't, since this will be
+    // freed when the answer is freed later in the test. If we leave this flag set
+    // then the request will be freed twice.
+    ppr._free_on_delete = false;
+
+    *pcfg = new PushProfileTask::Config(_cache, _cx_dict, 0, 3600);
+    *ptask = new PushProfileTask(_cx_dict, &ppr._fd_msg, *pcfg, FAKE_TRAIL_ID);
+
+    // We have to make sure the message is pointing at the mock stack.
+    (*ptask)->_msg._stack = _mock_stack;
+    (*ptask)->_ppr._stack = _mock_stack;
+  }
+
+  void ppr_expect_ppa()
+  {
+    // Expect to send a PPA
+    EXPECT_CALL(*_mock_stack, send(_, FAKE_TRAIL_ID))
+      .Times(1)
+      .WillOnce(WithArgs<0>(Invoke(store_msg)));
+  }
+
+  void ppr_check_ppa(int success_or_failure)
+  {  
+    Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
+    Cx::PushProfileAnswer ppa(msg);
+    EXPECT_TRUE(ppa.result_code(test_i32));
+    EXPECT_EQ(success_or_failure, test_i32);
+    EXPECT_EQ(AUTH_SESSION_STATE, ppa.auth_session_state());
+  }
+
+  void ppr_tear_down(PushProfileTask::Config* pcfg)
+  {
+    delete pcfg;
+  }
 };
 
 const std::string HandlersTest::DEST_REALM = "dest-realm";
@@ -3194,4 +3244,39 @@ TEST_F(HandlersTest, RTRCacheError)
   Cx::RegistrationTerminationAnswer rta(msg);
   EXPECT_TRUE(rta.result_code(test_i32));
   EXPECT_EQ(DIAMETER_UNABLE_TO_COMPLY, test_i32);
+}
+
+//
+// Push Profile tests
+//
+
+TEST_F(HandlersTest, PPRMainline)
+{
+  // Successful update on single IRS with charging addresses and XML
+  PushProfileTask* task = NULL;
+  PushProfileTask::Config* pcfg = NULL;
+  ppr_setup(&task, &pcfg, IMPI, IMS_SUBSCRIPTION, FULL_CHARGING_ADDRESSES);
+
+  // Create the ImsSubscription that will be returned
+  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet(IMPU);
+  irs->set_service_profile(IMS_SUBSCRIPTION);
+  irs->set_reg_state(RegistrationState::REGISTERED);
+  irs->set_charging_addresses(FULL_CHARGING_ADDRESSES);
+  ImsSubscription* sub = new ImsSubscription();
+  sub->set_irs_set({ irs });
+
+  // Expect that we'll look up the ImsSubscription for the provided IMPI
+  EXPECT_CALL(*_cache, get_ims_subscription(_, _, IMPI, FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<0>(sub));
+
+  // We'll then save the ImsSubscription in the cache
+  EXPECT_CALL(*_cache, put_ims_subscription(_, _, sub, FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<0>());
+  
+  ppr_expect_ppa();
+
+  task->run();
+
+  ppr_check_ppa(DIAMETER_SUCCESS);
+  ppr_tear_down(pcfg);
 }
