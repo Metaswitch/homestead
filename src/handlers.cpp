@@ -1491,23 +1491,6 @@ void ImpuRegDataTask::send_server_assignment_request(Cx::ServerAssignmentType ty
   _hss->send_server_assignment_request(callback, request);
 }
 
-std::vector<std::string> ImpuRegDataTask::get_associated_private_ids()
-{
-  std::vector<std::string> private_ids;
-  if (!_impi.empty())
-  {
-    TRC_DEBUG("Associated private ID %s", _impi.c_str());
-    private_ids.push_back(_impi);
-  }
-  std::string xml_impi = XmlUtils::get_private_id(_xml);
-  if ((!xml_impi.empty()) && (xml_impi != _impi))
-  {
-    TRC_DEBUG("Associated private ID %s", xml_impi.c_str());
-    private_ids.push_back(xml_impi);
-  }
-  return private_ids;
-}
-
 void ImpuRegDataTask::put_in_cache()
 {
   //TODO - TTL should be registration based, no?
@@ -1846,15 +1829,6 @@ void RegistrationTerminationTask::run()
   _impis.push_back(impi);
   std::vector<std::string> associated_identities = _rtr.associated_identities();
   _impis.insert(_impis.end(), associated_identities.begin(), associated_identities.end());
-  if ((_deregistration_reason != SERVER_CHANGE) &&
-      (_deregistration_reason != NEW_SERVER_ASSIGNED))
-  {
-    // We're not interested in the public identities on the request
-    // if deregistration reason is SERVER_CHANGE or NEW_SERVER_ASSIGNED.
-    // We'll find some public identities later, and we want _impus to be empty
-    // for now.
-    _impus = _rtr.impus();
-  }
 
   TRC_INFO("Received Registration-Termination request with dereg reason %d",
            _deregistration_reason);
@@ -1871,15 +1845,27 @@ void RegistrationTerminationTask::run()
   failure_callback failure_cb =
     std::bind(&RegistrationTerminationTask::get_registration_sets_failure, this, std::placeholders::_1);
 
+  // Figure out which registration sets we're de-registering
+  if ((_deregistration_reason != SERVER_CHANGE) &&
+      (_deregistration_reason != NEW_SERVER_ASSIGNED))
+  {
+    // We only record the list of public identities on the request of the reason
+    // isn't SERVER_CHANGE or NEW_SERVER_ASSIGNED (in those cases, we will
+    // deregister all the IRSs for the provided IMPIs)
+    _impus = _rtr.impus();
+  }
+
   if ((_impus.empty()) && ((_deregistration_reason == PERMANENT_TERMINATION) ||
                            (_deregistration_reason == REMOVE_SCSCF) ||
                            (_deregistration_reason == SERVER_CHANGE) ||
                            (_deregistration_reason == NEW_SERVER_ASSIGNED)))
   {
-    // Get the IRSs associated with these impis
+    // If we don't have a list of impus and the reason is allowed, we want to
+    // deregister all of the IRSs for the provided list of IMPIs, so start by
+    // getting all the IRSs for these IMPIs from the cache
     // TODO - SAS logging - change as no longer assoc primary impus
     std::string impis_str = boost::algorithm::join(_impis, ", ");
-    TRC_DEBUG("Finding associated default public identities for impis %s", impis_str.c_str());
+    TRC_DEBUG("Looking up IRSs from the cache for IMPIs: %s", impis_str.c_str());
     SAS::Event event(this->trail(), SASEvent::CACHE_GET_ASSOC_PRIMARY_IMPUS, 0);
     event.add_var_param(impis_str);
     SAS::report_event(event);
@@ -1892,7 +1878,9 @@ void RegistrationTerminationTask::run()
   else if ((!_impus.empty()) && ((_deregistration_reason == PERMANENT_TERMINATION) ||
                                  (_deregistration_reason == REMOVE_SCSCF)))
   {
-    // Get the IRSs associated with these impus
+    // If we have a list of IMPUs to deregister and the reason is allowed, we
+    // want to only deregister those specific impus, so start by getting all the
+    // IRSs from the cache for those IMPUS
     // TODO - SAS logging
     /*TRC_DEBUG("Finding registration set for public identity %s", impu.c_str());
     SAS::Event event(this->trail(), SASEvent::CACHE_GET_REG_DATA, 0);
@@ -2069,7 +2057,7 @@ void RegistrationTerminationTask::send_rta(const std::string result_code)
                                         result_code,
                                         _msg.auth_session_state(),
                                         _impis);
-
+/*
   if (result_code == DIAMETER_REQ_SUCCESS)
   {
     rtr_results_tbl->increment(SNMP::DiameterAppId::BASE, 2001);
@@ -2077,7 +2065,7 @@ void RegistrationTerminationTask::send_rta(const std::string result_code)
   else if (result_code == DIAMETER_REQ_FAILURE)
   {
     rtr_results_tbl->increment(SNMP::DiameterAppId::BASE, 5012);
-  }
+  }*/
 
   // Send the RTA back to the HSS.
   TRC_INFO("Ready to send RTA");

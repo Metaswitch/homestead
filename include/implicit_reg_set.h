@@ -38,7 +38,10 @@ public:
   std::string get_default_impu()
   {
     //TODO
-    return "TODO";
+    return _default_impu;
+    /*std::string default_id;
+    XmlUtils::get_public_and_default_ids(_irs->get_service_profile(), default_id);
+    return default_id;*/
   }
 
   std::string get_service_profile()

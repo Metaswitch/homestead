@@ -463,7 +463,6 @@ protected:
   RequestType request_type_from_body(std::string body);
   std::string server_name_from_body(std::string body);
   std::string wildcard_from_body(std::string body);
-  std::vector<std::string> get_associated_private_ids();
 
   const Config* _cfg;
   std::string _impi;

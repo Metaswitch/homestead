@@ -154,7 +154,9 @@ public:
   static const std::string TEL_URIS_IMS_SUBSCRIPTION_WITH_BARRING;
   static std::vector<std::string> TEL_URIS_IN_VECTOR;
 
-
+  static Cx::Dictionary* _cx_dict;
+  static Diameter::Stack* _real_stack;
+  static MockDiameterStack* _mock_stack;
   static HttpResolver* _mock_resolver;
   static MockHssCacheProcessor* _cache;
   static MockHttpStack* _httpstack;
@@ -192,6 +194,9 @@ public:
 
   static void SetUpTestCase()
   {
+    _real_stack = Diameter::Stack::get_instance();
+    _real_stack->initialize();
+    _real_stack->configure(UT_DIR + "/diameterstack.conf", NULL);
     _cache = new MockHssCacheProcessor();
     _hss = new MockHssConnection();
     //_hss = new FakeHssConnection();
@@ -199,6 +204,10 @@ public:
     _mock_resolver = new FakeHttpResolver("1.2.3.4");
     _mock_http_conn = new MockHttpConnection(_mock_resolver);
     _sprout_conn = new SproutConnection(_mock_http_conn);
+    TRC_ERROR("sr2sr2 abuot to do diameter");
+    _mock_stack = new MockDiameterStack();
+    TRC_ERROR("sr2sr2 abuot to do diameterdict");
+    _cx_dict = new Cx::Dictionary();
 
     HssCacheTask::configure_hss_connection(_hss, DEFAULT_SERVER_NAME);
     HssCacheTask::configure_cache(_cache);
@@ -215,6 +224,26 @@ public:
     delete _httpstack; _httpstack = NULL;
     delete _sprout_conn; _sprout_conn = NULL;
     delete _mock_resolver; _mock_resolver = NULL;
+    delete _mock_stack; _mock_stack = NULL;
+    delete _cx_dict; _cx_dict = NULL;
+    _real_stack->stop();
+    _real_stack->wait_stopped();
+    _real_stack = NULL;
+  }
+
+  //TODO do we need first one?
+  // We frequently invoke the following two methods on the send method of our
+  // MockDiameterStack in order to catch the Diameter message we're trying
+  // to send.
+  static void store_msg_tsx(struct msg* msg, Diameter::Transaction* tsx)
+  {
+    _caught_fd_msg = msg;
+    _caught_diam_tsx = tsx;
+  }
+
+  static void store_msg(struct msg* msg)
+  {
+    _caught_fd_msg = msg;
   }
 
    // Helper functions to build the expected json responses in our tests.
@@ -425,6 +454,110 @@ public:
 
     task->run();
   }
+
+  void rtr_template(int32_t dereg_reason,
+                    std::string http_path,
+                    std::string body,
+                    HTTPCode http_ret_code,
+                    bool use_impus)
+  {
+    // This is a template function for an RTR test
+    Cx::RegistrationTerminationRequest rtr(_cx_dict,
+                                           _mock_stack,
+                                           dereg_reason,
+                                           IMPI,
+                                           ASSOCIATED_IDENTITIES,
+                                           use_impus ? IMPUS : EMPTY_VECTOR,
+                                           AUTH_SESSION_STATE);
+
+    // The free_on_delete flag controls whether we want to free the underlying
+    // fd_msg structure when we delete this RTR. We don't, since this will be
+    // freed when the answer is freed later in the test. If we leave this flag set
+    // then the request will be freed twice.
+    rtr._free_on_delete = false;
+
+    RegistrationTerminationTask::Config cfg(_cache, _cx_dict, _sprout_conn, 0);
+    RegistrationTerminationTask* task = new RegistrationTerminationTask(_cx_dict, &rtr._fd_msg, &cfg, FAKE_TRAIL_ID);
+
+    // We have to make sure the message is pointing at the mock stack.
+    task->_msg._stack = _mock_stack;
+    task->_rtr._stack = _mock_stack;
+
+    std::vector<std::string> impis = { IMPI, ASSOCIATED_IDENTITY1, ASSOCIATED_IDENTITY2 };
+
+    // Expect to send a diameter message.
+    EXPECT_CALL(*_mock_stack, send(_, FAKE_TRAIL_ID))
+      .Times(1)
+      .WillOnce(WithArgs<0>(Invoke(store_msg)));
+
+    if (dereg_reason <= REMOVE_SCSCF)
+    {
+      // Valid dereg reason
+      // Create the IRSs that will be returned
+      // (the default IMPU of the IRS that IMPU2 is part of is IMPU3)
+      ImplicitRegistrationSet* irs = new ImplicitRegistrationSet(IMPU);
+      irs->set_service_profile(IMPU_IMS_SUBSCRIPTION);
+      irs->set_reg_state(RegistrationState::NOT_REGISTERED);
+      irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
+      irs->set_associated_impis(IMPI_IN_VECTOR);
+
+      ImplicitRegistrationSet* irs2 = new ImplicitRegistrationSet(IMPU3);
+      irs->set_service_profile(IMPU3_IMS_SUBSCRIPTION);
+      irs->set_reg_state(RegistrationState::NOT_REGISTERED);
+      irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
+      irs->set_associated_impis(IMPI_IN_VECTOR);
+
+      std::vector<ImplicitRegistrationSet*> irss = { irs2, irs };
+
+      // The cache lookup depends on whether we have a list of impus and the reason
+      if ((use_impus) && ((dereg_reason == PERMANENT_TERMINATION) ||
+                          (dereg_reason == REMOVE_SCSCF) ||
+                          (dereg_reason == SERVER_CHANGE) ||
+                          (dereg_reason == NEW_SERVER_ASSIGNED)))
+      {
+        // Expect a cache lookup using the provided list of IMPUs
+        EXPECT_CALL(*_cache, get_implicit_registration_sets_for_impus(_, _, IMPUS, FAKE_TRAIL_ID))
+          .WillOnce(InvokeArgument<0>(irss));
+      }
+      else
+      {
+        // Expect a cache lookup using the list of IMPIs
+        EXPECT_CALL(*_cache, get_implicit_registration_sets_for_impis(_, _, impis, FAKE_TRAIL_ID))
+          .WillOnce(InvokeArgument<0>(irss));
+      }
+
+      // Expect a delete to be sent to Sprout.
+      EXPECT_CALL(*_mock_http_conn, send_delete(http_path, _, body))
+        .Times(1)
+        .WillOnce(Return(http_ret_code)).RetiresOnSaturation();
+
+      // Expect deletions for each IRS
+      EXPECT_CALL(*_cache, delete_implicit_registration_sets(_, _, irss, FAKE_TRAIL_ID))
+        .WillOnce(InvokeArgument<0>());
+    }
+    else
+    {
+      // Invalid dereg reason - we'll send a FAILURE response
+    }
+
+    // Run the task
+    task->run();
+
+    // Turn the caught Diameter msg structure into a RTA and confirm its contents.
+    Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
+    Cx::RegistrationTerminationAnswer rta(msg);
+    EXPECT_TRUE(rta.result_code(test_i32));
+    if (http_ret_code == HTTP_OK && dereg_reason <= REMOVE_SCSCF)
+    {
+      EXPECT_EQ(DIAMETER_SUCCESS, test_i32);
+    }
+    else
+    {
+      EXPECT_EQ(DIAMETER_UNABLE_TO_COMPLY, test_i32);
+    }
+    EXPECT_EQ(impis, rta.associated_identities());
+    EXPECT_EQ(AUTH_SESSION_STATE, rta.auth_session_state());
+  }
 };
 
 const std::string HandlersTest::DEST_REALM = "dest-realm";
@@ -531,6 +664,10 @@ std::vector<std::string> HandlersTest::TEL_URIS_IN_VECTOR = {TEL_URI, TEL_URI2};
 const std::string HandlersTest::HTTP_PATH_REG_TRUE = "/registrations?send-notifications=true";
 const std::string HandlersTest::HTTP_PATH_REG_FALSE = "/registrations?send-notifications=false";
 
+msg* HandlersTest::_caught_fd_msg = NULL;
+Cx::Dictionary* HandlersTest::_cx_dict = NULL;
+Diameter::Stack* HandlersTest::_real_stack = NULL;
+MockDiameterStack* HandlersTest::_mock_stack = NULL;
 HttpResolver* HandlersTest::_mock_resolver = NULL;
 MockHssCacheProcessor* HandlersTest::_cache = NULL;
 //FakeHssConnection* HandlersTest::_hss = NULL;
@@ -864,8 +1001,8 @@ TEST_F(HandlersTest, ImpiAKAv2)
   // Create an MAA* to return
   HssConnection::MultimediaAuthAnswer answer =
     HssConnection::MultimediaAuthAnswer(HssConnection::ResultCode::SUCCESS,
-                                            aka,
-                                            SCHEME_AKA);
+                                        aka,
+                                        SCHEME_AKAV2);
 
   // Expect that the MAR has the correct IMPI, IMPU and scheme
   EXPECT_CALL(*_hss, send_multimedia_auth_request(_,
@@ -1375,6 +1512,28 @@ TEST_F(HandlersTest, ImpuReadRegDataCacheGetNotFound)
   EXPECT_EQ("", req.content());
 }
 
+TEST_F(HandlersTest, ImpuReadRegDataNonGet)
+{
+  // Test that a non-GET request is rejected
+  MockHttpStack::Request req(_httpstack,
+                             "/impu/" + IMPU + "/reg-data",
+                             "",
+                             "",
+                             "",
+                             htp_method_PUT);
+
+  ImpuRegDataTask::Config cfg(true, 3600);
+  ImpuReadRegDataTask* task = new ImpuReadRegDataTask(req, &cfg, FAKE_TRAIL_ID);
+
+  // Bad Method response
+  EXPECT_CALL(*_httpstack, send_reply(_, 405, _));
+
+  task->run();
+
+  // Build the expected response and check it matches the actual response
+  EXPECT_EQ("", req.content());
+}
+
 TEST_F(HandlersTest, ImpuRegDataInitialReg)
 {
   MockHttpStack::Request req = make_request("reg", true, true, false);
@@ -1654,6 +1813,7 @@ TEST_F(HandlersTest, ImpuRegDataReRegNoCache)
   irs->set_reg_state(RegistrationState::REGISTERED);
   irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
   irs->set_associated_impis({ IMPI });
+  irs->set_ttl(7200);
 
   // Set up the cache to return our IRS
   EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
@@ -2449,7 +2609,7 @@ TEST_F(HandlersTest, ImpuRegDataDeregUnregSub)
   irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
   irs->set_associated_impis(IMPI_IN_VECTOR);
 
-  // Lookup use in cache
+  // Lookup irs in cache
   EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
     .WillOnce(InvokeArgument<0>(irs));
 
@@ -2482,4 +2642,333 @@ TEST_F(HandlersTest, ImpuRegDataDeregUnregSub)
   EXPECT_EQ(REGDATA_RESULT_DEREG, req.content());
 }
 
-//TODO - got up to ImsSubscriptionDeregUnregSub
+TEST_F(HandlersTest, ImpuRegDataDeregAuthFailedRegistered)
+{
+  // Tests auth failure flow. This should only affect the HSS and not the cache,
+  // and should not change the registered state (as it just means a subscriber
+  // has failed to log in with a new binding)
+  MockHttpStack::Request req = make_request("dereg-auth-failed", false, false, false);
+
+  ImpuRegDataTask::Config cfg(true, 3600, 7200);
+  ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
+    
+  // Create IRS to be returned from the cache
+  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet(IMPU);
+  irs->set_service_profile(IMPU_IMS_SUBSCRIPTION);
+  irs->set_reg_state(RegistrationState::REGISTERED);
+  irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
+  irs->set_associated_impis(IMPI_IN_VECTOR);
+
+  // Expect a cache lookup will return IRS in state REGISTERED
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<0>(irs));
+
+  // Then send an auth failure SAR, which gets SUCCESS back
+  HssConnection::ServerAssignmentAnswer answer =
+    HssConnection::ServerAssignmentAnswer(HssConnection::ResultCode::SUCCESS,
+                                          NO_CHARGING_ADDRESSES,
+                                          IMPU_IMS_SUBSCRIPTION,
+                                          "");
+  EXPECT_CALL(*_hss, send_server_assignment_request(_,
+    AllOf(Field(&HssConnection::ServerAssignmentRequest::impi, IMPI),
+          Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
+          Field(&HssConnection::ServerAssignmentRequest::provided_server_name, DEFAULT_SERVER_NAME),
+          Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::AUTHENTICATION_FAILURE))))
+    .WillOnce(InvokeArgument<0>(ByRef(answer)));
+
+  // No further cache operations - just expect a 200 OK
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
+
+  task->run();
+
+  EXPECT_EQ(REGDATA_RESULT, req.content());
+}
+
+TEST_F(HandlersTest, ImpuRegDataDeregAuthFailedNotRegistered)
+{
+  // Tests auth failure flow. This should only affect the HSS and not the cache,
+  // and should not change the registered state (as it just means a subscriber
+  // has failed to log in with a new binding)
+  MockHttpStack::Request req = make_request("dereg-auth-failed", false, false, false);
+
+  ImpuRegDataTask::Config cfg(true, 3600, 7200);
+  ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
+    
+  // Create IRS to be returned from the cache
+  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet(IMPU);
+  irs->set_service_profile(IMPU_IMS_SUBSCRIPTION);
+  irs->set_reg_state(RegistrationState::NOT_REGISTERED);
+  irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
+  irs->set_associated_impis(IMPI_IN_VECTOR);
+
+  // Expect a cache lookup will return IRS in state NOT_REGISTERED
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<0>(irs));
+
+  // Then send an auth failure SAR, which gets SUCCESS back
+  HssConnection::ServerAssignmentAnswer answer =
+    HssConnection::ServerAssignmentAnswer(HssConnection::ResultCode::SUCCESS,
+                                          NO_CHARGING_ADDRESSES,
+                                          IMPU_IMS_SUBSCRIPTION,
+                                          "");
+  EXPECT_CALL(*_hss, send_server_assignment_request(_,
+    AllOf(Field(&HssConnection::ServerAssignmentRequest::impi, IMPI),
+          Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
+          Field(&HssConnection::ServerAssignmentRequest::provided_server_name, DEFAULT_SERVER_NAME),
+          Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::AUTHENTICATION_FAILURE))))
+    .WillOnce(InvokeArgument<0>(ByRef(answer)));
+
+  // No further cache operations - just expect a 200 OK
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
+
+  task->run();
+
+  EXPECT_EQ(REGDATA_RESULT_DEREG, req.content());
+}
+
+TEST_F(HandlersTest, ImpuRegDataDeregAuthTimeout)
+{
+  // Tests auth timeout flow. This should only affect the HSS and not the cache,
+  // and should not change the registered state (as it just means a subscriber
+  // has failed to log in with a new binding)
+  MockHttpStack::Request req = make_request("dereg-auth-timeout", false, false, false);
+
+  ImpuRegDataTask::Config cfg(true, 3600, 7200);
+  ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
+    
+  // Create IRS to be returned from the cache
+  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet(IMPU);
+  irs->set_service_profile(IMPU_IMS_SUBSCRIPTION);
+  irs->set_reg_state(RegistrationState::NOT_REGISTERED);
+  irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
+  irs->set_associated_impis(IMPI_IN_VECTOR);
+
+  // Expect a cache lookup will return IRS in state NOT_REGISTERED
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<0>(irs));
+
+  // Then send an auth timeout SAR, which gets SUCCESS back
+  HssConnection::ServerAssignmentAnswer answer =
+    HssConnection::ServerAssignmentAnswer(HssConnection::ResultCode::SUCCESS,
+                                          NO_CHARGING_ADDRESSES,
+                                          IMPU_IMS_SUBSCRIPTION,
+                                          "");
+  EXPECT_CALL(*_hss, send_server_assignment_request(_,
+    AllOf(Field(&HssConnection::ServerAssignmentRequest::impi, IMPI),
+          Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
+          Field(&HssConnection::ServerAssignmentRequest::provided_server_name, DEFAULT_SERVER_NAME),
+          Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::AUTHENTICATION_TIMEOUT))))
+    .WillOnce(InvokeArgument<0>(ByRef(answer)));
+
+  // No further cache operations - just expect a 200 OK
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
+
+  task->run();
+
+  EXPECT_EQ(REGDATA_RESULT_DEREG, req.content());
+}
+
+TEST_F(HandlersTest, ImpuRegDataDeregInvalid)
+{
+  // Tests that an attempt to deregister a not registered sub gets a
+  // 400 Bad Request
+  MockHttpStack::Request req = make_request("dereg-user", true, false, false);
+
+  ImpuRegDataTask::Config cfg(true, 3600, 7200);
+  ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
+    
+  // Create IRS to be returned from the cache
+  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet(IMPU);
+  irs->set_service_profile(IMPU_IMS_SUBSCRIPTION);
+  irs->set_reg_state(RegistrationState::NOT_REGISTERED);
+  irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
+  irs->set_associated_impis(IMPI_IN_VECTOR);
+
+  // Expect a cache lookup will return IRS in state NOT_REGISTERED
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<0>(irs));
+
+  // No SAR, just a 400 Bad Request
+  EXPECT_CALL(*_httpstack, send_reply(_, 400, _));
+
+  task->run();
+
+  EXPECT_EQ("", req.content());
+}
+
+TEST_F(HandlersTest, ImpuRegDataInvalidXML)
+{
+  // Tests that getting invalid xml from the HSS results in a 500 response
+  MockHttpStack::Request req = make_request("reg", true, false, false);
+
+  ImpuRegDataTask::Config cfg(true, 3600, 7200);
+  ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
+    
+  // Cache doesn't find anything, and so creates an empty IRS
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<1>(Store::Status::NOT_FOUND));
+
+  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet(IMPU);
+  EXPECT_CALL(*_cache, create_implicit_registration_set(IMPU))
+    .WillOnce(Return(irs));
+
+  // Then send a SAR, which gets SUCCESS back but with invalid XML
+  HssConnection::ServerAssignmentAnswer answer =
+    HssConnection::ServerAssignmentAnswer(HssConnection::ResultCode::SUCCESS,
+                                          NO_CHARGING_ADDRESSES,
+                                          IMPU_IMS_SUBSCRIPTION_INVALID,
+                                          "");
+  EXPECT_CALL(*_hss, send_server_assignment_request(_,
+    AllOf(Field(&HssConnection::ServerAssignmentRequest::impi, IMPI),
+          Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
+          Field(&HssConnection::ServerAssignmentRequest::provided_server_name, DEFAULT_SERVER_NAME),
+          Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::REGISTRATION))))
+    .WillOnce(InvokeArgument<0>(ByRef(answer)));
+
+  // We don't cache this, and instead send a 500
+  EXPECT_CALL(*_httpstack, send_reply(_, 500, _));
+
+  task->run();
+
+  EXPECT_EQ("", req.content());
+}
+
+TEST_F(HandlersTest, ImpuRegDataInvalidPUT)
+{
+  // Tests that a PUT without a req-type is rejected
+  MockHttpStack::Request req = MockHttpStack::Request(_httpstack,
+                                                      "/impu/" + IMPU + "/reg-data",
+                                                      "",
+                                                      "",
+                                                      "{}",
+                                                      htp_method_PUT);
+
+  ImpuRegDataTask::Config cfg(true, 3600, 7200);
+  ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
+
+  // Expect a 400
+  EXPECT_CALL(*_httpstack, send_reply(_, 400, _));
+
+  task->run();
+
+  EXPECT_EQ("", req.content());
+}
+
+TEST_F(HandlersTest, ImpuRegDataInvalidMethod)
+{
+  // Tests that a non-GET or -PUT request is rejected
+  MockHttpStack::Request req = MockHttpStack::Request(_httpstack,
+                                                      "/impu/" + IMPU + "/reg-data",
+                                                      "",
+                                                      "",
+                                                      "{}",
+                                                      htp_method_POST);
+
+  ImpuRegDataTask::Config cfg(true, 3600, 7200);
+  ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
+
+  // Expect a 400
+  EXPECT_CALL(*_httpstack, send_reply(_, 405, _));
+
+  task->run();
+
+  EXPECT_EQ("", req.content());
+}
+
+TEST_F(HandlersTest, ImpuRegDataHssNotFound)
+{
+  // Tests that a NOT_FOUND error from the HSS triggers a 404 response
+  MockHttpStack::Request req = make_request("reg", true, true, false);
+
+  ImpuRegDataTask::Config cfg(true, 3600, 7200);
+  ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
+    
+  // Create IRS to be returned from the cache
+  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet(IMPU);
+  irs->set_service_profile(IMPU_IMS_SUBSCRIPTION);
+  irs->set_reg_state(RegistrationState::NOT_REGISTERED);
+  irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
+  irs->set_associated_impis(IMPI_IN_VECTOR);
+
+  // Expect a cache lookup will return IRS in state NOT_REGISTERED
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<0>(irs));
+
+  // Then send a SAR, which gets a NOT_FOUND error
+  HssConnection::ServerAssignmentAnswer answer =
+    HssConnection::ServerAssignmentAnswer(HssConnection::ResultCode::NOT_FOUND);
+  EXPECT_CALL(*_hss, send_server_assignment_request(_,
+    AllOf(Field(&HssConnection::ServerAssignmentRequest::impi, IMPI),
+          Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
+          Field(&HssConnection::ServerAssignmentRequest::provided_server_name, SERVER_NAME),
+          Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::REGISTRATION))))
+    .WillOnce(InvokeArgument<0>(ByRef(answer)));
+  
+  // Expect a 404
+  EXPECT_CALL(*_httpstack, send_reply(_, 404, _));
+
+  task->run();
+
+  EXPECT_EQ("", req.content());
+}
+
+//
+// RegistrationTermination tests
+//
+
+// Test mainline RTRs with various reasons
+TEST_F(HandlersTest, RTRPermanentTermination)
+{
+  rtr_template(PERMANENT_TERMINATION, HTTP_PATH_REG_FALSE, DEREG_BODY_PAIRINGS, HTTP_OK, true);
+}
+
+TEST_F(HandlersTest, RTRRemoveSCSCF)
+{
+  rtr_template(REMOVE_SCSCF, HTTP_PATH_REG_TRUE, DEREG_BODY_LIST, HTTP_OK, true);
+}
+
+TEST_F(HandlersTest, RTRPermanentTerminationNoImpus)
+{
+  rtr_template(PERMANENT_TERMINATION, HTTP_PATH_REG_FALSE, DEREG_BODY_PAIRINGS, HTTP_OK, false);
+}
+
+TEST_F(HandlersTest, RTRRemoveSCSCFNoIMPUS)
+{
+  rtr_template(REMOVE_SCSCF, HTTP_PATH_REG_TRUE, DEREG_BODY_LIST, HTTP_OK, false);
+}
+
+TEST_F(HandlersTest, RTRServerChange)
+{
+  rtr_template(SERVER_CHANGE, HTTP_PATH_REG_TRUE, DEREG_BODY_LIST, HTTP_OK, false);
+}
+
+TEST_F(HandlersTest,RTRNewServerAssigned)
+{
+  rtr_template(NEW_SERVER_ASSIGNED, HTTP_PATH_REG_FALSE, DEREG_BODY_LIST, HTTP_OK, false);
+}
+
+TEST_F(HandlersTest, RTRUnknownReason)
+{
+  rtr_template(9, "", "", 0, true);
+}
+
+// Test RTRs with HTTP errors from Sprout
+TEST_F(HandlersTest, RTRHTTPBadMethod)
+{
+  rtr_template(PERMANENT_TERMINATION, HTTP_PATH_REG_FALSE, DEREG_BODY_PAIRINGS, HTTP_BADMETHOD, true);
+}
+
+TEST_F(HandlersTest, RTRHTTPBadResult)
+{
+  rtr_template(PERMANENT_TERMINATION, HTTP_PATH_REG_FALSE, DEREG_BODY_PAIRINGS, HTTP_BAD_REQUEST, true);
+}
+
+TEST_F(HandlersTest, RTRHTTPServerError)
+{
+  rtr_template(PERMANENT_TERMINATION, HTTP_PATH_REG_FALSE, DEREG_BODY_PAIRINGS, HTTP_SERVER_ERROR, true);
+}
+
+TEST_F(HandlersTest, RTRHTTPUnknownError)
+{
+  rtr_template(PERMANENT_TERMINATION, HTTP_PATH_REG_FALSE, DEREG_BODY_PAIRINGS, 999, true);
+}
