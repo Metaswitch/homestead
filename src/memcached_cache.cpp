@@ -13,6 +13,36 @@
 
 #include "log.h"
 
+ImpuStore::DefaultImpu* MemcachedImplicitRegistrationSet::get_impu()
+{
+  // Create IMPU without CAS
+  return nullptr;
+}
+
+ImpuStore::DefaultImpu* MemcachedImplicitRegistrationSet::get_impu_from_impu(ImpuStore::Impu* with_cas)
+{
+  // Create IMPU with cas from `with_cas`
+  return nullptr;
+}
+
+ImpuStore::DefaultImpu* MemcachedImplicitRegistrationSet::get_impu_for_store(ImpuStore* store)
+{
+  if (_store == store)
+  {
+    // Create IMPU here
+    return nullptr;
+  }
+  else
+  {
+    return nullptr;
+  }
+}
+
+void MemcachedImplicitRegistrationSet::update_from_store(ImpuStore::DefaultImpu* impu)
+{
+  // Update the IRS with the details in impu
+}
+
 // Helper function to the details of an IMPU.
 // Note this doesn't sort out associated versus default impus.
 ImpuStore::Impu* MemcachedCache::get_impu_for_impu_gr(const std::string& impu,
@@ -28,7 +58,7 @@ ImpuStore::Impu* MemcachedCache::get_impu_for_impu_gr(const std::string& impu,
 
       if (data)
       {
-        break; 
+        break;
       }
     }
   }
@@ -49,7 +79,7 @@ ImpuStore::ImpiMapping* MemcachedCache::get_impi_mapping_gr(const std::string& i
 
       if (mapping)
       {
-        break; 
+        break;
       }
     }
   }
@@ -87,7 +117,7 @@ Store::Status MemcachedCache::get_implicit_registration_set_for_impu(const std::
         else if (!is_associated)
         {
           TRC_INFO("Default IMPU does not contain IMPU as associated");
-        } 
+        }
 
         delete data;
         return Store::Status::NOT_FOUND;
@@ -114,7 +144,7 @@ Store::Status MemcachedCache::get_implicit_registration_sets_for_impis(const std
   for (const std::string& impi : impis)
   {
     ImpuStore::ImpiMapping* mapping = get_impi_mapping_gr(impi, trail);
-    get_implicit_registration_sets_for_impus(mapping->default_impus, trail, result);
+    get_implicit_registration_sets_for_impus(mapping->get_default_impus(), trail, result);
   }
 
   return Store::Status::OK;
@@ -135,9 +165,250 @@ Store::Status MemcachedCache::get_implicit_registration_sets_for_impus(const std
 }
 
 Store::Status MemcachedCache::put_implicit_registration_set(ImplicitRegistrationSet* irs,
-                                            SAS::TrailId trail)
+                                                            SAS::TrailId trail)
 {
+  MemcachedImplicitRegistrationSet* mirs = (MemcachedImplicitRegistrationSet*)irs;
+
+  if (mirs->has_changed())
+  {
+    put_implicit_registration_set(mirs, trail, _local_store);
+
+    for (ImpuStore* remote_store : _remote_stores)
+    {
+      put_implicit_registration_set(mirs, trail, remote_store);
+    }
+  }
+
   return Store::Status::OK;
+}
+
+Store::Status MemcachedCache::update_irs_impi_mappings(MemcachedImplicitRegistrationSet* irs,
+                                                       SAS::TrailId trail,
+                                                       ImpuStore* store)
+{
+  Store::Status status = Store::Status::OK;
+
+  // Remove old IMPI mappings
+  for (const std::string& impi : irs->deleted_impis())
+  {
+    do
+    {
+      ImpuStore::ImpiMapping* mapping = store->get_impi_mapping(impi, trail);
+
+      if (mapping)
+      {
+        mapping->remove_default_impu(irs->default_impu);
+
+        if (mapping->is_empty())
+        {
+          status = store->delete_impi_mapping(mapping, trail);
+        }
+        else
+        {
+          status = store->set_impi_mapping(mapping, trail);
+        }
+      }
+
+      delete mapping;
+
+    } while(status == Store::Status::DATA_CONTENTION);
+  }
+
+  // Refresh unchanged IMPIs if the IRS is being refreshed
+  if (irs->is_refreshed())
+  {
+    for (const std::string& impi : irs->unchanged_impis())
+    {
+      do
+      {
+        ImpuStore::ImpiMapping* mapping = store->get_impi_mapping(impi, trail);
+
+        if (mapping)
+        {
+          store->set_impi_mapping(mapping, trail);
+
+          if (!mapping->has_default_impu(irs->default_impu))
+          {
+            mapping->add_default_impu(irs->default_impu);
+          }
+        }
+
+        delete mapping;
+      } while(status == Store::Status::DATA_CONTENTION);
+    }
+  }
+
+  // Add new IMPIs
+  for (const std::string& impi : irs->added_impis())
+  {
+    ImpuStore::ImpiMapping* mapping = new ImpuStore::ImpiMapping(impi, irs->default_impu);
+
+    do
+    {
+      store->set_impi_mapping(mapping, trail);
+
+      if (status == Store::Status::DATA_CONTENTION)
+      {
+        mapping = store->get_impi_mapping(impi, trail);
+
+        if (!mapping->has_default_impu(irs->default_impu))
+        {
+          mapping->add_default_impu(irs->default_impu);
+        }
+      }
+    } while(status == Store::Status::DATA_CONTENTION);
+  }
+
+  return status;
+}
+
+Store::Status MemcachedCache::update_irs_associated_impus(MemcachedImplicitRegistrationSet* irs,
+                                                          SAS::TrailId trail,
+                                                          ImpuStore* store)
+{
+  Store::Status status = Store::Status::OK;
+
+  // Remove old associated IMPUs
+  for (const std::string& associated_impu : irs->deleted_associated_impus())
+  {
+    do
+    {
+      ImpuStore::Impu* mapping = store->get_impu(associated_impu, trail);
+
+      if (mapping && !mapping->is_default_impu())
+      {
+        ImpuStore::AssociatedImpu* assoc_mapping = (ImpuStore::AssociatedImpu*)mapping;
+
+        if (assoc_mapping->default_impu == irs->default_impu)
+        {
+          store->delete_impu(mapping, trail);
+        }
+      }
+
+      delete mapping;
+    } while(status == Store::Status::DATA_CONTENTION);
+  }
+
+  // Refresh unchanged associated IMPUs if the IRS is being refreshed
+  if (irs->is_refreshed())
+  {
+    for (const std::string& associated_impu : irs->unchanged_associated_impus())
+    {
+      ImpuStore::AssociatedImpu* impu = new ImpuStore::AssociatedImpu(associated_impu, irs->default_impu, 0L);
+
+      store->set_impu_without_cas(impu, trail);
+    }
+  }
+
+  // Add new associated IMPUs
+  for (const std::string& associated_impu : irs->added_impis())
+  {
+    ImpuStore::AssociatedImpu* impu = new ImpuStore::AssociatedImpu(associated_impu, irs->default_impu, 0L);
+
+    store->set_impu_without_cas(impu, trail);
+  }
+
+  return status;
+}
+
+Store::Status MemcachedCache::create_irs_impu(MemcachedImplicitRegistrationSet* irs,
+                                              SAS::TrailId trail,
+                                              ImpuStore* store)
+{
+  ImpuStore::DefaultImpu* impu = irs->get_impu();
+
+  Store::Status status = store->set_impu_without_cas(impu, trail);
+
+  return status;
+}
+
+Store::Status MemcachedCache::update_irs_impu(MemcachedImplicitRegistrationSet* irs,
+                                              SAS::TrailId trail,
+                                              ImpuStore* store)
+{
+  Store::Status status = Store::Status::OK;
+  ImpuStore::DefaultImpu* impu = irs->get_impu_for_store(store);
+
+  do
+  {
+    if (impu)
+    {
+      // This branch is hit if the IRS was created from an IMPU for this
+      // store, and we haven't found that the update conflicts. This is
+      // the mainline case in the local site case, and saves us a potential
+      // re-read in the mainline case. We can also hit this case if we got the
+      // IRS from a remote store, and we are now writing back to that remote
+      // store. This is tautological equivalent.
+      status = store->set_impu(impu, trail);
+    }
+    else
+    {
+      // The IRS was not originally created from this store, so we don't
+      // have any idea how to CAS this data into place. Start by fetching
+      // the stores view of the data. As we merge in remote stores, we'll get a
+      // fuller picture of the data, but we don't attempt to update local
+      // stores, and just assume they'll fall into place.
+      ImpuStore::Impu* mapped_impu = store->get_impu(irs->default_impu, trail);
+
+      if (mapped_impu->is_default_impu())
+      {
+        ImpuStore::DefaultImpu* default_impu = (ImpuStore::DefaultImpu*) mapped_impu;
+
+        // Merge details from the store into our IRS.
+        irs->update_from_store(default_impu);
+        impu = irs->get_impu_from_impu(default_impu);
+        status = store->set_impu(impu, trail);
+      }
+      else if (irs->is_refreshed())
+      {
+        // Default IMPU has changed - just overwrite it
+        // This is safe to do because we've just hit a window of conflicts
+        // and we know our data is better.
+        impu = irs->get_impu_from_impu(mapped_impu);
+        status = store->set_impu(impu, trail);
+      }
+      else
+      {
+        // We can't make any sensible progress here. The data
+        // we have isn't valid, and the store data is almost
+        // certainly more up to date. Just fail the transaction.
+        status = Store::Status::ERROR;
+      }
+    }
+
+    delete impu; impu = nullptr;
+
+  } while(status == Store::Status::DATA_CONTENTION);
+
+  return status;
+}
+
+Store::Status MemcachedCache::put_implicit_registration_set(MemcachedImplicitRegistrationSet* irs,
+                                                            SAS::TrailId trail,
+                                                            ImpuStore* store)
+{
+  Store::Status status;
+
+  if (irs->is_existing())
+  {
+    status = update_irs_impu(irs, trail, store);
+  }
+  else
+  {
+    status = create_irs_impu(irs, trail, store);
+  }
+
+  if (status == Store::Status::OK)
+  {
+    update_irs_associated_impus(irs, trail, store);
+  }
+
+  if (status == Store::Status::OK)
+  {
+    update_irs_impi_mappings(irs, trail, store);
+  }
+
+  return status;
 }
 
 Store::Status MemcachedCache::delete_implicit_registration_set(ImplicitRegistrationSet* irs,
@@ -158,7 +429,7 @@ Store::Status MemcachedCache::get_ims_subscription(const std::string& impi,
 {
   ImpuStore::ImpiMapping* mapping = get_impi_mapping_gr(impi, trail);
   std::vector<ImplicitRegistrationSet*> irs;
-  get_implicit_registration_sets_for_impus(mapping->default_impus, trail, irs);
+  get_implicit_registration_sets_for_impus(mapping->get_default_impus(), trail, irs);
 
   if (mapping)
   {

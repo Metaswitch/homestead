@@ -28,15 +28,55 @@ class MemcachedImplicitRegistrationSet : public ImplicitRegistrationSet
 {
 public:
   MemcachedImplicitRegistrationSet(ImpuStore::DefaultImpu* default_impu) :
-    ImplicitRegistrationSet(default_impu->impu)
+    ImplicitRegistrationSet(default_impu->impu),
+    _store(default_impu->store)
   {
   }
 
   MemcachedImplicitRegistrationSet(const std::string& default_impu) :
-    ImplicitRegistrationSet(default_impu)
+    ImplicitRegistrationSet(default_impu),
+    _store(nullptr)
   {
   }
 
+  bool is_existing(){ return _existing; }
+  bool has_changed(){ return _changed; }
+  bool is_refreshed(){ return _refreshed; }
+
+  const std::vector<std::string>& added_impis(){ return _added_impis; }
+  const std::vector<std::string>& unchanged_impis(){ return _unchanged_impis; }
+  const std::vector<std::string>& deleted_impis(){ return _deleted_impis; }
+
+  std::vector<std::string>& added_associated_impus(){ return _added_associated_impus; }
+  std::vector<std::string>& unchanged_associated_impus(){ return _unchanged_associated_impus; }
+  std::vector<std::string>& deleted_associated_impus(){ return _deleted_associated_impus; }
+
+  // Get an IMPU representing this IRS without any CAS
+  ImpuStore::DefaultImpu* get_impu();
+
+  // Get an IMPU representing this IRS based on the given IMPU's CAS value
+  ImpuStore::DefaultImpu* get_impu_from_impu(ImpuStore::Impu* with_cas);
+
+  // Get an IMPU for this IRS representing the given store
+  ImpuStore::DefaultImpu* get_impu_for_store(ImpuStore* store);
+
+  // Update the IRS with an IMPU with some details from the store
+  void update_from_store(ImpuStore::DefaultImpu* impu);
+
+private:
+  bool _changed = false;
+  bool _refreshed = false;
+  bool _existing = true;
+
+  const ImpuStore* _store;
+
+  std::vector<std::string> _added_impis;
+  std::vector<std::string> _unchanged_impis;
+  std::vector<std::string> _deleted_impis;
+
+  std::vector<std::string> _added_associated_impus;
+  std::vector<std::string> _unchanged_associated_impus;
+  std::vector<std::string> _deleted_associated_impus;
 };
 
 class MemcachedCache : public HssCache
@@ -110,6 +150,25 @@ private:
 
   ImpuStore::ImpiMapping* get_impi_mapping_gr(const std::string& impi,
                                               SAS::TrailId trail);
+  Store::Status put_implicit_registration_set(MemcachedImplicitRegistrationSet* irs,
+                                              SAS::TrailId trail,
+                                              ImpuStore* store);
+
+  Store::Status create_irs_impu(MemcachedImplicitRegistrationSet* irs,
+                                              SAS::TrailId trail,
+                                              ImpuStore* store);
+
+  Store::Status update_irs_impu(MemcachedImplicitRegistrationSet* irs,
+                                              SAS::TrailId trail,
+                                              ImpuStore* store);
+
+  Store::Status update_irs_associated_impus(MemcachedImplicitRegistrationSet* irs,
+                                              SAS::TrailId trail,
+                                              ImpuStore* store);
+
+  Store::Status update_irs_impi_mappings(MemcachedImplicitRegistrationSet* irs,
+                                              SAS::TrailId trail,
+                                              ImpuStore* store);
 };
 
 #endif

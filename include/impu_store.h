@@ -37,8 +37,9 @@ public:
 
     static Impu* from_json(rapidjson::Value* json, uint64_t cas);
 
-    virtual void write_json(rapidjson::Writer<rapidjson::StringBuffer>* writer);
+    virtual void write_json(rapidjson::Writer<rapidjson::StringBuffer>* writer) = 0;
  
+    const ImpuStore* store;
     const std::string impu;
     const uint64_t cas;
   };
@@ -57,6 +58,10 @@ public:
     {
     }
 
+    virtual void write_json(rapidjson::Writer<rapidjson::StringBuffer>* writer){}
+
+    virtual ~DefaultImpu(){};
+
     static Impu* from_json(rapidjson::Value* json, uint64_t cas);
 
     bool has_associated_impu(const std::string& impu)
@@ -65,6 +70,8 @@ public:
                        associated_impus.end(),
                        impu) != associated_impus.end();
     }
+
+    virtual bool is_default_impu(){ return true; }
 
     std::vector<std::string> associated_impus;
     std::vector<std::string> impis;
@@ -79,6 +86,11 @@ public:
       default_impu(default_impu)
     {
     }
+
+    virtual ~AssociatedImpu(){}
+
+    virtual void write_json(rapidjson::Writer<rapidjson::StringBuffer>* writer){}
+    virtual bool is_default_impu(){ return false; }
 
     const std::string default_impu;
 
@@ -95,14 +107,49 @@ public:
     {
     }
 
+    ImpiMapping(std::string impi, std::string impu) : impi(impi), default_impus({ impu }), cas(0L)
+    {
+    }
+
     static Impu* from_json(rapidjson::Value* json, uint64_t cas);
 
-    virtual void write_json(rapidjson::Writer<rapidjson::StringBuffer>* writer);
+    virtual void write_json(rapidjson::Writer<rapidjson::StringBuffer>* writer){}
 
     virtual ~ImpiMapping(){
     }
 
+    void add_default_impu(const std::string& impu)
+    {
+      default_impus.push_back(impu);
+    }
+
+    bool has_default_impu(const std::string& impu)
+    {
+      return std::find(default_impus.begin(),
+                       default_impus.end(),
+                       impu) != default_impus.end();
+    }
+
+    void remove_default_impu(const std::string& impu)
+    {
+      default_impus.erase(std::remove(default_impus.begin(),
+                                      default_impus.end(),
+                                      impu));
+    }
+
+    bool is_empty()
+    {
+      return default_impus.size() == 0;
+    }
+
     const std::string impi;
+
+    const std::vector<std::string>& get_default_impus()
+    {
+      return default_impus;
+    }
+
+  private:
     std::vector<std::string> default_impus;
     const uint64_t cas;
   };
@@ -112,6 +159,7 @@ public:
 
   }
 
+  Store::Status set_impu_without_cas(Impu* impu, SAS::TrailId trail);
   Store::Status set_impu(Impu* impu, SAS::TrailId trail);
 
   Impu* get_impu(const std::string& impu, SAS::TrailId trail);

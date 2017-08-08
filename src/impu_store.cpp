@@ -11,6 +11,36 @@
 
 #include "impu_store.h"
 
+Store::Status ImpuStore::set_impu_without_cas(ImpuStore::Impu* impu,
+                                              SAS::TrailId trail)
+{
+  return Store::Status::ERROR;
+}
+
+Store::Status ImpuStore::set_impu(ImpuStore::Impu* impu,
+                                  SAS::TrailId trail)
+{
+  return Store::Status::ERROR;
+}
+
+Store::Status ImpuStore::delete_impu(ImpuStore::Impu* impu,
+                                     SAS::TrailId trail)
+{
+  return Store::Status::ERROR;
+}
+
+Store::Status ImpuStore::set_impi_mapping(ImpiMapping* mapping,
+                                          SAS::TrailId trail)
+{
+  return Store::Status::ERROR;
+}
+
+Store::Status ImpuStore::delete_impi_mapping(ImpiMapping* mapping,
+                                             SAS::TrailId trail)
+{
+  return Store::Status::ERROR;
+}
+
 ImpuStore::ImpiMapping* ImpuStore::get_impi_mapping(const std::string impi,
                                                     SAS::TrailId trail)
 {
