@@ -2118,18 +2118,18 @@ void PushProfileTask::on_get_ims_sub_success(ImsSubscription* ims_sub)
     ImplicitRegistrationSet* irs = ims_sub->get_irs_for_default_impu(new_default_id);
     if (!irs)
     {
-        TRC_INFO("The default id of the PPR doesn't match a default id already "
-                "known be belong to the IMPI %s - reject the PPR", _impi.c_str());
-        SAS::Event event(this->trail(), SASEvent::PPR_CHANGE_DEFAULT_IMPU, 0);
-        event.add_var_param(_impi);
-        event.add_var_param(new_default_id);
-        SAS::report_event(event);
-        send_ppa(DIAMETER_REQ_FAILURE);
-        
-        // Need to delete the ImsSubscription* as we own it
-        delete ims_sub; ims_sub = NULL;
-        delete this;
-        return;
+      TRC_INFO("The default id of the PPR doesn't match a default id already "
+               "known be belong to the IMPI %s - reject the PPR", _impi.c_str());
+      SAS::Event event(this->trail(), SASEvent::PPR_CHANGE_DEFAULT_IMPU, 0);
+      event.add_var_param(_impi);
+      event.add_var_param(new_default_id);
+      SAS::report_event(event);
+      send_ppa(DIAMETER_REQ_FAILURE);
+      
+      // Need to delete the ImsSubscription* as we own it
+      delete ims_sub; ims_sub = NULL;
+      delete this;
+      return;
     }
 
     // If we've got here, the PPR is allowed. We should now check that the IRS

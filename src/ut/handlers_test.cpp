@@ -68,6 +68,7 @@ using ::testing::AtLeast;
 using ::testing::Field;
 using ::testing::AllOf;
 using ::testing::ByRef;
+using ::testing::ReturnNull;
 
 const SAS::TrailId FAKE_TRAIL_ID = 0x12345678;
 
@@ -3383,4 +3384,191 @@ TEST_F(HandlersTest, PPRChargingAddrs)
 
   //TODO
   delete sub;
+}
+
+TEST_F(HandlersTest, PPRImsSub)
+{
+  // This PPR contains an IMS Sub but no charging addresses.
+  // The update is successful.
+  PushProfileTask* task = NULL;
+  PushProfileTask::Config* pcfg = NULL;
+  ppr_setup(&task, &pcfg, IMPI, IMS_SUBSCRIPTION, NO_CHARGING_ADDRESSES);
+
+  // Create the ImsSubscription that will be returned
+  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet(IMPU);
+  irs->set_service_profile(IMPU_IMS_SUBSCRIPTION);
+  irs->set_reg_state(RegistrationState::REGISTERED);
+  irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
+
+  MockImsSubscription* sub = new MockImsSubscription();
+
+  // Expect that we'll look up the ImsSubscription for the provided IMPI
+  EXPECT_CALL(*_cache, get_ims_subscription(_, _, IMPI, FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<0>(sub));
+
+  // Expect that we'll request the IRS for the default IMPU from the ImsSubscription
+  EXPECT_CALL(*sub, get_irs_for_default_impu(IMPU)).WillOnce(Return(irs));
+
+  // We'll then save the ImsSubscription in the cache
+  EXPECT_CALL(*_cache, put_ims_subscription(_, _, sub, FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<0>());
+
+  ppr_expect_ppa();
+
+  task->run();
+
+  // Check that the IRS was updated with the new XML
+  EXPECT_EQ(irs->get_service_profile(), IMS_SUBSCRIPTION);
+
+  ppr_check_ppa(DIAMETER_SUCCESS);
+  ppr_tear_down(pcfg);
+
+  //TODO
+  delete sub;
+}
+
+TEST_F(HandlersTest, PPRIMSSubNoSIPURI)
+{
+  // This PPR contains an IMS Subscription with no SIP URIs.
+  CapturingTestLogger log;
+
+  PushProfileTask* task = NULL;
+  PushProfileTask::Config* pcfg = NULL;
+  ppr_setup(&task, &pcfg, IMPI, TEL_URIS_IMS_SUBSCRIPTION, NO_CHARGING_ADDRESSES);
+
+  // Create the ImsSubscription that will be returned
+  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet(TEL_URI);
+  irs->set_service_profile(TEL_URIS_IMS_SUBSCRIPTION);
+  irs->set_reg_state(RegistrationState::REGISTERED);
+  irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
+
+  MockImsSubscription* sub = new MockImsSubscription();
+
+  // Expect that we'll look up the ImsSubscription for the provided IMPI
+  EXPECT_CALL(*_cache, get_ims_subscription(_, _, IMPI, FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<0>(sub));
+
+  // Expect that we'll request the IRS for the default IMPU from the ImsSubscription
+  EXPECT_CALL(*sub, get_irs_for_default_impu(TEL_URI)).WillOnce(Return(irs));
+
+  // We'll then save the ImsSubscription in the cache
+  EXPECT_CALL(*_cache, put_ims_subscription(_, _, sub, FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<0>());
+
+  ppr_expect_ppa();
+
+  task->run();
+
+  // Check for the log indicating there were no SIP URIs in the IRS.
+  EXPECT_TRUE(log.contains("No SIP URI in Implicit Registration Set"));
+
+  ppr_check_ppa(DIAMETER_SUCCESS);
+  ppr_tear_down(pcfg);
+
+  //TODO
+  delete sub;
+}
+
+
+TEST_F(HandlersTest, PPRCacheFailure)
+{
+  // This PPR contains an IMS Subscription. There is a cache failure
+  // when attempting to update the cache. A PPA is sent indicating failure.
+  PushProfileTask* task = NULL;
+  PushProfileTask::Config* pcfg = NULL;
+  ppr_setup(&task, &pcfg, IMPI, IMS_SUBSCRIPTION, NO_CHARGING_ADDRESSES);
+
+  // Create the ImsSubscription that will be returned
+  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet(IMPU);
+  irs->set_service_profile(IMS_SUBSCRIPTION);
+  irs->set_reg_state(RegistrationState::REGISTERED);
+  irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
+
+  MockImsSubscription* sub = new MockImsSubscription();
+
+  // Expect that we'll look up the ImsSubscription for the provided IMPI
+  EXPECT_CALL(*_cache, get_ims_subscription(_, _, IMPI, FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<0>(sub));
+
+  // Expect that we'll request the IRS for the default IMPU from the ImsSubscription
+  EXPECT_CALL(*sub, get_irs_for_default_impu(IMPU)).WillOnce(Return(irs));
+
+  // We'll then save the ImsSubscription in the cache, which will give an error
+  EXPECT_CALL(*_cache, put_ims_subscription(_, _, sub, FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<1>(Store::Status::ERROR));
+
+  ppr_expect_ppa();
+
+  task->run();
+
+  ppr_check_ppa(DIAMETER_UNABLE_TO_COMPLY);
+  ppr_tear_down(pcfg);
+
+  //TODO
+  delete sub;
+}
+
+TEST_F(HandlersTest, PPRGetRegSetFailure)
+{
+  // This PPR contains an IMS Subscription. There is a failure in obtaining
+  // the IMS Subscription from the cache.
+  // A PPA is sent indicating failure.
+  PushProfileTask* task = NULL;
+  PushProfileTask::Config* pcfg = NULL;
+  ppr_setup(&task, &pcfg, IMPI, IMS_SUBSCRIPTION, NO_CHARGING_ADDRESSES);
+
+  // Expect that we'll look up the ImsSubscription for the provided IMPI, which
+  // will fail
+  EXPECT_CALL(*_cache, get_ims_subscription(_, _, IMPI, FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<1>(Store::Status::ERROR));
+
+  ppr_expect_ppa();
+
+  task->run();
+
+  ppr_check_ppa(DIAMETER_UNABLE_TO_COMPLY);
+  ppr_tear_down(pcfg);
+}
+
+TEST_F(HandlersTest, PPRNoImsSubNoChargingAddrs)
+{
+  // This PPR contains neither an IMS subscription or charging addresses.
+  // A PPA is sent indicating success, since there is no need to update anything
+  PushProfileTask* task = NULL;
+  PushProfileTask::Config* pcfg = NULL;
+  ppr_setup(&task, &pcfg, IMPI, "", NO_CHARGING_ADDRESSES);
+
+  ppr_expect_ppa();
+
+  task->run();
+
+  ppr_check_ppa(DIAMETER_SUCCESS);
+  ppr_tear_down(pcfg);
+}
+
+TEST_F(HandlersTest, PPRChangesDefaultRejected)
+{
+  // Test that when a PPR is received with a different default public id than
+  // the one stored in the cache, it is rejected with a PPA with the error
+  // DIAMETER_UNABLE_TO_COMPLY.
+  PushProfileTask* task = NULL;
+  PushProfileTask::Config* pcfg = NULL;
+  ppr_setup(&task, &pcfg, IMPI, IMS_SUBSCRIPTION, FULL_CHARGING_ADDRESSES);
+
+  MockImsSubscription* sub = new MockImsSubscription();
+
+  // Expect that we'll look up the ImsSubscription for the provided IMPI
+  EXPECT_CALL(*_cache, get_ims_subscription(_, _, IMPI, FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<0>(sub));
+
+  // Expect that we'll request the IRS for the default IMPU from the ImsSubscription,
+  // which doesn't find a match
+  EXPECT_CALL(*sub, get_irs_for_default_impu(IMPU)).WillOnce(ReturnNull());
+
+  ppr_expect_ppa();
+
+  task->run();
+
+  ppr_check_ppa(DIAMETER_UNABLE_TO_COMPLY);
+  ppr_tear_down(pcfg);
 }
