@@ -52,6 +52,7 @@
 //#include "fakehssconnection.hpp"
 #include "mockhssconnection.hpp"
 #include "mockhsscacheprocessor.hpp"
+#include "mockimssubscription.hpp"
 
 using ::testing::Return;
 using ::testing::ReturnRef;
@@ -3262,12 +3263,20 @@ TEST_F(HandlersTest, PPRMainline)
   irs->set_service_profile(IMS_SUBSCRIPTION);
   irs->set_reg_state(RegistrationState::REGISTERED);
   irs->set_charging_addresses(FULL_CHARGING_ADDRESSES);
-  ImsSubscription* sub = new ImsSubscription();
-  sub->set_irs_set({ irs });
+
+  MockImsSubscription* sub = new MockImsSubscription();
 
   // Expect that we'll look up the ImsSubscription for the provided IMPI
   EXPECT_CALL(*_cache, get_ims_subscription(_, _, IMPI, FAKE_TRAIL_ID))
     .WillOnce(InvokeArgument<0>(sub));
+
+  // Expect that we'll request the IRS for the default IMPU from the ImsSubscription
+  EXPECT_CALL(*sub, get_irs_for_default_impu(IMPU)).WillOnce(Return(irs));
+
+  // And that we'll set the charging addresses on the ImsSubscription
+  EXPECT_CALL(*sub, set_charging_addrs(AllOf(Field(&ChargingAddresses::ecfs, FULL_CHARGING_ADDRESSES.ecfs),
+                                             Field(&ChargingAddresses::ccfs, FULL_CHARGING_ADDRESSES.ccfs))))
+    .Times(1);
 
   // We'll then save the ImsSubscription in the cache
   EXPECT_CALL(*_cache, put_ims_subscription(_, _, sub, FAKE_TRAIL_ID))
@@ -3279,4 +3288,99 @@ TEST_F(HandlersTest, PPRMainline)
 
   ppr_check_ppa(DIAMETER_SUCCESS);
   ppr_tear_down(pcfg);
+
+  //TODO
+  delete sub;
+}
+
+
+TEST_F(HandlersTest, PPRChangeIDs)
+{
+  // This PPR contains an IMS subscription and charging addresses. One IMPU
+  // is being deleted from the IRS and one is being added. There is only one IRS
+  // The update is successful
+  PushProfileTask* task = NULL;
+  PushProfileTask::Config* pcfg = NULL;
+  ppr_setup(&task, &pcfg, IMPI, IMPU_IMS_SUBSCRIPTION, FULL_CHARGING_ADDRESSES);
+
+  // Create the ImsSubscription that will be returned
+  // The IRS has different XML to that on the PPR
+  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet(IMPU);
+  irs->set_service_profile(IMPU_IMS_SUBSCRIPTION2);
+  irs->set_reg_state(RegistrationState::REGISTERED);
+  irs->set_charging_addresses(FULL_CHARGING_ADDRESSES);
+
+  MockImsSubscription* sub = new MockImsSubscription();
+
+  // Expect that we'll look up the ImsSubscription for the provided IMPI
+  EXPECT_CALL(*_cache, get_ims_subscription(_, _, IMPI, FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<0>(sub));
+
+  // Expect that we'll request the IRS for the default IMPU from the ImsSubscription
+  EXPECT_CALL(*sub, get_irs_for_default_impu(IMPU)).WillOnce(Return(irs));
+
+  // And that we'll set the charging addresses on the ImsSubscription
+  EXPECT_CALL(*sub, set_charging_addrs(AllOf(Field(&ChargingAddresses::ecfs, FULL_CHARGING_ADDRESSES.ecfs),
+                                             Field(&ChargingAddresses::ccfs, FULL_CHARGING_ADDRESSES.ccfs))))
+    .Times(1);
+
+  // We'll then save the ImsSubscription in the cache
+  EXPECT_CALL(*_cache, put_ims_subscription(_, _, sub, FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<0>());
+
+  ppr_expect_ppa();
+
+  task->run();
+
+  // Check that the IRS was updated with the new XML
+  EXPECT_EQ(irs->get_service_profile(), IMPU_IMS_SUBSCRIPTION);
+
+  ppr_check_ppa(DIAMETER_SUCCESS);
+  ppr_tear_down(pcfg);
+
+  //TODO
+  delete sub;
+}
+
+TEST_F(HandlersTest, PPRChargingAddrs)
+{
+  // This PPR has a charging address but no IMS Sub. There is one IRS.
+  // The update is successful.
+  PushProfileTask* task = NULL;
+  PushProfileTask::Config* pcfg = NULL;
+  ppr_setup(&task, &pcfg, IMPI, "", FULL_CHARGING_ADDRESSES);
+
+  // Create the ImsSubscription that will be returned
+  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet(IMPU);
+  irs->set_service_profile(IMPU_IMS_SUBSCRIPTION);
+  irs->set_reg_state(RegistrationState::REGISTERED);
+  irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
+
+  MockImsSubscription* sub = new MockImsSubscription();
+
+  // Expect that we'll look up the ImsSubscription for the provided IMPI
+  EXPECT_CALL(*_cache, get_ims_subscription(_, _, IMPI, FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<0>(sub));
+
+  // Expect that we'll set the charging addresses on the ImsSubscription
+  EXPECT_CALL(*sub, set_charging_addrs(AllOf(Field(&ChargingAddresses::ecfs, FULL_CHARGING_ADDRESSES.ecfs),
+                                             Field(&ChargingAddresses::ccfs, FULL_CHARGING_ADDRESSES.ccfs))))
+    .Times(1);
+
+  // We'll then save the ImsSubscription in the cache
+  EXPECT_CALL(*_cache, put_ims_subscription(_, _, sub, FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<0>());
+
+  ppr_expect_ppa();
+
+  task->run();
+
+  // Check that the IRS still has the correct XML
+  EXPECT_EQ(irs->get_service_profile(), IMPU_IMS_SUBSCRIPTION);
+
+  ppr_check_ppa(DIAMETER_SUCCESS);
+  ppr_tear_down(pcfg);
+
+  //TODO
+  delete sub;
 }

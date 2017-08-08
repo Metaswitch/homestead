@@ -20,18 +20,15 @@
 class ImsSubscription
 {
 public:
+  ImsSubscription() {};
+  virtual ~ImsSubscription() {};
 
-  void set_irs_set(std::set<ImplicitRegistrationSet*> irs_set)
-  {
-    _irs_set = irs_set;
-  }
+  // TODO shuold be pure virtual, but added implementation just to get code comiling
+  virtual void set_charging_addrs(ChargingAddresses new_addresses) {};
 
-  // Updates the charging addresses for all the IRSs 
-  void set_charging_addrs(ChargingAddresses new_addresses)
-  {
-    //TODO
-  }
+  virtual ImplicitRegistrationSet* get_irs_for_default_impu(std::string impu) { return NULL; };
 
+ /*
   // Returns the IRS* if there is one, else NULL
   ImplicitRegistrationSet* get_irs_for_default_impu(std::string impu)
   {
@@ -46,12 +43,7 @@ public:
     }
 
     return result;
-  }
-
-private:
-  std::set<ImplicitRegistrationSet*> _irs_set;
-  //TODO
-  ChargingAddresses _addresses;
+  }*/
 };
 
 #endif
