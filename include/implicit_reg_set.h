@@ -22,7 +22,7 @@ class ImplicitRegistrationSet
 {
 public:
   ImplicitRegistrationSet(const std::string& default_impu) :
-    _default_impu(default_impu),
+    default_impu(default_impu),
     _ttl(0)
   {
 
@@ -33,16 +33,6 @@ public:
 
   void add_impi(std::string impi);
   void remove_impi(std::string impi);
-
-  // TODO - get the default imput from the service profile
-  std::string get_default_impu()
-  {
-    //TODO
-    return _default_impu;
-    /*std::string default_id;
-    XmlUtils::get_public_and_default_ids(_irs->get_service_profile(), default_id);
-    return default_id;*/
-  }
 
   std::string get_service_profile()
   {
@@ -94,8 +84,9 @@ public:
     _ttl = ttl;
   }
 
+  const std::string default_impu;
+
 private:
-  std::string _default_impu;
   std::string _service_profile;
   RegistrationState _reg_state;
   std::vector<std::string> _associated_impis;

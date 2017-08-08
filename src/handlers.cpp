@@ -1926,7 +1926,7 @@ void RegistrationTerminationTask::get_registration_sets_success(std::vector<Impl
     // Extract the default public identities from the registration sets.
     for (ImplicitRegistrationSet* reg_set : reg_sets)
     {
-      default_public_identities.push_back(reg_set->get_default_impu());
+      default_public_identities.push_back(reg_set->default_impu);
     }
 
     // We need to notify sprout of the deregistrations. What we send to sprout
