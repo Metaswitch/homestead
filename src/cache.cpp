@@ -525,7 +525,6 @@ bool Cache::GetAssociatedPublicIDs::perform(CassandraStore::Client* client,
                                     ASSOC_PUBLIC_ID_COLUMN_PREFIX,
                                     columns,
                                     trail);
-
   }
   catch(CassandraStore::RowNotFoundException& rnfe)
   {
@@ -539,7 +538,6 @@ bool Cache::GetAssociatedPublicIDs::perform(CassandraStore::Client* client,
       key_it != columns.end();
       ++key_it)
   {
-
     for(std::vector<ColumnOrSuperColumn>::const_iterator column = key_it->second.begin();
         column != key_it->second.end();
         ++column)
@@ -987,10 +985,7 @@ bool Cache::DissociateImplicitRegistrationSetFromImpi::perform(CassandraStore::C
 }
 
 
-//
 // Delete IMPUs methods for PPRs
-//
-
 
 Cache::DeleteIMPUs::
 DeleteIMPUs(const std::vector<std::string>& public_ids,
@@ -1000,8 +995,7 @@ DeleteIMPUs(const std::vector<std::string>& public_ids,
   _timestamp(timestamp)
 {}
 
-Cache::DeleteIMPUs::
-~DeleteIMPUs()
+Cache::DeleteIMPUs::~DeleteIMPUs()
 {}
 
 bool Cache::DeleteIMPUs::perform(CassandraStore::Client* client,
