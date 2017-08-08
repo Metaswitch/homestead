@@ -2032,6 +2032,7 @@ void RegistrationTerminationTask::get_registration_sets_failure(Store::Status rc
   delete this;
 }
 
+// LCOV_EXCL_START - nothing interesting to UT.
 // These two callbacks are used so that we don't delete the task until we're
 // completely done with Cache operations.
 // This allows us to delete each of the ImplicitRegistrationSets in the
@@ -2047,6 +2048,7 @@ void RegistrationTerminationTask::delete_reg_sets_failure(Store::Status rc)
   // We have already sent the reponse, so we do nothing here
   delete this;
 }
+// LCOV_EXCL_STOP
 
 void RegistrationTerminationTask::send_rta(const std::string result_code)
 {

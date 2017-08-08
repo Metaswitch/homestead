@@ -2972,3 +2972,226 @@ TEST_F(HandlersTest, RTRHTTPUnknownError)
 {
   rtr_template(PERMANENT_TERMINATION, HTTP_PATH_REG_FALSE, DEREG_BODY_PAIRINGS, 999, true);
 }
+
+TEST_F(HandlersTest, RTRIncludesBarredImpus)
+{
+  // Test that the correct delete request is passed to Sprout and the correct
+  // data is removed from the cache when the first impu in an IRS is barred
+  // (and so is not the default IMPU for that IRS)
+  Cx::RegistrationTerminationRequest rtr(_cx_dict,
+                                         _mock_stack,
+                                         PERMANENT_TERMINATION,
+                                         IMPI,
+                                         ASSOCIATED_IDENTITIES,
+                                         IMPU_IN_VECTOR,
+                                         AUTH_SESSION_STATE);
+
+  // The free_on_delete flag controls whether we want to free the underlying
+  // fd_msg structure when we delete this RTR. We don't, since this will be
+  // freed when the answer is freed later in the test. If we leave this flag set
+  // then the request will be freed twice.
+  rtr._free_on_delete = false;
+
+  RegistrationTerminationTask::Config cfg(_cache, _cx_dict, _sprout_conn, 0);
+  RegistrationTerminationTask* task = new RegistrationTerminationTask(_cx_dict, &rtr._fd_msg, &cfg, FAKE_TRAIL_ID);
+
+  // We have to make sure the message is pointing at the mock stack.
+  task->_msg._stack = _mock_stack;
+  task->_rtr._stack = _mock_stack;
+
+  // Expect to send a diameter message.
+  EXPECT_CALL(*_mock_stack, send(_, FAKE_TRAIL_ID))
+    .Times(1)
+    .WillOnce(WithArgs<0>(Invoke(store_msg)));
+
+  std::vector<std::string> impis = { IMPI, ASSOCIATED_IDENTITY1, ASSOCIATED_IDENTITY2 };
+
+  // Create the IRS that will be returned
+  // The default IMPU of the IRS is IMPU2 as IMPU is barred
+  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet(IMPU2);
+  irs->set_service_profile(IMPU_IMS_SUBSCRIPTION_WITH_BARRING);
+  irs->set_reg_state(RegistrationState::NOT_REGISTERED);
+  irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
+  irs->set_associated_impis(IMPI_IN_VECTOR);
+
+  std::vector<ImplicitRegistrationSet*> irss = { irs };
+
+  EXPECT_CALL(*_cache, get_implicit_registration_sets_for_impus(_, _, IMPU_IN_VECTOR, FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<0>(irss));
+
+  // Expect a delete to be sent to Sprout.
+  EXPECT_CALL(*_mock_http_conn, send_delete(HTTP_PATH_REG_FALSE, _, DEREG_BODY_PAIRINGS3))
+    .Times(1)
+    .WillOnce(Return(200)).RetiresOnSaturation();
+
+  // Expect deletions for each IRS
+  EXPECT_CALL(*_cache, delete_implicit_registration_sets(_, _, irss, FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<0>());
+
+  task->run();
+
+  // Turn the caught Diameter msg structure into a RTA and confirm its contents.
+  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
+  Cx::RegistrationTerminationAnswer rta(msg);
+  EXPECT_TRUE(rta.result_code(test_i32));
+  EXPECT_EQ(DIAMETER_SUCCESS, test_i32);
+  EXPECT_EQ(impis, rta.associated_identities());
+  EXPECT_EQ(AUTH_SESSION_STATE, rta.auth_session_state());
+}
+
+TEST_F(HandlersTest, RTRIncludesBarringIndication)
+{
+  // Test that the correct delete request is passed to Sprout and the correct
+  // data is removed from the cache when the first impu in an IRS is not barred
+  // but has a barring indication
+  Cx::RegistrationTerminationRequest rtr(_cx_dict,
+                                         _mock_stack,
+                                         PERMANENT_TERMINATION,
+                                         IMPI,
+                                         ASSOCIATED_IDENTITIES,
+                                         IMPU_IN_VECTOR,
+                                         AUTH_SESSION_STATE);
+
+  // The free_on_delete flag controls whether we want to free the underlying
+  // fd_msg structure when we delete this RTR. We don't, since this will be
+  // freed when the answer is freed later in the test. If we leave this flag set
+  // then the request will be freed twice.
+  rtr._free_on_delete = false;
+
+  RegistrationTerminationTask::Config cfg(_cache, _cx_dict, _sprout_conn, 0);
+  RegistrationTerminationTask* task = new RegistrationTerminationTask(_cx_dict, &rtr._fd_msg, &cfg, FAKE_TRAIL_ID);
+
+  // We have to make sure the message is pointing at the mock stack.
+  task->_msg._stack = _mock_stack;
+  task->_rtr._stack = _mock_stack;
+
+  // Expect to send a diameter message.
+  EXPECT_CALL(*_mock_stack, send(_, FAKE_TRAIL_ID))
+    .Times(1)
+    .WillOnce(WithArgs<0>(Invoke(store_msg)));
+
+  std::vector<std::string> impis = { IMPI, ASSOCIATED_IDENTITY1, ASSOCIATED_IDENTITY2 };
+
+  // Create the IRS that will be returned
+  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet(IMPU);
+  irs->set_service_profile(IMPU_IMS_SUBSCRIPTION_BARRING_INDICATION);
+  irs->set_reg_state(RegistrationState::NOT_REGISTERED);
+  irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
+  irs->set_associated_impis(IMPI_IN_VECTOR);
+
+  std::vector<ImplicitRegistrationSet*> irss = { irs };
+
+  EXPECT_CALL(*_cache, get_implicit_registration_sets_for_impus(_, _, IMPU_IN_VECTOR, FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<0>(irss));
+
+  // Expect a delete to be sent to Sprout.
+  EXPECT_CALL(*_mock_http_conn, send_delete(HTTP_PATH_REG_FALSE, _, DEREG_BODY_PAIRINGS4))
+    .Times(1)
+    .WillOnce(Return(200)).RetiresOnSaturation();
+
+  // Expect deletions for each IRS
+  EXPECT_CALL(*_cache, delete_implicit_registration_sets(_, _, irss, FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<0>());
+
+  task->run();
+
+  // Turn the caught Diameter msg structure into a RTA and confirm its contents.
+  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
+  Cx::RegistrationTerminationAnswer rta(msg);
+  EXPECT_TRUE(rta.result_code(test_i32));
+  EXPECT_EQ(DIAMETER_SUCCESS, test_i32);
+  EXPECT_EQ(impis, rta.associated_identities());
+  EXPECT_EQ(AUTH_SESSION_STATE, rta.auth_session_state());
+}
+
+TEST_F(HandlersTest, RTRNoRegSets)
+{
+  // Test that no IRSs found for an RTR request result in no contact to Sprout
+  // but still give SUCCESS on the RTA
+  Cx::RegistrationTerminationRequest rtr(_cx_dict,
+                                         _mock_stack,
+                                         PERMANENT_TERMINATION,
+                                         IMPI,
+                                         ASSOCIATED_IDENTITIES,
+                                         IMPUS,
+                                         AUTH_SESSION_STATE);
+
+  // The free_on_delete flag controls whether we want to free the underlying
+  // fd_msg structure when we delete this RTR. We don't, since this will be
+  // freed when the answer is freed later in the test. If we leave this flag set
+  // then the request will be freed twice.
+  rtr._free_on_delete = false;
+
+  RegistrationTerminationTask::Config cfg(_cache, _cx_dict, _sprout_conn, 0);
+  RegistrationTerminationTask* task = new RegistrationTerminationTask(_cx_dict, &rtr._fd_msg, &cfg, FAKE_TRAIL_ID);
+
+  // We have to make sure the message is pointing at the mock stack.
+  task->_msg._stack = _mock_stack;
+  task->_rtr._stack = _mock_stack;
+
+  // Expect to send a diameter message.
+  EXPECT_CALL(*_mock_stack, send(_, FAKE_TRAIL_ID))
+    .Times(1)
+    .WillOnce(WithArgs<0>(Invoke(store_msg)));
+
+  std::vector<std::string> impis = { IMPI, ASSOCIATED_IDENTITY1, ASSOCIATED_IDENTITY2 };
+
+  // The cache returns an empty vectory
+  std::vector<ImplicitRegistrationSet*> irss = {};
+  EXPECT_CALL(*_cache, get_implicit_registration_sets_for_impus(_, _, IMPUS, FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<0>(irss));
+
+  task->run();
+
+  // Turn the caught Diameter msg structure into a RTA and confirm the result
+  // code is correct.
+  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
+  Cx::RegistrationTerminationAnswer rta(msg);
+  EXPECT_TRUE(rta.result_code(test_i32));
+  EXPECT_EQ(DIAMETER_SUCCESS, test_i32);
+}
+
+TEST_F(HandlersTest, RTRCacheError)
+{
+  // Test that a cache error triggers a Diameter failure response
+  Cx::RegistrationTerminationRequest rtr(_cx_dict,
+                                         _mock_stack,
+                                         PERMANENT_TERMINATION,
+                                         IMPI,
+                                         ASSOCIATED_IDENTITIES,
+                                         IMPUS,
+                                         AUTH_SESSION_STATE);
+
+  // The free_on_delete flag controls whether we want to free the underlying
+  // fd_msg structure when we delete this RTR. We don't, since this will be
+  // freed when the answer is freed later in the test. If we leave this flag set
+  // then the request will be freed twice.
+  rtr._free_on_delete = false;
+
+  RegistrationTerminationTask::Config cfg(_cache, _cx_dict, _sprout_conn, 0);
+  RegistrationTerminationTask* task = new RegistrationTerminationTask(_cx_dict, &rtr._fd_msg, &cfg, FAKE_TRAIL_ID);
+
+  // We have to make sure the message is pointing at the mock stack.
+  task->_msg._stack = _mock_stack;
+  task->_rtr._stack = _mock_stack;
+
+  // Expect to send a diameter message.
+  EXPECT_CALL(*_mock_stack, send(_, FAKE_TRAIL_ID))
+    .Times(1)
+    .WillOnce(WithArgs<0>(Invoke(store_msg)));
+
+  std::vector<std::string> impis = { IMPI, ASSOCIATED_IDENTITY1, ASSOCIATED_IDENTITY2 };
+
+  // The cache will return ERROR
+  EXPECT_CALL(*_cache, get_implicit_registration_sets_for_impus(_, _, IMPUS, FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<1>(Store::Status::ERROR));
+
+  task->run();
+
+  // Turn the caught Diameter msg structure into a RTA and confirm the result
+  // code is correct.
+  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
+  Cx::RegistrationTerminationAnswer rta(msg);
+  EXPECT_TRUE(rta.result_code(test_i32));
+  EXPECT_EQ(DIAMETER_UNABLE_TO_COMPLY, test_i32);
+}
