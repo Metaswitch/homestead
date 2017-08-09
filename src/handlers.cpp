@@ -945,7 +945,7 @@ void ImpuRegDataTask::on_get_reg_data_success(ImplicitRegistrationSet* irs)
   _irs = irs;
 
   int32_t ttl = irs->get_ttl();
-  std::string service_profile = irs->get_service_profile();
+  std::string service_profile = irs->get_ims_sub_xml();
   RegistrationState reg_state = irs->get_reg_state();
   std::vector<std::string> associated_impis = irs->get_associated_impis();
   ChargingAddresses charging_addrs = irs->get_charging_addresses();
@@ -1503,7 +1503,7 @@ void ImpuRegDataTask::put_in_cache()
   //        Old code would just cache it anyway. Still do that?
   std::string default_public_id = "";
   std::vector<std::string> public_ids =
-    XmlUtils::get_public_and_default_ids(_irs->get_service_profile(), default_public_id);
+    XmlUtils::get_public_and_default_ids(_irs->get_ims_sub_xml(), default_public_id);
 
   if (!public_ids.empty())
   {
@@ -1593,7 +1593,7 @@ void ImpuRegDataTask::on_sar_response(const HssConnection::ServerAssignmentAnswe
   {
     // Get the charging addresses and user data.
     _irs->set_charging_addresses(saa.get_charging_addresses());
-    _irs->set_service_profile(saa.get_service_profile());
+    _irs->set_ims_sub_xml(saa.get_service_profile());
   }
   else if (rc == HssConnection::ResultCode::SERVER_UNAVAILABLE)
   {
@@ -2159,7 +2159,7 @@ void PushProfileTask::on_get_ims_sub_success(ImsSubscription* ims_sub)
 
     // We can now update the IRS with the new XML. We will handle updating
     // charging addresses later
-    irs->set_service_profile(_ims_subscription);
+    irs->set_ims_sub_xml(_ims_subscription);
   }
 
   // We now may have to update the charging addresses

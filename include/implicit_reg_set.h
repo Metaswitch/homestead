@@ -34,9 +34,9 @@ public:
   void add_impi(std::string impi);
   void remove_impi(std::string impi);
 
-  std::string get_service_profile()
+  std::string get_ims_sub_xml()
   {
-    return _service_profile;
+    return _ims_sub_xml;
   }
 
   RegistrationState get_reg_state()
@@ -59,9 +59,9 @@ public:
     return _ttl;
   }
 
-  void set_service_profile(std::string profile)
+  void set_ims_sub_xml(std::string xml)
   {
-    _service_profile = profile;
+    _ims_sub_xml = xml;
   }
 
   void set_reg_state(RegistrationState state)
@@ -87,7 +87,7 @@ public:
   const std::string default_impu;
 
 private:
-  std::string _service_profile;
+  std::string _ims_sub_xml;
   RegistrationState _reg_state;
   std::vector<std::string> _associated_impis;
   ChargingAddresses _charging_addresses;

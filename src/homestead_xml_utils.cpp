@@ -36,7 +36,7 @@ int build_ClearwaterRegData_xml(ImplicitRegistrationSet* irs,
   std::string regtype;
   add_reg_state_node(irs->get_reg_state(), doc, root, regtype);
 
-  std::string xml = irs->get_service_profile();
+  std::string xml = irs->get_ims_sub_xml();
   if (xml != "")
   {
     // Parse the XML document - note we need to pass in the prev_doc here to
