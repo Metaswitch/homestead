@@ -31,11 +31,12 @@ public:
 TEST_F(XmlUtilsTest, SimpleMainline)
 {
   ChargingAddresses charging_addresses({"ccf1", "ccf2"}, {"ecf1", "ecf2"});
+  ImplicitRegistrationSet irs = ImplicitRegistrationSet("");
+  irs.set_charging_addresses(charging_addresses);
+  irs.set_service_profile("<?xml?><IMSSubscription>test</IMSSubscription>");
+  irs.set_reg_state(RegistrationState::REGISTERED);
   std::string result;
-  int rc = XmlUtils::build_ClearwaterRegData_xml(RegistrationState::REGISTERED,
-                                                 "<?xml?><IMSSubscription>test</IMSSubscription>",
-                                                 charging_addresses, 
-                                                 result);
+  int rc = XmlUtils::build_ClearwaterRegData_xml(&irs, result);
 
   ASSERT_EQ(200, rc);
   ASSERT_EQ("<ClearwaterRegData>\n\t<RegistrationState>REGISTERED</RegistrationState>\n\t<IMSSubscription>test</IMSSubscription>\n\t<ChargingAddresses>\n\t\t<CCF priority=\"1\">ccf1</CCF>\n\t\t<CCF priority=\"2\">ccf2</CCF>\n\t\t<ECF priority=\"1\">ecf1</ECF>\n\t\t<ECF priority=\"2\">ecf2</ECF>\n\t</ChargingAddresses>\n</ClearwaterRegData>\n\n", result);
@@ -44,11 +45,13 @@ TEST_F(XmlUtilsTest, SimpleMainline)
 TEST_F(XmlUtilsTest, Unregistered)
 {
   ChargingAddresses charging_addresses;
+  ImplicitRegistrationSet irs = ImplicitRegistrationSet("");
+  irs.set_charging_addresses(charging_addresses);
+  irs.set_service_profile("<?xml?><IMSSubscription>test</IMSSubscription>");
+  irs.set_reg_state(RegistrationState::UNREGISTERED);
   std::string result;
-  int rc = XmlUtils::build_ClearwaterRegData_xml(RegistrationState::UNREGISTERED,
-                                                 "<?xml?><IMSSubscription>test</IMSSubscription>",
-                                                 charging_addresses,
-                                                 result);
+  int rc = XmlUtils::build_ClearwaterRegData_xml(&irs, result);
+
   ASSERT_EQ(200, rc);
   ASSERT_EQ("<ClearwaterRegData>\n\t<RegistrationState>UNREGISTERED</RegistrationState>\n\t<IMSSubscription>test</IMSSubscription>\n</ClearwaterRegData>\n\n", result);
 }
@@ -56,11 +59,13 @@ TEST_F(XmlUtilsTest, Unregistered)
 TEST_F(XmlUtilsTest, InvalidRegState)
 {
   ChargingAddresses charging_addresses;
+  ImplicitRegistrationSet irs = ImplicitRegistrationSet("");
+  irs.set_charging_addresses(charging_addresses);
+  irs.set_service_profile("<?xml?><IMSSubscription>test</IMSSubscription>");
+  irs.set_reg_state(RegistrationState::UNCHANGED);
   std::string result;
-  int rc = XmlUtils::build_ClearwaterRegData_xml(RegistrationState::UNCHANGED,
-                                                 "<?xml?><IMSSubscription>test</IMSSubscription>",
-                                                 charging_addresses,
-                                                 result);
+  int rc = XmlUtils::build_ClearwaterRegData_xml(&irs, result);
+
   ASSERT_EQ(200, rc);
   ASSERT_EQ("<ClearwaterRegData>\n\t<RegistrationState>NOT_REGISTERED</RegistrationState>\n\t<IMSSubscription>test</IMSSubscription>\n</ClearwaterRegData>\n\n", result);
 }
@@ -68,22 +73,26 @@ TEST_F(XmlUtilsTest, InvalidRegState)
 TEST_F(XmlUtilsTest, InvalidIMSSubscription)
 {
   ChargingAddresses charging_addresses;
+  ImplicitRegistrationSet irs = ImplicitRegistrationSet("");
+  irs.set_charging_addresses(charging_addresses);
+  irs.set_service_profile("<?xml?><IMSSubscriptionwrong>test</IMSSubscriptionwrong>");
+  irs.set_reg_state(RegistrationState::REGISTERED);
   std::string result;
-  int rc = XmlUtils::build_ClearwaterRegData_xml(RegistrationState::REGISTERED,
-                                                 "<?xml?><IMSSubscriptionwrong>test</IMSSubscriptionwrong>",
-                                                 charging_addresses,
-                                                 result);
+  int rc = XmlUtils::build_ClearwaterRegData_xml(&irs, result);
+
   ASSERT_EQ(500, rc);
 }
 
 TEST_F(XmlUtilsTest, InvalidXML)
 {
   ChargingAddresses charging_addresses;
+  ImplicitRegistrationSet irs = ImplicitRegistrationSet("");
+  irs.set_charging_addresses(charging_addresses);
+  irs.set_service_profile("<?xml?><InvalidXML</IMSSubscription>");
+  irs.set_reg_state(RegistrationState::REGISTERED);
   std::string result;
-  int rc = XmlUtils::build_ClearwaterRegData_xml(RegistrationState::REGISTERED,
-                                                 "<?xml?><InvalidXML</IMSSubscription>",
-                                                 charging_addresses,
-                                                 result);
+  int rc = XmlUtils::build_ClearwaterRegData_xml(&irs, result);
+
   ASSERT_EQ(500, rc);
 }
 

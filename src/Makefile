@@ -62,6 +62,7 @@ homestead_test_SOURCES := ${COMMON_SOURCES} \
                           cx_test.cpp \
                           cache_test.cpp \
                           handlers_test.cpp \
+                          homestead_xml_utils_test.cpp \
                           fakelogger.cpp \
                           fakesnmp.cpp \
                           mockfreediameter.cpp \
