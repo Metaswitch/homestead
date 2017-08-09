@@ -124,16 +124,6 @@ get_daemon_args()
           dest_realm="--dest-realm=$hss_realm"
         fi
 
-        # Default the diameter timeout to twice the target latency if not
-        # already overridden (rounding up).  Note that the former is expressed
-        # in milliseconds and the latter in microseconds, hence division by 500
-        # (i.e. multiplication by 2/1000).
-        if [ -z $diameter_timeout_ms ] && [ ! -z $target_latency_us ]
-        then
-          diameter_timeout_ms=$(( ($target_latency_us + 499)/500 ))
-        fi
-
-
         [ "$sas_use_signaling_interface" != "Y" ] || sas_signaling_if_arg="--sas-use-signaling-interface"
         [ "$request_shared_ifcs" != "Y" ] || request_shared_ifcs_arg="--request-shared-ifcs"
 
