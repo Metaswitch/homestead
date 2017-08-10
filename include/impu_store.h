@@ -11,6 +11,7 @@
 #ifndef IMPU_STORE_H_
 #define IMPU_STORE_H_
 
+#include "reg_state.h"
 #include "store.h"
 
 #include <algorithm>
@@ -73,6 +74,7 @@ public:
 
     virtual bool is_default_impu(){ return true; }
 
+    RegistrationState registration_state;
     std::vector<std::string> associated_impus;
     std::vector<std::string> impis;
     bool is_registered;

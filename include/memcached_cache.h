@@ -29,13 +29,15 @@ class MemcachedImplicitRegistrationSet : public ImplicitRegistrationSet
 public:
   MemcachedImplicitRegistrationSet(ImpuStore::DefaultImpu* default_impu) :
     ImplicitRegistrationSet(default_impu->impu),
-    _store(default_impu->store)
+    _store(default_impu->store),
+    _cas(default_impu->cas)
   {
   }
 
   MemcachedImplicitRegistrationSet(const std::string& default_impu) :
     ImplicitRegistrationSet(default_impu),
-    _store(nullptr)
+    _store(nullptr),
+    _cas(0L)
   {
   }
 
@@ -69,6 +71,7 @@ private:
   bool _existing = true;
 
   const ImpuStore* _store;
+  const uint64_t _cas;
 
   std::vector<std::string> _added_impis;
   std::vector<std::string> _unchanged_impis;
@@ -77,6 +80,11 @@ private:
   std::vector<std::string> _added_associated_impus;
   std::vector<std::string> _unchanged_associated_impus;
   std::vector<std::string> _deleted_associated_impus;
+
+  RegistrationState _registration_state;
+  bool _registration_state_set = false;
+
+  ImpuStore::DefaultImpu* create_impu(uint64_t cas);
 };
 
 class MemcachedCache : public HssCache
