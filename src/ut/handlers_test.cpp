@@ -1623,7 +1623,7 @@ TEST_F(HandlersTest, ImpuRegDataInitialReg)
   EXPECT_CALL(*_hss, send_server_assignment_request(_,
     AllOf(Field(&HssConnection::ServerAssignmentRequest::impi, IMPI),
           Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
-          Field(&HssConnection::ServerAssignmentRequest::provided_server_name, SERVER_NAME),
+          Field(&HssConnection::ServerAssignmentRequest::server_name, SERVER_NAME),
           Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::REGISTRATION)),
     _))
     .WillOnce(InvokeArgument<0>(ByRef(answer)));
@@ -1672,7 +1672,7 @@ TEST_F(HandlersTest, ImpuRegDataInitialRegNoServerName)
   EXPECT_CALL(*_hss, send_server_assignment_request(_,
     AllOf(Field(&HssConnection::ServerAssignmentRequest::impi, IMPI),
           Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
-          Field(&HssConnection::ServerAssignmentRequest::provided_server_name, DEFAULT_SERVER_NAME),
+          Field(&HssConnection::ServerAssignmentRequest::server_name, DEFAULT_SERVER_NAME),
           Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::REGISTRATION)),
     _))
     .WillOnce(InvokeArgument<0>(ByRef(answer)));
@@ -1722,7 +1722,7 @@ TEST_F(HandlersTest, ImpuRegDataInitialRegCacheGetNotFound)
   EXPECT_CALL(*_hss, send_server_assignment_request(_,
     AllOf(Field(&HssConnection::ServerAssignmentRequest::impi, IMPI),
           Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
-          Field(&HssConnection::ServerAssignmentRequest::provided_server_name, DEFAULT_SERVER_NAME),
+          Field(&HssConnection::ServerAssignmentRequest::server_name, DEFAULT_SERVER_NAME),
           Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::REGISTRATION)),
     _))
     .WillOnce(InvokeArgument<0>(ByRef(answer)));
@@ -1793,7 +1793,7 @@ TEST_F(HandlersTest, ImpuRegDataInitialRegCachePutError)
   EXPECT_CALL(*_hss, send_server_assignment_request(_,
     AllOf(Field(&HssConnection::ServerAssignmentRequest::impi, IMPI),
           Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
-          Field(&HssConnection::ServerAssignmentRequest::provided_server_name, SERVER_NAME),
+          Field(&HssConnection::ServerAssignmentRequest::server_name, SERVER_NAME),
           Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::REGISTRATION)),
     _))
     .WillOnce(InvokeArgument<0>(ByRef(answer)));
@@ -1844,7 +1844,7 @@ TEST_F(HandlersTest, ImpuRegDataReReg)
   EXPECT_CALL(*_hss, send_server_assignment_request(_,
     AllOf(Field(&HssConnection::ServerAssignmentRequest::impi, IMPI),
           Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
-          Field(&HssConnection::ServerAssignmentRequest::provided_server_name, SERVER_NAME),
+          Field(&HssConnection::ServerAssignmentRequest::server_name, SERVER_NAME),
           Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::RE_REGISTRATION)),
     _))
     .WillOnce(InvokeArgument<0>(ByRef(answer)));
@@ -1896,7 +1896,7 @@ TEST_F(HandlersTest, ImpuRegDataReRegNoCache)
   EXPECT_CALL(*_hss, send_server_assignment_request(_,
     AllOf(Field(&HssConnection::ServerAssignmentRequest::impi, IMPI),
           Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
-          Field(&HssConnection::ServerAssignmentRequest::provided_server_name, SERVER_NAME),
+          Field(&HssConnection::ServerAssignmentRequest::server_name, SERVER_NAME),
           Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::RE_REGISTRATION)),
     _))
     .WillOnce(InvokeArgument<0>(ByRef(answer)));
@@ -1977,7 +1977,7 @@ TEST_F(HandlersTest, ImpuRegDataReRegNewBinding)
   EXPECT_CALL(*_hss, send_server_assignment_request(_,
     AllOf(Field(&HssConnection::ServerAssignmentRequest::impi, IMPI),
           Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
-          Field(&HssConnection::ServerAssignmentRequest::provided_server_name, SERVER_NAME),
+          Field(&HssConnection::ServerAssignmentRequest::server_name, SERVER_NAME),
           Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::REGISTRATION)),
     _))
     .WillOnce(InvokeArgument<0>(ByRef(answer)));
@@ -2030,7 +2030,7 @@ TEST_F(HandlersTest, ImpuRegDataRegIncludesBarring)
   EXPECT_CALL(*_hss, send_server_assignment_request(_,
     AllOf(Field(&HssConnection::ServerAssignmentRequest::impi, IMPI),
           Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
-          Field(&HssConnection::ServerAssignmentRequest::provided_server_name, SERVER_NAME),
+          Field(&HssConnection::ServerAssignmentRequest::server_name, SERVER_NAME),
           Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::REGISTRATION)),
     _))
     .WillOnce(InvokeArgument<0>(ByRef(answer)));
@@ -2359,7 +2359,7 @@ TEST_F(HandlersTest, ImpuRegDataCallNewUnregisteredService)
   EXPECT_CALL(*_hss, send_server_assignment_request(_,
     AllOf(Field(&HssConnection::ServerAssignmentRequest::impi, IMPI),
           Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
-          Field(&HssConnection::ServerAssignmentRequest::provided_server_name, SERVER_NAME),
+          Field(&HssConnection::ServerAssignmentRequest::server_name, SERVER_NAME),
           Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::UNREGISTERED_USER)),
     _))
     .WillOnce(InvokeArgument<0>(ByRef(answer)));
@@ -2407,7 +2407,7 @@ TEST_F(HandlersTest, ImpuRegDataDeregUser)
   EXPECT_CALL(*_hss, send_server_assignment_request(_,
     AllOf(Field(&HssConnection::ServerAssignmentRequest::impi, IMPI),
           Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
-          Field(&HssConnection::ServerAssignmentRequest::provided_server_name, SERVER_NAME),
+          Field(&HssConnection::ServerAssignmentRequest::server_name, SERVER_NAME),
           Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::USER_DEREGISTRATION)),
     _))
     .WillOnce(InvokeArgument<0>(ByRef(answer)));
@@ -2456,7 +2456,7 @@ TEST_F(HandlersTest, ImpuRegDataDeregTimeout)
   EXPECT_CALL(*_hss, send_server_assignment_request(_,
     AllOf(Field(&HssConnection::ServerAssignmentRequest::impi, IMPI),
           Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
-          Field(&HssConnection::ServerAssignmentRequest::provided_server_name, SERVER_NAME),
+          Field(&HssConnection::ServerAssignmentRequest::server_name, SERVER_NAME),
           Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::TIMEOUT_DEREGISTRATION)),
     _))
     .WillOnce(InvokeArgument<0>(ByRef(answer)));
@@ -2505,7 +2505,7 @@ TEST_F(HandlersTest, ImpuRegDataDeregAdmin)
   EXPECT_CALL(*_hss, send_server_assignment_request(_,
     AllOf(Field(&HssConnection::ServerAssignmentRequest::impi, IMPI),
           Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
-          Field(&HssConnection::ServerAssignmentRequest::provided_server_name, SERVER_NAME),
+          Field(&HssConnection::ServerAssignmentRequest::server_name, SERVER_NAME),
           Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::ADMINISTRATIVE_DEREGISTRATION)),
     _))
     .WillOnce(InvokeArgument<0>(ByRef(answer)));
@@ -2555,7 +2555,7 @@ TEST_F(HandlersTest, ImpuRegDataDeregNoIMPI)
   EXPECT_CALL(*_hss, send_server_assignment_request(_,
     AllOf(Field(&HssConnection::ServerAssignmentRequest::impi, IMPI),
           Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
-          Field(&HssConnection::ServerAssignmentRequest::provided_server_name, SERVER_NAME),
+          Field(&HssConnection::ServerAssignmentRequest::server_name, SERVER_NAME),
           Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::ADMINISTRATIVE_DEREGISTRATION)),
     _))
     .WillOnce(InvokeArgument<0>(ByRef(answer)));
@@ -2604,7 +2604,7 @@ TEST_F(HandlersTest, ImpuRegDataDeregCacheError)
   EXPECT_CALL(*_hss, send_server_assignment_request(_,
     AllOf(Field(&HssConnection::ServerAssignmentRequest::impi, IMPI),
           Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
-          Field(&HssConnection::ServerAssignmentRequest::provided_server_name, SERVER_NAME),
+          Field(&HssConnection::ServerAssignmentRequest::server_name, SERVER_NAME),
           Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::ADMINISTRATIVE_DEREGISTRATION)),
     _))
     .WillOnce(InvokeArgument<0>(ByRef(answer)));
@@ -2654,7 +2654,7 @@ TEST_F(HandlersTest, ImpuRegDataDeregCacheNotFound)
   EXPECT_CALL(*_hss, send_server_assignment_request(_,
     AllOf(Field(&HssConnection::ServerAssignmentRequest::impi, IMPI),
           Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
-          Field(&HssConnection::ServerAssignmentRequest::provided_server_name, SERVER_NAME),
+          Field(&HssConnection::ServerAssignmentRequest::server_name, SERVER_NAME),
           Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::ADMINISTRATIVE_DEREGISTRATION)),
     _))
     .WillOnce(InvokeArgument<0>(ByRef(answer)));
@@ -2703,7 +2703,7 @@ TEST_F(HandlersTest, ImpuRegDataDeregUnregSub)
   EXPECT_CALL(*_hss, send_server_assignment_request(_,
     AllOf(Field(&HssConnection::ServerAssignmentRequest::impi, IMPI),
           Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
-          Field(&HssConnection::ServerAssignmentRequest::provided_server_name, SERVER_NAME),
+          Field(&HssConnection::ServerAssignmentRequest::server_name, SERVER_NAME),
           Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::ADMINISTRATIVE_DEREGISTRATION)),
     _))
     .WillOnce(InvokeArgument<0>(ByRef(answer)));
@@ -2754,7 +2754,7 @@ TEST_F(HandlersTest, ImpuRegDataDeregAuthFailedRegistered)
   EXPECT_CALL(*_hss, send_server_assignment_request(_,
     AllOf(Field(&HssConnection::ServerAssignmentRequest::impi, IMPI),
           Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
-          Field(&HssConnection::ServerAssignmentRequest::provided_server_name, DEFAULT_SERVER_NAME),
+          Field(&HssConnection::ServerAssignmentRequest::server_name, DEFAULT_SERVER_NAME),
           Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::AUTHENTICATION_FAILURE)),
     _))
     .WillOnce(InvokeArgument<0>(ByRef(answer)));
@@ -2797,7 +2797,7 @@ TEST_F(HandlersTest, ImpuRegDataDeregAuthFailedNotRegistered)
   EXPECT_CALL(*_hss, send_server_assignment_request(_,
     AllOf(Field(&HssConnection::ServerAssignmentRequest::impi, IMPI),
           Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
-          Field(&HssConnection::ServerAssignmentRequest::provided_server_name, DEFAULT_SERVER_NAME),
+          Field(&HssConnection::ServerAssignmentRequest::server_name, DEFAULT_SERVER_NAME),
           Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::AUTHENTICATION_FAILURE)),
     _))
     .WillOnce(InvokeArgument<0>(ByRef(answer)));
@@ -2840,7 +2840,7 @@ TEST_F(HandlersTest, ImpuRegDataDeregAuthTimeout)
   EXPECT_CALL(*_hss, send_server_assignment_request(_,
     AllOf(Field(&HssConnection::ServerAssignmentRequest::impi, IMPI),
           Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
-          Field(&HssConnection::ServerAssignmentRequest::provided_server_name, DEFAULT_SERVER_NAME),
+          Field(&HssConnection::ServerAssignmentRequest::server_name, DEFAULT_SERVER_NAME),
           Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::AUTHENTICATION_TIMEOUT)),
     _))
     .WillOnce(InvokeArgument<0>(ByRef(answer)));
@@ -2906,7 +2906,7 @@ TEST_F(HandlersTest, ImpuRegDataInvalidXML)
   EXPECT_CALL(*_hss, send_server_assignment_request(_,
     AllOf(Field(&HssConnection::ServerAssignmentRequest::impi, IMPI),
           Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
-          Field(&HssConnection::ServerAssignmentRequest::provided_server_name, DEFAULT_SERVER_NAME),
+          Field(&HssConnection::ServerAssignmentRequest::server_name, DEFAULT_SERVER_NAME),
           Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::REGISTRATION)),
     _))
     .WillOnce(InvokeArgument<0>(ByRef(answer)));
@@ -2986,7 +2986,7 @@ TEST_F(HandlersTest, ImpuRegDataHssNotFound)
   EXPECT_CALL(*_hss, send_server_assignment_request(_,
     AllOf(Field(&HssConnection::ServerAssignmentRequest::impi, IMPI),
           Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
-          Field(&HssConnection::ServerAssignmentRequest::provided_server_name, SERVER_NAME),
+          Field(&HssConnection::ServerAssignmentRequest::server_name, SERVER_NAME),
           Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::REGISTRATION)),
     _))
     .WillOnce(InvokeArgument<0>(ByRef(answer)));

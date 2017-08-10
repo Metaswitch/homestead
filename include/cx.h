@@ -17,6 +17,35 @@
 #include "servercapabilities.h"
 #include "charging_addresses.h"
 
+// Result-Code AVP constants
+const int32_t DIAMETER_SUCCESS = 2001;
+const int32_t DIAMETER_COMMAND_UNSUPPORTED = 3001;
+const int32_t DIAMETER_UNABLE_TO_DELIVER = 3002;
+const int32_t DIAMETER_TOO_BUSY = 3004;
+const int32_t DIAMETER_AUTHORIZATION_REJECTED = 5003;
+const int32_t DIAMETER_UNABLE_TO_COMPLY = 5012;
+// 3GPP Vendor ID - RFC 5516
+const uint32_t VENDOR_ID_3GPP = 10415;
+// Experimental-Result-Code AVP constants
+const int32_t DIAMETER_FIRST_REGISTRATION = 2001;
+const int32_t DIAMETER_SUBSEQUENT_REGISTRATION = 2002;
+const int32_t DIAMETER_UNREGISTERED_SERVICE = 2003;
+const int32_t DIAMETER_ERROR_USER_UNKNOWN = 5001;
+const int32_t DIAMETER_ERROR_IDENTITIES_DONT_MATCH = 5002;
+const int32_t DIAMETER_ERROR_IDENTITY_NOT_REGISTERED = 5003;
+const int32_t DIAMETER_ERROR_ROAMING_NOT_ALLOWED = 5004;
+const int32_t DIAMETER_ERROR_IN_ASSIGNMENT_TYPE = 5007;
+
+// Result-Code AVP strings used in set_result_code function
+const std::string DIAMETER_REQ_SUCCESS = "DIAMETER_SUCCESS";
+const std::string DIAMETER_REQ_FAILURE = "DIAMETER_UNABLE_TO_COMPLY";
+
+// Deregistration-Reason Reason-Code AVP constants
+const int32_t PERMANENT_TERMINATION = 0;
+const int32_t NEW_SERVER_ASSIGNED = 1;
+const int32_t SERVER_CHANGE = 2;
+const int32_t REMOVE_SCSCF = 3;
+
 namespace Cx
 {
 class Dictionary : public Diameter::Dictionary

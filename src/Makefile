@@ -15,6 +15,7 @@ COMMON_SOURCES := a_record_resolver.cpp \
                   communicationmonitor.cpp \
                   counter.cpp \
                   cx.cpp \
+                  diameter_hss_connection.cpp \
                   diameterstack.cpp \
                   diameterresolver.cpp \
                   dnscachedresolver.cpp \

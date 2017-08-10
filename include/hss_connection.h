@@ -33,7 +33,8 @@ enum ResultCode
     TIMEOUT = 4,
     NEW_WILDCARD = 5,
     ASSIGNMENT_TYPE = 6,
-    UNKNOWN = 7
+    UNKNOWN_AUTH_SCHEME = 7,
+    UNKNOWN = 8
 };
 
 // Structs to represent the requests we make to the HSS
@@ -41,7 +42,7 @@ struct MultimediaAuthRequest
 {
   std::string impi;
   std::string impu;
-  std::string provided_server_name;
+  std::string server_name;
   std::string scheme;
   std::string authorization;
 };
@@ -66,7 +67,7 @@ struct ServerAssignmentRequest
 {
   std::string impi;
   std::string impu;
-  std::string provided_server_name;
+  std::string server_name;
   Cx::ServerAssignmentType type;
   bool support_shared_ifcs;
   std::string wildcard_impu;

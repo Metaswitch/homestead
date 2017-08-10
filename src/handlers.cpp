@@ -31,16 +31,6 @@ HssCacheProcessor* HssCacheTask::_cache = NULL;
 StatisticsManager* HssCacheTask::_stats_manager = NULL;
 HealthChecker* HssCacheTask::_health_checker = NULL;
 
-const static HssCacheTask::StatsFlags DIGEST_STATS =
-  static_cast<HssCacheTask::StatsFlags>(
-    HssCacheTask::STAT_HSS_LATENCY |
-    HssCacheTask::STAT_HSS_DIGEST_LATENCY);
-
-const static HssCacheTask::StatsFlags SUBSCRIPTION_STATS =
-  static_cast<HssCacheTask::StatsFlags>(
-    HssCacheTask::STAT_HSS_LATENCY |
-    HssCacheTask::STAT_HSS_SUBSCRIPTION_LATENCY);
-
 static SNMP::CxCounterTable* mar_results_tbl;
 static SNMP::CxCounterTable* sar_results_tbl;
 static SNMP::CxCounterTable* uar_results_tbl;

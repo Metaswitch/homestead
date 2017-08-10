@@ -27,35 +27,6 @@
 #include "hss_cache_processor.h"
 #include "implicit_reg_set.h"
 
-// Result-Code AVP constants
-const int32_t DIAMETER_SUCCESS = 2001;
-const int32_t DIAMETER_COMMAND_UNSUPPORTED = 3001;
-const int32_t DIAMETER_UNABLE_TO_DELIVER = 3002;
-const int32_t DIAMETER_TOO_BUSY = 3004;
-const int32_t DIAMETER_AUTHORIZATION_REJECTED = 5003;
-const int32_t DIAMETER_UNABLE_TO_COMPLY = 5012;
-// 3GPP Vendor ID - RFC 5516
-const uint32_t VENDOR_ID_3GPP = 10415;
-// Experimental-Result-Code AVP constants
-const int32_t DIAMETER_FIRST_REGISTRATION = 2001;
-const int32_t DIAMETER_SUBSEQUENT_REGISTRATION = 2002;
-const int32_t DIAMETER_UNREGISTERED_SERVICE = 2003;
-const int32_t DIAMETER_ERROR_USER_UNKNOWN = 5001;
-const int32_t DIAMETER_ERROR_IDENTITIES_DONT_MATCH = 5002;
-const int32_t DIAMETER_ERROR_IDENTITY_NOT_REGISTERED = 5003;
-const int32_t DIAMETER_ERROR_ROAMING_NOT_ALLOWED = 5004;
-const int32_t DIAMETER_ERROR_IN_ASSIGNMENT_TYPE = 5007;
-
-// Result-Code AVP strings used in set_result_code function
-const std::string DIAMETER_REQ_SUCCESS = "DIAMETER_SUCCESS";
-const std::string DIAMETER_REQ_FAILURE = "DIAMETER_UNABLE_TO_COMPLY";
-
-// Deregistration-Reason Reason-Code AVP constants
-const int32_t PERMANENT_TERMINATION = 0;
-const int32_t NEW_SERVER_ASSIGNED = 1;
-const int32_t SERVER_CHANGE = 2;
-const int32_t REMOVE_SCSCF = 3;
-
 // JSON string constants
 const std::string JSON_DIGEST_HA1 = "digest_ha1";
 const std::string JSON_DIGEST = "digest";
@@ -97,100 +68,6 @@ public:
   }
 
   void on_diameter_timeout();
-
-  // Stats the HSS cache handlers can update.
-  enum StatsFlags
-  {
-    STAT_HSS_LATENCY              = 0x1,
-    STAT_HSS_DIGEST_LATENCY       = 0x2,
-    STAT_HSS_SUBSCRIPTION_LATENCY = 0x4,
-  };
-
-  template <class H>
-  class DiameterTransaction : public Diameter::Transaction
-  {
-  public:
-    typedef void(H::*timeout_clbk_t)();
-    typedef void(H::*response_clbk_t)(Diameter::Message&);
-
-    DiameterTransaction(Cx::Dictionary* dict,
-                        H* handler,
-                        StatsFlags stat_updates,
-                        response_clbk_t response_clbk,
-                        SNMP::CxCounterTable* cx_results_tbl,
-                        timeout_clbk_t timeout_clbk = &HssCacheTask::on_diameter_timeout) :
-      Diameter::Transaction(dict,
-                            ((handler != NULL) ? handler->trail() : 0)),
-      _handler(handler),
-      _stat_updates(stat_updates),
-      _response_clbk(response_clbk),
-      _timeout_clbk(timeout_clbk),
-      _cx_results_tbl(cx_results_tbl)
-    {};
-
-  protected:
-    H* _handler;
-    StatsFlags _stat_updates;
-    response_clbk_t _response_clbk;
-    timeout_clbk_t _timeout_clbk;
-    SNMP::CxCounterTable* _cx_results_tbl;
-
-    void on_timeout()
-    {
-      update_latency_stats();
-      // No result-code returned on timeout, so use 0.
-      _cx_results_tbl->increment(SNMP::DiameterAppId::TIMEOUT, 0);
-
-      if ((_handler != NULL) && (_timeout_clbk != NULL))
-      {
-        boost::bind(_timeout_clbk, _handler)();
-      }
-    }
-
-    void on_response(Diameter::Message& rsp)
-    {
-      update_latency_stats();
-
-      // If we got an overload response (result code of 3004) record a penalty
-      // for the purposes of overload control.
-      int32_t result_code;
-      if (rsp.result_code(result_code) && (result_code == 3004))
-      {
-        _handler->record_penalty();
-      }
-
-      if ((_handler != NULL) && (_response_clbk != NULL))
-      {
-        boost::bind(_response_clbk, _handler, rsp)();
-      }
-    }
-
-  private:
-    void update_latency_stats()
-    {
-      StatisticsManager* stats = HssCacheTask::_stats_manager;
-
-      if (stats != NULL)
-      {
-        unsigned long latency = 0;
-        if (get_duration(latency))
-        {
-          if (_stat_updates & STAT_HSS_LATENCY)
-          {
-            stats->update_H_hss_latency_us(latency);
-          }
-          if (_stat_updates & STAT_HSS_DIGEST_LATENCY)
-          {
-            stats->update_H_hss_digest_latency_us(latency);
-          }
-          if (_stat_updates & STAT_HSS_SUBSCRIPTION_LATENCY)
-          {
-            stats->update_H_hss_subscription_latency_us(latency);
-          }
-        }
-      }
-    }
-  };
 
   template <class H>
   class CacheTransaction : public CassandraStore::Transaction
@@ -356,8 +233,6 @@ public:
   void on_uar_response(const HssConnection::UserAuthAnswer& uaa);
   void sas_log_hss_failure(int32_t result_code,int32_t experimental_result_code);
 
-  typedef HssCacheTask::DiameterTransaction<ImpiRegistrationStatusTask> DiameterTransaction;
-
 private:
   const Config* _cfg;
   std::string _impi;
@@ -387,9 +262,6 @@ public:
   void run();
   void on_lir_response(const HssConnection::LocationInfoAnswer& lia);
   void sas_log_hss_failure(int32_t result_code,int32_t experimental_result_code);
-
-  // TODO remove these
-  typedef HssCacheTask::DiameterTransaction<ImpuLocationInfoTask> DiameterTransaction;
 
 private:
   const Config* _cfg;
@@ -436,9 +308,6 @@ public:
   void on_del_impu_success();
   void on_del_impu_benign(bool not_found);
   void on_del_impu_failure(Store::Status rc);
-
-  typedef HssCacheTask::CacheTransaction<ImpuRegDataTask> CacheTransaction;
-  typedef HssCacheTask::DiameterTransaction<ImpuRegDataTask> DiameterTransaction;
 
   std::string public_id();
   std::string wildcard_id();
