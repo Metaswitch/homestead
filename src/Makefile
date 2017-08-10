@@ -62,6 +62,7 @@ homestead_test_SOURCES := ${COMMON_SOURCES} \
                           test_interposer.cpp \
                           cx_test.cpp \
                           cache_test.cpp \
+                          diameter_hss_connection_test.cpp \
                           handlers_test.cpp \
                           homestead_xml_utils_test.cpp \
                           fakelogger.cpp \

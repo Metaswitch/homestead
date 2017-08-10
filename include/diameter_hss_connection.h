@@ -149,8 +149,8 @@ private:
 
   private:
     void update_latency_stats()
-    {/*
-      StatisticsManager* stats = DiameterHssConnection::_stats_manager;
+    {/*TODO
+      StatisticsManager* stats = HssConnection::_stats_manager;
 
       if (stats != NULL)
       {

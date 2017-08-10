@@ -35,6 +35,11 @@ MultimediaAuthAnswer DiameterHssConnection::MARDiameterTransaction::create_answe
   uint32_t vendor_id = 0;
   diameter_maa.experimental_result(experimental_result, vendor_id);
 
+  TRC_DEBUG("Recieved MAR from HSS with result code %d, experimental result code %d and vendor id %u",
+            result_code,
+            experimental_result,
+            vendor_id);
+
   if (result_code == DIAMETER_SUCCESS)
   {
     auth_scheme = diameter_maa.sip_auth_scheme();
