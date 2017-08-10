@@ -14,6 +14,7 @@
 #include <string>
 #include "servercapabilities.h"
 #include "charging_addresses.h"
+#include "statisticsmanager.h"
 
 namespace HssConnection {
 
@@ -309,6 +310,11 @@ class HssConnection
 public:
   virtual ~HssConnection() {};
 
+  HssConnection(StatisticsManager* stats_manager) :
+    _stats_manager(stats_manager)
+    {
+    };
+
   // ---------------------------------------------------------------------------
   // Methods representing communicating with the HSS.
   // Each method takes a callback, which will be called on a different thread
@@ -320,19 +326,26 @@ public:
 
   // Send a multimedia auth request to the HSS
   virtual void send_multimedia_auth_request(maa_cb callback,
-                                            MultimediaAuthRequest request) = 0;
+                                            MultimediaAuthRequest request,
+                                            SAS::TrailId trail) = 0;
 
   // Send a user auth request to the HSS
   virtual void send_user_auth_request(uaa_cb callback,
-                                      UserAuthRequest request) = 0;
+                                      UserAuthRequest request,
+                                      SAS::TrailId trail) = 0;
 
   // Send a location info request to the HSS
   virtual void send_location_info_request(lia_cb callback,
-                                          LocationInfoRequest request) = 0;
+                                          LocationInfoRequest request,
+                                          SAS::TrailId trail) = 0;
 
   // Send a server assignment request to the HSS
   virtual void send_server_assignment_request(saa_cb callback,
-                                              ServerAssignmentRequest request) = 0;
+                                              ServerAssignmentRequest request,
+                                              SAS::TrailId trail) = 0;
+
+private:
+  StatisticsManager* _stats_manager;
 };
 
 }; // namespace HssConnection

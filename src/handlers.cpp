@@ -159,7 +159,7 @@ void ImpiTask::send_mar()
     std::bind(&ImpiTask::on_mar_response, this, std::placeholders::_1);
 
   // Send the request
-  _hss->send_multimedia_auth_request(callback, request);
+  _hss->send_multimedia_auth_request(callback, request, this->trail());
   //TRC_DEBUG("Sent");
 }
 
@@ -416,7 +416,7 @@ void ImpiRegistrationStatusTask::run()
     std::bind(&ImpiRegistrationStatusTask::on_uar_response, this, std::placeholders::_1);
 
   // Send the request
-  _hss->send_user_auth_request(callback, request);
+  _hss->send_user_auth_request(callback, request, this->trail());
   /*TODO
      TRC_DEBUG("No HSS configured - fake response if subscriber exists");
     SAS::Event event(this->trail(), SASEvent::ICSCF_NO_HSS, 0);
@@ -586,7 +586,7 @@ void ImpuLocationInfoTask::run()
     std::bind(&ImpuLocationInfoTask::on_lir_response, this, std::placeholders::_1);
 
   // Send the request
-  _hss->send_location_info_request(callback, request);
+  _hss->send_location_info_request(callback, request, this->trail());
 }
 
 void ImpuLocationInfoTask::on_lir_response(const HssConnection::LocationInfoAnswer& lia)
@@ -1488,7 +1488,7 @@ void ImpuRegDataTask::send_server_assignment_request(Cx::ServerAssignmentType ty
     std::bind(&ImpuRegDataTask::on_sar_response, this, std::placeholders::_1);
 
   // Send the request
-  _hss->send_server_assignment_request(callback, request);
+  _hss->send_server_assignment_request(callback, request, this->trail());
 }
 
 void ImpuRegDataTask::put_in_cache()

@@ -414,7 +414,7 @@ public:
     // Once the task's run function is called, expect a UAR. We don't check the
     // contents of the UAR explicitly here, as this is done by other tests.
     HssConnection::UserAuthAnswer answer = HssConnection::UserAuthAnswer(hss_rc);
-    EXPECT_CALL(*_hss, send_user_auth_request(_, _)).WillOnce(InvokeArgument<0>(ByRef(answer)));
+    EXPECT_CALL(*_hss, send_user_auth_request(_, _, _)).WillOnce(InvokeArgument<0>(ByRef(answer)));
 
     // Expect the correct HTTP code
     EXPECT_CALL(*_httpstack, send_reply(_, http_rc, _));
@@ -440,7 +440,7 @@ public:
     // Once the task's run function is called, expect an LIR. We don't check the
     // contents of the LIR explicitly here, as this is done by other tests.
     HssConnection::LocationInfoAnswer answer = HssConnection::LocationInfoAnswer(hss_rc);
-    EXPECT_CALL(*_hss, send_location_info_request(_, _)).WillOnce(InvokeArgument<0>(ByRef(answer)));
+    EXPECT_CALL(*_hss, send_location_info_request(_, _, _)).WillOnce(InvokeArgument<0>(ByRef(answer)));
 
     // Expect the correct HTTP code
     EXPECT_CALL(*_httpstack, send_reply(_, http_rc, _));
@@ -755,7 +755,8 @@ TEST_F(HandlersTest, ImpiDigestMainline)
   EXPECT_CALL(*_hss, send_multimedia_auth_request(_,
     AllOf(Field(&HssConnection::MultimediaAuthRequest::impi, IMPI),
           Field(&HssConnection::MultimediaAuthRequest::impu, IMPU),
-          Field(&HssConnection::MultimediaAuthRequest::scheme, SCHEME_DIGEST))))
+          Field(&HssConnection::MultimediaAuthRequest::scheme, SCHEME_DIGEST)),
+    _))
     .WillOnce(InvokeArgument<0>(ByRef(answer)));
 
   // Expect a 200 OK
@@ -803,7 +804,8 @@ TEST_F(HandlersTest, ImpiDigestHssTimeout)
   EXPECT_CALL(*_hss, send_multimedia_auth_request(_,
     AllOf(Field(&HssConnection::MultimediaAuthRequest::impi, IMPI),
           Field(&HssConnection::MultimediaAuthRequest::impu, IMPU),
-          Field(&HssConnection::MultimediaAuthRequest::scheme, SCHEME_DIGEST))))
+          Field(&HssConnection::MultimediaAuthRequest::scheme, SCHEME_DIGEST)),
+    _))
     .WillOnce(InvokeArgument<0>(ByRef(answer)));
 
   // Expect a 503
@@ -831,7 +833,8 @@ TEST_F(HandlersTest, ImpiDigestHssUserUnknown)
   EXPECT_CALL(*_hss, send_multimedia_auth_request(_,
     AllOf(Field(&HssConnection::MultimediaAuthRequest::impi, IMPI),
           Field(&HssConnection::MultimediaAuthRequest::impu, IMPU),
-          Field(&HssConnection::MultimediaAuthRequest::scheme, SCHEME_DIGEST))))
+          Field(&HssConnection::MultimediaAuthRequest::scheme, SCHEME_DIGEST)),
+    _))
     .WillOnce(InvokeArgument<0>(ByRef(answer)));
 
   // Expect a 404
@@ -859,7 +862,8 @@ TEST_F(HandlersTest, ImpiDigestHssOtherError)
   EXPECT_CALL(*_hss, send_multimedia_auth_request(_,
     AllOf(Field(&HssConnection::MultimediaAuthRequest::impi, IMPI),
           Field(&HssConnection::MultimediaAuthRequest::impu, IMPU),
-          Field(&HssConnection::MultimediaAuthRequest::scheme, SCHEME_DIGEST))))
+          Field(&HssConnection::MultimediaAuthRequest::scheme, SCHEME_DIGEST)),
+    _))
     .WillOnce(InvokeArgument<0>(ByRef(answer)));
 
   // Expect a 500
@@ -889,7 +893,8 @@ TEST_F(HandlersTest, ImpiDigestHssUnknownScheme)
   EXPECT_CALL(*_hss, send_multimedia_auth_request(_,
     AllOf(Field(&HssConnection::MultimediaAuthRequest::impi, IMPI),
           Field(&HssConnection::MultimediaAuthRequest::impu, IMPU),
-          Field(&HssConnection::MultimediaAuthRequest::scheme, SCHEME_DIGEST))))
+          Field(&HssConnection::MultimediaAuthRequest::scheme, SCHEME_DIGEST)),
+    _))
     .WillOnce(InvokeArgument<0>(ByRef(answer)));
 
   // Expect a 404
@@ -919,7 +924,8 @@ TEST_F(HandlersTest, ImpiDigestHssAKAReturned)
   EXPECT_CALL(*_hss, send_multimedia_auth_request(_,
     AllOf(Field(&HssConnection::MultimediaAuthRequest::impi, IMPI),
           Field(&HssConnection::MultimediaAuthRequest::impu, IMPU),
-          Field(&HssConnection::MultimediaAuthRequest::scheme, SCHEME_DIGEST))))
+          Field(&HssConnection::MultimediaAuthRequest::scheme, SCHEME_DIGEST)),
+    _))
     .WillOnce(InvokeArgument<0>(ByRef(answer)));
 
   // Expect a 404
@@ -956,7 +962,8 @@ TEST_F(HandlersTest, ImpiAvEmptyQoP)
   EXPECT_CALL(*_hss, send_multimedia_auth_request(_,
     AllOf(Field(&HssConnection::MultimediaAuthRequest::impi, IMPI),
           Field(&HssConnection::MultimediaAuthRequest::impu, IMPU),
-          Field(&HssConnection::MultimediaAuthRequest::scheme, SCHEME_UNKNOWN))))
+          Field(&HssConnection::MultimediaAuthRequest::scheme, SCHEME_UNKNOWN)),
+    _))
     .WillOnce(InvokeArgument<0>(ByRef(answer)));
 
   // Expect a 200 OK
@@ -1013,7 +1020,8 @@ TEST_F(HandlersTest, ImpiAKA)
   EXPECT_CALL(*_hss, send_multimedia_auth_request(_,
     AllOf(Field(&HssConnection::MultimediaAuthRequest::impi, IMPI),
           Field(&HssConnection::MultimediaAuthRequest::impu, IMPU),
-          Field(&HssConnection::MultimediaAuthRequest::scheme, SCHEME_AKA))))
+          Field(&HssConnection::MultimediaAuthRequest::scheme, SCHEME_AKA)),
+    _))
     .WillOnce(InvokeArgument<0>(ByRef(answer)));
 
   // Expect a 200 OK
@@ -1054,7 +1062,8 @@ TEST_F(HandlersTest, ImpiAKAv2)
   EXPECT_CALL(*_hss, send_multimedia_auth_request(_,
     AllOf(Field(&HssConnection::MultimediaAuthRequest::impi, IMPI),
           Field(&HssConnection::MultimediaAuthRequest::impu, IMPU),
-          Field(&HssConnection::MultimediaAuthRequest::scheme, SCHEME_AKAV2))))
+          Field(&HssConnection::MultimediaAuthRequest::scheme, SCHEME_AKAV2)),
+    _))
     .WillOnce(InvokeArgument<0>(ByRef(answer)));
 
   // Expect a 200 OK
@@ -1127,7 +1136,8 @@ TEST_F(HandlersTest, ImpiRegStatusServerName)
   EXPECT_CALL(*_hss, send_user_auth_request(_,
     AllOf(Field(&HssConnection::UserAuthRequest::impi, IMPI),
           Field(&HssConnection::UserAuthRequest::impu, IMPU),
-          Field(&HssConnection::UserAuthRequest::visited_network, DEST_REALM))))
+          Field(&HssConnection::UserAuthRequest::visited_network, DEST_REALM)),
+    _))
     .WillOnce(InvokeArgument<0>(ByRef(answer)));
 
   // Expect a 200
@@ -1163,7 +1173,8 @@ TEST_F(HandlersTest, ImpiRegStatusCapabilities)
   EXPECT_CALL(*_hss, send_user_auth_request(_,
     AllOf(Field(&HssConnection::UserAuthRequest::impi, IMPI),
           Field(&HssConnection::UserAuthRequest::impu, IMPU),
-          Field(&HssConnection::UserAuthRequest::visited_network, DEST_REALM))))
+          Field(&HssConnection::UserAuthRequest::visited_network, DEST_REALM)),
+    _))
     .WillOnce(InvokeArgument<0>(ByRef(answer)));
 
   // Expect a 200
@@ -1199,7 +1210,8 @@ TEST_F(HandlersTest, ImpiRegStatusCapabilitiesWithServerName)
   EXPECT_CALL(*_hss, send_user_auth_request(_,
     AllOf(Field(&HssConnection::UserAuthRequest::impi, IMPI),
           Field(&HssConnection::UserAuthRequest::impu, IMPU),
-          Field(&HssConnection::UserAuthRequest::visited_network, DEST_REALM))))
+          Field(&HssConnection::UserAuthRequest::visited_network, DEST_REALM)),
+    _))
     .WillOnce(InvokeArgument<0>(ByRef(answer)));
 
   // Expect a 200
@@ -1236,7 +1248,8 @@ TEST_F(HandlersTest, ImpiRegStatusPassesHealthCheck)
   EXPECT_CALL(*_hss, send_user_auth_request(_,
     AllOf(Field(&HssConnection::UserAuthRequest::impi, IMPI),
           Field(&HssConnection::UserAuthRequest::impu, IMPU),
-          Field(&HssConnection::UserAuthRequest::visited_network, DEST_REALM))))
+          Field(&HssConnection::UserAuthRequest::visited_network, DEST_REALM)),
+    _))
     .WillOnce(InvokeArgument<0>(ByRef(answer)));
 
   // Expect a 200 and the health-checker is notified
@@ -1273,7 +1286,8 @@ TEST_F(HandlersTest, ImpiRegStatusOptParams)
     AllOf(Field(&HssConnection::UserAuthRequest::impi, IMPI),
           Field(&HssConnection::UserAuthRequest::impu, IMPU),
           Field(&HssConnection::UserAuthRequest::visited_network, VISITED_NETWORK),
-          Field(&HssConnection::UserAuthRequest::authorization_type, AUTH_TYPE_DEREG))))
+          Field(&HssConnection::UserAuthRequest::authorization_type, AUTH_TYPE_DEREG)),
+    _))
     .WillOnce(InvokeArgument<0>(ByRef(answer)));
 
   // Expect a 200
@@ -1332,7 +1346,7 @@ TEST_F(HandlersTest, LocationInfoMainline)
                                       "");
 
   // Check the contents of the LIR
-  EXPECT_CALL(*_hss, send_location_info_request(_, Field(&HssConnection::LocationInfoRequest::impu, IMPU)))
+  EXPECT_CALL(*_hss, send_location_info_request(_, Field(&HssConnection::LocationInfoRequest::impu, IMPU), _))
     .WillOnce(InvokeArgument<0>(ByRef(answer)));
 
   // Expect a 200
@@ -1366,7 +1380,7 @@ TEST_F(HandlersTest, LocationInfoServerCapabilitiesNoServerName)
                                       "");
 
   // Check the contents of the LIR
-  EXPECT_CALL(*_hss, send_location_info_request(_, Field(&HssConnection::LocationInfoRequest::impu, IMPU)))
+  EXPECT_CALL(*_hss, send_location_info_request(_, Field(&HssConnection::LocationInfoRequest::impu, IMPU), _))
     .WillOnce(InvokeArgument<0>(ByRef(answer)));
 
   // Expect a 200
@@ -1400,7 +1414,7 @@ TEST_F(HandlersTest, LocationInfoServerCapabilitiesWithServerName)
                                       "");
 
   // Check the contents of the LIR
-  EXPECT_CALL(*_hss, send_location_info_request(_, Field(&HssConnection::LocationInfoRequest::impu, IMPU)))
+  EXPECT_CALL(*_hss, send_location_info_request(_, Field(&HssConnection::LocationInfoRequest::impu, IMPU), _))
     .WillOnce(InvokeArgument<0>(ByRef(answer)));
 
   // Expect a 200
@@ -1432,7 +1446,7 @@ TEST_F(HandlersTest, LocationInfoWithWildcard)
                                       WILDCARD);
 
   // Check the contents of the LIR
-  EXPECT_CALL(*_hss, send_location_info_request(_, Field(&HssConnection::LocationInfoRequest::impu, IMPU)))
+  EXPECT_CALL(*_hss, send_location_info_request(_, Field(&HssConnection::LocationInfoRequest::impu, IMPU), _))
     .WillOnce(InvokeArgument<0>(ByRef(answer)));
 
   // Expect a 200
@@ -1467,7 +1481,8 @@ TEST_F(HandlersTest, LocationInfoOptParams)
   EXPECT_CALL(*_hss, send_location_info_request(_,
     AllOf(Field(&HssConnection::LocationInfoRequest::impu, IMPU),
           Field(&HssConnection::LocationInfoRequest::originating, "true"),
-          Field(&HssConnection::LocationInfoRequest::authorization_type, AUTH_TYPE_CAPAB))))
+          Field(&HssConnection::LocationInfoRequest::authorization_type, AUTH_TYPE_CAPAB)),
+    _))
     .WillOnce(InvokeArgument<0>(ByRef(answer)));
 
   // Expect a 200
@@ -1609,7 +1624,8 @@ TEST_F(HandlersTest, ImpuRegDataInitialReg)
     AllOf(Field(&HssConnection::ServerAssignmentRequest::impi, IMPI),
           Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
           Field(&HssConnection::ServerAssignmentRequest::provided_server_name, SERVER_NAME),
-          Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::REGISTRATION))))
+          Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::REGISTRATION)),
+    _))
     .WillOnce(InvokeArgument<0>(ByRef(answer)));
 
   // We now expect it to be put in the cache with an updated TTL and state REGISTERED
@@ -1657,7 +1673,8 @@ TEST_F(HandlersTest, ImpuRegDataInitialRegNoServerName)
     AllOf(Field(&HssConnection::ServerAssignmentRequest::impi, IMPI),
           Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
           Field(&HssConnection::ServerAssignmentRequest::provided_server_name, DEFAULT_SERVER_NAME),
-          Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::REGISTRATION))))
+          Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::REGISTRATION)),
+    _))
     .WillOnce(InvokeArgument<0>(ByRef(answer)));
 
   // We now expect it to be put in the cache with an updated TTL and state REGISTERED
@@ -1706,7 +1723,8 @@ TEST_F(HandlersTest, ImpuRegDataInitialRegCacheGetNotFound)
     AllOf(Field(&HssConnection::ServerAssignmentRequest::impi, IMPI),
           Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
           Field(&HssConnection::ServerAssignmentRequest::provided_server_name, DEFAULT_SERVER_NAME),
-          Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::REGISTRATION))))
+          Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::REGISTRATION)),
+    _))
     .WillOnce(InvokeArgument<0>(ByRef(answer)));
 
 
@@ -1776,7 +1794,8 @@ TEST_F(HandlersTest, ImpuRegDataInitialRegCachePutError)
     AllOf(Field(&HssConnection::ServerAssignmentRequest::impi, IMPI),
           Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
           Field(&HssConnection::ServerAssignmentRequest::provided_server_name, SERVER_NAME),
-          Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::REGISTRATION))))
+          Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::REGISTRATION)),
+    _))
     .WillOnce(InvokeArgument<0>(ByRef(answer)));
 
   // We simulate a cache error when trying to cache it
@@ -1826,7 +1845,8 @@ TEST_F(HandlersTest, ImpuRegDataReReg)
     AllOf(Field(&HssConnection::ServerAssignmentRequest::impi, IMPI),
           Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
           Field(&HssConnection::ServerAssignmentRequest::provided_server_name, SERVER_NAME),
-          Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::RE_REGISTRATION))))
+          Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::RE_REGISTRATION)),
+    _))
     .WillOnce(InvokeArgument<0>(ByRef(answer)));
 
   // We now expect it to be put in the cache with an updated TTL and state REGISTERED
@@ -1877,7 +1897,8 @@ TEST_F(HandlersTest, ImpuRegDataReRegNoCache)
     AllOf(Field(&HssConnection::ServerAssignmentRequest::impi, IMPI),
           Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
           Field(&HssConnection::ServerAssignmentRequest::provided_server_name, SERVER_NAME),
-          Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::RE_REGISTRATION))))
+          Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::RE_REGISTRATION)),
+    _))
     .WillOnce(InvokeArgument<0>(ByRef(answer)));
 
   // We now expect it to be put in the cache with an updated TTL and state REGISTERED
@@ -1957,7 +1978,8 @@ TEST_F(HandlersTest, ImpuRegDataReRegNewBinding)
     AllOf(Field(&HssConnection::ServerAssignmentRequest::impi, IMPI),
           Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
           Field(&HssConnection::ServerAssignmentRequest::provided_server_name, SERVER_NAME),
-          Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::REGISTRATION))))
+          Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::REGISTRATION)),
+    _))
     .WillOnce(InvokeArgument<0>(ByRef(answer)));
 
   // We now expect it to be put in the cache with an updated TTL and state REGISTERED
@@ -2009,7 +2031,8 @@ TEST_F(HandlersTest, ImpuRegDataRegIncludesBarring)
     AllOf(Field(&HssConnection::ServerAssignmentRequest::impi, IMPI),
           Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
           Field(&HssConnection::ServerAssignmentRequest::provided_server_name, SERVER_NAME),
-          Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::REGISTRATION))))
+          Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::REGISTRATION)),
+    _))
     .WillOnce(InvokeArgument<0>(ByRef(answer)));
 
   // We now expect it to be put in the cache with an updated TTL and state REGISTERED
@@ -2057,7 +2080,8 @@ TEST_F(HandlersTest, ImpuRegDataCallWildcardWithSAR)
   // the cache.
   EXPECT_CALL(*_hss, send_server_assignment_request(_,
     AllOf(Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
-          Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::UNREGISTERED_USER))))
+          Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::UNREGISTERED_USER)),
+    _))
     .WillOnce(InvokeArgument<0>(ByRef(answer)));
 
   // We now expect another cache lookup for the new wildcard impu
@@ -2103,7 +2127,8 @@ TEST_F(HandlersTest, ImpuRegDataCallNewWildcard)
   EXPECT_CALL(*_hss, send_server_assignment_request(_,
     AllOf(Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
           Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::UNREGISTERED_USER),
-          Field(&HssConnection::ServerAssignmentRequest::wildcard_impu, WILDCARD))))
+          Field(&HssConnection::ServerAssignmentRequest::wildcard_impu, WILDCARD)),
+    _))
     .WillOnce(InvokeArgument<0>(ByRef(answer)));
 
   // We now expect another cache lookup for the new wildcard impu
@@ -2150,7 +2175,8 @@ TEST_F(HandlersTest, ImpuRegDataCallNewWildcardNotFound)
   EXPECT_CALL(*_hss, send_server_assignment_request(_,
     AllOf(Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
           Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::UNREGISTERED_USER),
-          Field(&HssConnection::ServerAssignmentRequest::wildcard_impu, WILDCARD))))
+          Field(&HssConnection::ServerAssignmentRequest::wildcard_impu, WILDCARD)),
+    _))
     .WillOnce(InvokeArgument<0>(ByRef(answer)));
 
   // We now expect another cache lookup for the new wildcard impu, which will
@@ -2172,7 +2198,8 @@ TEST_F(HandlersTest, ImpuRegDataCallNewWildcardNotFound)
   EXPECT_CALL(*_hss, send_server_assignment_request(_,
     AllOf(Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
           Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::UNREGISTERED_USER),
-          Field(&HssConnection::ServerAssignmentRequest::wildcard_impu, NEW_WILDCARD))))
+          Field(&HssConnection::ServerAssignmentRequest::wildcard_impu, NEW_WILDCARD)),
+    _))
     .WillOnce(InvokeArgument<0>(ByRef(answer2)));
 
   // Don't care about the response
@@ -2211,7 +2238,8 @@ TEST_F(HandlersTest, ImpuRegDataCallWildcardLoop)
   EXPECT_CALL(*_hss, send_server_assignment_request(_,
     AllOf(Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
           Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::UNREGISTERED_USER),
-          Field(&HssConnection::ServerAssignmentRequest::wildcard_impu, WILDCARD))))
+          Field(&HssConnection::ServerAssignmentRequest::wildcard_impu, WILDCARD)),
+    _))
     .WillOnce(InvokeArgument<0>(ByRef(answer)));
 
   // Expect the request to be rejected as the new wildcard is the same
@@ -2332,7 +2360,8 @@ TEST_F(HandlersTest, ImpuRegDataCallNewUnregisteredService)
     AllOf(Field(&HssConnection::ServerAssignmentRequest::impi, IMPI),
           Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
           Field(&HssConnection::ServerAssignmentRequest::provided_server_name, SERVER_NAME),
-          Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::UNREGISTERED_USER))))
+          Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::UNREGISTERED_USER)),
+    _))
     .WillOnce(InvokeArgument<0>(ByRef(answer)));
 
   // Data is cached with state UNREGISTERED
@@ -2379,7 +2408,8 @@ TEST_F(HandlersTest, ImpuRegDataDeregUser)
     AllOf(Field(&HssConnection::ServerAssignmentRequest::impi, IMPI),
           Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
           Field(&HssConnection::ServerAssignmentRequest::provided_server_name, SERVER_NAME),
-          Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::USER_DEREGISTRATION))))
+          Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::USER_DEREGISTRATION)),
+    _))
     .WillOnce(InvokeArgument<0>(ByRef(answer)));
 
   // Data is deleted from cache
@@ -2427,7 +2457,8 @@ TEST_F(HandlersTest, ImpuRegDataDeregTimeout)
     AllOf(Field(&HssConnection::ServerAssignmentRequest::impi, IMPI),
           Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
           Field(&HssConnection::ServerAssignmentRequest::provided_server_name, SERVER_NAME),
-          Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::TIMEOUT_DEREGISTRATION))))
+          Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::TIMEOUT_DEREGISTRATION)),
+    _))
     .WillOnce(InvokeArgument<0>(ByRef(answer)));
 
   // Data is deleted from cache
@@ -2475,7 +2506,8 @@ TEST_F(HandlersTest, ImpuRegDataDeregAdmin)
     AllOf(Field(&HssConnection::ServerAssignmentRequest::impi, IMPI),
           Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
           Field(&HssConnection::ServerAssignmentRequest::provided_server_name, SERVER_NAME),
-          Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::ADMINISTRATIVE_DEREGISTRATION))))
+          Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::ADMINISTRATIVE_DEREGISTRATION)),
+    _))
     .WillOnce(InvokeArgument<0>(ByRef(answer)));
 
   // Data is deleted from cache
@@ -2524,7 +2556,8 @@ TEST_F(HandlersTest, ImpuRegDataDeregNoIMPI)
     AllOf(Field(&HssConnection::ServerAssignmentRequest::impi, IMPI),
           Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
           Field(&HssConnection::ServerAssignmentRequest::provided_server_name, SERVER_NAME),
-          Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::ADMINISTRATIVE_DEREGISTRATION))))
+          Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::ADMINISTRATIVE_DEREGISTRATION)),
+    _))
     .WillOnce(InvokeArgument<0>(ByRef(answer)));
 
   // Data is deleted from cache
@@ -2572,7 +2605,8 @@ TEST_F(HandlersTest, ImpuRegDataDeregCacheError)
     AllOf(Field(&HssConnection::ServerAssignmentRequest::impi, IMPI),
           Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
           Field(&HssConnection::ServerAssignmentRequest::provided_server_name, SERVER_NAME),
-          Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::ADMINISTRATIVE_DEREGISTRATION))))
+          Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::ADMINISTRATIVE_DEREGISTRATION)),
+    _))
     .WillOnce(InvokeArgument<0>(ByRef(answer)));
 
   // Data is deleted from cache
@@ -2621,7 +2655,8 @@ TEST_F(HandlersTest, ImpuRegDataDeregCacheNotFound)
     AllOf(Field(&HssConnection::ServerAssignmentRequest::impi, IMPI),
           Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
           Field(&HssConnection::ServerAssignmentRequest::provided_server_name, SERVER_NAME),
-          Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::ADMINISTRATIVE_DEREGISTRATION))))
+          Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::ADMINISTRATIVE_DEREGISTRATION)),
+    _))
     .WillOnce(InvokeArgument<0>(ByRef(answer)));
 
   // Cache delete gives a NOT_FOUND error
@@ -2669,7 +2704,8 @@ TEST_F(HandlersTest, ImpuRegDataDeregUnregSub)
     AllOf(Field(&HssConnection::ServerAssignmentRequest::impi, IMPI),
           Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
           Field(&HssConnection::ServerAssignmentRequest::provided_server_name, SERVER_NAME),
-          Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::ADMINISTRATIVE_DEREGISTRATION))))
+          Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::ADMINISTRATIVE_DEREGISTRATION)),
+    _))
     .WillOnce(InvokeArgument<0>(ByRef(answer)));
 
   // Data is deleted from cache
@@ -2719,7 +2755,8 @@ TEST_F(HandlersTest, ImpuRegDataDeregAuthFailedRegistered)
     AllOf(Field(&HssConnection::ServerAssignmentRequest::impi, IMPI),
           Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
           Field(&HssConnection::ServerAssignmentRequest::provided_server_name, DEFAULT_SERVER_NAME),
-          Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::AUTHENTICATION_FAILURE))))
+          Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::AUTHENTICATION_FAILURE)),
+    _))
     .WillOnce(InvokeArgument<0>(ByRef(answer)));
 
   // No further cache operations - just expect a 200 OK
@@ -2761,7 +2798,8 @@ TEST_F(HandlersTest, ImpuRegDataDeregAuthFailedNotRegistered)
     AllOf(Field(&HssConnection::ServerAssignmentRequest::impi, IMPI),
           Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
           Field(&HssConnection::ServerAssignmentRequest::provided_server_name, DEFAULT_SERVER_NAME),
-          Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::AUTHENTICATION_FAILURE))))
+          Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::AUTHENTICATION_FAILURE)),
+    _))
     .WillOnce(InvokeArgument<0>(ByRef(answer)));
 
   // No further cache operations - just expect a 200 OK
@@ -2803,7 +2841,8 @@ TEST_F(HandlersTest, ImpuRegDataDeregAuthTimeout)
     AllOf(Field(&HssConnection::ServerAssignmentRequest::impi, IMPI),
           Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
           Field(&HssConnection::ServerAssignmentRequest::provided_server_name, DEFAULT_SERVER_NAME),
-          Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::AUTHENTICATION_TIMEOUT))))
+          Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::AUTHENTICATION_TIMEOUT)),
+    _))
     .WillOnce(InvokeArgument<0>(ByRef(answer)));
 
   // No further cache operations - just expect a 200 OK
@@ -2868,7 +2907,8 @@ TEST_F(HandlersTest, ImpuRegDataInvalidXML)
     AllOf(Field(&HssConnection::ServerAssignmentRequest::impi, IMPI),
           Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
           Field(&HssConnection::ServerAssignmentRequest::provided_server_name, DEFAULT_SERVER_NAME),
-          Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::REGISTRATION))))
+          Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::REGISTRATION)),
+    _))
     .WillOnce(InvokeArgument<0>(ByRef(answer)));
 
   // We don't cache this, and instead send a 500
@@ -2947,7 +2987,8 @@ TEST_F(HandlersTest, ImpuRegDataHssNotFound)
     AllOf(Field(&HssConnection::ServerAssignmentRequest::impi, IMPI),
           Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
           Field(&HssConnection::ServerAssignmentRequest::provided_server_name, SERVER_NAME),
-          Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::REGISTRATION))))
+          Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::REGISTRATION)),
+    _))
     .WillOnce(InvokeArgument<0>(ByRef(answer)));
   
   // Expect a 404
