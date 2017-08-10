@@ -9,28 +9,42 @@
  * Metaswitch Networks in a separate written agreement.
  */
 
+#include <string>
+
 #include "memcached_cache.h"
 
 #include "log.h"
 
+ImpuStore::DefaultImpu* MemcachedImplicitRegistrationSet::create_impu(uint64_t cas)
+{
+  std::vector<std::string> impis = std::vector<std::string>(_unchanged_impis);
+  impis.insert(impis.end(), _added_impis.begin(), _added_impis.end());
+
+  std::vector<std::string> impus = std::vector<std::string>(_unchanged_associated_impus);
+  impus.insert(impus.end(), _added_associated_impus.begin(), _added_associated_impus.end());
+
+  return new ImpuStore::DefaultImpu(default_impu,
+                                    impus,
+                                    impis,
+                                    _registration_state,
+                                    cas);
+}
+
 ImpuStore::DefaultImpu* MemcachedImplicitRegistrationSet::get_impu()
 {
-  // Create IMPU without CAS
-  return nullptr;
+  return create_impu(0L);
 }
 
 ImpuStore::DefaultImpu* MemcachedImplicitRegistrationSet::get_impu_from_impu(ImpuStore::Impu* with_cas)
 {
-  // Create IMPU with cas from `with_cas`
-  return nullptr;
+  return create_impu(with_cas->cas);
 }
 
 ImpuStore::DefaultImpu* MemcachedImplicitRegistrationSet::get_impu_for_store(ImpuStore* store)
 {
   if (_store == store)
   {
-    // Create IMPU here
-    return nullptr;
+    return create_impu(_cas);
   }
   else
   {
@@ -38,9 +52,103 @@ ImpuStore::DefaultImpu* MemcachedImplicitRegistrationSet::get_impu_for_store(Imp
   }
 }
 
+typedef void (*update_func)(const std::string&,
+                            std::vector<std::string>&,
+                            std::vector<std::string>&,
+                            std::vector<std::string>&);
+
+bool in_vector(const std::string& element,
+               std::vector<std::string>& vec)
+{
+  return std::find(vec.begin(), vec.end(), element) != vec.end();
+}
+
+void mark_as_old(const std::string& element,
+                 std::vector<std::string>& added,
+                 std::vector<std::string>& unchanged,
+                 std::vector<std::string>& deleted)
+{
+  if (in_vector(element, added) ||
+      in_vector(element, unchanged) ||
+      in_vector(element, deleted))
+  {
+    // We are already tracking this element.
+  }
+  else
+  {
+    deleted.push_back(element);
+  }
+}
+
+void mark_as_new(const std::string& element,
+                 std::vector<std::string>& added,
+                 std::vector<std::string>& unchanged,
+                 std::vector<std::string>& deleted)
+{
+  if (in_vector(element, added) ||
+      in_vector(element, unchanged) ||
+      in_vector(element, deleted))
+  {
+    // We are already tracking this element.
+  }
+  else
+  {
+    unchanged.push_back(element);
+  }
+}
+
+void update_with_f(const std::vector<std::string>& old,
+                   std::vector<std::string>& added,
+                   std::vector<std::string>& unchanged,
+                   std::vector<std::string>& deleted,
+                   update_func f)
+{
+  for (const std::string& member : old)
+  {
+    f(member,
+      added,
+      unchanged,
+      deleted);
+  }
+}
+
 void MemcachedImplicitRegistrationSet::update_from_store(ImpuStore::DefaultImpu* impu)
 {
+  update_func f;
+
   // Update the IRS with the details in impu
+  if (_refreshed)
+  {
+    // If we are marked as refreshed, then the data from the store is *less* up
+    // to date than our data, so we should mark it as changed.
+
+    f = &mark_as_old;
+  }
+  else
+  {
+    // If we are marked as not refreshed, the data from the store should be
+    // considered valid, and we should mark it as unchanged, if we weren't
+    // previously aware of it.
+
+    f = &mark_as_new;
+  }
+
+  if (!_registration_state_set)
+  {
+    _registration_state = impu->registration_state;
+  }
+
+  update_with_f(impu->impis,
+                _added_impis,
+                _unchanged_impis,
+                _deleted_impis,
+                f);
+
+  update_with_f(impu->associated_impus,
+                _added_associated_impus,
+                _unchanged_associated_impus,
+                _deleted_associated_impus,
+                f);
 }
 
 // Helper function to the details of an IMPU.
