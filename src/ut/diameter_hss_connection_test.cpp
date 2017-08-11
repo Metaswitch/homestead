@@ -66,6 +66,9 @@ using ::testing::Field;
 using ::testing::AllOf;
 using ::testing::ByRef;
 using ::testing::ReturnNull;
+using ::testing::IsNull;
+using ::testing::Pointee;
+
 
 // We pass AuthVector*s around, not the subclasses, so we need some custom
 // matchers to check that an AuthVector* matches a given DigestAuthVector or
@@ -116,7 +119,10 @@ class MockAnswerCatcher
 {
 public:
   virtual ~MockAnswerCatcher() {};
-  MOCK_METHOD1(got_answer, void(const HssConnection::MultimediaAuthAnswer&));
+  MOCK_METHOD1(got_maa, void(const HssConnection::MultimediaAuthAnswer&));
+  MOCK_METHOD1(got_uaa, void(const HssConnection::UserAuthAnswer&));
+  MOCK_METHOD1(got_lia, void(const HssConnection::LocationInfoAnswer&));
+  MOCK_METHOD1(got_saa, void(const HssConnection::ServerAssignmentAnswer&));
 };
 
 // Fixture for DiameterHssConnectionTest.
@@ -137,6 +143,16 @@ public:
   static const std::string IMPU;
   static const std::string SERVER_NAME;
   static const std::string AUTHORIZATION;
+  static const std::string VISITED_NETWORK;
+
+  static const ServerCapabilities CAPABILITIES;
+
+  static const std::string IMS_SUB_XML;
+  static const std::deque<std::string> NO_CFS;
+  static const std::deque<std::string> ECFS;
+  static const std::deque<std::string> CCFS;
+  static const ChargingAddresses NO_CHARGING_ADDRESSES;
+  static const ChargingAddresses FULL_CHARGING_ADDRESSES;
 
   static const std::string CHALLENGE;
   static const std::string RESPONSE;
@@ -154,6 +170,9 @@ public:
 
   static MockAnswerCatcher* _answer_catcher;
   static HssConnection::maa_cb MAA_CB;
+  static HssConnection::uaa_cb UAA_CB;
+  static HssConnection::lia_cb LIA_CB;
+  static HssConnection::saa_cb SAA_CB;
 
   // Two mock stats managers, so we can choose whether to ignore stats or not.
   static StrictMock<MockStatisticsManager>* _stats;
@@ -226,6 +245,19 @@ const std::string DiameterHssConnectionTest::IMPI = "_impi@example.com";
 const std::string DiameterHssConnectionTest::IMPU = "sip:impu@example.com";
 const std::string DiameterHssConnectionTest::SERVER_NAME = "scscf";
 const std::string DiameterHssConnectionTest::AUTHORIZATION = "Authorization";
+const std::string DiameterHssConnectionTest::VISITED_NETWORK = "visited-network.com";
+
+const std::vector<int32_t> mandatory_capabilities = {1, 3};
+const std::vector<int32_t> optional_capabilities = {2, 4};
+const std::vector<int32_t> no_capabilities = {};
+const ServerCapabilities DiameterHssConnectionTest::CAPABILITIES(mandatory_capabilities, optional_capabilities, "");
+
+const std::string DiameterHssConnectionTest::IMS_SUB_XML = "xml";
+const std::deque<std::string> DiameterHssConnectionTest::NO_CFS = {};
+const std::deque<std::string> DiameterHssConnectionTest::ECFS = {"ecf1", "ecf"};
+const std::deque<std::string> DiameterHssConnectionTest::CCFS = {"ccf1", "ccf2"};
+const ChargingAddresses DiameterHssConnectionTest::NO_CHARGING_ADDRESSES(NO_CFS, NO_CFS);
+const ChargingAddresses DiameterHssConnectionTest::FULL_CHARGING_ADDRESSES(CCFS, ECFS);
 
 const std::string DiameterHssConnectionTest::CHALLENGE = "challenge";
 const std::string DiameterHssConnectionTest::RESPONSE = "response";
@@ -251,11 +283,23 @@ Diameter::Transaction* DiameterHssConnectionTest::_caught_diam_tsx = NULL;
 MockAnswerCatcher* DiameterHssConnectionTest::_answer_catcher = NULL;
 
 
-
+// These functions allow us to pass the answers to our _answer_catcher, which
+// we use to check the contents of the answer
 HssConnection::maa_cb DiameterHssConnectionTest::MAA_CB = [](const HssConnection::MultimediaAuthAnswer& maa) {
-  _answer_catcher->got_answer(maa);
+  _answer_catcher->got_maa(maa);
 };
 
+HssConnection::uaa_cb DiameterHssConnectionTest::UAA_CB = [](const HssConnection::UserAuthAnswer& uaa) {
+  _answer_catcher->got_uaa(uaa);
+};
+
+HssConnection::lia_cb DiameterHssConnectionTest::LIA_CB = [](const HssConnection::LocationInfoAnswer& lia) {
+  _answer_catcher->got_lia(lia);
+};
+
+HssConnection::saa_cb DiameterHssConnectionTest::SAA_CB = [](const HssConnection::ServerAssignmentAnswer& saa) {
+  _answer_catcher->got_saa(saa);
+};
 
 //
 // MultimediaAuthRequest tests
@@ -313,8 +357,8 @@ TEST_F(DiameterHssConnectionTest, SendMARDigest)
                                digest,
                                aka);
 
-  // Expect that we'll call the callback with the correct MAA
-  EXPECT_CALL(*_answer_catcher, got_answer(
+  // Expect that we'll call the callback with the correct answer
+  EXPECT_CALL(*_answer_catcher, got_maa(
     AllOf(Field(&HssConnection::MultimediaAuthAnswer::_result_code, ::HssConnection::ResultCode::SUCCESS),
           Field(&HssConnection::MultimediaAuthAnswer::_sip_auth_scheme, SCHEME_DIGEST),
           Field(&HssConnection::MultimediaAuthAnswer::_auth_vector,
@@ -379,9 +423,9 @@ TEST_F(DiameterHssConnectionTest, SendMARAKAv1)
                                digest,
                                aka);
 
-  // Expect that we'll call the callback with the correct MAA.
+  // Expect that we'll call the callback with the correct answer.
   // Note that the strings are now encoded.
-  EXPECT_CALL(*_answer_catcher, got_answer(
+  EXPECT_CALL(*_answer_catcher, got_maa(
     AllOf(Field(&HssConnection::MultimediaAuthAnswer::_result_code, ::HssConnection::ResultCode::SUCCESS),
           Field(&HssConnection::MultimediaAuthAnswer::_sip_auth_scheme, SCHEME_AKA),
           Field(&HssConnection::MultimediaAuthAnswer::_auth_vector,
@@ -447,9 +491,9 @@ TEST_F(DiameterHssConnectionTest, SendMARAKAv2)
                                digest,
                                aka);
 
-  // Expect that we'll call the callback with the correct MAA.
+  // Expect that we'll call the callback with the correct answer.
   // Note that the strings are now encoded.
-  EXPECT_CALL(*_answer_catcher, got_answer(
+  EXPECT_CALL(*_answer_catcher, got_maa(
     AllOf(Field(&HssConnection::MultimediaAuthAnswer::_result_code, ::HssConnection::ResultCode::SUCCESS),
           Field(&HssConnection::MultimediaAuthAnswer::_sip_auth_scheme, SCHEME_AKAV2),
           Field(&HssConnection::MultimediaAuthAnswer::_auth_vector,
@@ -510,7 +554,7 @@ TEST_F(DiameterHssConnectionTest, SendMARRecvUnknownScheme)
                                aka);
 
   // Expect that we'll call the callback with the correct ResultCode in the MAA
-  EXPECT_CALL(*_answer_catcher, got_answer(
+  EXPECT_CALL(*_answer_catcher, got_maa(
     Field(&HssConnection::MultimediaAuthAnswer::_result_code, ::HssConnection::ResultCode::UNKNOWN_AUTH_SCHEME)))
     .Times(1).RetiresOnSaturation();
   _caught_diam_tsx->on_response(maa);
@@ -569,7 +613,7 @@ TEST_F(DiameterHssConnectionTest, SendMARRecvSERVER_UNAVAILABLE)
                                aka);
 
   // Expect that we'll call the callback with the correct ResultCode in the MAA
-  EXPECT_CALL(*_answer_catcher, got_answer(
+  EXPECT_CALL(*_answer_catcher, got_maa(
     Field(&HssConnection::MultimediaAuthAnswer::_result_code, ::HssConnection::ResultCode::SERVER_UNAVAILABLE)))
     .Times(1).RetiresOnSaturation();
   _caught_diam_tsx->on_response(maa);
@@ -628,7 +672,7 @@ TEST_F(DiameterHssConnectionTest, SendMARRecvNOT_FOUND)
                                aka);
 
   // Expect that we'll call the callback with the correct ResultCode in the MAA
-  EXPECT_CALL(*_answer_catcher, got_answer(
+  EXPECT_CALL(*_answer_catcher, got_maa(
     Field(&HssConnection::MultimediaAuthAnswer::_result_code, ::HssConnection::ResultCode::NOT_FOUND)))
     .Times(1).RetiresOnSaturation();
   _caught_diam_tsx->on_response(maa);
@@ -687,10 +731,1341 @@ TEST_F(DiameterHssConnectionTest, SendMARRecvUNKNOWN_ERROR)
                                aka);
 
   // Expect that we'll call the callback with the correct ResultCode in the MAA
-  EXPECT_CALL(*_answer_catcher, got_answer(
+  EXPECT_CALL(*_answer_catcher, got_maa(
     Field(&HssConnection::MultimediaAuthAnswer::_result_code, ::HssConnection::ResultCode::UNKNOWN)))
     .Times(1).RetiresOnSaturation();
   _caught_diam_tsx->on_response(maa);
+
+  _caught_fd_msg = NULL;
+  delete _caught_diam_tsx; _caught_diam_tsx = NULL;
+}
+
+//
+// UserAuthRequest tests
+//
+
+TEST_F(DiameterHssConnectionTest, SendUARServerName)
+{
+  // Create a UAR
+  HssConnection::UserAuthRequest request = {
+    IMPI,
+    IMPU,
+    VISITED_NETWORK,
+    "0",
+    false
+  };
+
+  // Expect diameter message to be sent with the correct timeout, and store the
+  // sent message
+  EXPECT_CALL(*_mock_stack, send(_, _, TIMEOUT_MS))
+    .Times(1)
+    .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
+
+  // Send the UAR
+  _hss_connection->send_user_auth_request(UAA_CB, request, FAKE_TRAIL_ID);
+
+  // Check that we've caught the message and it's not null
+  ASSERT_FALSE(_caught_diam_tsx == NULL);
+
+  // Turn the caught Diameter msg structure into a UAR and check its contents.
+  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
+  Cx::UserAuthorizationRequest uar(msg);
+  EXPECT_TRUE(uar.get_str_from_avp(_cx_dict->DESTINATION_REALM, test_str));
+  EXPECT_EQ(DEST_REALM, test_str);
+  EXPECT_TRUE(uar.get_str_from_avp(_cx_dict->DESTINATION_HOST, test_str));
+  EXPECT_EQ(DEST_HOST, test_str);
+  EXPECT_EQ(IMPI, uar.impi());
+  EXPECT_EQ(IMPU, uar.impu());
+  EXPECT_TRUE(uar.visited_network(test_str));
+  EXPECT_EQ(VISITED_NETWORK, test_str);
+  EXPECT_TRUE(uar.auth_type(test_i32));
+  EXPECT_EQ(0, test_i32);
+
+  // We're now going to inject a response
+  Cx::UserAuthorizationAnswer uaa(_cx_dict,
+                                  _mock_stack,
+                                  DIAMETER_SUCCESS,
+                                  0,
+                                  0,
+                                  SERVER_NAME,
+                                  CAPABILITIES);
+
+  // Expect that we'll call the callback with the correct answer
+  EXPECT_CALL(*_answer_catcher, got_uaa(
+    AllOf(Field(&HssConnection::UserAuthAnswer::_result_code, ::HssConnection::ResultCode::SUCCESS),
+          Field(&HssConnection::UserAuthAnswer::_json_result, DIAMETER_SUCCESS),
+          Field(&HssConnection::UserAuthAnswer::_server_name, SERVER_NAME),
+          Field(&HssConnection::UserAuthAnswer::_server_capabilities, IsNull())))).Times(1).RetiresOnSaturation();
+  _caught_diam_tsx->on_response(uaa);
+
+  _caught_fd_msg = NULL;
+  delete _caught_diam_tsx; _caught_diam_tsx = NULL;
+}
+
+TEST_F(DiameterHssConnectionTest, SendUARServerCapabilities)
+{
+  // Create a UAR
+  HssConnection::UserAuthRequest request = {
+    IMPI,
+    IMPU,
+    VISITED_NETWORK,
+    "0",
+    false
+  };
+
+  // Expect diameter message to be sent with the correct timeout, and store the
+  // sent message
+  EXPECT_CALL(*_mock_stack, send(_, _, TIMEOUT_MS))
+    .Times(1)
+    .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
+
+  // Send the UAR
+  _hss_connection->send_user_auth_request(UAA_CB, request, FAKE_TRAIL_ID);
+
+  // Check that we've caught the message and it's not null
+  ASSERT_FALSE(_caught_diam_tsx == NULL);
+
+  // Turn the caught Diameter msg structure into a UAR and check its contents.
+  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
+  Cx::UserAuthorizationRequest uar(msg);
+  EXPECT_TRUE(uar.get_str_from_avp(_cx_dict->DESTINATION_REALM, test_str));
+  EXPECT_EQ(DEST_REALM, test_str);
+  EXPECT_TRUE(uar.get_str_from_avp(_cx_dict->DESTINATION_HOST, test_str));
+  EXPECT_EQ(DEST_HOST, test_str);
+  EXPECT_EQ(IMPI, uar.impi());
+  EXPECT_EQ(IMPU, uar.impu());
+  EXPECT_TRUE(uar.visited_network(test_str));
+  EXPECT_EQ(VISITED_NETWORK, test_str);
+  EXPECT_TRUE(uar.auth_type(test_i32));
+  EXPECT_EQ(0, test_i32);
+
+  // We're now going to inject a response
+  Cx::UserAuthorizationAnswer uaa(_cx_dict,
+                                  _mock_stack,
+                                  DIAMETER_SUCCESS,
+                                  0,
+                                  0,
+                                  "",
+                                  CAPABILITIES);
+
+  // Expect that we'll call the callback with the correct answer, including
+  // checking that we get the correct ServerCapabilities on the UAA
+  EXPECT_CALL(*_answer_catcher, got_uaa(
+    AllOf(Field(&HssConnection::UserAuthAnswer::_result_code, ::HssConnection::ResultCode::SUCCESS),
+          Field(&HssConnection::UserAuthAnswer::_json_result, DIAMETER_SUCCESS),
+          Field(&HssConnection::UserAuthAnswer::_server_name, ""),
+          Field(&HssConnection::UserAuthAnswer::_server_capabilities, Pointee(
+            AllOf(Field(&ServerCapabilities::mandatory_capabilities, mandatory_capabilities),
+                  Field(&ServerCapabilities::optional_capabilities, optional_capabilities))
+          ))))).Times(1).RetiresOnSaturation();
+  _caught_diam_tsx->on_response(uaa);
+
+  _caught_fd_msg = NULL;
+  delete _caught_diam_tsx; _caught_diam_tsx = NULL;
+}
+
+TEST_F(DiameterHssConnectionTest, SendUARUserUnknown)
+{
+  // Create a UAR
+  HssConnection::UserAuthRequest request = {
+    IMPI,
+    IMPU,
+    VISITED_NETWORK,
+    "0",
+    false
+  };
+
+  // Expect diameter message to be sent with the correct timeout, and store the
+  // sent message
+  EXPECT_CALL(*_mock_stack, send(_, _, TIMEOUT_MS))
+    .Times(1)
+    .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
+
+  // Send the UAR
+  _hss_connection->send_user_auth_request(UAA_CB, request, FAKE_TRAIL_ID);
+
+  // Check that we've caught the message and it's not null
+  ASSERT_FALSE(_caught_diam_tsx == NULL);
+
+  // Turn the caught Diameter msg structure into a UAR and check its contents.
+  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
+  Cx::UserAuthorizationRequest uar(msg);
+  EXPECT_TRUE(uar.get_str_from_avp(_cx_dict->DESTINATION_REALM, test_str));
+  EXPECT_EQ(DEST_REALM, test_str);
+  EXPECT_TRUE(uar.get_str_from_avp(_cx_dict->DESTINATION_HOST, test_str));
+  EXPECT_EQ(DEST_HOST, test_str);
+  EXPECT_EQ(IMPI, uar.impi());
+  EXPECT_EQ(IMPU, uar.impu());
+  EXPECT_TRUE(uar.visited_network(test_str));
+  EXPECT_EQ(VISITED_NETWORK, test_str);
+  EXPECT_TRUE(uar.auth_type(test_i32));
+  EXPECT_EQ(0, test_i32);
+
+  // We're now going to inject a response
+  Cx::UserAuthorizationAnswer uaa(_cx_dict,
+                                  _mock_stack,
+                                  0,
+                                  0,
+                                  DIAMETER_ERROR_USER_UNKNOWN,
+                                  "",
+                                  CAPABILITIES);
+
+  // Expect that we'll call the callback with the correct answer
+  EXPECT_CALL(*_answer_catcher, got_uaa(
+    Field(&HssConnection::UserAuthAnswer::_result_code, ::HssConnection::ResultCode::NOT_FOUND)))
+    .Times(1).RetiresOnSaturation();
+
+  _caught_diam_tsx->on_response(uaa);
+
+  _caught_fd_msg = NULL;
+  delete _caught_diam_tsx; _caught_diam_tsx = NULL;
+}
+
+TEST_F(DiameterHssConnectionTest, SendUARIdentitiesDontMatch)
+{
+  // Create a UAR
+  HssConnection::UserAuthRequest request = {
+    IMPI,
+    IMPU,
+    VISITED_NETWORK,
+    "0",
+    false
+  };
+
+  // Expect diameter message to be sent with the correct timeout, and store the
+  // sent message
+  EXPECT_CALL(*_mock_stack, send(_, _, TIMEOUT_MS))
+    .Times(1)
+    .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
+
+  // Send the UAR
+  _hss_connection->send_user_auth_request(UAA_CB, request, FAKE_TRAIL_ID);
+
+  // Check that we've caught the message and it's not null
+  ASSERT_FALSE(_caught_diam_tsx == NULL);
+
+  // Turn the caught Diameter msg structure into a UAR and check its contents.
+  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
+  Cx::UserAuthorizationRequest uar(msg);
+  EXPECT_TRUE(uar.get_str_from_avp(_cx_dict->DESTINATION_REALM, test_str));
+  EXPECT_EQ(DEST_REALM, test_str);
+  EXPECT_TRUE(uar.get_str_from_avp(_cx_dict->DESTINATION_HOST, test_str));
+  EXPECT_EQ(DEST_HOST, test_str);
+  EXPECT_EQ(IMPI, uar.impi());
+  EXPECT_EQ(IMPU, uar.impu());
+  EXPECT_TRUE(uar.visited_network(test_str));
+  EXPECT_EQ(VISITED_NETWORK, test_str);
+  EXPECT_TRUE(uar.auth_type(test_i32));
+  EXPECT_EQ(0, test_i32);
+
+  // We're now going to inject a response
+  Cx::UserAuthorizationAnswer uaa(_cx_dict,
+                                  _mock_stack,
+                                  0,
+                                  0,
+                                  DIAMETER_ERROR_USER_UNKNOWN,
+                                  "",
+                                  CAPABILITIES);
+
+  // Expect that we'll call the callback with the correct answer
+  EXPECT_CALL(*_answer_catcher, got_uaa(
+    Field(&HssConnection::UserAuthAnswer::_result_code, ::HssConnection::ResultCode::NOT_FOUND)))
+    .Times(1).RetiresOnSaturation();
+
+  _caught_diam_tsx->on_response(uaa);
+
+  _caught_fd_msg = NULL;
+  delete _caught_diam_tsx; _caught_diam_tsx = NULL;
+}
+
+TEST_F(DiameterHssConnectionTest, SendUARAuthRejected)
+{
+  // Create a UAR
+  HssConnection::UserAuthRequest request = {
+    IMPI,
+    IMPU,
+    VISITED_NETWORK,
+    "0",
+    false
+  };
+
+  // Expect diameter message to be sent with the correct timeout, and store the
+  // sent message
+  EXPECT_CALL(*_mock_stack, send(_, _, TIMEOUT_MS))
+    .Times(1)
+    .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
+
+  // Send the UAR
+  _hss_connection->send_user_auth_request(UAA_CB, request, FAKE_TRAIL_ID);
+
+  // Check that we've caught the message and it's not null
+  ASSERT_FALSE(_caught_diam_tsx == NULL);
+
+  // Turn the caught Diameter msg structure into a UAR and check its contents.
+  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
+  Cx::UserAuthorizationRequest uar(msg);
+  EXPECT_TRUE(uar.get_str_from_avp(_cx_dict->DESTINATION_REALM, test_str));
+  EXPECT_EQ(DEST_REALM, test_str);
+  EXPECT_TRUE(uar.get_str_from_avp(_cx_dict->DESTINATION_HOST, test_str));
+  EXPECT_EQ(DEST_HOST, test_str);
+  EXPECT_EQ(IMPI, uar.impi());
+  EXPECT_EQ(IMPU, uar.impu());
+  EXPECT_TRUE(uar.visited_network(test_str));
+  EXPECT_EQ(VISITED_NETWORK, test_str);
+  EXPECT_TRUE(uar.auth_type(test_i32));
+  EXPECT_EQ(0, test_i32);
+
+  // We're now going to inject a response
+  Cx::UserAuthorizationAnswer uaa(_cx_dict,
+                                  _mock_stack,
+                                  DIAMETER_AUTHORIZATION_REJECTED,
+                                  0,
+                                  0,
+                                  "",
+                                  CAPABILITIES);
+
+  // Expect that we'll call the callback with the correct answer
+  EXPECT_CALL(*_answer_catcher, got_uaa(
+    Field(&HssConnection::UserAuthAnswer::_result_code, ::HssConnection::ResultCode::FORBIDDEN)))
+    .Times(1).RetiresOnSaturation();
+  _caught_diam_tsx->on_response(uaa);
+
+  _caught_fd_msg = NULL;
+  delete _caught_diam_tsx; _caught_diam_tsx = NULL;
+}
+
+TEST_F(DiameterHssConnectionTest, SendUARRoamingNotAllowed)
+{
+  // Create a UAR
+  HssConnection::UserAuthRequest request = {
+    IMPI,
+    IMPU,
+    VISITED_NETWORK,
+    "0",
+    false
+  };
+
+  // Expect diameter message to be sent with the correct timeout, and store the
+  // sent message
+  EXPECT_CALL(*_mock_stack, send(_, _, TIMEOUT_MS))
+    .Times(1)
+    .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
+
+  // Send the UAR
+  _hss_connection->send_user_auth_request(UAA_CB, request, FAKE_TRAIL_ID);
+
+  // Check that we've caught the message and it's not null
+  ASSERT_FALSE(_caught_diam_tsx == NULL);
+
+  // Turn the caught Diameter msg structure into a UAR and check its contents.
+  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
+  Cx::UserAuthorizationRequest uar(msg);
+  EXPECT_TRUE(uar.get_str_from_avp(_cx_dict->DESTINATION_REALM, test_str));
+  EXPECT_EQ(DEST_REALM, test_str);
+  EXPECT_TRUE(uar.get_str_from_avp(_cx_dict->DESTINATION_HOST, test_str));
+  EXPECT_EQ(DEST_HOST, test_str);
+  EXPECT_EQ(IMPI, uar.impi());
+  EXPECT_EQ(IMPU, uar.impu());
+  EXPECT_TRUE(uar.visited_network(test_str));
+  EXPECT_EQ(VISITED_NETWORK, test_str);
+  EXPECT_TRUE(uar.auth_type(test_i32));
+  EXPECT_EQ(0, test_i32);
+
+  // We're now going to inject a response
+  Cx::UserAuthorizationAnswer uaa(_cx_dict,
+                                  _mock_stack,
+                                  0,
+                                  0,
+                                  DIAMETER_ERROR_ROAMING_NOT_ALLOWED,
+                                  "",
+                                  CAPABILITIES);
+
+  // Expect that we'll call the callback with the correct answer
+  EXPECT_CALL(*_answer_catcher, got_uaa(
+    Field(&HssConnection::UserAuthAnswer::_result_code, ::HssConnection::ResultCode::FORBIDDEN)))
+    .Times(1).RetiresOnSaturation();
+  _caught_diam_tsx->on_response(uaa);
+
+  _caught_fd_msg = NULL;
+  delete _caught_diam_tsx; _caught_diam_tsx = NULL;
+}
+
+TEST_F(DiameterHssConnectionTest, SendUARTooBusy)
+{
+  // Create a UAR
+  HssConnection::UserAuthRequest request = {
+    IMPI,
+    IMPU,
+    VISITED_NETWORK,
+    "0",
+    false
+  };
+
+  // Expect diameter message to be sent with the correct timeout, and store the
+  // sent message
+  EXPECT_CALL(*_mock_stack, send(_, _, TIMEOUT_MS))
+    .Times(1)
+    .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
+
+  // Send the UAR
+  _hss_connection->send_user_auth_request(UAA_CB, request, FAKE_TRAIL_ID);
+
+  // Check that we've caught the message and it's not null
+  ASSERT_FALSE(_caught_diam_tsx == NULL);
+
+  // Turn the caught Diameter msg structure into a UAR and check its contents.
+  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
+  Cx::UserAuthorizationRequest uar(msg);
+  EXPECT_TRUE(uar.get_str_from_avp(_cx_dict->DESTINATION_REALM, test_str));
+  EXPECT_EQ(DEST_REALM, test_str);
+  EXPECT_TRUE(uar.get_str_from_avp(_cx_dict->DESTINATION_HOST, test_str));
+  EXPECT_EQ(DEST_HOST, test_str);
+  EXPECT_EQ(IMPI, uar.impi());
+  EXPECT_EQ(IMPU, uar.impu());
+  EXPECT_TRUE(uar.visited_network(test_str));
+  EXPECT_EQ(VISITED_NETWORK, test_str);
+  EXPECT_TRUE(uar.auth_type(test_i32));
+  EXPECT_EQ(0, test_i32);
+
+  // We're now going to inject a response
+  Cx::UserAuthorizationAnswer uaa(_cx_dict,
+                                  _mock_stack,
+                                  DIAMETER_TOO_BUSY,
+                                  0,
+                                  0,
+                                  "",
+                                  CAPABILITIES);
+
+  // Expect that we'll call the callback with the correct answer
+  EXPECT_CALL(*_answer_catcher, got_uaa(
+    Field(&HssConnection::UserAuthAnswer::_result_code, ::HssConnection::ResultCode::TIMEOUT)))
+    .Times(1).RetiresOnSaturation();
+  _caught_diam_tsx->on_response(uaa);
+
+  _caught_fd_msg = NULL;
+  delete _caught_diam_tsx; _caught_diam_tsx = NULL;
+}
+
+TEST_F(DiameterHssConnectionTest, SendUARUnableToDeliver)
+{
+  // Create a UAR
+  HssConnection::UserAuthRequest request = {
+    IMPI,
+    IMPU,
+    VISITED_NETWORK,
+    "0",
+    false
+  };
+
+  // Expect diameter message to be sent with the correct timeout, and store the
+  // sent message
+  EXPECT_CALL(*_mock_stack, send(_, _, TIMEOUT_MS))
+    .Times(1)
+    .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
+
+  // Send the UAR
+  _hss_connection->send_user_auth_request(UAA_CB, request, FAKE_TRAIL_ID);
+
+  // Check that we've caught the message and it's not null
+  ASSERT_FALSE(_caught_diam_tsx == NULL);
+
+  // Turn the caught Diameter msg structure into a UAR and check its contents.
+  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
+  Cx::UserAuthorizationRequest uar(msg);
+  EXPECT_TRUE(uar.get_str_from_avp(_cx_dict->DESTINATION_REALM, test_str));
+  EXPECT_EQ(DEST_REALM, test_str);
+  EXPECT_TRUE(uar.get_str_from_avp(_cx_dict->DESTINATION_HOST, test_str));
+  EXPECT_EQ(DEST_HOST, test_str);
+  EXPECT_EQ(IMPI, uar.impi());
+  EXPECT_EQ(IMPU, uar.impu());
+  EXPECT_TRUE(uar.visited_network(test_str));
+  EXPECT_EQ(VISITED_NETWORK, test_str);
+  EXPECT_TRUE(uar.auth_type(test_i32));
+  EXPECT_EQ(0, test_i32);
+
+  // We're now going to inject a response
+  Cx::UserAuthorizationAnswer uaa(_cx_dict,
+                                  _mock_stack,
+                                  DIAMETER_UNABLE_TO_DELIVER,
+                                  0,
+                                  0,
+                                  "",
+                                  CAPABILITIES);
+
+  // Expect that we'll call the callback with the correct answer
+  EXPECT_CALL(*_answer_catcher, got_uaa(
+    Field(&HssConnection::UserAuthAnswer::_result_code, ::HssConnection::ResultCode::SERVER_UNAVAILABLE)))
+    .Times(1).RetiresOnSaturation();
+  _caught_diam_tsx->on_response(uaa);
+
+  _caught_fd_msg = NULL;
+  delete _caught_diam_tsx; _caught_diam_tsx = NULL;
+}
+
+TEST_F(DiameterHssConnectionTest, SendUARUnknownError)
+{
+  // Create a UAR
+  HssConnection::UserAuthRequest request = {
+    IMPI,
+    IMPU,
+    VISITED_NETWORK,
+    "0",
+    false
+  };
+
+  // Expect diameter message to be sent with the correct timeout, and store the
+  // sent message
+  EXPECT_CALL(*_mock_stack, send(_, _, TIMEOUT_MS))
+    .Times(1)
+    .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
+
+  // Send the UAR
+  _hss_connection->send_user_auth_request(UAA_CB, request, FAKE_TRAIL_ID);
+
+  // Check that we've caught the message and it's not null
+  ASSERT_FALSE(_caught_diam_tsx == NULL);
+
+  // Turn the caught Diameter msg structure into a UAR and check its contents.
+  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
+  Cx::UserAuthorizationRequest uar(msg);
+  EXPECT_TRUE(uar.get_str_from_avp(_cx_dict->DESTINATION_REALM, test_str));
+  EXPECT_EQ(DEST_REALM, test_str);
+  EXPECT_TRUE(uar.get_str_from_avp(_cx_dict->DESTINATION_HOST, test_str));
+  EXPECT_EQ(DEST_HOST, test_str);
+  EXPECT_EQ(IMPI, uar.impi());
+  EXPECT_EQ(IMPU, uar.impu());
+  EXPECT_TRUE(uar.visited_network(test_str));
+  EXPECT_EQ(VISITED_NETWORK, test_str);
+  EXPECT_TRUE(uar.auth_type(test_i32));
+  EXPECT_EQ(0, test_i32);
+
+  // We're now going to inject a response
+  Cx::UserAuthorizationAnswer uaa(_cx_dict,
+                                  _mock_stack,
+                                  7,
+                                  7777,
+                                  77777,
+                                  "",
+                                  CAPABILITIES);
+
+  // Expect that we'll call the callback with the correct answer
+  EXPECT_CALL(*_answer_catcher, got_uaa(
+    Field(&HssConnection::UserAuthAnswer::_result_code, ::HssConnection::ResultCode::UNKNOWN)))
+    .Times(1).RetiresOnSaturation();
+  _caught_diam_tsx->on_response(uaa);
+
+  _caught_fd_msg = NULL;
+  delete _caught_diam_tsx; _caught_diam_tsx = NULL;
+}
+
+//
+// LocationInfoRequest tests
+//
+
+TEST_F(DiameterHssConnectionTest, SendLIROriginating)
+{
+  // Create an LIR
+  HssConnection::LocationInfoRequest request = {
+    IMPU,
+    "true",
+    ""
+  };
+
+  // Expect diameter message to be sent with the correct timeout, and store the
+  // sent message
+  EXPECT_CALL(*_mock_stack, send(_, _, TIMEOUT_MS))
+    .Times(1)
+    .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
+
+  // Send the UAR
+  _hss_connection->send_location_info_request(LIA_CB, request, FAKE_TRAIL_ID);
+
+  // Check that we've caught the message and it's not null
+  ASSERT_FALSE(_caught_diam_tsx == NULL);
+
+  // Turn the caught Diameter msg structure into a UAR and check its contents.
+  // Note that originating "true" corresponds to a value of 0 in the AVP
+  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
+  Cx::LocationInfoRequest lir(msg);
+  EXPECT_TRUE(lir.get_str_from_avp(_cx_dict->DESTINATION_REALM, test_str));
+  EXPECT_EQ(DEST_REALM, test_str);
+  EXPECT_TRUE(lir.get_str_from_avp(_cx_dict->DESTINATION_HOST, test_str));
+  EXPECT_EQ(DEST_HOST, test_str);
+  EXPECT_EQ(IMPU, lir.impu());
+  EXPECT_TRUE(lir.originating(test_i32));
+  EXPECT_EQ(0, test_i32);
+  EXPECT_FALSE(lir.auth_type(test_i32));
+
+
+  // We're now going to inject a response
+  Cx::LocationInfoAnswer lia(_cx_dict,
+                             _mock_stack,
+                             DIAMETER_SUCCESS,
+                             0,
+                             0,
+                             SERVER_NAME,
+                             CAPABILITIES);
+
+  // Expect that we'll call the callback with the correct answer
+  EXPECT_CALL(*_answer_catcher, got_lia(
+    AllOf(Field(&HssConnection::LocationInfoAnswer::_result_code, ::HssConnection::ResultCode::SUCCESS),
+          Field(&HssConnection::LocationInfoAnswer::_json_result, DIAMETER_SUCCESS),
+          Field(&HssConnection::LocationInfoAnswer::_server_name, SERVER_NAME),
+          Field(&HssConnection::LocationInfoAnswer::_wildcard_impu, ""),
+          Field(&HssConnection::LocationInfoAnswer::_server_capabilities, IsNull())))).Times(1).RetiresOnSaturation();
+
+  _caught_diam_tsx->on_response(lia);
+
+  _caught_fd_msg = NULL;
+  delete _caught_diam_tsx; _caught_diam_tsx = NULL;
+}
+
+TEST_F(DiameterHssConnectionTest, SendLIRAuthTypeCapabilities)
+{
+  // Create an LIR
+  HssConnection::LocationInfoRequest request = {
+    IMPU,
+    "false",
+    "CAPAB"
+  };
+
+  // Expect diameter message to be sent with the correct timeout, and store the
+  // sent message
+  EXPECT_CALL(*_mock_stack, send(_, _, TIMEOUT_MS))
+    .Times(1)
+    .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
+
+  // Send the UAR
+  _hss_connection->send_location_info_request(LIA_CB, request, FAKE_TRAIL_ID);
+
+  // Check that we've caught the message and it's not null
+  ASSERT_FALSE(_caught_diam_tsx == NULL);
+
+  // Turn the caught Diameter msg structure into a UAR and check its contents.
+  // Note that auth-type "CAPAB" corresponds to a value of 2 in the AVP
+  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
+  Cx::LocationInfoRequest lir(msg);
+  EXPECT_TRUE(lir.get_str_from_avp(_cx_dict->DESTINATION_REALM, test_str));
+  EXPECT_EQ(DEST_REALM, test_str);
+  EXPECT_TRUE(lir.get_str_from_avp(_cx_dict->DESTINATION_HOST, test_str));
+  EXPECT_EQ(DEST_HOST, test_str);
+  EXPECT_EQ(IMPU, lir.impu());
+  EXPECT_FALSE(lir.originating(test_i32));
+  EXPECT_TRUE(lir.auth_type(test_i32));
+  EXPECT_EQ(2, test_i32);
+
+  // We're now going to inject a response
+  Cx::LocationInfoAnswer lia(_cx_dict,
+                             _mock_stack,
+                             DIAMETER_SUCCESS,
+                             0,
+                             0,
+                             "",
+                             CAPABILITIES);
+
+  // Expect that we'll call the callback with the correct answer
+  EXPECT_CALL(*_answer_catcher, got_lia(
+    AllOf(Field(&HssConnection::LocationInfoAnswer::_result_code, ::HssConnection::ResultCode::SUCCESS),
+          Field(&HssConnection::LocationInfoAnswer::_json_result, DIAMETER_SUCCESS),
+          Field(&HssConnection::LocationInfoAnswer::_server_name, ""),
+          Field(&HssConnection::LocationInfoAnswer::_wildcard_impu, ""),
+          Field(&HssConnection::LocationInfoAnswer::_server_capabilities, Pointee(
+            AllOf(Field(&ServerCapabilities::mandatory_capabilities, mandatory_capabilities),
+                  Field(&ServerCapabilities::optional_capabilities, optional_capabilities))
+          ))))).Times(1).RetiresOnSaturation();
+
+  _caught_diam_tsx->on_response(lia);
+
+  _caught_fd_msg = NULL;
+  delete _caught_diam_tsx; _caught_diam_tsx = NULL;
+}
+
+TEST_F(DiameterHssConnectionTest, SendLIRWildcardImpu)
+{
+  // Create an LIR
+  HssConnection::LocationInfoRequest request = {
+    IMPU,
+    "",
+    ""
+  };
+
+  // Expect diameter message to be sent with the correct timeout, and store the
+  // sent message
+  EXPECT_CALL(*_mock_stack, send(_, _, TIMEOUT_MS))
+    .Times(1)
+    .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
+
+  // Send the UAR
+  _hss_connection->send_location_info_request(LIA_CB, request, FAKE_TRAIL_ID);
+
+  // Check that we've caught the message and it's not null
+  ASSERT_FALSE(_caught_diam_tsx == NULL);
+
+  // Turn the caught Diameter msg structure into a UAR and check its contents.
+  // Note that originating "true" corresponds to a value of 0 in the AVP
+  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
+  Cx::LocationInfoRequest lir(msg);
+  EXPECT_TRUE(lir.get_str_from_avp(_cx_dict->DESTINATION_REALM, test_str));
+  EXPECT_EQ(DEST_REALM, test_str);
+  EXPECT_TRUE(lir.get_str_from_avp(_cx_dict->DESTINATION_HOST, test_str));
+  EXPECT_EQ(DEST_HOST, test_str);
+  EXPECT_EQ(IMPU, lir.impu());
+  EXPECT_FALSE(lir.originating(test_i32));
+  EXPECT_FALSE(lir.auth_type(test_i32));
+
+
+  // We're now going to inject a response
+  Cx::LocationInfoAnswer lia(_cx_dict,
+                             _mock_stack,
+                             DIAMETER_SUCCESS,
+                             0,
+                             0,
+                             SERVER_NAME,
+                             CAPABILITIES,
+                             "wildcard");
+
+  // Expect that we'll call the callback with the correct answer
+  EXPECT_CALL(*_answer_catcher, got_lia(
+    AllOf(Field(&HssConnection::LocationInfoAnswer::_result_code, ::HssConnection::ResultCode::SUCCESS),
+          Field(&HssConnection::LocationInfoAnswer::_json_result, DIAMETER_SUCCESS),
+          Field(&HssConnection::LocationInfoAnswer::_server_name, SERVER_NAME),
+          Field(&HssConnection::LocationInfoAnswer::_wildcard_impu, "wildcard"),
+          Field(&HssConnection::LocationInfoAnswer::_server_capabilities, IsNull())))).Times(1).RetiresOnSaturation();
+
+  _caught_diam_tsx->on_response(lia);
+
+  _caught_fd_msg = NULL;
+  delete _caught_diam_tsx; _caught_diam_tsx = NULL;
+}
+
+TEST_F(DiameterHssConnectionTest, SendLIRUnregisteredService)
+{
+  // Create an LIR
+  HssConnection::LocationInfoRequest request = {
+    IMPU,
+    "",
+    ""
+  };
+
+  // Expect diameter message to be sent with the correct timeout, and store the
+  // sent message
+  EXPECT_CALL(*_mock_stack, send(_, _, TIMEOUT_MS))
+    .Times(1)
+    .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
+
+  // Send the UAR
+  _hss_connection->send_location_info_request(LIA_CB, request, FAKE_TRAIL_ID);
+
+  // Check that we've caught the message and it's not null
+  ASSERT_FALSE(_caught_diam_tsx == NULL);
+
+  // Turn the caught Diameter msg structure into a UAR and check its contents.
+  // Note that originating "true" corresponds to a value of 0 in the AVP
+  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
+  Cx::LocationInfoRequest lir(msg);
+  EXPECT_TRUE(lir.get_str_from_avp(_cx_dict->DESTINATION_REALM, test_str));
+  EXPECT_EQ(DEST_REALM, test_str);
+  EXPECT_TRUE(lir.get_str_from_avp(_cx_dict->DESTINATION_HOST, test_str));
+  EXPECT_EQ(DEST_HOST, test_str);
+  EXPECT_EQ(IMPU, lir.impu());
+  EXPECT_FALSE(lir.originating(test_i32));
+  EXPECT_FALSE(lir.auth_type(test_i32));
+
+
+  // We're now going to inject a response
+  Cx::LocationInfoAnswer lia(_cx_dict,
+                             _mock_stack,
+                             0,
+                             VENDOR_ID_3GPP,
+                             DIAMETER_UNREGISTERED_SERVICE,
+                             SERVER_NAME,
+                             CAPABILITIES);
+
+  // Expect that we'll call the callback with the correct answer
+  EXPECT_CALL(*_answer_catcher, got_lia(
+    AllOf(Field(&HssConnection::LocationInfoAnswer::_result_code, ::HssConnection::ResultCode::SUCCESS),
+          Field(&HssConnection::LocationInfoAnswer::_json_result, DIAMETER_UNREGISTERED_SERVICE),
+          Field(&HssConnection::LocationInfoAnswer::_server_name, SERVER_NAME),
+          Field(&HssConnection::LocationInfoAnswer::_wildcard_impu, ""),
+          Field(&HssConnection::LocationInfoAnswer::_server_capabilities, IsNull())))).Times(1).RetiresOnSaturation();
+
+  _caught_diam_tsx->on_response(lia);
+
+  _caught_fd_msg = NULL;
+  delete _caught_diam_tsx; _caught_diam_tsx = NULL;
+}
+
+TEST_F(DiameterHssConnectionTest, SendLIRIdentityNotRegistered)
+{
+  // Create an LIR
+  HssConnection::LocationInfoRequest request = {
+    IMPU,
+    "",
+    ""
+  };
+
+  // Expect diameter message to be sent with the correct timeout, and store the
+  // sent message
+  EXPECT_CALL(*_mock_stack, send(_, _, TIMEOUT_MS))
+    .Times(1)
+    .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
+
+  // Send the UAR
+  _hss_connection->send_location_info_request(LIA_CB, request, FAKE_TRAIL_ID);
+
+  // Check that we've caught the message and it's not null
+  ASSERT_FALSE(_caught_diam_tsx == NULL);
+
+  // Turn the caught Diameter msg structure into a UAR and check its contents.
+  // Note that originating "true" corresponds to a value of 0 in the AVP
+  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
+  Cx::LocationInfoRequest lir(msg);
+  EXPECT_TRUE(lir.get_str_from_avp(_cx_dict->DESTINATION_REALM, test_str));
+  EXPECT_EQ(DEST_REALM, test_str);
+  EXPECT_TRUE(lir.get_str_from_avp(_cx_dict->DESTINATION_HOST, test_str));
+  EXPECT_EQ(DEST_HOST, test_str);
+  EXPECT_EQ(IMPU, lir.impu());
+  EXPECT_FALSE(lir.originating(test_i32));
+  EXPECT_FALSE(lir.auth_type(test_i32));
+
+
+  // We're now going to inject a response
+  Cx::LocationInfoAnswer lia(_cx_dict,
+                             _mock_stack,
+                             0,
+                             VENDOR_ID_3GPP,
+                             DIAMETER_ERROR_IDENTITY_NOT_REGISTERED,
+                             SERVER_NAME,
+                             CAPABILITIES);
+
+  // Expect that we'll call the callback with the correct answer
+  EXPECT_CALL(*_answer_catcher, got_lia(
+    AllOf(Field(&HssConnection::LocationInfoAnswer::_result_code, ::HssConnection::ResultCode::SUCCESS),
+          Field(&HssConnection::LocationInfoAnswer::_json_result, DIAMETER_ERROR_IDENTITY_NOT_REGISTERED),
+          Field(&HssConnection::LocationInfoAnswer::_server_name, SERVER_NAME),
+          Field(&HssConnection::LocationInfoAnswer::_wildcard_impu, ""),
+          Field(&HssConnection::LocationInfoAnswer::_server_capabilities, IsNull())))).Times(1).RetiresOnSaturation();
+
+  _caught_diam_tsx->on_response(lia);
+
+  _caught_fd_msg = NULL;
+  delete _caught_diam_tsx; _caught_diam_tsx = NULL;
+}
+
+TEST_F(DiameterHssConnectionTest, SendLIRUserUnknown)
+{
+  // Create an LIR
+  HssConnection::LocationInfoRequest request = {
+    IMPU,
+    "",
+    ""
+  };
+
+  // Expect diameter message to be sent with the correct timeout, and store the
+  // sent message
+  EXPECT_CALL(*_mock_stack, send(_, _, TIMEOUT_MS))
+    .Times(1)
+    .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
+
+  // Send the UAR
+  _hss_connection->send_location_info_request(LIA_CB, request, FAKE_TRAIL_ID);
+
+  // Check that we've caught the message and it's not null
+  ASSERT_FALSE(_caught_diam_tsx == NULL);
+
+  // Turn the caught Diameter msg structure into a UAR and check its contents.
+  // Note that originating "true" corresponds to a value of 0 in the AVP
+  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
+  Cx::LocationInfoRequest lir(msg);
+  EXPECT_TRUE(lir.get_str_from_avp(_cx_dict->DESTINATION_REALM, test_str));
+  EXPECT_EQ(DEST_REALM, test_str);
+  EXPECT_TRUE(lir.get_str_from_avp(_cx_dict->DESTINATION_HOST, test_str));
+  EXPECT_EQ(DEST_HOST, test_str);
+  EXPECT_EQ(IMPU, lir.impu());
+  EXPECT_FALSE(lir.originating(test_i32));
+  EXPECT_FALSE(lir.auth_type(test_i32));
+
+
+  // We're now going to inject a response
+  Cx::LocationInfoAnswer lia(_cx_dict,
+                             _mock_stack,
+                             0,
+                             VENDOR_ID_3GPP,
+                             DIAMETER_ERROR_USER_UNKNOWN,
+                             SERVER_NAME,
+                             CAPABILITIES);
+
+  // Expect that we'll call the callback with the correct answer
+  EXPECT_CALL(*_answer_catcher, got_lia(
+    Field(&HssConnection::LocationInfoAnswer::_result_code, ::HssConnection::ResultCode::NOT_FOUND)))
+    .Times(1).RetiresOnSaturation();
+
+  _caught_diam_tsx->on_response(lia);
+
+  _caught_fd_msg = NULL;
+  delete _caught_diam_tsx; _caught_diam_tsx = NULL;
+}
+
+TEST_F(DiameterHssConnectionTest, SendLIRTooBusy)
+{
+  // Create an LIR
+  HssConnection::LocationInfoRequest request = {
+    IMPU,
+    "",
+    ""
+  };
+
+  // Expect diameter message to be sent with the correct timeout, and store the
+  // sent message
+  EXPECT_CALL(*_mock_stack, send(_, _, TIMEOUT_MS))
+    .Times(1)
+    .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
+
+  // Send the UAR
+  _hss_connection->send_location_info_request(LIA_CB, request, FAKE_TRAIL_ID);
+
+  // Check that we've caught the message and it's not null
+  ASSERT_FALSE(_caught_diam_tsx == NULL);
+
+  // Turn the caught Diameter msg structure into a UAR and check its contents.
+  // Note that originating "true" corresponds to a value of 0 in the AVP
+  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
+  Cx::LocationInfoRequest lir(msg);
+  EXPECT_TRUE(lir.get_str_from_avp(_cx_dict->DESTINATION_REALM, test_str));
+  EXPECT_EQ(DEST_REALM, test_str);
+  EXPECT_TRUE(lir.get_str_from_avp(_cx_dict->DESTINATION_HOST, test_str));
+  EXPECT_EQ(DEST_HOST, test_str);
+  EXPECT_EQ(IMPU, lir.impu());
+  EXPECT_FALSE(lir.originating(test_i32));
+  EXPECT_FALSE(lir.auth_type(test_i32));
+
+
+  // We're now going to inject a response
+  Cx::LocationInfoAnswer lia(_cx_dict,
+                             _mock_stack,
+                             DIAMETER_TOO_BUSY,
+                             0,
+                             0,
+                             SERVER_NAME,
+                             CAPABILITIES);
+
+  // Expect that we'll call the callback with the correct answer
+  EXPECT_CALL(*_answer_catcher, got_lia(
+    Field(&HssConnection::LocationInfoAnswer::_result_code, ::HssConnection::ResultCode::TIMEOUT)))
+    .Times(1).RetiresOnSaturation();
+
+  _caught_diam_tsx->on_response(lia);
+
+  _caught_fd_msg = NULL;
+  delete _caught_diam_tsx; _caught_diam_tsx = NULL;
+}
+
+TEST_F(DiameterHssConnectionTest, SendLIRUnableToDeliver)
+{
+  // Create an LIR
+  HssConnection::LocationInfoRequest request = {
+    IMPU,
+    "",
+    ""
+  };
+
+  // Expect diameter message to be sent with the correct timeout, and store the
+  // sent message
+  EXPECT_CALL(*_mock_stack, send(_, _, TIMEOUT_MS))
+    .Times(1)
+    .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
+
+  // Send the UAR
+  _hss_connection->send_location_info_request(LIA_CB, request, FAKE_TRAIL_ID);
+
+  // Check that we've caught the message and it's not null
+  ASSERT_FALSE(_caught_diam_tsx == NULL);
+
+  // Turn the caught Diameter msg structure into a UAR and check its contents.
+  // Note that originating "true" corresponds to a value of 0 in the AVP
+  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
+  Cx::LocationInfoRequest lir(msg);
+  EXPECT_TRUE(lir.get_str_from_avp(_cx_dict->DESTINATION_REALM, test_str));
+  EXPECT_EQ(DEST_REALM, test_str);
+  EXPECT_TRUE(lir.get_str_from_avp(_cx_dict->DESTINATION_HOST, test_str));
+  EXPECT_EQ(DEST_HOST, test_str);
+  EXPECT_EQ(IMPU, lir.impu());
+  EXPECT_FALSE(lir.originating(test_i32));
+  EXPECT_FALSE(lir.auth_type(test_i32));
+
+
+  // We're now going to inject a response
+  Cx::LocationInfoAnswer lia(_cx_dict,
+                             _mock_stack,
+                             DIAMETER_UNABLE_TO_DELIVER,
+                             0,
+                             0,
+                             SERVER_NAME,
+                             CAPABILITIES);
+
+  // Expect that we'll call the callback with the correct answer
+  EXPECT_CALL(*_answer_catcher, got_lia(
+    Field(&HssConnection::LocationInfoAnswer::_result_code, ::HssConnection::ResultCode::SERVER_UNAVAILABLE)))
+    .Times(1).RetiresOnSaturation();
+
+  _caught_diam_tsx->on_response(lia);
+
+  _caught_fd_msg = NULL;
+  delete _caught_diam_tsx; _caught_diam_tsx = NULL;
+}
+
+TEST_F(DiameterHssConnectionTest, SendLIRUnknown)
+{
+  // Create an LIR
+  HssConnection::LocationInfoRequest request = {
+    IMPU,
+    "",
+    ""
+  };
+
+  // Expect diameter message to be sent with the correct timeout, and store the
+  // sent message
+  EXPECT_CALL(*_mock_stack, send(_, _, TIMEOUT_MS))
+    .Times(1)
+    .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
+
+  // Send the UAR
+  _hss_connection->send_location_info_request(LIA_CB, request, FAKE_TRAIL_ID);
+
+  // Check that we've caught the message and it's not null
+  ASSERT_FALSE(_caught_diam_tsx == NULL);
+
+  // Turn the caught Diameter msg structure into a UAR and check its contents.
+  // Note that originating "true" corresponds to a value of 0 in the AVP
+  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
+  Cx::LocationInfoRequest lir(msg);
+  EXPECT_TRUE(lir.get_str_from_avp(_cx_dict->DESTINATION_REALM, test_str));
+  EXPECT_EQ(DEST_REALM, test_str);
+  EXPECT_TRUE(lir.get_str_from_avp(_cx_dict->DESTINATION_HOST, test_str));
+  EXPECT_EQ(DEST_HOST, test_str);
+  EXPECT_EQ(IMPU, lir.impu());
+  EXPECT_FALSE(lir.originating(test_i32));
+  EXPECT_FALSE(lir.auth_type(test_i32));
+
+
+  // We're now going to inject a response
+  Cx::LocationInfoAnswer lia(_cx_dict,
+                             _mock_stack,
+                             7,
+                             7777,
+                             77777,
+                             SERVER_NAME,
+                             CAPABILITIES);
+
+  // Expect that we'll call the callback with the correct answer
+  EXPECT_CALL(*_answer_catcher, got_lia(
+    Field(&HssConnection::LocationInfoAnswer::_result_code, ::HssConnection::ResultCode::UNKNOWN)))
+    .Times(1).RetiresOnSaturation();
+
+  _caught_diam_tsx->on_response(lia);
+
+  _caught_fd_msg = NULL;
+  delete _caught_diam_tsx; _caught_diam_tsx = NULL;
+}
+
+//
+// ServerAssignmentRequest tests
+//
+
+TEST_F(DiameterHssConnectionTest, SendSARMainline)
+{
+  // Create an SAR
+  HssConnection::ServerAssignmentRequest  request = {
+    IMPI,
+    IMPU,
+    SERVER_NAME,
+    Cx::ServerAssignmentType::REGISTRATION,
+    false,
+    ""
+  };
+
+  // Expect diameter message to be sent with the correct timeout, and store the
+  // sent message
+  EXPECT_CALL(*_mock_stack, send(_, _, TIMEOUT_MS))
+    .Times(1)
+    .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
+
+  // Send the SAR
+  _hss_connection->send_server_assignment_request(SAA_CB, request, FAKE_TRAIL_ID);
+
+  // Check that we've caught the message and it's not null
+  ASSERT_FALSE(_caught_diam_tsx == NULL);
+
+  // Turn the caught Diameter msg structure into a UAR and check its contents.
+  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
+  Cx::ServerAssignmentRequest sar(msg);
+  EXPECT_TRUE(sar.get_str_from_avp(_cx_dict->DESTINATION_REALM, test_str));
+  EXPECT_EQ(DEST_REALM, test_str);
+  EXPECT_TRUE(sar.get_str_from_avp(_cx_dict->DESTINATION_HOST, test_str));
+  EXPECT_EQ(DEST_HOST, test_str);
+  EXPECT_EQ(IMPI, sar.impi());
+  EXPECT_EQ(IMPU, sar.impu());
+  EXPECT_TRUE(sar.server_name(test_str));
+  EXPECT_EQ(SERVER_NAME, test_str);
+  EXPECT_TRUE(sar.server_assignment_type(test_i32));
+  EXPECT_EQ(Cx::ServerAssignmentType::REGISTRATION, test_i32);
+
+  // We're now going to inject a response
+  Cx::ServerAssignmentAnswer saa(_cx_dict,
+                                 _mock_stack,
+                                 DIAMETER_SUCCESS,
+                                 0,
+                                 0,
+                                 IMS_SUB_XML,
+                                 FULL_CHARGING_ADDRESSES);
+
+  // Expect that we'll call the callback with the correct answer, including the
+  // correct ChargingAddresses
+  EXPECT_CALL(*_answer_catcher, got_saa(
+    AllOf(Field(&HssConnection::ServerAssignmentAnswer::_result_code, ::HssConnection::ResultCode::SUCCESS),
+          Field(&HssConnection::ServerAssignmentAnswer::_service_profile, IMS_SUB_XML),
+          Field(&HssConnection::ServerAssignmentAnswer::_wildcard_impu, ""),
+          Field(&HssConnection::ServerAssignmentAnswer::_charging_addrs,
+            AllOf(Field(&ChargingAddresses::ccfs, CCFS),
+                  Field(&ChargingAddresses::ecfs, ECFS)))))).Times(1).RetiresOnSaturation();
+  _caught_diam_tsx->on_response(saa);
+
+  _caught_fd_msg = NULL;
+  delete _caught_diam_tsx; _caught_diam_tsx = NULL;
+}
+
+TEST_F(DiameterHssConnectionTest, SendSARWildcardImpu)
+{
+  // Create an SAR
+  HssConnection::ServerAssignmentRequest  request = {
+    IMPI,
+    IMPU,
+    SERVER_NAME,
+    Cx::ServerAssignmentType::REGISTRATION,
+    false,
+    ""
+  };
+
+  // Expect diameter message to be sent with the correct timeout, and store the
+  // sent message
+  EXPECT_CALL(*_mock_stack, send(_, _, TIMEOUT_MS))
+    .Times(1)
+    .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
+
+  // Send the SAR
+  _hss_connection->send_server_assignment_request(SAA_CB, request, FAKE_TRAIL_ID);
+
+  // Check that we've caught the message and it's not null
+  ASSERT_FALSE(_caught_diam_tsx == NULL);
+
+  // Turn the caught Diameter msg structure into a UAR and check its contents.
+  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
+  Cx::ServerAssignmentRequest sar(msg);
+  EXPECT_TRUE(sar.get_str_from_avp(_cx_dict->DESTINATION_REALM, test_str));
+  EXPECT_EQ(DEST_REALM, test_str);
+  EXPECT_TRUE(sar.get_str_from_avp(_cx_dict->DESTINATION_HOST, test_str));
+  EXPECT_EQ(DEST_HOST, test_str);
+  EXPECT_EQ(IMPI, sar.impi());
+  EXPECT_EQ(IMPU, sar.impu());
+  EXPECT_TRUE(sar.server_name(test_str));
+  EXPECT_EQ(SERVER_NAME, test_str);
+  EXPECT_TRUE(sar.server_assignment_type(test_i32));
+  EXPECT_EQ(Cx::ServerAssignmentType::REGISTRATION, test_i32);
+
+  // We're now going to inject a response
+  Cx::ServerAssignmentAnswer saa(_cx_dict,
+                                 _mock_stack,
+                                 0,
+                                 0,
+                                 DIAMETER_ERROR_IN_ASSIGNMENT_TYPE,
+                                 "",
+                                 NO_CHARGING_ADDRESSES,
+                                 "wildcard");
+
+  // Expect that we'll call the callback with the correct answer and the
+  // new wildcard impu
+  EXPECT_CALL(*_answer_catcher, got_saa(
+    AllOf(Field(&HssConnection::ServerAssignmentAnswer::_result_code, ::HssConnection::ResultCode::NEW_WILDCARD),
+          Field(&HssConnection::ServerAssignmentAnswer::_wildcard_impu, "wildcard"))))
+    .Times(1).RetiresOnSaturation();
+  _caught_diam_tsx->on_response(saa);
+
+  _caught_fd_msg = NULL;
+  delete _caught_diam_tsx; _caught_diam_tsx = NULL;
+}
+
+TEST_F(DiameterHssConnectionTest, SendSARUnableToDeliver)
+{
+  // Create an SAR
+  HssConnection::ServerAssignmentRequest  request = {
+    IMPI,
+    IMPU,
+    SERVER_NAME,
+    Cx::ServerAssignmentType::REGISTRATION,
+    false,
+    ""
+  };
+
+  // Expect diameter message to be sent with the correct timeout, and store the
+  // sent message
+  EXPECT_CALL(*_mock_stack, send(_, _, TIMEOUT_MS))
+    .Times(1)
+    .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
+
+  // Send the SAR
+  _hss_connection->send_server_assignment_request(SAA_CB, request, FAKE_TRAIL_ID);
+
+  // Check that we've caught the message and it's not null
+  ASSERT_FALSE(_caught_diam_tsx == NULL);
+
+  // Turn the caught Diameter msg structure into a UAR and check its contents.
+  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
+  Cx::ServerAssignmentRequest sar(msg);
+  EXPECT_TRUE(sar.get_str_from_avp(_cx_dict->DESTINATION_REALM, test_str));
+  EXPECT_EQ(DEST_REALM, test_str);
+  EXPECT_TRUE(sar.get_str_from_avp(_cx_dict->DESTINATION_HOST, test_str));
+  EXPECT_EQ(DEST_HOST, test_str);
+  EXPECT_EQ(IMPI, sar.impi());
+  EXPECT_EQ(IMPU, sar.impu());
+  EXPECT_TRUE(sar.server_name(test_str));
+  EXPECT_EQ(SERVER_NAME, test_str);
+  EXPECT_TRUE(sar.server_assignment_type(test_i32));
+  EXPECT_EQ(Cx::ServerAssignmentType::REGISTRATION, test_i32);
+
+  // We're now going to inject a response
+  Cx::ServerAssignmentAnswer saa(_cx_dict,
+                                 _mock_stack,
+                                 DIAMETER_UNABLE_TO_DELIVER,
+                                 0,
+                                 0,
+                                 "",
+                                 NO_CHARGING_ADDRESSES,
+                                 "");
+
+  // Expect that we'll call the callback with the correct answer and the
+  // new wildcard impu
+  EXPECT_CALL(*_answer_catcher, got_saa(
+    Field(&HssConnection::ServerAssignmentAnswer::_result_code, ::HssConnection::ResultCode::SERVER_UNAVAILABLE)))
+    .Times(1).RetiresOnSaturation();
+  _caught_diam_tsx->on_response(saa);
+
+  _caught_fd_msg = NULL;
+  delete _caught_diam_tsx; _caught_diam_tsx = NULL;
+}
+
+TEST_F(DiameterHssConnectionTest, SendSARUserUnknown)
+{
+  // Create an SAR
+  HssConnection::ServerAssignmentRequest  request = {
+    IMPI,
+    IMPU,
+    SERVER_NAME,
+    Cx::ServerAssignmentType::REGISTRATION,
+    false,
+    ""
+  };
+
+  // Expect diameter message to be sent with the correct timeout, and store the
+  // sent message
+  EXPECT_CALL(*_mock_stack, send(_, _, TIMEOUT_MS))
+    .Times(1)
+    .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
+
+  // Send the SAR
+  _hss_connection->send_server_assignment_request(SAA_CB, request, FAKE_TRAIL_ID);
+
+  // Check that we've caught the message and it's not null
+  ASSERT_FALSE(_caught_diam_tsx == NULL);
+
+  // Turn the caught Diameter msg structure into a UAR and check its contents.
+  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
+  Cx::ServerAssignmentRequest sar(msg);
+  EXPECT_TRUE(sar.get_str_from_avp(_cx_dict->DESTINATION_REALM, test_str));
+  EXPECT_EQ(DEST_REALM, test_str);
+  EXPECT_TRUE(sar.get_str_from_avp(_cx_dict->DESTINATION_HOST, test_str));
+  EXPECT_EQ(DEST_HOST, test_str);
+  EXPECT_EQ(IMPI, sar.impi());
+  EXPECT_EQ(IMPU, sar.impu());
+  EXPECT_TRUE(sar.server_name(test_str));
+  EXPECT_EQ(SERVER_NAME, test_str);
+  EXPECT_TRUE(sar.server_assignment_type(test_i32));
+  EXPECT_EQ(Cx::ServerAssignmentType::REGISTRATION, test_i32);
+
+  // We're now going to inject a response
+  Cx::ServerAssignmentAnswer saa(_cx_dict,
+                                 _mock_stack,
+                                 0,
+                                 VENDOR_ID_3GPP,
+                                 DIAMETER_ERROR_USER_UNKNOWN,
+                                 "",
+                                 NO_CHARGING_ADDRESSES,
+                                 "");
+
+  // Expect that we'll call the callback with the correct answer and the
+  // new wildcard impu
+  EXPECT_CALL(*_answer_catcher, got_saa(
+    Field(&HssConnection::ServerAssignmentAnswer::_result_code, ::HssConnection::ResultCode::NOT_FOUND)))
+    .Times(1).RetiresOnSaturation();
+  _caught_diam_tsx->on_response(saa);
+
+  _caught_fd_msg = NULL;
+  delete _caught_diam_tsx; _caught_diam_tsx = NULL;
+}
+
+TEST_F(DiameterHssConnectionTest, SendSARUnknown)
+{
+  // Create an SAR
+  HssConnection::ServerAssignmentRequest  request = {
+    IMPI,
+    IMPU,
+    SERVER_NAME,
+    Cx::ServerAssignmentType::REGISTRATION,
+    false,
+    ""
+  };
+
+  // Expect diameter message to be sent with the correct timeout, and store the
+  // sent message
+  EXPECT_CALL(*_mock_stack, send(_, _, TIMEOUT_MS))
+    .Times(1)
+    .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
+
+  // Send the SAR
+  _hss_connection->send_server_assignment_request(SAA_CB, request, FAKE_TRAIL_ID);
+
+  // Check that we've caught the message and it's not null
+  ASSERT_FALSE(_caught_diam_tsx == NULL);
+
+  // Turn the caught Diameter msg structure into a UAR and check its contents.
+  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
+  Cx::ServerAssignmentRequest sar(msg);
+  EXPECT_TRUE(sar.get_str_from_avp(_cx_dict->DESTINATION_REALM, test_str));
+  EXPECT_EQ(DEST_REALM, test_str);
+  EXPECT_TRUE(sar.get_str_from_avp(_cx_dict->DESTINATION_HOST, test_str));
+  EXPECT_EQ(DEST_HOST, test_str);
+  EXPECT_EQ(IMPI, sar.impi());
+  EXPECT_EQ(IMPU, sar.impu());
+  EXPECT_TRUE(sar.server_name(test_str));
+  EXPECT_EQ(SERVER_NAME, test_str);
+  EXPECT_TRUE(sar.server_assignment_type(test_i32));
+  EXPECT_EQ(Cx::ServerAssignmentType::REGISTRATION, test_i32);
+
+  // We're now going to inject a response
+  Cx::ServerAssignmentAnswer saa(_cx_dict,
+                                 _mock_stack,
+                                 7,
+                                 7777,
+                                 77777,
+                                 "",
+                                 NO_CHARGING_ADDRESSES,
+                                 "");
+
+  // Expect that we'll call the callback with the correct answer and the
+  // new wildcard impu
+  EXPECT_CALL(*_answer_catcher, got_saa(
+    Field(&HssConnection::ServerAssignmentAnswer::_result_code, ::HssConnection::ResultCode::UNKNOWN)))
+    .Times(1).RetiresOnSaturation();
+  _caught_diam_tsx->on_response(saa);
 
   _caught_fd_msg = NULL;
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;

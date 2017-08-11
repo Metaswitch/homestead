@@ -119,19 +119,20 @@ private:
     virtual AnswerType create_answer(Diameter::Message& rsp) = 0;
     void on_timeout()
     {
+      //TODO results table and latency
       update_latency_stats();
 
       // No result-code returned on timeout, so use 0.
       _cx_results_tbl->increment(SNMP::DiameterAppId::TIMEOUT, 0);
 
-      AnswerType answer = AnswerType(ResultCode::TIMEOUT);
+      AnswerType answer = AnswerType(ResultCode::SERVER_UNAVAILABLE);
       _response_clbk(answer);
     }
 
     void on_response(Diameter::Message& rsp)
     {
       update_latency_stats();
-
+      //TODO results table and latency
       // TODO - the Handlers should be recording the penalty
       /*
       // If we got an overload response (result code of 3004) record a penalty
@@ -181,6 +182,33 @@ private:
     using DiameterTransaction::DiameterTransaction;
 
     virtual MultimediaAuthAnswer create_answer(Diameter::Message& rsp) override;
+  };
+
+  class UARDiameterTransaction : public DiameterTransaction<UserAuthAnswer>
+  {
+  public:
+    // Inherit the superclass' constructor
+    using DiameterTransaction::DiameterTransaction;
+
+    virtual UserAuthAnswer create_answer(Diameter::Message& rsp) override;
+  };
+
+  class LIRDiameterTransaction : public DiameterTransaction<LocationInfoAnswer>
+  {
+  public:
+    // Inherit the superclass' constructor
+    using DiameterTransaction::DiameterTransaction;
+
+    virtual LocationInfoAnswer create_answer(Diameter::Message& rsp) override;
+  };
+
+  class SARDiameterTransaction : public DiameterTransaction<ServerAssignmentAnswer>
+  {
+  public:
+    // Inherit the superclass' constructor
+    using DiameterTransaction::DiameterTransaction;
+
+    virtual ServerAssignmentAnswer create_answer(Diameter::Message& rsp) override;
   };
 };
 

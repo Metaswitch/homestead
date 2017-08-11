@@ -26,15 +26,15 @@ namespace HssConnection {
 // Not complete
 enum ResultCode
 {
-    SUCCESS = 0,
-    SERVER_UNAVAILABLE = 1,
-    NOT_FOUND = 2,
-    FORBIDDEN = 3,
-    TIMEOUT = 4,
-    NEW_WILDCARD = 5,
-    ASSIGNMENT_TYPE = 6,
-    UNKNOWN_AUTH_SCHEME = 7,
-    UNKNOWN = 8
+    SUCCESS,
+    SERVER_UNAVAILABLE,
+    NOT_FOUND,
+    FORBIDDEN,
+    TIMEOUT,
+    NEW_WILDCARD,
+    ASSIGNMENT_TYPE,
+    UNKNOWN_AUTH_SCHEME,
+    UNKNOWN
 };
 
 // Structs to represent the requests we make to the HSS
@@ -264,8 +264,6 @@ public:
   {
   }
 
-  // Takes ownership of the ServerCapabilities* passed in, and will delete it in its
-  // destructor
   ServerAssignmentAnswer(ResultCode rc,
                  ChargingAddresses charging_addrs,
                  std::string service_profile,
