@@ -19,6 +19,79 @@ std::string DiameterHssConnection::_scheme_digest;
 std::string DiameterHssConnection::_scheme_akav1;
 std::string DiameterHssConnection::_scheme_akav2;
 
+static SNMP::CxCounterTable* mar_results_tbl;
+static SNMP::CxCounterTable* sar_results_tbl;
+static SNMP::CxCounterTable* uar_results_tbl;
+static SNMP::CxCounterTable* lir_results_tbl;
+static SNMP::CxCounterTable* ppr_results_tbl;
+static SNMP::CxCounterTable* rtr_results_tbl;
+
+
+template <class AnswerType>
+void DiameterHssConnection::DiameterTransaction<AnswerType>::on_response(Diameter::Message& rsp)
+{
+  update_latency_stats();
+  AnswerType answer = create_answer(rsp);
+  _response_clbk(answer);
+}
+
+template <class T>
+void DiameterHssConnection::DiameterTransaction<T>::increment_results(int32_t result,
+                                                                      int32_t experimental,
+                                                                      uint32_t vendor)
+{
+  // IMS mandates that exactly one of result code or experimental result code
+  // will be set, so we can unambiguously assume that, if one is set, then the
+  // other one won't be.
+  if (result != 0)
+  {
+    _cx_results_tbl->increment(SNMP::DiameterAppId::BASE, result);
+  }
+  else if (experimental != 0 && vendor == VENDOR_ID_3GPP)
+  {
+    _cx_results_tbl->increment(SNMP::DiameterAppId::_3GPP, experimental);
+  }
+}
+
+template <class AnswerType>
+void DiameterHssConnection::DiameterTransaction<AnswerType>::on_timeout()
+{
+  TRC_ERROR("Diameter timeout");
+
+  update_latency_stats();
+
+  // No result-code returned on timeout, so use 0.
+  _cx_results_tbl->increment(SNMP::DiameterAppId::TIMEOUT, 0);
+
+  // Call the callback with SERVER_UNAVAILABLE
+  AnswerType answer = AnswerType(ResultCode::SERVER_UNAVAILABLE);
+  _response_clbk(answer);
+}
+
+template <class T>
+void DiameterHssConnection::DiameterTransaction<T>::update_latency_stats()
+{
+  if (_stats_manager != NULL)
+  {
+    unsigned long latency = 0;
+    if (get_duration(latency))
+    {
+      if (_stat_updates & STAT_HSS_LATENCY)
+      {
+        _stats_manager->update_H_hss_latency_us(latency);
+      }
+      if (_stat_updates & STAT_HSS_DIGEST_LATENCY)
+      {
+        _stats_manager->update_H_hss_digest_latency_us(latency);
+      }
+      if (_stat_updates & STAT_HSS_SUBSCRIPTION_LATENCY)
+      {
+        _stats_manager->update_H_hss_subscription_latency_us(latency);
+      }
+    }
+  }
+}
+
 MultimediaAuthAnswer DiameterHssConnection::MARDiameterTransaction::create_answer(Diameter::Message& rsp)
 {
   // First, create the Diameter MAA from the response
@@ -34,6 +107,8 @@ MultimediaAuthAnswer DiameterHssConnection::MARDiameterTransaction::create_answe
   int32_t experimental_result = 0;
   uint32_t vendor_id = 0;
   diameter_maa.experimental_result(experimental_result, vendor_id);
+
+  increment_results(result_code, experimental_result, vendor_id);
 
   TRC_DEBUG("Recieved MAA from HSS with result code %d, experimental result code %d",
             result_code,
@@ -84,7 +159,6 @@ MultimediaAuthAnswer DiameterHssConnection::MARDiameterTransaction::create_answe
 
 UserAuthAnswer DiameterHssConnection::UARDiameterTransaction::create_answer(Diameter::Message& rsp)
 {
-  //TODO healthchecker? in handlers.cpp before
   // First, create the Diameter UAA from the response
   Cx::UserAuthorizationAnswer diameter_uaa = Cx::UserAuthorizationAnswer(rsp);
 
@@ -99,6 +173,8 @@ UserAuthAnswer DiameterHssConnection::UARDiameterTransaction::create_answer(Diam
   int32_t experimental_result = 0;
   uint32_t vendor_id = 0;
   diameter_uaa.experimental_result(experimental_result, vendor_id);
+
+  increment_results(result_code, experimental_result, vendor_id);
 
   TRC_DEBUG("Recieved UAA from HSS with result code %d, experimental result code %d",
             result_code,
@@ -144,7 +220,6 @@ UserAuthAnswer DiameterHssConnection::UARDiameterTransaction::create_answer(Diam
 
 LocationInfoAnswer DiameterHssConnection::LIRDiameterTransaction::create_answer(Diameter::Message& rsp)
 {
-  // TODO results table
   // First, create the Diameter SAA from the response
   Cx::LocationInfoAnswer diameter_lia = Cx::LocationInfoAnswer(rsp);
 
@@ -160,6 +235,8 @@ LocationInfoAnswer DiameterHssConnection::LIRDiameterTransaction::create_answer(
   int32_t experimental_result = 0;
   uint32_t vendor_id = 0;
   diameter_lia.experimental_result(experimental_result, vendor_id);
+
+  increment_results(result_code, experimental_result, vendor_id);
 
   TRC_DEBUG("Recieved LIA from HSS with result code %d, experimental result code %d",
             result_code,
@@ -210,7 +287,6 @@ LocationInfoAnswer DiameterHssConnection::LIRDiameterTransaction::create_answer(
 
 ServerAssignmentAnswer DiameterHssConnection::SARDiameterTransaction::create_answer(Diameter::Message& rsp)
 {
-  // TODO results table
   // First, create the Diameter SAA from the response
   Cx::ServerAssignmentAnswer diameter_saa = Cx::ServerAssignmentAnswer(rsp);
 
@@ -225,6 +301,8 @@ ServerAssignmentAnswer DiameterHssConnection::SARDiameterTransaction::create_ans
   int32_t experimental_result = 0;
   uint32_t vendor_id = 0;
   diameter_saa.experimental_result(experimental_result, vendor_id);
+
+  increment_results(result_code, experimental_result, vendor_id);
 
   TRC_DEBUG("Recieved SAA from HSS with result code %d, experimental result code %d",
             result_code,
@@ -281,14 +359,10 @@ void DiameterHssConnection::send_multimedia_auth_request(maa_cb callback,
                                                          MultimediaAuthRequest request,
                                                          SAS::TrailId trail)
 {
-  //TODO latency stats?
-  // TODO can't use the same _cx_results_table for all of them, we'll need a few
-  // and each tsx will have to choose the correct one
-
   // Transactions are deleted in the DiameterStack's on_response or or_timeout,
   // so we don't have to delete this after sending
   MARDiameterTransaction* tsx =
-    new MARDiameterTransaction(_dict, trail, DIGEST_STATS, callback, _cx_results_tbl);
+    new MARDiameterTransaction(_dict, trail, DIGEST_STATS, callback, mar_results_tbl, _stats_manager);
 
   Cx::MultimediaAuthRequest mar(_dict,
                                 _diameter_stack,
@@ -311,7 +385,7 @@ void DiameterHssConnection::send_user_auth_request(uaa_cb callback,
   // Transactions are deleted in the DiameterStack's on_response or or_timeout,
   // so we don't have to delete this after sending
   UARDiameterTransaction* tsx =
-    new UARDiameterTransaction(_dict, trail, SUBSCRIPTION_STATS, callback, _cx_results_tbl);
+    new UARDiameterTransaction(_dict, trail, SUBSCRIPTION_STATS, callback, uar_results_tbl, _stats_manager);
 
   Cx::UserAuthorizationRequest uar(_dict,
                                    _diameter_stack,
@@ -332,7 +406,7 @@ void DiameterHssConnection::send_location_info_request(lia_cb callback,
                                                        SAS::TrailId trail)
 {
   LIRDiameterTransaction* tsx =
-    new LIRDiameterTransaction(_dict, trail, SUBSCRIPTION_STATS, callback, _cx_results_tbl);
+    new LIRDiameterTransaction(_dict, trail, SUBSCRIPTION_STATS, callback, lir_results_tbl, _stats_manager);
 
   Cx::LocationInfoRequest lir(_dict,
                               _diameter_stack,
@@ -353,7 +427,7 @@ void DiameterHssConnection::send_server_assignment_request(saa_cb callback,
   // Transactions are deleted in the DiameterStack's on_response or or_timeout,
   // so we don't have to delete this after sending
   SARDiameterTransaction* tsx =
-    new SARDiameterTransaction(_dict, trail, SUBSCRIPTION_STATS, callback, _cx_results_tbl);
+    new SARDiameterTransaction(_dict, trail, SUBSCRIPTION_STATS, callback, sar_results_tbl, _stats_manager);
 
   Cx::ServerAssignmentRequest sar(_dict,
                                   _diameter_stack,
@@ -367,6 +441,21 @@ void DiameterHssConnection::send_server_assignment_request(saa_cb callback,
                                   request.wildcard_impu);
 
   sar.send(tsx, _diameter_timeout_ms);
+}
+
+void configure_cx_results_tables(SNMP::CxCounterTable* mar_results_table,
+                                 SNMP::CxCounterTable* sar_results_table,
+                                 SNMP::CxCounterTable* uar_results_table,
+                                 SNMP::CxCounterTable* lir_results_table,
+                                 SNMP::CxCounterTable* ppr_results_table,
+                                 SNMP::CxCounterTable* rtr_results_table)
+{
+  mar_results_tbl = mar_results_table;
+  sar_results_tbl = sar_results_table;
+  uar_results_tbl = uar_results_table;
+  lir_results_tbl = lir_results_table;
+  ppr_results_tbl = ppr_results_table;
+  rtr_results_tbl = rtr_results_table;
 }
 
 }; // namespace HssConnection

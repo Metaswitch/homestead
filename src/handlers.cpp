@@ -31,12 +31,7 @@ HssCacheProcessor* HssCacheTask::_cache = NULL;
 StatisticsManager* HssCacheTask::_stats_manager = NULL;
 HealthChecker* HssCacheTask::_health_checker = NULL;
 
-static SNMP::CxCounterTable* mar_results_tbl;
-static SNMP::CxCounterTable* sar_results_tbl;
-static SNMP::CxCounterTable* uar_results_tbl;
-static SNMP::CxCounterTable* lir_results_tbl;
-static SNMP::CxCounterTable* ppr_results_tbl;
-static SNMP::CxCounterTable* rtr_results_tbl;
+
 
 void HssCacheTask::configure_hss_connection(HssConnection::HssConnection* hss,
                                             std::string configured_server_name)
@@ -2214,19 +2209,4 @@ void PushProfileTask::send_ppa(const std::string result_code)
   // Send the PPA back to the HSS.
   TRC_INFO("Ready to send PPA");
   ppa.send(trail());
-}
-
-void configure_cx_results_tables(SNMP::CxCounterTable* mar_results_table,
-                                 SNMP::CxCounterTable* sar_results_table,
-                                 SNMP::CxCounterTable* uar_results_table,
-                                 SNMP::CxCounterTable* lir_results_table,
-                                 SNMP::CxCounterTable* ppr_results_table,
-                                 SNMP::CxCounterTable* rtr_results_table)
-{
-  mar_results_tbl = mar_results_table;
-  sar_results_tbl = sar_results_table;
-  uar_results_tbl = uar_results_table;
-  lir_results_tbl = lir_results_table;
-  ppr_results_tbl = ppr_results_table;
-  rtr_results_tbl = rtr_results_table;
 }

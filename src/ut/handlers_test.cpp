@@ -164,20 +164,9 @@ public:
   static MockHttpStack* _httpstack;
   static MockHttpConnection* _mock_http_conn;
   static SproutConnection* _sprout_conn;
-  //static FakeHssConnection* _hss;
   static MockHssConnection* _hss;
 
 
-  // Two mock stats managers, so we can choose whether to ignore stats or not.
-  static NiceMock<MockStatisticsManager>* _nice_stats;
-  static StrictMock<MockStatisticsManager>* _stats;
-
-  static SNMP::CxCounterTable* _mar_results_table;
-  static SNMP::CxCounterTable* _sar_results_table;
-  static SNMP::CxCounterTable* _uar_results_table;
-  static SNMP::CxCounterTable* _lir_results_table;
-  static SNMP::CxCounterTable* _ppr_results_table;
-  static SNMP::CxCounterTable* _rtr_results_table;
 
   // Used to catch diameter messages and transactions on the MockDiameterStack
   // so that we can inspect them.

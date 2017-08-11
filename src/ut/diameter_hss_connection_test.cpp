@@ -68,6 +68,7 @@ using ::testing::ByRef;
 using ::testing::ReturnNull;
 using ::testing::IsNull;
 using ::testing::Pointee;
+using ::testing::InvokeWithoutArgs;
 
 
 // We pass AuthVector*s around, not the subclasses, so we need some custom
@@ -174,7 +175,6 @@ public:
   static HssConnection::lia_cb LIA_CB;
   static HssConnection::saa_cb SAA_CB;
 
-  // Two mock stats managers, so we can choose whether to ignore stats or not.
   static StrictMock<MockStatisticsManager>* _stats;
 
   static SNMP::CxCounterTable* _mar_results_table;
@@ -207,6 +207,20 @@ public:
     _stats = new StrictMock<MockStatisticsManager>;
     _hss_connection = new HssConnection::DiameterHssConnection(_stats, _cx_dict, _mock_stack, DEST_REALM, DEST_HOST, TIMEOUT_MS);
 
+    _mar_results_table = SNMP::CxCounterTable::create("", "");
+    _sar_results_table = SNMP::CxCounterTable::create("", "");
+    _uar_results_table = SNMP::CxCounterTable::create("", "");
+    _lir_results_table = SNMP::CxCounterTable::create("", "");
+    _ppr_results_table = SNMP::CxCounterTable::create("", "");
+    _rtr_results_table = SNMP::CxCounterTable::create("", "");
+
+    HssConnection::configure_cx_results_tables(_mar_results_table,
+                                               _sar_results_table,
+                                               _uar_results_table,
+                                               _lir_results_table,
+                                               _ppr_results_table,
+                                               _rtr_results_table);
+
     HssConnection::DiameterHssConnection::configure_auth_schemes(SCHEME_DIGEST, SCHEME_AKA, SCHEME_AKAV2);
   
     cwtest_completely_control_time();
@@ -224,6 +238,12 @@ public:
     _real_stack->wait_stopped();
     _real_stack = NULL;
     delete _answer_catcher; _answer_catcher = NULL;
+    delete _mar_results_table; _mar_results_table = NULL;
+    delete _sar_results_table; _sar_results_table = NULL;
+    delete _uar_results_table; _uar_results_table = NULL;
+    delete _lir_results_table; _lir_results_table = NULL;
+    delete _ppr_results_table; _ppr_results_table = NULL;
+    delete _rtr_results_table; _rtr_results_table = NULL;
   }
 
 
@@ -282,6 +302,12 @@ StrictMock<MockStatisticsManager>* DiameterHssConnectionTest::_stats = NULL;
 Diameter::Transaction* DiameterHssConnectionTest::_caught_diam_tsx = NULL;
 MockAnswerCatcher* DiameterHssConnectionTest::_answer_catcher = NULL;
 
+SNMP::CxCounterTable* DiameterHssConnectionTest::_mar_results_table = NULL;
+SNMP::CxCounterTable* DiameterHssConnectionTest::_sar_results_table = NULL;
+SNMP::CxCounterTable* DiameterHssConnectionTest::_uar_results_table = NULL;
+SNMP::CxCounterTable* DiameterHssConnectionTest::_lir_results_table = NULL;
+SNMP::CxCounterTable* DiameterHssConnectionTest::_ppr_results_table = NULL;
+SNMP::CxCounterTable* DiameterHssConnectionTest::_rtr_results_table = NULL;
 
 // These functions allow us to pass the answers to our _answer_catcher, which
 // we use to check the contents of the answer
@@ -327,6 +353,7 @@ TEST_F(DiameterHssConnectionTest, SendMARDigest)
 
   // Check that we've caught the message and it's not null
   ASSERT_FALSE(_caught_diam_tsx == NULL);
+  _caught_diam_tsx->start_timer();
 
   // Turn the caught Diameter msg structure into a MAR and check its contents.
   Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
@@ -363,6 +390,13 @@ TEST_F(DiameterHssConnectionTest, SendMARDigest)
           Field(&HssConnection::MultimediaAuthAnswer::_sip_auth_scheme, SCHEME_DIGEST),
           Field(&HssConnection::MultimediaAuthAnswer::_auth_vector,
             IsDigestAndMatches("ha1", "realm", "qop"))))).Times(1).RetiresOnSaturation();
+
+
+  // Expect the stats to be updated
+  EXPECT_CALL(*_stats, update_H_hss_digest_latency_us(12000));
+  EXPECT_CALL(*_stats, update_H_hss_latency_us(12000));
+  cwtest_advance_time_ms(12);
+
   _caught_diam_tsx->on_response(maa);
 
   _caught_fd_msg = NULL;
@@ -391,6 +425,7 @@ TEST_F(DiameterHssConnectionTest, SendMARAKAv1)
 
   // Check that we've caught the message and it's not null
   ASSERT_FALSE(_caught_diam_tsx == NULL);
+  _caught_diam_tsx->start_timer();
 
   // Turn the caught Diameter msg structure into a MAR and check its contents.
   Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
@@ -430,6 +465,12 @@ TEST_F(DiameterHssConnectionTest, SendMARAKAv1)
           Field(&HssConnection::MultimediaAuthAnswer::_sip_auth_scheme, SCHEME_AKA),
           Field(&HssConnection::MultimediaAuthAnswer::_auth_vector,
             IsAKAAndMatches(1, CHALLENGE_ENC, RESPONSE_ENC, CRYPT_KEY_ENC, INTEGRITY_KEY_ENC))))).Times(1).RetiresOnSaturation();
+
+  // Expect the stats to be updated
+  EXPECT_CALL(*_stats, update_H_hss_latency_us(12000));
+  EXPECT_CALL(*_stats, update_H_hss_digest_latency_us(12000));
+  cwtest_advance_time_ms(12);
+
   _caught_diam_tsx->on_response(maa);
 
   _caught_fd_msg = NULL;
@@ -458,6 +499,7 @@ TEST_F(DiameterHssConnectionTest, SendMARAKAv2)
 
   // Check that we've caught the message and it's not null
   ASSERT_FALSE(_caught_diam_tsx == NULL);
+  _caught_diam_tsx->start_timer();
 
   // Turn the caught Diameter msg structure into a MAR and check its contents.
   Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
@@ -498,6 +540,12 @@ TEST_F(DiameterHssConnectionTest, SendMARAKAv2)
           Field(&HssConnection::MultimediaAuthAnswer::_sip_auth_scheme, SCHEME_AKAV2),
           Field(&HssConnection::MultimediaAuthAnswer::_auth_vector,
             IsAKAAndMatches(2, CHALLENGE_ENC, RESPONSE_ENC, CRYPT_KEY_ENC, INTEGRITY_KEY_ENC))))).Times(1).RetiresOnSaturation();
+
+  // Expect the stats to be updated
+  EXPECT_CALL(*_stats, update_H_hss_latency_us(12000));
+  EXPECT_CALL(*_stats, update_H_hss_digest_latency_us(12000));
+  cwtest_advance_time_ms(12);
+
   _caught_diam_tsx->on_response(maa);
 
   _caught_fd_msg = NULL;
@@ -526,6 +574,7 @@ TEST_F(DiameterHssConnectionTest, SendMARRecvUnknownScheme)
 
   // Check that we've caught the message and it's not null
   ASSERT_FALSE(_caught_diam_tsx == NULL);
+  _caught_diam_tsx->start_timer();
 
   // Turn the caught Diameter msg structure into a MAR and check its contents.
   Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
@@ -557,6 +606,12 @@ TEST_F(DiameterHssConnectionTest, SendMARRecvUnknownScheme)
   EXPECT_CALL(*_answer_catcher, got_maa(
     Field(&HssConnection::MultimediaAuthAnswer::_result_code, ::HssConnection::ResultCode::UNKNOWN_AUTH_SCHEME)))
     .Times(1).RetiresOnSaturation();
+
+  // Expect the stats to be updated
+  EXPECT_CALL(*_stats, update_H_hss_latency_us(12000));
+  EXPECT_CALL(*_stats, update_H_hss_digest_latency_us(12000));
+  cwtest_advance_time_ms(12);
+
   _caught_diam_tsx->on_response(maa);
 
   _caught_fd_msg = NULL;
@@ -585,7 +640,9 @@ TEST_F(DiameterHssConnectionTest, SendMARRecvSERVER_UNAVAILABLE)
 
   // Check that we've caught the message and it's not null
   ASSERT_FALSE(_caught_diam_tsx == NULL);
+  _caught_diam_tsx->start_timer();
 
+  //_caught_diam_tsx->start_timer();
   // Turn the caught Diameter msg structure into a MAR and check its contents.
   Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
   Cx::MultimediaAuthRequest mar(msg);
@@ -616,6 +673,12 @@ TEST_F(DiameterHssConnectionTest, SendMARRecvSERVER_UNAVAILABLE)
   EXPECT_CALL(*_answer_catcher, got_maa(
     Field(&HssConnection::MultimediaAuthAnswer::_result_code, ::HssConnection::ResultCode::SERVER_UNAVAILABLE)))
     .Times(1).RetiresOnSaturation();
+
+  // Expect the stats to be updated
+  EXPECT_CALL(*_stats, update_H_hss_latency_us(12000));
+  EXPECT_CALL(*_stats, update_H_hss_digest_latency_us(12000));
+  cwtest_advance_time_ms(12);
+
   _caught_diam_tsx->on_response(maa);
 
   _caught_fd_msg = NULL;
@@ -644,6 +707,7 @@ TEST_F(DiameterHssConnectionTest, SendMARRecvNOT_FOUND)
 
   // Check that we've caught the message and it's not null
   ASSERT_FALSE(_caught_diam_tsx == NULL);
+  _caught_diam_tsx->start_timer();
 
   // Turn the caught Diameter msg structure into a MAR and check its contents.
   Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
@@ -675,6 +739,12 @@ TEST_F(DiameterHssConnectionTest, SendMARRecvNOT_FOUND)
   EXPECT_CALL(*_answer_catcher, got_maa(
     Field(&HssConnection::MultimediaAuthAnswer::_result_code, ::HssConnection::ResultCode::NOT_FOUND)))
     .Times(1).RetiresOnSaturation();
+
+  // Expect the stats to be updated
+  EXPECT_CALL(*_stats, update_H_hss_latency_us(12000));
+  EXPECT_CALL(*_stats, update_H_hss_digest_latency_us(12000));
+  cwtest_advance_time_ms(12);
+
   _caught_diam_tsx->on_response(maa);
 
   _caught_fd_msg = NULL;
@@ -703,6 +773,7 @@ TEST_F(DiameterHssConnectionTest, SendMARRecvUNKNOWN_ERROR)
 
   // Check that we've caught the message and it's not null
   ASSERT_FALSE(_caught_diam_tsx == NULL);
+  _caught_diam_tsx->start_timer();
 
   // Turn the caught Diameter msg structure into a MAR and check its contents.
   Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
@@ -734,6 +805,12 @@ TEST_F(DiameterHssConnectionTest, SendMARRecvUNKNOWN_ERROR)
   EXPECT_CALL(*_answer_catcher, got_maa(
     Field(&HssConnection::MultimediaAuthAnswer::_result_code, ::HssConnection::ResultCode::UNKNOWN)))
     .Times(1).RetiresOnSaturation();
+
+  // Expect the stats to be updated
+  EXPECT_CALL(*_stats, update_H_hss_latency_us(12000));
+  EXPECT_CALL(*_stats, update_H_hss_digest_latency_us(12000));
+  cwtest_advance_time_ms(12);
+
   _caught_diam_tsx->on_response(maa);
 
   _caught_fd_msg = NULL;
@@ -766,6 +843,7 @@ TEST_F(DiameterHssConnectionTest, SendUARServerName)
 
   // Check that we've caught the message and it's not null
   ASSERT_FALSE(_caught_diam_tsx == NULL);
+  _caught_diam_tsx->start_timer();
 
   // Turn the caught Diameter msg structure into a UAR and check its contents.
   Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
@@ -796,6 +874,12 @@ TEST_F(DiameterHssConnectionTest, SendUARServerName)
           Field(&HssConnection::UserAuthAnswer::_json_result, DIAMETER_SUCCESS),
           Field(&HssConnection::UserAuthAnswer::_server_name, SERVER_NAME),
           Field(&HssConnection::UserAuthAnswer::_server_capabilities, IsNull())))).Times(1).RetiresOnSaturation();
+
+  // Expect the stats to be updated
+  EXPECT_CALL(*_stats, update_H_hss_latency_us(12000));
+  EXPECT_CALL(*_stats, update_H_hss_subscription_latency_us(12000));
+  cwtest_advance_time_ms(12);
+
   _caught_diam_tsx->on_response(uaa);
 
   _caught_fd_msg = NULL;
@@ -824,6 +908,7 @@ TEST_F(DiameterHssConnectionTest, SendUARServerCapabilities)
 
   // Check that we've caught the message and it's not null
   ASSERT_FALSE(_caught_diam_tsx == NULL);
+  _caught_diam_tsx->start_timer();
 
   // Turn the caught Diameter msg structure into a UAR and check its contents.
   Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
@@ -858,6 +943,12 @@ TEST_F(DiameterHssConnectionTest, SendUARServerCapabilities)
             AllOf(Field(&ServerCapabilities::mandatory_capabilities, mandatory_capabilities),
                   Field(&ServerCapabilities::optional_capabilities, optional_capabilities))
           ))))).Times(1).RetiresOnSaturation();
+
+  // Expect the stats to be updated
+  EXPECT_CALL(*_stats, update_H_hss_latency_us(12000));
+  EXPECT_CALL(*_stats, update_H_hss_subscription_latency_us(12000));
+  cwtest_advance_time_ms(12);
+
   _caught_diam_tsx->on_response(uaa);
 
   _caught_fd_msg = NULL;
@@ -886,6 +977,7 @@ TEST_F(DiameterHssConnectionTest, SendUARUserUnknown)
 
   // Check that we've caught the message and it's not null
   ASSERT_FALSE(_caught_diam_tsx == NULL);
+  _caught_diam_tsx->start_timer();
 
   // Turn the caught Diameter msg structure into a UAR and check its contents.
   Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
@@ -914,6 +1006,11 @@ TEST_F(DiameterHssConnectionTest, SendUARUserUnknown)
   EXPECT_CALL(*_answer_catcher, got_uaa(
     Field(&HssConnection::UserAuthAnswer::_result_code, ::HssConnection::ResultCode::NOT_FOUND)))
     .Times(1).RetiresOnSaturation();
+
+  // Expect the stats to be updated
+  EXPECT_CALL(*_stats, update_H_hss_latency_us(12000));
+  EXPECT_CALL(*_stats, update_H_hss_subscription_latency_us(12000));
+  cwtest_advance_time_ms(12);
 
   _caught_diam_tsx->on_response(uaa);
 
@@ -943,6 +1040,7 @@ TEST_F(DiameterHssConnectionTest, SendUARIdentitiesDontMatch)
 
   // Check that we've caught the message and it's not null
   ASSERT_FALSE(_caught_diam_tsx == NULL);
+  _caught_diam_tsx->start_timer();
 
   // Turn the caught Diameter msg structure into a UAR and check its contents.
   Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
@@ -972,6 +1070,11 @@ TEST_F(DiameterHssConnectionTest, SendUARIdentitiesDontMatch)
     Field(&HssConnection::UserAuthAnswer::_result_code, ::HssConnection::ResultCode::NOT_FOUND)))
     .Times(1).RetiresOnSaturation();
 
+  // Expect the stats to be updated
+  EXPECT_CALL(*_stats, update_H_hss_latency_us(12000));
+  EXPECT_CALL(*_stats, update_H_hss_subscription_latency_us(12000));
+  cwtest_advance_time_ms(12);
+
   _caught_diam_tsx->on_response(uaa);
 
   _caught_fd_msg = NULL;
@@ -1000,6 +1103,7 @@ TEST_F(DiameterHssConnectionTest, SendUARAuthRejected)
 
   // Check that we've caught the message and it's not null
   ASSERT_FALSE(_caught_diam_tsx == NULL);
+  _caught_diam_tsx->start_timer();
 
   // Turn the caught Diameter msg structure into a UAR and check its contents.
   Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
@@ -1028,6 +1132,12 @@ TEST_F(DiameterHssConnectionTest, SendUARAuthRejected)
   EXPECT_CALL(*_answer_catcher, got_uaa(
     Field(&HssConnection::UserAuthAnswer::_result_code, ::HssConnection::ResultCode::FORBIDDEN)))
     .Times(1).RetiresOnSaturation();
+
+  // Expect the stats to be updated
+  EXPECT_CALL(*_stats, update_H_hss_latency_us(12000));
+  EXPECT_CALL(*_stats, update_H_hss_subscription_latency_us(12000));
+  cwtest_advance_time_ms(12);
+
   _caught_diam_tsx->on_response(uaa);
 
   _caught_fd_msg = NULL;
@@ -1056,6 +1166,7 @@ TEST_F(DiameterHssConnectionTest, SendUARRoamingNotAllowed)
 
   // Check that we've caught the message and it's not null
   ASSERT_FALSE(_caught_diam_tsx == NULL);
+  _caught_diam_tsx->start_timer();
 
   // Turn the caught Diameter msg structure into a UAR and check its contents.
   Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
@@ -1084,6 +1195,12 @@ TEST_F(DiameterHssConnectionTest, SendUARRoamingNotAllowed)
   EXPECT_CALL(*_answer_catcher, got_uaa(
     Field(&HssConnection::UserAuthAnswer::_result_code, ::HssConnection::ResultCode::FORBIDDEN)))
     .Times(1).RetiresOnSaturation();
+
+  // Expect the stats to be updated
+  EXPECT_CALL(*_stats, update_H_hss_latency_us(12000));
+  EXPECT_CALL(*_stats, update_H_hss_subscription_latency_us(12000));
+  cwtest_advance_time_ms(12);
+
   _caught_diam_tsx->on_response(uaa);
 
   _caught_fd_msg = NULL;
@@ -1112,6 +1229,7 @@ TEST_F(DiameterHssConnectionTest, SendUARTooBusy)
 
   // Check that we've caught the message and it's not null
   ASSERT_FALSE(_caught_diam_tsx == NULL);
+  _caught_diam_tsx->start_timer();
 
   // Turn the caught Diameter msg structure into a UAR and check its contents.
   Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
@@ -1140,6 +1258,12 @@ TEST_F(DiameterHssConnectionTest, SendUARTooBusy)
   EXPECT_CALL(*_answer_catcher, got_uaa(
     Field(&HssConnection::UserAuthAnswer::_result_code, ::HssConnection::ResultCode::TIMEOUT)))
     .Times(1).RetiresOnSaturation();
+
+  // Expect the stats to be updated
+  EXPECT_CALL(*_stats, update_H_hss_latency_us(12000));
+  EXPECT_CALL(*_stats, update_H_hss_subscription_latency_us(12000));
+  cwtest_advance_time_ms(12);
+
   _caught_diam_tsx->on_response(uaa);
 
   _caught_fd_msg = NULL;
@@ -1168,6 +1292,7 @@ TEST_F(DiameterHssConnectionTest, SendUARUnableToDeliver)
 
   // Check that we've caught the message and it's not null
   ASSERT_FALSE(_caught_diam_tsx == NULL);
+  _caught_diam_tsx->start_timer();
 
   // Turn the caught Diameter msg structure into a UAR and check its contents.
   Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
@@ -1196,6 +1321,12 @@ TEST_F(DiameterHssConnectionTest, SendUARUnableToDeliver)
   EXPECT_CALL(*_answer_catcher, got_uaa(
     Field(&HssConnection::UserAuthAnswer::_result_code, ::HssConnection::ResultCode::SERVER_UNAVAILABLE)))
     .Times(1).RetiresOnSaturation();
+
+  // Expect the stats to be updated
+  EXPECT_CALL(*_stats, update_H_hss_latency_us(12000));
+  EXPECT_CALL(*_stats, update_H_hss_subscription_latency_us(12000));
+  cwtest_advance_time_ms(12);
+
   _caught_diam_tsx->on_response(uaa);
 
   _caught_fd_msg = NULL;
@@ -1224,6 +1355,7 @@ TEST_F(DiameterHssConnectionTest, SendUARUnknownError)
 
   // Check that we've caught the message and it's not null
   ASSERT_FALSE(_caught_diam_tsx == NULL);
+  _caught_diam_tsx->start_timer();
 
   // Turn the caught Diameter msg structure into a UAR and check its contents.
   Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
@@ -1252,6 +1384,12 @@ TEST_F(DiameterHssConnectionTest, SendUARUnknownError)
   EXPECT_CALL(*_answer_catcher, got_uaa(
     Field(&HssConnection::UserAuthAnswer::_result_code, ::HssConnection::ResultCode::UNKNOWN)))
     .Times(1).RetiresOnSaturation();
+
+  // Expect the stats to be updated
+  EXPECT_CALL(*_stats, update_H_hss_latency_us(12000));
+  EXPECT_CALL(*_stats, update_H_hss_subscription_latency_us(12000));
+  cwtest_advance_time_ms(12);
+
   _caught_diam_tsx->on_response(uaa);
 
   _caught_fd_msg = NULL;
@@ -1282,6 +1420,7 @@ TEST_F(DiameterHssConnectionTest, SendLIROriginating)
 
   // Check that we've caught the message and it's not null
   ASSERT_FALSE(_caught_diam_tsx == NULL);
+  _caught_diam_tsx->start_timer();
 
   // Turn the caught Diameter msg structure into a UAR and check its contents.
   // Note that originating "true" corresponds to a value of 0 in the AVP
@@ -1314,6 +1453,11 @@ TEST_F(DiameterHssConnectionTest, SendLIROriginating)
           Field(&HssConnection::LocationInfoAnswer::_wildcard_impu, ""),
           Field(&HssConnection::LocationInfoAnswer::_server_capabilities, IsNull())))).Times(1).RetiresOnSaturation();
 
+  // Expect the stats to be updated
+  EXPECT_CALL(*_stats, update_H_hss_latency_us(12000));
+  EXPECT_CALL(*_stats, update_H_hss_subscription_latency_us(12000));
+  cwtest_advance_time_ms(12);
+
   _caught_diam_tsx->on_response(lia);
 
   _caught_fd_msg = NULL;
@@ -1340,6 +1484,7 @@ TEST_F(DiameterHssConnectionTest, SendLIRAuthTypeCapabilities)
 
   // Check that we've caught the message and it's not null
   ASSERT_FALSE(_caught_diam_tsx == NULL);
+  _caught_diam_tsx->start_timer();
 
   // Turn the caught Diameter msg structure into a UAR and check its contents.
   // Note that auth-type "CAPAB" corresponds to a value of 2 in the AVP
@@ -1374,6 +1519,11 @@ TEST_F(DiameterHssConnectionTest, SendLIRAuthTypeCapabilities)
                   Field(&ServerCapabilities::optional_capabilities, optional_capabilities))
           ))))).Times(1).RetiresOnSaturation();
 
+  // Expect the stats to be updated
+  EXPECT_CALL(*_stats, update_H_hss_latency_us(12000));
+  EXPECT_CALL(*_stats, update_H_hss_subscription_latency_us(12000));
+  cwtest_advance_time_ms(12);
+
   _caught_diam_tsx->on_response(lia);
 
   _caught_fd_msg = NULL;
@@ -1400,6 +1550,7 @@ TEST_F(DiameterHssConnectionTest, SendLIRWildcardImpu)
 
   // Check that we've caught the message and it's not null
   ASSERT_FALSE(_caught_diam_tsx == NULL);
+  _caught_diam_tsx->start_timer();
 
   // Turn the caught Diameter msg structure into a UAR and check its contents.
   // Note that originating "true" corresponds to a value of 0 in the AVP
@@ -1432,6 +1583,11 @@ TEST_F(DiameterHssConnectionTest, SendLIRWildcardImpu)
           Field(&HssConnection::LocationInfoAnswer::_wildcard_impu, "wildcard"),
           Field(&HssConnection::LocationInfoAnswer::_server_capabilities, IsNull())))).Times(1).RetiresOnSaturation();
 
+  // Expect the stats to be updated
+  EXPECT_CALL(*_stats, update_H_hss_latency_us(12000));
+  EXPECT_CALL(*_stats, update_H_hss_subscription_latency_us(12000));
+  cwtest_advance_time_ms(12);
+
   _caught_diam_tsx->on_response(lia);
 
   _caught_fd_msg = NULL;
@@ -1458,6 +1614,7 @@ TEST_F(DiameterHssConnectionTest, SendLIRUnregisteredService)
 
   // Check that we've caught the message and it's not null
   ASSERT_FALSE(_caught_diam_tsx == NULL);
+  _caught_diam_tsx->start_timer();
 
   // Turn the caught Diameter msg structure into a UAR and check its contents.
   // Note that originating "true" corresponds to a value of 0 in the AVP
@@ -1489,6 +1646,11 @@ TEST_F(DiameterHssConnectionTest, SendLIRUnregisteredService)
           Field(&HssConnection::LocationInfoAnswer::_wildcard_impu, ""),
           Field(&HssConnection::LocationInfoAnswer::_server_capabilities, IsNull())))).Times(1).RetiresOnSaturation();
 
+  // Expect the stats to be updated
+  EXPECT_CALL(*_stats, update_H_hss_latency_us(12000));
+  EXPECT_CALL(*_stats, update_H_hss_subscription_latency_us(12000));
+  cwtest_advance_time_ms(12);
+
   _caught_diam_tsx->on_response(lia);
 
   _caught_fd_msg = NULL;
@@ -1515,6 +1677,7 @@ TEST_F(DiameterHssConnectionTest, SendLIRIdentityNotRegistered)
 
   // Check that we've caught the message and it's not null
   ASSERT_FALSE(_caught_diam_tsx == NULL);
+  _caught_diam_tsx->start_timer();
 
   // Turn the caught Diameter msg structure into a UAR and check its contents.
   // Note that originating "true" corresponds to a value of 0 in the AVP
@@ -1546,6 +1709,11 @@ TEST_F(DiameterHssConnectionTest, SendLIRIdentityNotRegistered)
           Field(&HssConnection::LocationInfoAnswer::_wildcard_impu, ""),
           Field(&HssConnection::LocationInfoAnswer::_server_capabilities, IsNull())))).Times(1).RetiresOnSaturation();
 
+  // Expect the stats to be updated
+  EXPECT_CALL(*_stats, update_H_hss_latency_us(12000));
+  EXPECT_CALL(*_stats, update_H_hss_subscription_latency_us(12000));
+  cwtest_advance_time_ms(12);
+
   _caught_diam_tsx->on_response(lia);
 
   _caught_fd_msg = NULL;
@@ -1572,6 +1740,7 @@ TEST_F(DiameterHssConnectionTest, SendLIRUserUnknown)
 
   // Check that we've caught the message and it's not null
   ASSERT_FALSE(_caught_diam_tsx == NULL);
+  _caught_diam_tsx->start_timer();
 
   // Turn the caught Diameter msg structure into a UAR and check its contents.
   // Note that originating "true" corresponds to a value of 0 in the AVP
@@ -1600,6 +1769,11 @@ TEST_F(DiameterHssConnectionTest, SendLIRUserUnknown)
     Field(&HssConnection::LocationInfoAnswer::_result_code, ::HssConnection::ResultCode::NOT_FOUND)))
     .Times(1).RetiresOnSaturation();
 
+  // Expect the stats to be updated
+  EXPECT_CALL(*_stats, update_H_hss_latency_us(12000));
+  EXPECT_CALL(*_stats, update_H_hss_subscription_latency_us(12000));
+  cwtest_advance_time_ms(12);
+
   _caught_diam_tsx->on_response(lia);
 
   _caught_fd_msg = NULL;
@@ -1626,6 +1800,7 @@ TEST_F(DiameterHssConnectionTest, SendLIRTooBusy)
 
   // Check that we've caught the message and it's not null
   ASSERT_FALSE(_caught_diam_tsx == NULL);
+  _caught_diam_tsx->start_timer();
 
   // Turn the caught Diameter msg structure into a UAR and check its contents.
   // Note that originating "true" corresponds to a value of 0 in the AVP
@@ -1654,6 +1829,11 @@ TEST_F(DiameterHssConnectionTest, SendLIRTooBusy)
     Field(&HssConnection::LocationInfoAnswer::_result_code, ::HssConnection::ResultCode::TIMEOUT)))
     .Times(1).RetiresOnSaturation();
 
+  // Expect the stats to be updated
+  EXPECT_CALL(*_stats, update_H_hss_latency_us(12000));
+  EXPECT_CALL(*_stats, update_H_hss_subscription_latency_us(12000));
+  cwtest_advance_time_ms(12);
+
   _caught_diam_tsx->on_response(lia);
 
   _caught_fd_msg = NULL;
@@ -1680,6 +1860,7 @@ TEST_F(DiameterHssConnectionTest, SendLIRUnableToDeliver)
 
   // Check that we've caught the message and it's not null
   ASSERT_FALSE(_caught_diam_tsx == NULL);
+  _caught_diam_tsx->start_timer();
 
   // Turn the caught Diameter msg structure into a UAR and check its contents.
   // Note that originating "true" corresponds to a value of 0 in the AVP
@@ -1708,6 +1889,11 @@ TEST_F(DiameterHssConnectionTest, SendLIRUnableToDeliver)
     Field(&HssConnection::LocationInfoAnswer::_result_code, ::HssConnection::ResultCode::SERVER_UNAVAILABLE)))
     .Times(1).RetiresOnSaturation();
 
+  // Expect the stats to be updated
+  EXPECT_CALL(*_stats, update_H_hss_latency_us(12000));
+  EXPECT_CALL(*_stats, update_H_hss_subscription_latency_us(12000));
+  cwtest_advance_time_ms(12);
+
   _caught_diam_tsx->on_response(lia);
 
   _caught_fd_msg = NULL;
@@ -1734,6 +1920,7 @@ TEST_F(DiameterHssConnectionTest, SendLIRUnknown)
 
   // Check that we've caught the message and it's not null
   ASSERT_FALSE(_caught_diam_tsx == NULL);
+  _caught_diam_tsx->start_timer();
 
   // Turn the caught Diameter msg structure into a UAR and check its contents.
   // Note that originating "true" corresponds to a value of 0 in the AVP
@@ -1761,6 +1948,11 @@ TEST_F(DiameterHssConnectionTest, SendLIRUnknown)
   EXPECT_CALL(*_answer_catcher, got_lia(
     Field(&HssConnection::LocationInfoAnswer::_result_code, ::HssConnection::ResultCode::UNKNOWN)))
     .Times(1).RetiresOnSaturation();
+
+  // Expect the stats to be updated
+  EXPECT_CALL(*_stats, update_H_hss_latency_us(12000));
+  EXPECT_CALL(*_stats, update_H_hss_subscription_latency_us(12000));
+  cwtest_advance_time_ms(12);
 
   _caught_diam_tsx->on_response(lia);
 
@@ -1795,6 +1987,7 @@ TEST_F(DiameterHssConnectionTest, SendSARMainline)
 
   // Check that we've caught the message and it's not null
   ASSERT_FALSE(_caught_diam_tsx == NULL);
+  _caught_diam_tsx->start_timer();
 
   // Turn the caught Diameter msg structure into a UAR and check its contents.
   Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
@@ -1828,6 +2021,12 @@ TEST_F(DiameterHssConnectionTest, SendSARMainline)
           Field(&HssConnection::ServerAssignmentAnswer::_charging_addrs,
             AllOf(Field(&ChargingAddresses::ccfs, CCFS),
                   Field(&ChargingAddresses::ecfs, ECFS)))))).Times(1).RetiresOnSaturation();
+
+  // Expect the stats to be updated
+  EXPECT_CALL(*_stats, update_H_hss_latency_us(12000));
+  EXPECT_CALL(*_stats, update_H_hss_subscription_latency_us(12000));
+  cwtest_advance_time_ms(12);
+
   _caught_diam_tsx->on_response(saa);
 
   _caught_fd_msg = NULL;
@@ -1857,6 +2056,7 @@ TEST_F(DiameterHssConnectionTest, SendSARWildcardImpu)
 
   // Check that we've caught the message and it's not null
   ASSERT_FALSE(_caught_diam_tsx == NULL);
+  _caught_diam_tsx->start_timer();
 
   // Turn the caught Diameter msg structure into a UAR and check its contents.
   Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
@@ -1888,6 +2088,12 @@ TEST_F(DiameterHssConnectionTest, SendSARWildcardImpu)
     AllOf(Field(&HssConnection::ServerAssignmentAnswer::_result_code, ::HssConnection::ResultCode::NEW_WILDCARD),
           Field(&HssConnection::ServerAssignmentAnswer::_wildcard_impu, "wildcard"))))
     .Times(1).RetiresOnSaturation();
+
+  // Expect the stats to be updated
+  EXPECT_CALL(*_stats, update_H_hss_latency_us(12000));
+  EXPECT_CALL(*_stats, update_H_hss_subscription_latency_us(12000));
+  cwtest_advance_time_ms(12);
+
   _caught_diam_tsx->on_response(saa);
 
   _caught_fd_msg = NULL;
@@ -1917,6 +2123,7 @@ TEST_F(DiameterHssConnectionTest, SendSARUnableToDeliver)
 
   // Check that we've caught the message and it's not null
   ASSERT_FALSE(_caught_diam_tsx == NULL);
+  _caught_diam_tsx->start_timer();
 
   // Turn the caught Diameter msg structure into a UAR and check its contents.
   Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
@@ -1947,6 +2154,12 @@ TEST_F(DiameterHssConnectionTest, SendSARUnableToDeliver)
   EXPECT_CALL(*_answer_catcher, got_saa(
     Field(&HssConnection::ServerAssignmentAnswer::_result_code, ::HssConnection::ResultCode::SERVER_UNAVAILABLE)))
     .Times(1).RetiresOnSaturation();
+
+  // Expect the stats to be updated
+  EXPECT_CALL(*_stats, update_H_hss_latency_us(12000));
+  EXPECT_CALL(*_stats, update_H_hss_subscription_latency_us(12000));
+  cwtest_advance_time_ms(12);
+
   _caught_diam_tsx->on_response(saa);
 
   _caught_fd_msg = NULL;
@@ -1976,6 +2189,7 @@ TEST_F(DiameterHssConnectionTest, SendSARUserUnknown)
 
   // Check that we've caught the message and it's not null
   ASSERT_FALSE(_caught_diam_tsx == NULL);
+  _caught_diam_tsx->start_timer();
 
   // Turn the caught Diameter msg structure into a UAR and check its contents.
   Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
@@ -2006,6 +2220,12 @@ TEST_F(DiameterHssConnectionTest, SendSARUserUnknown)
   EXPECT_CALL(*_answer_catcher, got_saa(
     Field(&HssConnection::ServerAssignmentAnswer::_result_code, ::HssConnection::ResultCode::NOT_FOUND)))
     .Times(1).RetiresOnSaturation();
+
+  // Expect the stats to be updated
+  EXPECT_CALL(*_stats, update_H_hss_latency_us(12000));
+  EXPECT_CALL(*_stats, update_H_hss_subscription_latency_us(12000));
+  cwtest_advance_time_ms(12);
+
   _caught_diam_tsx->on_response(saa);
 
   _caught_fd_msg = NULL;
@@ -2035,6 +2255,7 @@ TEST_F(DiameterHssConnectionTest, SendSARUnknown)
 
   // Check that we've caught the message and it's not null
   ASSERT_FALSE(_caught_diam_tsx == NULL);
+  _caught_diam_tsx->start_timer();
 
   // Turn the caught Diameter msg structure into a UAR and check its contents.
   Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
@@ -2065,7 +2286,60 @@ TEST_F(DiameterHssConnectionTest, SendSARUnknown)
   EXPECT_CALL(*_answer_catcher, got_saa(
     Field(&HssConnection::ServerAssignmentAnswer::_result_code, ::HssConnection::ResultCode::UNKNOWN)))
     .Times(1).RetiresOnSaturation();
+
+  // Expect the stats to be updated
+  EXPECT_CALL(*_stats, update_H_hss_latency_us(12000));
+  EXPECT_CALL(*_stats, update_H_hss_subscription_latency_us(12000));
+  cwtest_advance_time_ms(12);
+
   _caught_diam_tsx->on_response(saa);
+
+  _caught_fd_msg = NULL;
+  delete _caught_diam_tsx; _caught_diam_tsx = NULL;
+}
+
+//
+// Timeout test
+//
+
+TEST_F(DiameterHssConnectionTest, DiameterTimeout)
+{
+  // All timeouts use the same code, so only one test here
+
+  // Create an SAR
+  HssConnection::ServerAssignmentRequest  request = {
+    IMPI,
+    IMPU,
+    SERVER_NAME,
+    Cx::ServerAssignmentType::REGISTRATION,
+    false,
+    ""
+  };
+
+  // Expect diameter message to be sent with the correct timeout, and store the
+  // sent message
+  EXPECT_CALL(*_mock_stack, send(_, _, TIMEOUT_MS))
+    .Times(1)
+    .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
+
+  // Send the SAR
+  _hss_connection->send_server_assignment_request(SAA_CB, request, FAKE_TRAIL_ID);
+
+  // Check that we've caught the message and it's not null
+  ASSERT_FALSE(_caught_diam_tsx == NULL);
+  _caught_diam_tsx->start_timer();
+
+  // Expect that we'll call the callback with a SERVER_UNAVAILABLE ResultCode
+  EXPECT_CALL(*_answer_catcher, got_saa(
+    Field(&HssConnection::ServerAssignmentAnswer::_result_code, ::HssConnection::ResultCode::SERVER_UNAVAILABLE)))
+    .Times(1).RetiresOnSaturation();
+
+  // Expect the stats to be updated
+  EXPECT_CALL(*_stats, update_H_hss_latency_us(12000));
+  EXPECT_CALL(*_stats, update_H_hss_subscription_latency_us(12000));
+  cwtest_advance_time_ms(12);
+
+  _caught_diam_tsx->on_timeout();
 
   _caught_fd_msg = NULL;
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;

@@ -85,7 +85,6 @@ private:
   Diameter::Stack* _diameter_stack;
   std::string _dest_realm;
   std::string _dest_host;
-  SNMP::CxCounterTable* _cx_results_tbl;
   int _diameter_timeout_ms;
 
   static std::string _scheme_digest;
@@ -103,76 +102,29 @@ private:
                         SAS::TrailId trail,
                         StatsFlags stat_updates,
                         callback_t response_clbk,
-                        SNMP::CxCounterTable* cx_results_tbl) :
+                        SNMP::CxCounterTable* cx_results_tbl,
+                        StatisticsManager* stats_manager) :
       Diameter::Transaction(dict, trail),
       _stat_updates(stat_updates),
       _response_clbk(response_clbk),
-      _cx_results_tbl(cx_results_tbl)
+      _cx_results_tbl(cx_results_tbl),
+      _stats_manager(stats_manager)
     {};
 
   protected:
     StatsFlags _stat_updates;
     callback_t _response_clbk;
     SNMP::CxCounterTable* _cx_results_tbl;
+    StatisticsManager* _stats_manager;
 
     // Implementations will use this to create the correct answer
     virtual AnswerType create_answer(Diameter::Message& rsp) = 0;
-    void on_timeout()
-    {
-      //TODO results table and latency
-      update_latency_stats();
-
-      // No result-code returned on timeout, so use 0.
-      _cx_results_tbl->increment(SNMP::DiameterAppId::TIMEOUT, 0);
-
-      AnswerType answer = AnswerType(ResultCode::SERVER_UNAVAILABLE);
-      _response_clbk(answer);
-    }
-
-    void on_response(Diameter::Message& rsp)
-    {
-      update_latency_stats();
-      //TODO results table and latency
-      // TODO - the Handlers should be recording the penalty
-      /*
-      // If we got an overload response (result code of 3004) record a penalty
-      // for the purposes of overload control.
-      int32_t result_code;
-      if (rsp.result_code(result_code) && (result_code == 3004))
-      {
-        _handler->record_penalty();
-      }*/
-      // Create the correct answer from the diameter message, and callback with that
-      //TODO
-      AnswerType answer = create_answer(rsp);
-      _response_clbk(answer);
-    }
+    void on_timeout();
+    void on_response(Diameter::Message& rsp);
+    void increment_results(int32_t result, int32_t experimental, uint32_t vendor);
 
   private:
-    void update_latency_stats()
-    {/*TODO
-      StatisticsManager* stats = HssConnection::_stats_manager;
-
-      if (stats != NULL)
-      {
-        unsigned long latency = 0;
-        if (get_duration(latency))
-        {
-          if (_stat_updates & STAT_HSS_LATENCY)
-          {
-            stats->update_H_hss_latency_us(latency);
-          }
-          if (_stat_updates & STAT_HSS_DIGEST_LATENCY)
-          {
-            stats->update_H_hss_digest_latency_us(latency);
-          }
-          if (_stat_updates & STAT_HSS_SUBSCRIPTION_LATENCY)
-          {
-            stats->update_H_hss_subscription_latency_us(latency);
-          }
-        }
-      }*/
-    }
+    void update_latency_stats();
   };
 
   class MARDiameterTransaction : public DiameterTransaction<MultimediaAuthAnswer>
@@ -211,6 +163,13 @@ private:
     virtual ServerAssignmentAnswer create_answer(Diameter::Message& rsp) override;
   };
 };
+
+void configure_cx_results_tables(SNMP::CxCounterTable* mar_results_table,
+                                 SNMP::CxCounterTable* sar_results_table,
+                                 SNMP::CxCounterTable* uar_results_table,
+                                 SNMP::CxCounterTable* lir_results_table,
+                                 SNMP::CxCounterTable* ppr_results_table,
+                                 SNMP::CxCounterTable* rtr_results_table);
 
 }; // namespace HssConnection
 #endif
