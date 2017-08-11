@@ -55,19 +55,6 @@ void HssCacheTask::configure_stats(StatisticsManager* stats_manager)
   _stats_manager = stats_manager;
 }
 
-void HssCacheTask::on_diameter_timeout()
-{
-  // Although a Diameter timeout indicates that a downstream server has failed,
-  // we send a 503 response rather than a 504.
-  // This is because the request hasn't yet been retried, and it's possible that
-  // another homestead node may be able to complete the request. By sending a
-  // 503 response, we ensure that the request will be retried by the client if
-  // possible.
-  TRC_ERROR("Diameter timeout - respond with HTTP 503");
-  send_http_reply(HTTP_SERVER_UNAVAILABLE);
-  delete this;
-}
-
 // Common SAS log function
 /*TODO
 static void sas_log_get_reg_data_success(Cache::GetRegData* get_reg_data, SAS::TrailId trail)
@@ -198,6 +185,17 @@ void ImpiTask::on_mar_response(const HssConnection::MultimediaAuthAnswer& maa)
     SAS::Event event(this->trail(), SASEvent::NO_AV_HSS, 0);
     SAS::report_event(event);
     send_http_reply(HTTP_NOT_FOUND);
+  }
+  else if (rc == HssConnection::ResultCode::TIMEOUT)
+  {
+    TRC_INFO("HSS busy - reject");
+
+    // We also record a penalty for the purposes of overload control
+    record_penalty();
+
+        // TODO SAS logging?
+    //sas_log_hss_failure(result_code, experimental_result_code);
+    send_http_reply(HTTP_GATEWAY_TIMEOUT);
   }
   else
   {
@@ -488,6 +486,10 @@ void ImpiRegistrationStatusTask::on_uar_response(const HssConnection::UserAuthAn
   else if (rc == HssConnection::ResultCode::TIMEOUT)
   {
     TRC_INFO("HSS busy - reject");
+
+    // We also record a penalty for the purposes of overload control
+    record_penalty();
+
         // TODO SAS logging?
     //sas_log_hss_failure(result_code, experimental_result_code);
     send_http_reply(HTTP_GATEWAY_TIMEOUT);
@@ -631,6 +633,10 @@ void ImpuLocationInfoTask::on_lir_response(const HssConnection::LocationInfoAnsw
   else if (rc == HssConnection::ResultCode::TIMEOUT)
   {
     TRC_INFO("HSS busy - reject");
+
+    // We also record a penalty for the purposes of overload control
+    record_penalty();
+
     //TODO SAS
     //sas_log_hss_failure(result_code, experimental_result_code);
     send_http_reply(HTTP_GATEWAY_TIMEOUT);
@@ -1631,6 +1637,17 @@ void ImpuRegDataTask::on_sar_response(const HssConnection::ServerAssignmentAnswe
       // Since processing has been redone, we can stop processing this SAA now.
       return;
     }
+  }
+  else if (rc == HssConnection::ResultCode::TIMEOUT)
+  {
+    TRC_INFO("HSS busy - reject");
+
+    // We also record a penalty for the purposes of overload control
+    record_penalty();
+
+        // TODO SAS logging?
+    //sas_log_hss_failure(result_code, experimental_result_code);
+    _http_rc = HTTP_GATEWAY_TIMEOUT;
   }
   else
   {

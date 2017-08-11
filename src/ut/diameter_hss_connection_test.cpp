@@ -270,7 +270,7 @@ const std::string DiameterHssConnectionTest::VISITED_NETWORK = "visited-network.
 const std::vector<int32_t> mandatory_capabilities = {1, 3};
 const std::vector<int32_t> optional_capabilities = {2, 4};
 const std::vector<int32_t> no_capabilities = {};
-const ServerCapabilities DiameterHssConnectionTest::CAPABILITIES(mandatory_capabilities, optional_capabilities, "");
+const ServerCapabilities DiameterHssConnectionTest::CAPABILITIES(mandatory_capabilities, optional_capabilities, SERVER_NAME);
 
 const std::string DiameterHssConnectionTest::IMS_SUB_XML = "xml";
 const std::deque<std::string> DiameterHssConnectionTest::NO_CFS = {};

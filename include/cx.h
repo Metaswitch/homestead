@@ -315,6 +315,10 @@ public:
   {
     return get_i32_from_avp(((Cx::Dictionary*)dict())->USER_DATA_ALREADY_AVAILABLE, i32);
   }
+  inline bool get_wildcard(std::string& str) const
+  {
+    return get_str_from_avp(((Cx::Dictionary*)dict())->WILDCARDED_PUBLIC_IDENTITY, str);
+  }
 
   bool include_wildcard_on_sar(Cx::ServerAssignmentType type);
 

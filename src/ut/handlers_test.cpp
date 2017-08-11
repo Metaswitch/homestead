@@ -803,6 +803,38 @@ TEST_F(HandlersTest, ImpiDigestHssTimeout)
   task->run();
 }
 
+TEST_F(HandlersTest, ImpiDigestHssBusy)
+{
+  // Tests IMPI Digest task when HSS times out the request
+  MockHttpStack::Request req(_httpstack,
+                             "/impi/" + IMPI,
+                             "digest",
+                             "?public_id=" + IMPU);
+
+  ImpiTask::Config cfg(SCHEME_UNKNOWN, SCHEME_DIGEST, SCHEME_AKA, SCHEME_AKAV2);
+  ImpiDigestTask* task = new ImpiDigestTask(req, &cfg, FAKE_TRAIL_ID);
+
+  // Create an MAA* to return
+  HssConnection::MultimediaAuthAnswer answer =
+    HssConnection::MultimediaAuthAnswer(HssConnection::ResultCode::TIMEOUT);
+
+  // Expect that the MAR has the correct IMPI, IMPU and scheme
+  EXPECT_CALL(*_hss, send_multimedia_auth_request(_,
+    AllOf(Field(&HssConnection::MultimediaAuthRequest::impi, IMPI),
+          Field(&HssConnection::MultimediaAuthRequest::impu, IMPU),
+          Field(&HssConnection::MultimediaAuthRequest::scheme, SCHEME_DIGEST)),
+    _))
+    .WillOnce(InvokeArgument<0>(ByRef(answer)));
+
+  // Expect a 504
+  EXPECT_CALL(*_httpstack, send_reply(_, 504, _));
+
+  // For a timeout, we expect to record a penalty
+  EXPECT_CALL(*_httpstack, record_penalty()).Times(1);
+
+  task->run();
+}
+
 TEST_F(HandlersTest, ImpiDigestHssUserUnknown)
 {
   // Tests IMPI Digest task when HSS returns user unknown
@@ -1298,6 +1330,9 @@ TEST_F(HandlersTest, ImpiRegStatusForbidden)
 
 TEST_F(HandlersTest, ImpiRegStatusTimeout)
 {
+  // For a timeout, we expect to record a penalty
+  EXPECT_CALL(*_httpstack, record_penalty()).Times(1);
+
   registration_status_error_template(HssConnection::ResultCode::TIMEOUT, HTTP_GATEWAY_TIMEOUT);
 }
 
@@ -1490,6 +1525,9 @@ TEST_F(HandlersTest, LocationInfoNotFound)
 
 TEST_F(HandlersTest, LocationInfoTimeout)
 {
+  // For a timeout, we expect to record a penalty
+  EXPECT_CALL(*_httpstack, record_penalty()).Times(1);
+
   location_info_error_template(HssConnection::ResultCode::TIMEOUT, HTTP_GATEWAY_TIMEOUT);
 }
 
@@ -2183,6 +2221,9 @@ TEST_F(HandlersTest, ImpuRegDataCallNewWildcardNotFound)
   // and then end the test by timing out that request
   HssConnection::ServerAssignmentAnswer answer2 =
     HssConnection::ServerAssignmentAnswer(HssConnection::ResultCode::TIMEOUT);
+
+  // A timeout also gives us a penalty
+  EXPECT_CALL(*_httpstack, record_penalty()).Times(1);
 
   EXPECT_CALL(*_hss, send_server_assignment_request(_,
     AllOf(Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
@@ -2982,6 +3023,44 @@ TEST_F(HandlersTest, ImpuRegDataHssNotFound)
   
   // Expect a 404
   EXPECT_CALL(*_httpstack, send_reply(_, 404, _));
+
+  task->run();
+
+  EXPECT_EQ("", req.content());
+}
+
+TEST_F(HandlersTest, ImpuRegDataHssUnknownError)
+{
+  // Tests that a TIMEOUT error from the HSS triggers a 504 response
+  MockHttpStack::Request req = make_request("reg", true, true, false);
+
+  ImpuRegDataTask::Config cfg(true, 3600, 7200);
+  ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
+    
+  // Create IRS to be returned from the cache
+  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet(IMPU);
+  irs->set_ims_sub_xml(IMPU_IMS_SUBSCRIPTION);
+  irs->set_reg_state(RegistrationState::NOT_REGISTERED);
+  irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
+  irs->set_associated_impis(IMPI_IN_VECTOR);
+
+  // Expect a cache lookup will return IRS in state NOT_REGISTERED
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<0>(irs));
+
+  // Then send a SAR, which gets a NOT_FOUND error
+  HssConnection::ServerAssignmentAnswer answer =
+    HssConnection::ServerAssignmentAnswer(HssConnection::ResultCode::UNKNOWN);
+  EXPECT_CALL(*_hss, send_server_assignment_request(_,
+    AllOf(Field(&HssConnection::ServerAssignmentRequest::impi, IMPI),
+          Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
+          Field(&HssConnection::ServerAssignmentRequest::server_name, SERVER_NAME),
+          Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::REGISTRATION)),
+    _))
+    .WillOnce(InvokeArgument<0>(ByRef(answer)));
+  
+  // Expect a 500
+  EXPECT_CALL(*_httpstack, send_reply(_, 500, _));
 
   task->run();
 

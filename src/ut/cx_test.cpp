@@ -28,6 +28,7 @@ public:
   static const std::string DEST_HOST;
   static const std::string IMPI;
   static const std::string IMPU;
+  static const std::string WILDCARD_IMPU;
   static const std::string SERVER_NAME;
   static const std::string SERVER_NAME_IN_CAPAB;
   static const std::string SIP_AUTH_SCHEME_DIGEST;
@@ -159,6 +160,7 @@ const std::string CxTest::DEST_REALM = "dest-realm";
 const std::string CxTest::DEST_HOST = "dest-host";
 const std::string CxTest::IMPI = "impi@example.com";
 const std::string CxTest::IMPU = "sip:impu@example.com";
+const std::string CxTest::WILDCARD_IMPU = "sip:im!.*!@scscf";
 const std::string CxTest::SERVER_NAME = "sip:example.com";
 const std::string CxTest::SERVER_NAME_IN_CAPAB = "sip:example2.com";
 const std::string CxTest::SIP_AUTH_SCHEME_DIGEST = "SIP Digest";
@@ -416,6 +418,49 @@ TEST_F(CxTest, SARTestNoSharedIFCSupport)
 
   Diameter::AVP::iterator supported_feature_avp = sar.begin(((Cx::Dictionary*)sar.dict())->SUPPORTED_FEATURES);
   EXPECT_EQ(supported_feature_avp, sar.end());
+}
+
+// Test that if we specify a wildcard impu on an appropriate SAR, we add the
+// wildcard AVP
+TEST_F(CxTest, SARWildcard)
+{
+  Cx::ServerAssignmentRequest sar(_cx_dict,
+                                  _mock_stack,
+                                  DEST_HOST,
+                                  DEST_REALM,
+                                  IMPI,
+                                  IMPU,
+                                  SERVER_NAME,
+                                  TIMEOUT_DEREGISTRATION,
+                                  false,
+                                  WILDCARD_IMPU);
+  launder_message(sar);
+  check_common_request_fields(sar);
+
+  Diameter::AVP::iterator wildcard_avp = sar.begin(((Cx::Dictionary*)sar.dict())->WILDCARDED_PUBLIC_IDENTITY);
+  EXPECT_TRUE(sar.get_wildcard(test_str));
+  EXPECT_EQ(WILDCARD_IMPU, test_str);
+}
+
+// Test that if we specify a wildcard impu on an inappropriate SAR, we don't add
+// the wildcard AVP
+TEST_F(CxTest, SARWildcardInappropriate)
+{
+  Cx::ServerAssignmentRequest sar(_cx_dict,
+                                  _mock_stack,
+                                  DEST_HOST,
+                                  DEST_REALM,
+                                  IMPI,
+                                  IMPU,
+                                  SERVER_NAME,
+                                  Cx::REGISTRATION,
+                                  false,
+                                  WILDCARD_IMPU);
+  launder_message(sar);
+  check_common_request_fields(sar);
+
+  Diameter::AVP::iterator wildcard_avp = sar.begin(((Cx::Dictionary*)sar.dict())->WILDCARDED_PUBLIC_IDENTITY);
+  EXPECT_FALSE(sar.get_wildcard(test_str));
 }
 
 //
