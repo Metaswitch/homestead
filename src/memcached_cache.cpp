@@ -17,11 +17,8 @@
 
 ImpuStore::DefaultImpu* MemcachedImplicitRegistrationSet::create_impu(uint64_t cas)
 {
-  std::vector<std::string> impis = std::vector<std::string>(_unchanged_impis);
-  impis.insert(impis.end(), _added_impis.begin(), _added_impis.end());
-
-  std::vector<std::string> impus = std::vector<std::string>(_unchanged_associated_impus);
-  impus.insert(impus.end(), _added_associated_impus.begin(), _added_associated_impus.end());
+  std::vector<std::string> impis = get_associated_impis();
+  std::vector<std::string> impus = get_associated_impus();
 
   return new ImpuStore::DefaultImpu(default_impu,
                                     impus,
@@ -52,108 +49,61 @@ ImpuStore::DefaultImpu* MemcachedImplicitRegistrationSet::get_impu_for_store(Imp
   }
 }
 
-typedef void (*update_func)(const std::string&,
-                            std::vector<std::string>&,
-                            std::vector<std::string>&,
-                            std::vector<std::string>&);
-
 bool in_vector(const std::string& element,
-               std::vector<std::string>& vec)
+               const std::vector<std::string>& vec)
 {
   return std::find(vec.begin(), vec.end(), element) != vec.end();
 }
 
-void set_element(const std::string& element,
-                 std::vector<std::string>& added,
-                 std::vector<std::string>& unchanged,
-                 std::vector<std::string>& deleted)
+void update_from_store(const std::vector<std::string>& store,
+                       MemcachedImplicitRegistrationSet::Data data,
+                       MemcachedImplicitRegistrationSet::State state)
 {
-  if (in_vector(element, added) || in_vector(element, unchanged))
+  for (const std::string& member : store)
   {
-    // We are already tracking this element
-  }
-  else if (in_vector(element, deleted))
-  {
-    TRC_WARNING("Deleted element being re-added!: %s", element.c_str());
-    added.push_back(element);
-    deleted.erase(std::remove(deleted.begin(), deleted.end(), element), deleted.end());
-  }
-  else
-  {
-    added.push_back(element);
+    data.emplace(member, state);
   }
 }
 
-void mark_as_old(const std::string& element,
-                 std::vector<std::string>& added,
-                 std::vector<std::string>& unchanged,
-                 std::vector<std::string>& deleted)
+void set_elements(const std::vector<std::string>& updated,
+                  MemcachedImplicitRegistrationSet::Data& data)
 {
-  if (in_vector(element, added) ||
-      in_vector(element, unchanged) ||
-      in_vector(element, deleted))
+  for (std::pair<const std::string, MemcachedImplicitRegistrationSet::State>& entry : data)
   {
-    // We are already tracking this element.
+    if (!in_vector(entry.first, updated))
+    {
+      entry.second = MemcachedImplicitRegistrationSet::State::DELETED;
+    }
   }
-  else
-  {
-    deleted.push_back(element);
-  }
-}
 
-void mark_as_new(const std::string& element,
-                 std::vector<std::string>& added,
-                 std::vector<std::string>& unchanged,
-                 std::vector<std::string>& deleted)
-{
-  if (in_vector(element, added) ||
-      in_vector(element, unchanged) ||
-      in_vector(element, deleted))
+  for (const std::string& entry : updated)
   {
-    // We are already tracking this element.
-  }
-  else
-  {
-    unchanged.push_back(element);
-  }
-}
+    MemcachedImplicitRegistrationSet::State& value = data[entry];
 
-void update_with_f(const std::vector<std::string>& old,
-                   std::vector<std::string>& added,
-                   std::vector<std::string>& unchanged,
-                   std::vector<std::string>& deleted,
-                   update_func f)
-{
-  for (const std::string& member : old)
-  {
-    f(member,
-      added,
-      unchanged,
-      deleted);
+    switch (value)
+    {
+      case MemcachedImplicitRegistrationSet::State::ADDED:
+      case MemcachedImplicitRegistrationSet::State::UNCHANGED:
+        break;
+      case MemcachedImplicitRegistrationSet::State::DELETED:
+        value = MemcachedImplicitRegistrationSet::State::ADDED;
+    }
   }
 }
 
 void MemcachedImplicitRegistrationSet::set_associated_impis(std::vector<std::string> impis)
 {
-  update_with_f(impis,
-                _added_impis,
-                _unchanged_impis,
-                _deleted_impis,
-                &set_element);
+  set_elements(impis, _impis);
 }
 
 void MemcachedImplicitRegistrationSet::set_associated_impus(std::vector<std::string> impus)
 {
-  update_with_f(impus,
-                _added_associated_impus,
-                _unchanged_associated_impus,
-                _deleted_associated_impus,
-                &set_element);
+  set_elements(impus, _associated_impus);
 }
 
 void MemcachedImplicitRegistrationSet::update_from_store(ImpuStore::DefaultImpu* impu)
 {
-  update_func f;
+  MemcachedImplicitRegistrationSet::State state;
 
   // Update the IRS with the details in impu
   if (_refreshed)
@@ -161,7 +111,7 @@ void MemcachedImplicitRegistrationSet::update_from_store(ImpuStore::DefaultImpu*
     // If we are marked as refreshed, then the data from the store is *less* up
     // to date than our data, so we should mark it as changed.
 
-    f = &mark_as_old;
+    state = MemcachedImplicitRegistrationSet::State::DELETED;
   }
   else
   {
@@ -169,7 +119,7 @@ void MemcachedImplicitRegistrationSet::update_from_store(ImpuStore::DefaultImpu*
     // considered valid, and we should mark it as unchanged, if we weren't
     // previously aware of it.
 
-    f = &mark_as_new;
+    state = MemcachedImplicitRegistrationSet::State::UNCHANGED;
   }
 
   if (!_registration_state_set)
@@ -177,56 +127,31 @@ void MemcachedImplicitRegistrationSet::update_from_store(ImpuStore::DefaultImpu*
     _registration_state = impu->registration_state;
   }
 
-  update_with_f(impu->impis,
-                _added_impis,
-                _unchanged_impis,
-                _deleted_impis,
-                f);
+  ::update_from_store(impu->impis,
+                      _impis,
+                      state);
 
-  update_with_f(impu->associated_impus,
-                _added_associated_impus,
-                _unchanged_associated_impus,
-                _deleted_associated_impus,
-                f);
+  ::update_from_store(impu->associated_impus,
+                      _associated_impus,
+                      state);
 }
 
-void delete_tracked(std::vector<std::string>& added,
-                    std::vector<std::string>& unchanged,
-                    std::vector<std::string>& deleted)
+void delete_tracked(MemcachedImplicitRegistrationSet::Data& data)
 {
-  for (const std::string& element : added)
+  for (std::pair<const std::string, MemcachedImplicitRegistrationSet::State>& entry : data)
   {
-    if (!in_vector(element, deleted))
-    {
-      deleted.push_back(element);
-    }
+    entry.second = MemcachedImplicitRegistrationSet::State::DELETED;
   }
-
-  added.clear();
-
-  for (const std::string& element : unchanged)
-  {
-    if (!in_vector(element, deleted))
-    {
-      deleted.push_back(element);
-    }
-  }
-
-  unchanged.clear();
 }
 
 void MemcachedImplicitRegistrationSet::delete_assoc_impus()
 {
-  delete_tracked(_added_associated_impus,
-                 _unchanged_associated_impus,
-                 _deleted_associated_impus);
+  delete_tracked(_associated_impus);
 }
 
 void MemcachedImplicitRegistrationSet::delete_impis()
 {
-  delete_tracked(_added_impis,
-                 _unchanged_impis,
-                 _deleted_impis);
+  delete_tracked(_impis);
 }
 
 // Helper function to the details of an IMPU.
@@ -390,7 +315,7 @@ Store::Status MemcachedCache::update_irs_impi_mappings(MemcachedImplicitRegistra
   Store::Status status = Store::Status::OK;
 
   // Remove old IMPI mappings
-  for (const std::string& impi : irs->deleted_impis())
+  for (const std::string& impi : irs->impis(MemcachedImplicitRegistrationSet::State::DELETED))
   {
     do
     {
@@ -421,7 +346,7 @@ Store::Status MemcachedCache::update_irs_impi_mappings(MemcachedImplicitRegistra
   // Refresh unchanged IMPIs if the IRS is being refreshed
   if (irs->is_refreshed())
   {
-    for (const std::string& impi : irs->unchanged_impis())
+    for (const std::string& impi : irs->impis(MemcachedImplicitRegistrationSet::State::UNCHANGED))
     {
       do
       {
@@ -447,7 +372,7 @@ Store::Status MemcachedCache::update_irs_impi_mappings(MemcachedImplicitRegistra
   }
 
   // Add new IMPIs
-  for (const std::string& impi : irs->added_impis())
+  for (const std::string& impi : irs->impis(MemcachedImplicitRegistrationSet::State::ADDED))
   {
     ImpuStore::ImpiMapping* mapping = new ImpuStore::ImpiMapping(impi, irs->default_impu);
 
@@ -483,7 +408,7 @@ Store::Status MemcachedCache::update_irs_associated_impus(MemcachedImplicitRegis
   Store::Status status = Store::Status::OK;
 
   // Remove old associated IMPUs
-  for (const std::string& associated_impu : irs->deleted_associated_impus())
+  for (const std::string& associated_impu : irs->impus(MemcachedImplicitRegistrationSet::State::DELETED))
   {
     do
     {
@@ -506,7 +431,7 @@ Store::Status MemcachedCache::update_irs_associated_impus(MemcachedImplicitRegis
   // Refresh unchanged associated IMPUs if the IRS is being refreshed
   if (irs->is_refreshed())
   {
-    for (const std::string& associated_impu : irs->unchanged_associated_impus())
+    for (const std::string& associated_impu : irs->impus(MemcachedImplicitRegistrationSet::State::UNCHANGED))
     {
       ImpuStore::AssociatedImpu* impu = new ImpuStore::AssociatedImpu(associated_impu, irs->default_impu, 0L);
 
@@ -515,7 +440,7 @@ Store::Status MemcachedCache::update_irs_associated_impus(MemcachedImplicitRegis
   }
 
   // Add new associated IMPUs
-  for (const std::string& associated_impu : irs->added_impis())
+  for (const std::string& associated_impu : irs->impus(MemcachedImplicitRegistrationSet::State::ADDED))
   {
     ImpuStore::AssociatedImpu* impu = new ImpuStore::AssociatedImpu(associated_impu, irs->default_impu, 0L);
 

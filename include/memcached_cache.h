@@ -14,6 +14,10 @@
 #include "hss_cache.h"
 #include "impu_store.h"
 
+#include <map>
+#include <string>
+#include <vector>
+
 class MemcachedImsSubscription : public ImsSubscription
 {
 public:
@@ -70,9 +74,32 @@ public:
 
   virtual std::vector<std::string> get_associated_impis() const
   {
-    std::vector<std::string> impis = std::vector<std::string>(_unchanged_impis);
-    impis.insert(impis.end(), _added_impis.begin(), _added_impis.end());
+    std::vector<std::string> impis;
+
+    for (const std::pair<std::string, State>& entry : _impis)
+    {
+      if (entry.second == State::UNCHANGED || entry.second == State::DELETED)
+      {
+        impis.push_back(entry.first);
+      }
+    }
+
     return impis;
+  }
+
+  virtual std::vector<std::string> get_associated_impus() const
+  {
+    std::vector<std::string> associated_impus;
+
+    for (const std::pair<std::string, State>& entry : _associated_impus)
+    {
+      if (entry.second == State::UNCHANGED || entry.second == State::DELETED)
+      {
+        associated_impus.push_back(entry.first);
+      }
+    }
+
+    return associated_impus;
   }
 
   virtual const ChargingAddresses& get_charging_addresses() const
@@ -116,14 +143,6 @@ public:
 
   void mark_as_refreshed(){ _refreshed = true; }
 
-  const std::vector<std::string>& added_impis(){ return _added_impis; }
-  const std::vector<std::string>& unchanged_impis(){ return _unchanged_impis; }
-  const std::vector<std::string>& deleted_impis(){ return _deleted_impis; }
-
-  std::vector<std::string>& added_associated_impus(){ return _added_associated_impus; }
-  std::vector<std::string>& unchanged_associated_impus(){ return _unchanged_associated_impus; }
-  std::vector<std::string>& deleted_associated_impus(){ return _deleted_associated_impus; }
-
   // Get an IMPU representing this IRS without any CAS
   ImpuStore::DefaultImpu* get_impu();
 
@@ -155,18 +174,48 @@ private:
   bool _refreshed;
   bool _existing;
 
-  std::vector<std::string> _added_impis;
-  std::vector<std::string> _unchanged_impis;
-  std::vector<std::string> _deleted_impis;
+  enum State
+  {
+    ADDED,
+    UNCHANGED,
+    DELETED
+  };
 
-  std::vector<std::string> _added_associated_impus;
-  std::vector<std::string> _unchanged_associated_impus;
-  std::vector<std::string> _deleted_associated_impus;
+  typedef std::map<std::string, State> Data;
+
+  static std::vector<std::string> get(const Data& data, State status)
+  {
+    std::vector<std::string> v;
+    for (const std::pair<const std::string, State>& entry : data)
+    {
+      if (entry.second == status)
+      {
+        v.push_back(entry.first);
+      }
+    }
+
+    return v;
+  }
+
+  Data _impis;
+  Data _associated_impus;
 
   RegistrationState _registration_state;
   bool _registration_state_set = false;
 
   ImpuStore::DefaultImpu* create_impu(uint64_t cas);
+
+public:
+  std::vector<std::string> impis(State status)
+  {
+    return get(_impis, status);
+  }
+
+  std::vector<std::string> impus(State status)
+  {
+    return get(_associated_impus, status);
+  }
+
 };
 
 class MemcachedCache : public HssCache
