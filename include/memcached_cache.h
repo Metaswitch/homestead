@@ -19,9 +19,18 @@ class MemcachedImsSubscription : public ImsSubscription
 public:
   MemcachedImsSubscription(ImpuStore::ImpiMapping*& mapping,
                            std::vector<ImplicitRegistrationSet*>& irss) :
-    ImsSubscription()
+    ImsSubscription(),
+    _irss(irss)
   {
   }
+
+  std::vector<ImplicitRegistrationSet*>& get_irs()
+  {
+    return _irss;
+  }
+
+private:
+  std::vector<ImplicitRegistrationSet*> _irss;
 };
 
 class MemcachedImplicitRegistrationSet : public ImplicitRegistrationSet
@@ -30,20 +39,28 @@ public:
   MemcachedImplicitRegistrationSet(ImpuStore::DefaultImpu* default_impu) :
     ImplicitRegistrationSet(default_impu->impu),
     _store(default_impu->store),
-    _cas(default_impu->cas)
+    _cas(default_impu->cas),
+    _changed(false),
+    _refreshed(false),
+    _existing(true)
   {
   }
 
   MemcachedImplicitRegistrationSet(const std::string& default_impu) :
     ImplicitRegistrationSet(default_impu),
     _store(nullptr),
-    _cas(0L)
+    _cas(0L),
+    _changed(true),
+    _refreshed(true),
+    _existing(false)
   {
   }
 
   bool is_existing(){ return _existing; }
   bool has_changed(){ return _changed; }
   bool is_refreshed(){ return _refreshed; }
+
+  void mark_as_refreshed(){ _refreshed = true; }
 
   const std::vector<std::string>& added_impis(){ return _added_impis; }
   const std::vector<std::string>& unchanged_impis(){ return _unchanged_impis; }
@@ -65,13 +82,19 @@ public:
   // Update the IRS with an IMPU with some details from the store
   void update_from_store(ImpuStore::DefaultImpu* impu);
 
-private:
-  bool _changed = false;
-  bool _refreshed = false;
-  bool _existing = true;
+  // Delete all of the associated IMPUs
+  void delete_assoc_impus();
 
+  // Delete all of the IMPIs
+  void delete_impis();
+
+private:
   const ImpuStore* _store;
   const uint64_t _cas;
+
+  bool _changed;
+  bool _refreshed;
+  bool _existing;
 
   std::vector<std::string> _added_impis;
   std::vector<std::string> _unchanged_impis;
@@ -158,21 +181,46 @@ private:
 
   ImpuStore::ImpiMapping* get_impi_mapping_gr(const std::string& impi,
                                               SAS::TrailId trail);
+
+  // Per Store IRS methods
+
+  typedef Store::Status (MemcachedCache::*irs_store_action)(MemcachedImplicitRegistrationSet*,
+                                                            SAS::TrailId,
+                                                            ImpuStore*);
+
+  Store::Status perform(irs_store_action action,
+                        MemcachedImplicitRegistrationSet*,
+                        SAS::TrailId trail);
+
   Store::Status put_implicit_registration_set(MemcachedImplicitRegistrationSet* irs,
                                               SAS::TrailId trail,
                                               ImpuStore* store);
 
+  Store::Status delete_implicit_registration_set(MemcachedImplicitRegistrationSet* irs,
+                                                 SAS::TrailId trail,
+                                                 ImpuStore* store);
+
+  // IRS IMPU handling methods
+
   Store::Status create_irs_impu(MemcachedImplicitRegistrationSet* irs,
-                                              SAS::TrailId trail,
-                                              ImpuStore* store);
+                                SAS::TrailId trail,
+                                ImpuStore* store);
 
   Store::Status update_irs_impu(MemcachedImplicitRegistrationSet* irs,
-                                              SAS::TrailId trail,
-                                              ImpuStore* store);
+                                SAS::TrailId trail,
+                                ImpuStore* store);
+
+  Store::Status delete_irs_impu(MemcachedImplicitRegistrationSet* irs,
+                                SAS::TrailId trail,
+                                ImpuStore* store);
+
+  // Associated IMPU handling
 
   Store::Status update_irs_associated_impus(MemcachedImplicitRegistrationSet* irs,
                                               SAS::TrailId trail,
                                               ImpuStore* store);
+
+  // IMPI Mapping Handling
 
   Store::Status update_irs_impi_mappings(MemcachedImplicitRegistrationSet* irs,
                                               SAS::TrailId trail,
