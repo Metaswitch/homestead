@@ -56,6 +56,60 @@ public:
   {
   }
 
+  // Inherited functions
+
+  virtual std::string get_ims_sub_xml() const
+  {
+    return _ims_sub_xml;
+  }
+
+  virtual RegistrationState get_reg_state() const
+  {
+    return _reg_state;
+  }
+
+  virtual std::vector<std::string> get_associated_impis() const
+  {
+    std::vector<std::string> impis = std::vector<std::string>(_unchanged_impis);
+    impis.insert(impis.end(), _added_impis.begin(), _added_impis.end());
+    return impis;
+  }
+
+  virtual const ChargingAddresses& get_charging_addresses() const
+  {
+    return _charging_addresses;
+  }
+
+  virtual int32_t get_ttl() const
+  {
+    return _ttl;
+  }
+
+  virtual void set_ims_sub_xml(std::string xml)
+  {
+    _ims_sub_xml = xml;
+  }
+
+  virtual void set_reg_state(RegistrationState state)
+  {
+    _reg_state = state;
+  }
+
+  virtual void set_associated_impus(std::vector<std::string> impis);
+  virtual void set_associated_impis(std::vector<std::string> impis);
+
+  virtual void set_charging_addresses(ChargingAddresses addresses)
+  {
+    _charging_addresses = addresses;
+  }
+
+  virtual void set_ttl(int32_t ttl)
+  {
+    _ttl = ttl;
+  }
+
+  // Functions for MemcachedCache
+
   bool is_existing(){ return _existing; }
   bool has_changed(){ return _changed; }
   bool is_refreshed(){ return _refreshed; }
@@ -91,6 +145,11 @@ public:
 private:
   const ImpuStore* _store;
   const uint64_t _cas;
+
+  std::string _ims_sub_xml;
+  RegistrationState _reg_state;
+  ChargingAddresses _charging_addresses;
+  int32_t _ttl;
 
   bool _changed;
   bool _refreshed;

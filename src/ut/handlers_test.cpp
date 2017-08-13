@@ -41,6 +41,7 @@
 #include "mockhttpstack.hpp"
 #include "mockhttpconnection.hpp"
 #include "fakehttpresolver.hpp"
+#include "fake_implicit_reg_set.h"
 #include "handlers.h"
 #include "mockstatisticsmanager.hpp"
 #include "sproutconnection.h"
@@ -65,6 +66,7 @@ using ::testing::StrictMock;
 using ::testing::Mock;
 using ::testing::AtLeast;
 using ::testing::Field;
+using ::testing::Property;
 using ::testing::AllOf;
 using ::testing::ByRef;
 using ::testing::ReturnNull;
@@ -479,13 +481,13 @@ public:
       // Valid dereg reason
       // Create the IRSs that will be returned
       // (the default IMPU of the IRS that IMPU2 is part of is IMPU3)
-      ImplicitRegistrationSet* irs = new ImplicitRegistrationSet(IMPU);
+      FakeImplicitRegistrationSet* irs = new FakeImplicitRegistrationSet(IMPU);
       irs->set_ims_sub_xml(IMPU_IMS_SUBSCRIPTION);
       irs->set_reg_state(RegistrationState::NOT_REGISTERED);
       irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
       irs->set_associated_impis(IMPI_IN_VECTOR);
 
-      ImplicitRegistrationSet* irs2 = new ImplicitRegistrationSet(IMPU3);
+      FakeImplicitRegistrationSet* irs2 = new FakeImplicitRegistrationSet(IMPU3);
       irs->set_ims_sub_xml(IMPU3_IMS_SUBSCRIPTION);
       irs->set_reg_state(RegistrationState::NOT_REGISTERED);
       irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
@@ -1557,7 +1559,7 @@ TEST_F(HandlersTest, ImpuReadRegDataMainline)
   ImpuReadRegDataTask* task = new ImpuReadRegDataTask(req, &cfg, FAKE_TRAIL_ID);
   
   // Create IRS to be returned from the cache
-  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet(IMPU);
+  FakeImplicitRegistrationSet* irs = new FakeImplicitRegistrationSet(IMPU);
   irs->set_associated_impis({ IMPI });
   irs->set_ims_sub_xml(IMPU_IMS_SUBSCRIPTION);
   irs->set_reg_state(RegistrationState::REGISTERED);
@@ -1629,7 +1631,7 @@ TEST_F(HandlersTest, ImpuRegDataInitialReg)
   ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
     
   // Create IRS to be returned from the cache
-  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet(IMPU);
+  FakeImplicitRegistrationSet* irs = new FakeImplicitRegistrationSet(IMPU);
   irs->set_ims_sub_xml(IMPU_IMS_SUBSCRIPTION);
   irs->set_reg_state(RegistrationState::NOT_REGISTERED);
   irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
@@ -1656,8 +1658,8 @@ TEST_F(HandlersTest, ImpuRegDataInitialReg)
 
   // We now expect it to be put in the cache with an updated TTL and state REGISTERED
   EXPECT_CALL(*_cache, put_implicit_registration_set(_, _,
-    AllOf(Field(&ImplicitRegistrationSet::_reg_state, RegistrationState::REGISTERED),
-          Field(&ImplicitRegistrationSet::_ttl, 7200)),
+    AllOf(Property(&ImplicitRegistrationSet::get_reg_state, RegistrationState::REGISTERED),
+          Property(&ImplicitRegistrationSet::get_ttl, 7200)),
     FAKE_TRAIL_ID))
     .WillOnce(InvokeArgument<0>());
   
@@ -1678,7 +1680,7 @@ TEST_F(HandlersTest, ImpuRegDataInitialRegNoServerName)
   ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
     
   // Create IRS to be returned from the cache
-  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet(IMPU);
+  FakeImplicitRegistrationSet* irs = new FakeImplicitRegistrationSet(IMPU);
   irs->set_ims_sub_xml(IMPU_IMS_SUBSCRIPTION);
   irs->set_reg_state(RegistrationState::NOT_REGISTERED);
   irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
@@ -1705,8 +1707,8 @@ TEST_F(HandlersTest, ImpuRegDataInitialRegNoServerName)
 
   // We now expect it to be put in the cache with an updated TTL and state REGISTERED
   EXPECT_CALL(*_cache, put_implicit_registration_set(_, _,
-    AllOf(Field(&ImplicitRegistrationSet::_reg_state, RegistrationState::REGISTERED),
-          Field(&ImplicitRegistrationSet::_ttl, 7200)),
+    AllOf(Property(&ImplicitRegistrationSet::get_reg_state, RegistrationState::REGISTERED),
+          Property(&ImplicitRegistrationSet::get_ttl, 7200)),
     FAKE_TRAIL_ID))
     .WillOnce(InvokeArgument<0>());
   
@@ -1733,7 +1735,7 @@ TEST_F(HandlersTest, ImpuRegDataInitialRegCacheGetNotFound)
     .WillOnce(InvokeArgument<1>(Store::Status::NOT_FOUND));
 
   // Create IRS to be returned from the cache whenthe above is not found
-  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet(IMPU);
+  FakeImplicitRegistrationSet* irs = new FakeImplicitRegistrationSet(IMPU);
   EXPECT_CALL(*_cache, create_implicit_registration_set(IMPU))
     .WillOnce(Return(irs));
 
@@ -1757,8 +1759,8 @@ TEST_F(HandlersTest, ImpuRegDataInitialRegCacheGetNotFound)
 
   // We now expect it to be put in the cache with an updated TTL and state REGISTERED
   EXPECT_CALL(*_cache, put_implicit_registration_set(_, _,
-    AllOf(Field(&ImplicitRegistrationSet::_reg_state, RegistrationState::REGISTERED),
-          Field(&ImplicitRegistrationSet::_ttl, 7200)),
+    AllOf(Property(&ImplicitRegistrationSet::get_reg_state, RegistrationState::REGISTERED),
+          Property(&ImplicitRegistrationSet::get_ttl, 7200)),
     FAKE_TRAIL_ID))
     .WillOnce(InvokeArgument<0>());
 
@@ -1799,7 +1801,7 @@ TEST_F(HandlersTest, ImpuRegDataInitialRegCachePutError)
   ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
     
   // Create IRS to be returned from the cache
-  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet(IMPU);
+  FakeImplicitRegistrationSet* irs = new FakeImplicitRegistrationSet(IMPU);
   irs->set_ims_sub_xml(IMPU_IMS_SUBSCRIPTION);
   irs->set_reg_state(RegistrationState::NOT_REGISTERED);
   irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
@@ -1826,8 +1828,8 @@ TEST_F(HandlersTest, ImpuRegDataInitialRegCachePutError)
 
   // We simulate a cache error when trying to cache it
   EXPECT_CALL(*_cache, put_implicit_registration_set(_, _,
-    AllOf(Field(&ImplicitRegistrationSet::_reg_state, RegistrationState::REGISTERED),
-          Field(&ImplicitRegistrationSet::_ttl, 7200)),
+    AllOf(Property(&ImplicitRegistrationSet::get_reg_state, RegistrationState::REGISTERED),
+          Property(&ImplicitRegistrationSet::get_ttl, 7200)),
     FAKE_TRAIL_ID))
     .WillOnce(InvokeArgument<1>(Store::Status::ERROR));
   
@@ -1849,7 +1851,7 @@ TEST_F(HandlersTest, ImpuRegDataReReg)
   ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
     
   // Create IRS to be returned from the cache
-  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet(IMPU);
+  FakeImplicitRegistrationSet* irs = new FakeImplicitRegistrationSet(IMPU);
   irs->set_ims_sub_xml(IMPU_IMS_SUBSCRIPTION);
   irs->set_reg_state(RegistrationState::REGISTERED);
   irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
@@ -1877,8 +1879,8 @@ TEST_F(HandlersTest, ImpuRegDataReReg)
 
   // We now expect it to be put in the cache with an updated TTL and state REGISTERED
   EXPECT_CALL(*_cache, put_implicit_registration_set(_, _,
-    AllOf(Field(&ImplicitRegistrationSet::_reg_state, RegistrationState::REGISTERED),
-          Field(&ImplicitRegistrationSet::_ttl, 7200)),
+    AllOf(Property(&ImplicitRegistrationSet::get_reg_state, RegistrationState::REGISTERED),
+          Property(&ImplicitRegistrationSet::get_ttl, 7200)),
     FAKE_TRAIL_ID))
     .WillOnce(InvokeArgument<0>());
   
@@ -1900,7 +1902,7 @@ TEST_F(HandlersTest, ImpuRegDataReRegNoCache)
   ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
     
   // Create IRS to be returned from the cache
-  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet(IMPU);
+  FakeImplicitRegistrationSet* irs = new FakeImplicitRegistrationSet(IMPU);
   irs->set_ims_sub_xml(IMPU_IMS_SUBSCRIPTION);
   irs->set_reg_state(RegistrationState::REGISTERED);
   irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
@@ -1929,8 +1931,8 @@ TEST_F(HandlersTest, ImpuRegDataReRegNoCache)
 
   // We now expect it to be put in the cache with an updated TTL and state REGISTERED
   EXPECT_CALL(*_cache, put_implicit_registration_set(_, _,
-    AllOf(Field(&ImplicitRegistrationSet::_reg_state, RegistrationState::REGISTERED),
-          Field(&ImplicitRegistrationSet::_ttl, 7200)),
+    AllOf(Property(&ImplicitRegistrationSet::get_reg_state, RegistrationState::REGISTERED),
+          Property(&ImplicitRegistrationSet::get_ttl, 7200)),
     FAKE_TRAIL_ID))
     .WillOnce(InvokeArgument<0>());
   
@@ -1952,7 +1954,7 @@ TEST_F(HandlersTest, ImpuRegDataReRegCached)
   ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
     
   // Create IRS to be returned from the cache
-  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet(IMPU);
+  FakeImplicitRegistrationSet* irs = new FakeImplicitRegistrationSet(IMPU);
   irs->set_ims_sub_xml(IMPU_IMS_SUBSCRIPTION);
   irs->set_reg_state(RegistrationState::REGISTERED);
   irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
@@ -1982,7 +1984,7 @@ TEST_F(HandlersTest, ImpuRegDataReRegNewBinding)
   ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
     
   // Create IRS to be returned from the cache
-  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet(IMPU);
+  FakeImplicitRegistrationSet* irs = new FakeImplicitRegistrationSet(IMPU);
   irs->set_ims_sub_xml(IMPU_IMS_SUBSCRIPTION);
   irs->set_reg_state(RegistrationState::REGISTERED);
   irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
@@ -2010,8 +2012,8 @@ TEST_F(HandlersTest, ImpuRegDataReRegNewBinding)
 
   // We now expect it to be put in the cache with an updated TTL and state REGISTERED
   EXPECT_CALL(*_cache, put_implicit_registration_set(_, _,
-    AllOf(Field(&ImplicitRegistrationSet::_reg_state, RegistrationState::REGISTERED),
-          Field(&ImplicitRegistrationSet::_ttl, 7200)),
+    AllOf(Property(&ImplicitRegistrationSet::get_reg_state, RegistrationState::REGISTERED),
+          Property(&ImplicitRegistrationSet::get_ttl, 7200)),
     FAKE_TRAIL_ID))
     .WillOnce(InvokeArgument<0>());
   
@@ -2036,7 +2038,7 @@ TEST_F(HandlersTest, ImpuRegDataRegIncludesBarring)
   ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
     
   // Create IRS to be returned from the cache
-  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet(IMPU);
+  FakeImplicitRegistrationSet* irs = new FakeImplicitRegistrationSet(IMPU);
   irs->set_ims_sub_xml(IMPU_IMS_SUBSCRIPTION_WITH_BARRING);
   irs->set_reg_state(RegistrationState::NOT_REGISTERED);
   irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
@@ -2063,8 +2065,8 @@ TEST_F(HandlersTest, ImpuRegDataRegIncludesBarring)
 
   // We now expect it to be put in the cache with an updated TTL and state REGISTERED
   EXPECT_CALL(*_cache, put_implicit_registration_set(_, _,
-    AllOf(Field(&ImplicitRegistrationSet::_reg_state, RegistrationState::REGISTERED),
-          Field(&ImplicitRegistrationSet::_ttl, 7200)),
+    AllOf(Property(&ImplicitRegistrationSet::get_reg_state, RegistrationState::REGISTERED),
+          Property(&ImplicitRegistrationSet::get_ttl, 7200)),
     FAKE_TRAIL_ID))
     .WillOnce(InvokeArgument<0>());
   
@@ -2087,7 +2089,7 @@ TEST_F(HandlersTest, ImpuRegDataCallWildcardWithSAR)
   ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
     
   // Create IRS to be returned from the cache
-  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet(IMPU);
+  FakeImplicitRegistrationSet* irs = new FakeImplicitRegistrationSet(IMPU);
   irs->set_reg_state(RegistrationState::NOT_REGISTERED);
 
   // Set up the cache to return our IRS
@@ -2112,7 +2114,7 @@ TEST_F(HandlersTest, ImpuRegDataCallWildcardWithSAR)
 
   // We now expect another cache lookup for the new wildcard impu
   // Create new IRS to be returned from the cache
-  ImplicitRegistrationSet* irs2 = new ImplicitRegistrationSet(IMPU);
+  FakeImplicitRegistrationSet* irs2 = new FakeImplicitRegistrationSet(IMPU);
   irs2->set_reg_state(RegistrationState::REGISTERED);
 
   EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, WILDCARD, FAKE_TRAIL_ID))
@@ -2133,7 +2135,7 @@ TEST_F(HandlersTest, ImpuRegDataCallNewWildcard)
   ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
     
   // Create IRS to be returned from the cache
-  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet(IMPU);
+  FakeImplicitRegistrationSet* irs = new FakeImplicitRegistrationSet(IMPU);
   irs->set_reg_state(RegistrationState::NOT_REGISTERED);
 
   // Set up the cache to return our IRS
@@ -2159,7 +2161,7 @@ TEST_F(HandlersTest, ImpuRegDataCallNewWildcard)
 
   // We now expect another cache lookup for the new wildcard impu
   // Create new IRS to be returned from the cache
-  ImplicitRegistrationSet* irs2 = new ImplicitRegistrationSet(IMPU);
+  FakeImplicitRegistrationSet* irs2 = new FakeImplicitRegistrationSet(IMPU);
   irs2->set_reg_state(RegistrationState::REGISTERED);
 
   EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, NEW_WILDCARD, FAKE_TRAIL_ID))
@@ -2181,7 +2183,7 @@ TEST_F(HandlersTest, ImpuRegDataCallNewWildcardNotFound)
   ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
     
   // Create IRS to be returned from the cache
-  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet(IMPU);
+  FakeImplicitRegistrationSet* irs = new FakeImplicitRegistrationSet(IMPU);
   irs->set_reg_state(RegistrationState::NOT_REGISTERED);
 
   // Set up the cache to return our IRS
@@ -2212,7 +2214,7 @@ TEST_F(HandlersTest, ImpuRegDataCallNewWildcardNotFound)
 
   // Create IRS to be returned from the cache when we fail to find the above
   // TODO should this be wildcard or default IMPU
-  ImplicitRegistrationSet* irs2 = new ImplicitRegistrationSet(NEW_WILDCARD);
+  FakeImplicitRegistrationSet* irs2 = new FakeImplicitRegistrationSet(NEW_WILDCARD);
   EXPECT_CALL(*_cache, create_implicit_registration_set(NEW_WILDCARD))
     .WillOnce(Return(irs2));
 
@@ -2247,7 +2249,7 @@ TEST_F(HandlersTest, ImpuRegDataCallWildcardLoop)
   ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
     
   // Create IRS to be returned from the cache
-  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet(IMPU);
+  FakeImplicitRegistrationSet* irs = new FakeImplicitRegistrationSet(IMPU);
   irs->set_reg_state(RegistrationState::NOT_REGISTERED);
 
   // Set up the cache to return our IRS
@@ -2288,7 +2290,7 @@ TEST_F(HandlersTest, ImpuRegDataCallMainline)
   ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
     
   // Create IRS to be returned from the cache
-  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet(IMPU);
+  FakeImplicitRegistrationSet* irs = new FakeImplicitRegistrationSet(IMPU);
   irs->set_ims_sub_xml(IMPU_IMS_SUBSCRIPTION);
   irs->set_reg_state(RegistrationState::REGISTERED);
   irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
@@ -2315,7 +2317,7 @@ TEST_F(HandlersTest, ImpuRegDataCallWildcard)
   ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
     
   // Create IRS to be returned from the cache
-  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet(IMPU);
+  FakeImplicitRegistrationSet* irs = new FakeImplicitRegistrationSet(IMPU);
   irs->set_ims_sub_xml(IMPU_IMS_SUBSCRIPTION);
   irs->set_reg_state(RegistrationState::REGISTERED);
   irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
@@ -2342,7 +2344,7 @@ TEST_F(HandlersTest, ImpuRegDataCallUnregisteredService)
   ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
     
   // Create IRS to be returned from the cache
-  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet(IMPU);
+  FakeImplicitRegistrationSet* irs = new FakeImplicitRegistrationSet(IMPU);
   irs->set_ims_sub_xml(IMPU_IMS_SUBSCRIPTION);
   irs->set_reg_state(RegistrationState::UNREGISTERED);
   irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
@@ -2374,7 +2376,7 @@ TEST_F(HandlersTest, ImpuRegDataCallNewUnregisteredService)
     .WillOnce(InvokeArgument<1>(Store::Status::NOT_FOUND));
 
   // Create IRS to be returned from the cache when we fail to find the above
-  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet(IMPU);
+  FakeImplicitRegistrationSet* irs = new FakeImplicitRegistrationSet(IMPU);
   EXPECT_CALL(*_cache, create_implicit_registration_set(IMPU))
     .WillOnce(Return(irs));
 
@@ -2395,8 +2397,8 @@ TEST_F(HandlersTest, ImpuRegDataCallNewUnregisteredService)
 
   // Data is cached with state UNREGISTERED
   EXPECT_CALL(*_cache, put_implicit_registration_set(_, _,
-    AllOf(Field(&ImplicitRegistrationSet::_reg_state, RegistrationState::UNREGISTERED),
-          Field(&ImplicitRegistrationSet::_ttl, 7200)),
+    AllOf(Property(&ImplicitRegistrationSet::get_reg_state, RegistrationState::UNREGISTERED),
+          Property(&ImplicitRegistrationSet::get_ttl, 7200)),
     FAKE_TRAIL_ID))
     .WillOnce(InvokeArgument<0>());
 
@@ -2417,7 +2419,7 @@ TEST_F(HandlersTest, ImpuRegDataDeregUser)
   ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
     
   // Create IRS to be returned from the cache
-  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet(IMPU);
+  FakeImplicitRegistrationSet* irs = new FakeImplicitRegistrationSet(IMPU);
   irs->set_ims_sub_xml(IMPU_IMS_SUBSCRIPTION);
   irs->set_reg_state(RegistrationState::REGISTERED);
   irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
@@ -2445,7 +2447,7 @@ TEST_F(HandlersTest, ImpuRegDataDeregUser)
   // Check that the deletion request is using the correct service profile (as
   // that's how the cache knows what to delete)
   EXPECT_CALL(*_cache, delete_implicit_registration_set(_, _,
-    Field(&ImplicitRegistrationSet::_ims_sub_xml, IMPU_IMS_SUBSCRIPTION),
+    Property(&ImplicitRegistrationSet::get_ims_sub_xml, IMPU_IMS_SUBSCRIPTION),
     FAKE_TRAIL_ID))
     .WillOnce(InvokeArgument<0>());
 
@@ -2466,7 +2468,7 @@ TEST_F(HandlersTest, ImpuRegDataDeregTimeout)
   ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
     
   // Create IRS to be returned from the cache
-  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet(IMPU);
+  FakeImplicitRegistrationSet* irs = new FakeImplicitRegistrationSet(IMPU);
   irs->set_ims_sub_xml(IMPU_IMS_SUBSCRIPTION);
   irs->set_reg_state(RegistrationState::REGISTERED);
   irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
@@ -2494,7 +2496,7 @@ TEST_F(HandlersTest, ImpuRegDataDeregTimeout)
   // Check that the deletion request is using the correct service profile (as
   // that's how the cache knows what to delete)
   EXPECT_CALL(*_cache, delete_implicit_registration_set(_, _,
-    Field(&ImplicitRegistrationSet::_ims_sub_xml, IMPU_IMS_SUBSCRIPTION),
+    Property(&ImplicitRegistrationSet::get_ims_sub_xml, IMPU_IMS_SUBSCRIPTION),
     FAKE_TRAIL_ID))
     .WillOnce(InvokeArgument<0>());
 
@@ -2515,7 +2517,7 @@ TEST_F(HandlersTest, ImpuRegDataDeregAdmin)
   ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
     
   // Create IRS to be returned from the cache
-  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet(IMPU);
+  FakeImplicitRegistrationSet* irs = new FakeImplicitRegistrationSet(IMPU);
   irs->set_ims_sub_xml(IMPU_IMS_SUBSCRIPTION);
   irs->set_reg_state(RegistrationState::REGISTERED);
   irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
@@ -2543,7 +2545,7 @@ TEST_F(HandlersTest, ImpuRegDataDeregAdmin)
   // Check that the deletion request is using the correct service profile (as
   // that's how the cache knows what to delete)
   EXPECT_CALL(*_cache, delete_implicit_registration_set(_, _,
-    Field(&ImplicitRegistrationSet::_ims_sub_xml, IMPU_IMS_SUBSCRIPTION),
+    Property(&ImplicitRegistrationSet::get_ims_sub_xml, IMPU_IMS_SUBSCRIPTION),
     FAKE_TRAIL_ID))
     .WillOnce(InvokeArgument<0>());
 
@@ -2565,7 +2567,7 @@ TEST_F(HandlersTest, ImpuRegDataDeregNoIMPI)
   ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
     
   // Create IRS to be returned from the cache
-  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet(IMPU);
+  FakeImplicitRegistrationSet* irs = new FakeImplicitRegistrationSet(IMPU);
   irs->set_ims_sub_xml(IMPU_IMS_SUBSCRIPTION);
   irs->set_reg_state(RegistrationState::REGISTERED);
   irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
@@ -2593,7 +2595,7 @@ TEST_F(HandlersTest, ImpuRegDataDeregNoIMPI)
   // Check that the deletion request is using the correct service profile (as
   // that's how the cache knows what to delete)
   EXPECT_CALL(*_cache, delete_implicit_registration_set(_, _,
-    Field(&ImplicitRegistrationSet::_ims_sub_xml, IMPU_IMS_SUBSCRIPTION),
+    Property(&ImplicitRegistrationSet::get_ims_sub_xml, IMPU_IMS_SUBSCRIPTION),
     FAKE_TRAIL_ID))
     .WillOnce(InvokeArgument<0>());
 
@@ -2614,7 +2616,7 @@ TEST_F(HandlersTest, ImpuRegDataDeregCacheError)
   ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
     
   // Create IRS to be returned from the cache
-  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet(IMPU);
+  FakeImplicitRegistrationSet* irs = new FakeImplicitRegistrationSet(IMPU);
   irs->set_ims_sub_xml(IMPU_IMS_SUBSCRIPTION);
   irs->set_reg_state(RegistrationState::REGISTERED);
   irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
@@ -2642,7 +2644,7 @@ TEST_F(HandlersTest, ImpuRegDataDeregCacheError)
   // Check that the deletion request is using the correct service profile (as
   // that's how the cache knows what to delete)
   EXPECT_CALL(*_cache, delete_implicit_registration_set(_, _,
-    Field(&ImplicitRegistrationSet::_ims_sub_xml, IMPU_IMS_SUBSCRIPTION),
+    Property(&ImplicitRegistrationSet::get_ims_sub_xml, IMPU_IMS_SUBSCRIPTION),
     FAKE_TRAIL_ID))
     .WillOnce(InvokeArgument<1>(Store::Status::ERROR));
 
@@ -2664,7 +2666,7 @@ TEST_F(HandlersTest, ImpuRegDataDeregCacheNotFound)
   ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
     
   // Create IRS to be returned from the cache
-  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet(IMPU);
+  FakeImplicitRegistrationSet* irs = new FakeImplicitRegistrationSet(IMPU);
   irs->set_ims_sub_xml(IMPU_IMS_SUBSCRIPTION);
   irs->set_reg_state(RegistrationState::REGISTERED);
   irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
@@ -2692,7 +2694,7 @@ TEST_F(HandlersTest, ImpuRegDataDeregCacheNotFound)
   // Check that the deletion request is using the correct service profile (as
   // that's how the cache knows what to delete)
   EXPECT_CALL(*_cache, delete_implicit_registration_set(_, _,
-    Field(&ImplicitRegistrationSet::_ims_sub_xml, IMPU_IMS_SUBSCRIPTION),
+    Property(&ImplicitRegistrationSet::get_ims_sub_xml, IMPU_IMS_SUBSCRIPTION),
     FAKE_TRAIL_ID))
     .WillOnce(InvokeArgument<1>(Store::Status::NOT_FOUND));
 
@@ -2713,7 +2715,7 @@ TEST_F(HandlersTest, ImpuRegDataDeregUnregSub)
   ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
     
   // Create IRS to be returned from the cache
-  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet(IMPU);
+  FakeImplicitRegistrationSet* irs = new FakeImplicitRegistrationSet(IMPU);
   irs->set_ims_sub_xml(IMPU_IMS_SUBSCRIPTION);
   irs->set_reg_state(RegistrationState::UNREGISTERED);
   irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
@@ -2741,7 +2743,7 @@ TEST_F(HandlersTest, ImpuRegDataDeregUnregSub)
   // Check that the deletion request is using the correct service profile (as
   // that's how the cache knows what to delete)
   EXPECT_CALL(*_cache, delete_implicit_registration_set(_, _,
-    Field(&ImplicitRegistrationSet::_ims_sub_xml, IMPU_IMS_SUBSCRIPTION),
+    Property(&ImplicitRegistrationSet::get_ims_sub_xml, IMPU_IMS_SUBSCRIPTION),
     FAKE_TRAIL_ID))
     .WillOnce(InvokeArgument<0>());
 
@@ -2764,7 +2766,7 @@ TEST_F(HandlersTest, ImpuRegDataDeregAuthFailedRegistered)
   ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
     
   // Create IRS to be returned from the cache
-  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet(IMPU);
+  FakeImplicitRegistrationSet* irs = new FakeImplicitRegistrationSet(IMPU);
   irs->set_ims_sub_xml(IMPU_IMS_SUBSCRIPTION);
   irs->set_reg_state(RegistrationState::REGISTERED);
   irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
@@ -2807,7 +2809,7 @@ TEST_F(HandlersTest, ImpuRegDataDeregAuthFailedNotRegistered)
   ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
     
   // Create IRS to be returned from the cache
-  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet(IMPU);
+  FakeImplicitRegistrationSet* irs = new FakeImplicitRegistrationSet(IMPU);
   irs->set_ims_sub_xml(IMPU_IMS_SUBSCRIPTION);
   irs->set_reg_state(RegistrationState::NOT_REGISTERED);
   irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
@@ -2850,7 +2852,7 @@ TEST_F(HandlersTest, ImpuRegDataDeregAuthTimeout)
   ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
     
   // Create IRS to be returned from the cache
-  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet(IMPU);
+  FakeImplicitRegistrationSet* irs = new FakeImplicitRegistrationSet(IMPU);
   irs->set_ims_sub_xml(IMPU_IMS_SUBSCRIPTION);
   irs->set_reg_state(RegistrationState::NOT_REGISTERED);
   irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
@@ -2892,7 +2894,7 @@ TEST_F(HandlersTest, ImpuRegDataDeregInvalid)
   ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
     
   // Create IRS to be returned from the cache
-  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet(IMPU);
+  FakeImplicitRegistrationSet* irs = new FakeImplicitRegistrationSet(IMPU);
   irs->set_ims_sub_xml(IMPU_IMS_SUBSCRIPTION);
   irs->set_reg_state(RegistrationState::NOT_REGISTERED);
   irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
@@ -2922,7 +2924,7 @@ TEST_F(HandlersTest, ImpuRegDataInvalidXML)
   EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
     .WillOnce(InvokeArgument<1>(Store::Status::NOT_FOUND));
 
-  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet(IMPU);
+  FakeImplicitRegistrationSet* irs = new FakeImplicitRegistrationSet(IMPU);
   EXPECT_CALL(*_cache, create_implicit_registration_set(IMPU))
     .WillOnce(Return(irs));
 
@@ -2999,7 +3001,7 @@ TEST_F(HandlersTest, ImpuRegDataHssNotFound)
   ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
     
   // Create IRS to be returned from the cache
-  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet(IMPU);
+  FakeImplicitRegistrationSet* irs = new FakeImplicitRegistrationSet(IMPU);
   irs->set_ims_sub_xml(IMPU_IMS_SUBSCRIPTION);
   irs->set_reg_state(RegistrationState::NOT_REGISTERED);
   irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
@@ -3162,7 +3164,7 @@ TEST_F(HandlersTest, RTRIncludesBarredImpus)
 
   // Create the IRS that will be returned
   // The default IMPU of the IRS is IMPU2 as IMPU is barred
-  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet(IMPU2);
+  FakeImplicitRegistrationSet* irs = new FakeImplicitRegistrationSet(IMPU2);
   irs->set_ims_sub_xml(IMPU_IMS_SUBSCRIPTION_WITH_BARRING);
   irs->set_reg_state(RegistrationState::NOT_REGISTERED);
   irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
@@ -3227,7 +3229,7 @@ TEST_F(HandlersTest, RTRIncludesBarringIndication)
   std::vector<std::string> impis = { IMPI, ASSOCIATED_IDENTITY1, ASSOCIATED_IDENTITY2 };
 
   // Create the IRS that will be returned
-  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet(IMPU);
+  FakeImplicitRegistrationSet* irs = new FakeImplicitRegistrationSet(IMPU);
   irs->set_ims_sub_xml(IMPU_IMS_SUBSCRIPTION_BARRING_INDICATION);
   irs->set_reg_state(RegistrationState::NOT_REGISTERED);
   irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
@@ -3362,7 +3364,7 @@ TEST_F(HandlersTest, PPRMainline)
   ppr_setup(&task, &pcfg, IMPI, IMS_SUBSCRIPTION, FULL_CHARGING_ADDRESSES);
 
   // Create the ImsSubscription that will be returned
-  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet(IMPU);
+  FakeImplicitRegistrationSet* irs = new FakeImplicitRegistrationSet(IMPU);
   irs->set_ims_sub_xml(IMS_SUBSCRIPTION);
   irs->set_reg_state(RegistrationState::REGISTERED);
   irs->set_charging_addresses(FULL_CHARGING_ADDRESSES);
@@ -3406,7 +3408,7 @@ TEST_F(HandlersTest, PPRChangeIDs)
 
   // Create the ImsSubscription that will be returned
   // The IRS has different XML to that on the PPR
-  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet(IMPU);
+  FakeImplicitRegistrationSet* irs = new FakeImplicitRegistrationSet(IMPU);
   irs->set_ims_sub_xml(IMPU_IMS_SUBSCRIPTION2);
   irs->set_reg_state(RegistrationState::REGISTERED);
   irs->set_charging_addresses(FULL_CHARGING_ADDRESSES);
@@ -3450,7 +3452,7 @@ TEST_F(HandlersTest, PPRChargingAddrs)
   ppr_setup(&task, &pcfg, IMPI, "", FULL_CHARGING_ADDRESSES);
 
   // Create the ImsSubscription that will be returned
-  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet(IMPU);
+  FakeImplicitRegistrationSet* irs = new FakeImplicitRegistrationSet(IMPU);
   irs->set_ims_sub_xml(IMPU_IMS_SUBSCRIPTION);
   irs->set_reg_state(RegistrationState::REGISTERED);
   irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
@@ -3491,7 +3493,7 @@ TEST_F(HandlersTest, PPRImsSub)
   ppr_setup(&task, &pcfg, IMPI, IMS_SUBSCRIPTION, NO_CHARGING_ADDRESSES);
 
   // Create the ImsSubscription that will be returned
-  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet(IMPU);
+  FakeImplicitRegistrationSet* irs = new FakeImplicitRegistrationSet(IMPU);
   irs->set_ims_sub_xml(IMPU_IMS_SUBSCRIPTION);
   irs->set_reg_state(RegistrationState::REGISTERED);
   irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
@@ -3531,7 +3533,7 @@ TEST_F(HandlersTest, PPRIMSSubNoSIPURI)
   ppr_setup(&task, &pcfg, IMPI, TEL_URIS_IMS_SUBSCRIPTION, NO_CHARGING_ADDRESSES);
 
   // Create the ImsSubscription that will be returned
-  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet(TEL_URI);
+  FakeImplicitRegistrationSet* irs = new FakeImplicitRegistrationSet(TEL_URI);
   irs->set_ims_sub_xml(TEL_URIS_IMS_SUBSCRIPTION);
   irs->set_reg_state(RegistrationState::REGISTERED);
   irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
@@ -3571,7 +3573,7 @@ TEST_F(HandlersTest, PPRCacheFailure)
   ppr_setup(&task, &pcfg, IMPI, IMS_SUBSCRIPTION, NO_CHARGING_ADDRESSES);
 
   // Create the ImsSubscription that will be returned
-  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet(IMPU);
+  FakeImplicitRegistrationSet* irs = new FakeImplicitRegistrationSet(IMPU);
   irs->set_ims_sub_xml(IMS_SUBSCRIPTION);
   irs->set_reg_state(RegistrationState::REGISTERED);
   irs->set_charging_addresses(NO_CHARGING_ADDRESSES);

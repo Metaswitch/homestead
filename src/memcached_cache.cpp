@@ -63,6 +63,27 @@ bool in_vector(const std::string& element,
   return std::find(vec.begin(), vec.end(), element) != vec.end();
 }
 
+void set_element(const std::string& element,
+                 std::vector<std::string>& added,
+                 std::vector<std::string>& unchanged,
+                 std::vector<std::string>& deleted)
+{
+  if (in_vector(element, added) || in_vector(element, unchanged))
+  {
+    // We are already tracking this element
+  }
+  else if (in_vector(element, deleted))
+  {
+    TRC_WARNING("Deleted element being re-added!: %s", element.c_str());
+    added.push_back(element);
+    deleted.erase(std::remove(deleted.begin(), deleted.end(), element), deleted.end());
+  }
+  else
+  {
+    added.push_back(element);
+  }
+}
+
 void mark_as_old(const std::string& element,
                  std::vector<std::string>& added,
                  std::vector<std::string>& unchanged,
@@ -110,6 +131,24 @@ void update_with_f(const std::vector<std::string>& old,
       unchanged,
       deleted);
   }
+}
+
+void MemcachedImplicitRegistrationSet::set_associated_impis(std::vector<std::string> impis)
+{
+  update_with_f(impis,
+                _added_impis,
+                _unchanged_impis,
+                _deleted_impis,
+                &set_element);
+}
+
+void MemcachedImplicitRegistrationSet::set_associated_impus(std::vector<std::string> impus)
+{
+  update_with_f(impus,
+                _added_associated_impus,
+                _unchanged_associated_impus,
+                _deleted_associated_impus,
+                &set_element);
 }
 
 void MemcachedImplicitRegistrationSet::update_from_store(ImpuStore::DefaultImpu* impu)

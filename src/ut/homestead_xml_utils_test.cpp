@@ -14,6 +14,7 @@
 
 #include "homestead_xml_utils.h"
 #include "reg_state.h"
+#include "fake_implicit_reg_set.h"
 
 /// Fixture for XmlUtilsTest.
 class XmlUtilsTest : public testing::Test
@@ -31,7 +32,7 @@ public:
 TEST_F(XmlUtilsTest, SimpleMainline)
 {
   ChargingAddresses charging_addresses({"ccf1", "ccf2"}, {"ecf1", "ecf2"});
-  ImplicitRegistrationSet irs = ImplicitRegistrationSet("");
+  FakeImplicitRegistrationSet irs = FakeImplicitRegistrationSet("");
   irs.set_charging_addresses(charging_addresses);
   irs.set_ims_sub_xml("<?xml?><IMSSubscription>test</IMSSubscription>");
   irs.set_reg_state(RegistrationState::REGISTERED);
@@ -45,7 +46,7 @@ TEST_F(XmlUtilsTest, SimpleMainline)
 TEST_F(XmlUtilsTest, Unregistered)
 {
   ChargingAddresses charging_addresses;
-  ImplicitRegistrationSet irs = ImplicitRegistrationSet("");
+  FakeImplicitRegistrationSet irs = FakeImplicitRegistrationSet("");
   irs.set_charging_addresses(charging_addresses);
   irs.set_ims_sub_xml("<?xml?><IMSSubscription>test</IMSSubscription>");
   irs.set_reg_state(RegistrationState::UNREGISTERED);
@@ -59,7 +60,7 @@ TEST_F(XmlUtilsTest, Unregistered)
 TEST_F(XmlUtilsTest, InvalidRegState)
 {
   ChargingAddresses charging_addresses;
-  ImplicitRegistrationSet irs = ImplicitRegistrationSet("");
+  FakeImplicitRegistrationSet irs = FakeImplicitRegistrationSet("");
   irs.set_charging_addresses(charging_addresses);
   irs.set_ims_sub_xml("<?xml?><IMSSubscription>test</IMSSubscription>");
   irs.set_reg_state(RegistrationState::UNCHANGED);
@@ -73,7 +74,7 @@ TEST_F(XmlUtilsTest, InvalidRegState)
 TEST_F(XmlUtilsTest, InvalidIMSSubscription)
 {
   ChargingAddresses charging_addresses;
-  ImplicitRegistrationSet irs = ImplicitRegistrationSet("");
+  FakeImplicitRegistrationSet irs = FakeImplicitRegistrationSet("");
   irs.set_charging_addresses(charging_addresses);
   irs.set_ims_sub_xml("<?xml?><IMSSubscriptionwrong>test</IMSSubscriptionwrong>");
   irs.set_reg_state(RegistrationState::REGISTERED);
@@ -86,7 +87,7 @@ TEST_F(XmlUtilsTest, InvalidIMSSubscription)
 TEST_F(XmlUtilsTest, InvalidXML)
 {
   ChargingAddresses charging_addresses;
-  ImplicitRegistrationSet irs = ImplicitRegistrationSet("");
+  FakeImplicitRegistrationSet irs = FakeImplicitRegistrationSet("");
   irs.set_charging_addresses(charging_addresses);
   irs.set_ims_sub_xml("<?xml?><InvalidXML</IMSSubscription>");
   irs.set_reg_state(RegistrationState::REGISTERED);

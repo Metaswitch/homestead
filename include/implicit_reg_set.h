@@ -22,76 +22,30 @@ class ImplicitRegistrationSet
 {
 public:
   ImplicitRegistrationSet(const std::string& default_impu) :
-    default_impu(default_impu),
-    _ttl(0)
+    default_impu(default_impu)
   {
 
   }
 
-  //TODO implementation, constructor, destructor, getters etc.
+  virtual ~ImplicitRegistrationSet()
+  {
+  }
+
 public:
 
-  void add_impi(std::string impi);
-  void remove_impi(std::string impi);
+  virtual std::string get_ims_sub_xml() const = 0;
+  virtual RegistrationState get_reg_state() const = 0;
+  virtual std::vector<std::string> get_associated_impis() const = 0;
+  virtual const ChargingAddresses& get_charging_addresses() const = 0;
+  virtual int32_t get_ttl() const = 0;
 
-  std::string get_ims_sub_xml()
-  {
-    return _ims_sub_xml;
-  }
-
-  RegistrationState get_reg_state()
-  {
-    return _reg_state;
-  }
-
-  std::vector<std::string> get_associated_impis()
-  {
-    return _associated_impis;
-  }
-
-  const ChargingAddresses& get_charging_addresses()
-  {
-    return _charging_addresses;
-  }
-
-  int32_t get_ttl()
-  {
-    return _ttl;
-  }
-
-  void set_ims_sub_xml(std::string xml)
-  {
-    _ims_sub_xml = xml;
-  }
-
-  void set_reg_state(RegistrationState state)
-  {
-    _reg_state = state;
-  }
-
-  void set_associated_impis (std::vector<std::string> impis)
-  {
-    _associated_impis = impis;
-  }
-
-  void set_charging_addresses(ChargingAddresses addresses)
-  {
-    _charging_addresses = addresses;
-  }
-
-  void set_ttl(int32_t ttl)
-  {
-    _ttl = ttl;
-  }
+  virtual void set_ims_sub_xml(std::string xml) = 0;
+  virtual void set_reg_state(RegistrationState state) = 0;
+  virtual void set_associated_impis (std::vector<std::string> impis) = 0;
+  virtual void set_charging_addresses(ChargingAddresses addresses) = 0;
+  virtual void set_ttl(int32_t ttl) = 0;
 
   const std::string default_impu;
-
-private:
-  std::string _ims_sub_xml;
-  RegistrationState _reg_state;
-  std::vector<std::string> _associated_impis;
-  ChargingAddresses _charging_addresses;
-  int32_t _ttl;
 };
 
 #endif
