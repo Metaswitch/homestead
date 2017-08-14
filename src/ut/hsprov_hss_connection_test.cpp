@@ -24,23 +24,14 @@
 #include "mockhsprovstore.hpp"
 
 using ::testing::Return;
-using ::testing::ReturnRef;
 using ::testing::SetArgReferee;
 using ::testing::_;
 using ::testing::Invoke;
-using ::testing::InvokeArgument;
-using ::testing::WithArgs;
-using ::testing::NiceMock;
 using ::testing::StrictMock;
 using ::testing::Mock;
-using ::testing::AtLeast;
 using ::testing::Field;
 using ::testing::AllOf;
-using ::testing::ByRef;
-using ::testing::ReturnNull;
 using ::testing::IsNull;
-using ::testing::Pointee;
-using ::testing::InvokeWithoutArgs;
 
 //TODO commonalize this with HsProvHssConnectionTest's versions
 
