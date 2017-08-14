@@ -12,8 +12,6 @@
 #define DIAMETER_HSS_CONNECTION_H__
 
 #include <string>
-#include "servercapabilities.h"
-#include "charging_addresses.h"
 #include "diameterstack.h"
 #include "cx.h"
 #include "snmp_cx_counter_table.h"

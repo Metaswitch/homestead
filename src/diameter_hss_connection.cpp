@@ -10,8 +10,8 @@
  */
 
 #include "diameter_hss_connection.h"
-
-
+#include "servercapabilities.h"
+#include "charging_addresses.h"
 
 namespace HssConnection {
 

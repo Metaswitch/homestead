@@ -343,7 +343,7 @@ public:
                                               ServerAssignmentRequest request,
                                               SAS::TrailId trail) = 0;
 
-private:
+protected:
   StatisticsManager* _stats_manager;
 };
 
