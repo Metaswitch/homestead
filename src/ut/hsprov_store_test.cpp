@@ -86,10 +86,10 @@ public:
 //
 // In reality only the start() method is interesting, so the fixture handles
 // calling initialize() and configure()
-class CacheInitializationTest : public ::testing::Test
+class HsProvStoreInitializationTest : public ::testing::Test
 {
 public:
-  CacheInitializationTest()
+  HsProvStoreInitializationTest()
   {
     _targets.push_back(create_target("10.0.0.1"));
     _targets.push_back(create_target("10.0.0.2"));
@@ -114,7 +114,7 @@ public:
     EXPECT_CALL(_client, is_connected()).Times(testing::AnyNumber()).WillRepeatedly(Return(false));
   }
 
-  virtual ~CacheInitializationTest()
+  virtual ~HsProvStoreInitializationTest()
   {
     _cache.stop();
     _cache.wait_stopped();
@@ -147,10 +147,10 @@ public:
 
 // Fixture for tests that make requests to the cache (but are not interested in
 // testing initialization).
-class CacheRequestTest : public CacheInitializationTest
+class HsProvStoreRequestTest : public HsProvStoreInitializationTest
 {
 public:
-  CacheRequestTest() : CacheInitializationTest()
+  HsProvStoreRequestTest() : HsProvStoreInitializationTest()
   {
     sem_init(&_sem, 0, 0);
 
@@ -163,7 +163,7 @@ public:
     _cache.start();
   }
 
-  virtual ~CacheRequestTest() {}
+  virtual ~HsProvStoreRequestTest() {}
 
   // Helper methods to make a TestTransaction or RecordingTransation. This
   // passes the semaphore into the transaction constructor - this is posted to
@@ -204,15 +204,15 @@ public:
   sem_t _sem;
 };
 
-class CacheLatencyTest : public CacheRequestTest
+class HsProvStoreLatencyTest : public HsProvStoreRequestTest
 {
 public:
-  CacheLatencyTest() : CacheRequestTest()
+  HsProvStoreLatencyTest() : HsProvStoreRequestTest()
   {
     cwtest_completely_control_time();
   }
 
-  virtual ~CacheLatencyTest() { cwtest_reset_time(); }
+  virtual ~HsProvStoreLatencyTest() { cwtest_reset_time(); }
 
   // This test mucks around with time so we override wait to jusr wait on the
   // semaphore rather than the safer timedwait (which spots script hangs).
@@ -229,7 +229,7 @@ public:
 // TESTS
 //
 
-TEST_F(CacheInitializationTest, Mainline)
+TEST_F(HsProvStoreInitializationTest, Mainline)
 {
   EXPECT_CALL(_client, connect()).Times(1);
   EXPECT_CALL(_resolver, success(_targets[0])).Times(1);
@@ -241,7 +241,7 @@ TEST_F(CacheInitializationTest, Mainline)
 }
 
 
-TEST_F(CacheInitializationTest, OneTransportException)
+TEST_F(HsProvStoreInitializationTest, OneTransportException)
 {
   apache::thrift::transport::TTransportException te;
   EXPECT_CALL(_client, connect()).Times(2).WillOnce(Throw(te)).WillRepeatedly(Return());
@@ -261,7 +261,7 @@ TEST_F(CacheInitializationTest, OneTransportException)
 }
 
 
-TEST_F(CacheInitializationTest, TwoTransportExceptions)
+TEST_F(HsProvStoreInitializationTest, TwoTransportExceptions)
 {
   apache::thrift::transport::TTransportException te;
   EXPECT_CALL(_client, connect()).Times(2).WillRepeatedly(Throw(te));
@@ -277,7 +277,7 @@ TEST_F(CacheInitializationTest, TwoTransportExceptions)
 }
 
 
-TEST_F(CacheInitializationTest, NotFoundException)
+TEST_F(HsProvStoreInitializationTest, NotFoundException)
 {
   cass::NotFoundException nfe;
   EXPECT_CALL(_client, set_keyspace(_)).Times(1).WillOnce(Throw(nfe));
@@ -291,7 +291,7 @@ TEST_F(CacheInitializationTest, NotFoundException)
 }
 
 
-TEST_F(CacheInitializationTest, RowNotFoundException)
+TEST_F(HsProvStoreInitializationTest, RowNotFoundException)
 {
   CassandraStore::RowNotFoundException rnfe("muppets", "kermit");
   EXPECT_CALL(_client, set_keyspace(_)).Times(1).WillOnce(Throw(rnfe));
@@ -305,7 +305,7 @@ TEST_F(CacheInitializationTest, RowNotFoundException)
 }
 
 
-TEST_F(CacheInitializationTest, UnavailableException)
+TEST_F(HsProvStoreInitializationTest, UnavailableException)
 {
   cass::UnavailableException ue;
   EXPECT_CALL(_client, set_keyspace(_)).Times(1).WillOnce(Throw(ue));
@@ -319,7 +319,7 @@ TEST_F(CacheInitializationTest, UnavailableException)
 }
 
 
-TEST_F(CacheInitializationTest, UnknownException)
+TEST_F(HsProvStoreInitializationTest, UnknownException)
 {
   std::string ex("Made up exception");
   EXPECT_CALL(_client, set_keyspace(_)).Times(1).WillOnce(Throw(ex));
@@ -333,7 +333,7 @@ TEST_F(CacheInitializationTest, UnknownException)
 }
 
 
-TEST_F(CacheInitializationTest, Connection)
+TEST_F(HsProvStoreInitializationTest, Connection)
 {
   // If is_connected() returns true, connect() should not be called
   EXPECT_CALL(_client, is_connected()).WillOnce(Return(true));
@@ -346,7 +346,7 @@ TEST_F(CacheInitializationTest, Connection)
 }
 
 
-TEST_F(CacheRequestTest, GetRegDataMainline)
+TEST_F(HsProvStoreRequestTest, GetRegDataMainline)
 {
   std::map<std::string, std::string> columns;
   columns["ims_subscription_xml"] = "<howdy>";
@@ -379,7 +379,7 @@ TEST_F(CacheRequestTest, GetRegDataMainline)
 }
 
 
-TEST_F(CacheRequestTest, GetRegDataUnregistered)
+TEST_F(HsProvStoreRequestTest, GetRegDataUnregistered)
 {
   std::map<std::string, std::string> columns;
   columns["ims_subscription_xml"] = "<howdy>";
@@ -409,7 +409,7 @@ TEST_F(CacheRequestTest, GetRegDataUnregistered)
 // If we have User-Data XML, but no explicit registration state, that should
 // still be treated as unregistered state.
 
-TEST_F(CacheRequestTest, GetRegDataNoRegState)
+TEST_F(HsProvStoreRequestTest, GetRegDataNoRegState)
 {
   std::vector<std::string> requested_columns;
   requested_columns.push_back("ims_subscription_xml");
@@ -441,7 +441,7 @@ TEST_F(CacheRequestTest, GetRegDataNoRegState)
 
 // Invalid registration state is treated as NOT_REGISTERED
 
-TEST_F(CacheRequestTest, GetRegDataInvalidRegState)
+TEST_F(HsProvStoreRequestTest, GetRegDataInvalidRegState)
 {
   std::map<std::string, std::string> columns;
   columns["ims_subscription_xml"] = "";
@@ -468,7 +468,7 @@ TEST_F(CacheRequestTest, GetRegDataInvalidRegState)
 }
 
 
-TEST_F(CacheRequestTest, GetRegDataNotFound)
+TEST_F(HsProvStoreRequestTest, GetRegDataNotFound)
 {
   CassandraStore::Operation* op =
     _cache.create_GetRegData("kermit");
@@ -482,7 +482,7 @@ TEST_F(CacheRequestTest, GetRegDataNotFound)
   execute_trx(op, trx);
 }
 
-TEST_F(CacheRequestTest, GetAuthVectorAllColsReturned)
+TEST_F(HsProvStoreRequestTest, GetAuthVectorAllColsReturned)
 {
   std::vector<std::string> requested_columns;
   requested_columns.push_back("digest_ha1");
@@ -518,7 +518,7 @@ TEST_F(CacheRequestTest, GetAuthVectorAllColsReturned)
 }
 
 
-TEST_F(CacheRequestTest, GetAuthVectorNonDefaultableColsReturned)
+TEST_F(HsProvStoreRequestTest, GetAuthVectorNonDefaultableColsReturned)
 {
   std::map<std::string, std::string> columns;
   columns["digest_ha1"] = "somehash";
@@ -543,7 +543,7 @@ TEST_F(CacheRequestTest, GetAuthVectorNonDefaultableColsReturned)
 }
 
 
-TEST_F(CacheRequestTest, GetAuthVectorHa1NotReturned)
+TEST_F(HsProvStoreRequestTest, GetAuthVectorHa1NotReturned)
 {
   std::map<std::string, std::string> columns;
   columns["digest_realm"] = "themuppetshow.com";
@@ -564,7 +564,7 @@ TEST_F(CacheRequestTest, GetAuthVectorHa1NotReturned)
 }
 
 
-TEST_F(CacheRequestTest, GetAuthVectorNoColsReturned)
+TEST_F(HsProvStoreRequestTest, GetAuthVectorNoColsReturned)
 {
   ResultRecorder<HsProvStore::GetAuthVector, DigestAuthVector> rec;
   RecordingTransaction* trx = make_rec_trx(&rec);
@@ -578,7 +578,7 @@ TEST_F(CacheRequestTest, GetAuthVectorNoColsReturned)
 }
 
 
-TEST_F(CacheRequestTest, GetAuthVectorPublicIdRequested)
+TEST_F(HsProvStoreRequestTest, GetAuthVectorPublicIdRequested)
 {
   std::vector<std::string> requested_columns;
   requested_columns.push_back("digest_ha1");
@@ -616,7 +616,7 @@ TEST_F(CacheRequestTest, GetAuthVectorPublicIdRequested)
 }
 
 
-TEST_F(CacheRequestTest, GetAuthVectorPublicIdRequestedNotReturned)
+TEST_F(HsProvStoreRequestTest, GetAuthVectorPublicIdRequestedNotReturned)
 {
   std::map<std::string, std::string> columns;
   columns["digest_ha1"] = "somehash";
@@ -638,7 +638,7 @@ TEST_F(CacheRequestTest, GetAuthVectorPublicIdRequestedNotReturned)
 }
 
 
-TEST_F(CacheRequestTest, HaGetMainline)
+TEST_F(HsProvStoreRequestTest, HaGetMainline)
 {
   std::map<std::string, std::string> columns;
   columns["ims_subscription_xml"] = "<howdy>";
@@ -665,7 +665,7 @@ TEST_F(CacheRequestTest, HaGetMainline)
 }
 
 
-TEST_F(CacheRequestTest, HaGet2ndReadNotFoundException)
+TEST_F(HsProvStoreRequestTest, HaGet2ndReadNotFoundException)
 {
   std::vector<std::string> requested_columns;
   requested_columns.push_back("ims_subscription_xml");
@@ -690,7 +690,7 @@ TEST_F(CacheRequestTest, HaGet2ndReadNotFoundException)
 }
 
 
-TEST_F(CacheRequestTest, HaGet2ndReadUnavailableException)
+TEST_F(HsProvStoreRequestTest, HaGet2ndReadUnavailableException)
 {
   std::vector<std::string> requested_columns;
   requested_columns.push_back("ims_subscription_xml");
@@ -720,7 +720,7 @@ TEST_F(CacheRequestTest, HaGet2ndReadUnavailableException)
 }
 
 
-TEST_F(CacheRequestTest, HaGet2ndReadTimedUutException)
+TEST_F(HsProvStoreRequestTest, HaGet2ndReadTimedUutException)
 {
   std::vector<std::string> requested_columns;
   requested_columns.push_back("ims_subscription_xml");
@@ -749,7 +749,7 @@ TEST_F(CacheRequestTest, HaGet2ndReadTimedUutException)
   execute_trx(op, trx);
 }
 
-TEST_F(CacheRequestTest, HaGetRetryUsesConsistencyOne)
+TEST_F(HsProvStoreRequestTest, HaGetRetryUsesConsistencyOne)
 {
   std::map<std::string, std::string> columns;
   columns["ims_subscription_xml"] = "<howdy>";
@@ -808,7 +808,7 @@ TEST_F(CacheRequestTest, HaGetRetryUsesConsistencyOne)
 }
 
 
-TEST(CacheGenerateTimestamp, CreatesMicroTimestamp)
+TEST(HsProvStoreGenerateTimestamp, CreatesMicroTimestamp)
 {
   struct timespec ts;
   int rc;
@@ -830,7 +830,7 @@ ACTION_P(AdvanceTimeMs, ms) { cwtest_advance_time_ms(ms); }
 ACTION_P2(CheckLatency, trx, ms) { trx->check_latency(ms * 1000); }
 
 
-TEST_F(CacheLatencyTest, GetRecordsLatency)
+TEST_F(HsProvStoreLatencyTest, GetRecordsLatency)
 {
   std::vector<std::string> requested_columns;
   requested_columns.push_back("ims_subscription_xml");
@@ -856,7 +856,7 @@ TEST_F(CacheLatencyTest, GetRecordsLatency)
   execute_trx(op, trx);
 }
 
-TEST_F(CacheLatencyTest, GetErrorRecordsLatency)
+TEST_F(HsProvStoreLatencyTest, GetErrorRecordsLatency)
 {
   std::vector<std::string> requested_columns;
   requested_columns.push_back("ims_subscription_xml");
