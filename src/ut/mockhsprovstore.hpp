@@ -9,21 +9,21 @@
  * Metaswitch Networks in a separate written agreement.
  */
 
-#ifndef MOCKCACHE_H__
-#define MOCKCACHE_H__
+#ifndef MOCKHSPROVSTORE_H__
+#define MOCKHSPROVSTORE_H__
 
-#include "cache.h"
+#include "hsprov_store.h"
 #include "mock_cassandra_store.h"
 
 #include "gmock/gmock.h"
 
 static DigestAuthVector mock_digest_av;
 
-class MockCache : public Cache
+class MockHsProvStore : public HsProvStore
 {
 public:
-  MockCache() {};
-  virtual ~MockCache() {};
+  MockHsProvStore() {};
+  virtual ~MockHsProvStore() {};
 
   MOCK_METHOD2(do_async, void(CassandraStore::Operation*& op,
                               CassandraStore::Transaction*& trx));
@@ -111,10 +111,10 @@ public:
   //
   // -  The Test creates a MockGetRegData object.
   //
-  // -  The test sets up MockCache to expect create_GetRegData().
+  // -  The test sets up MockHsProvStore to expect create_GetRegData().
   //    This checks the parameters and returns the mock object.
   //
-  // -  The test sets up MockCache to expect send() with the mock request passed
+  // -  The test sets up MockHsProvStore to expect send() with the mock request passed
   //    in.  This stores the transaction on the mock request.
   //
   // To generate a response.

@@ -1,5 +1,5 @@
 /**
- * @file cache.cpp implementation of a cassandra-backed cache.
+ * @file hsprov_store.cpp implementation of a cassandra-backed store.
  *
  * Copyright (C) Metaswitch Networks 2017
  * If license terms are provided to you in a COPYING file in the root directory
@@ -11,7 +11,7 @@
 
 #include <boost/format.hpp>
 
-#include "cache.h"
+#include "hsprov_store.h"
 
 using namespace apache::thrift;
 using namespace apache::thrift::transport;
@@ -49,23 +49,23 @@ const static std::string EXISTS_COLUMN_NAME = "_exists";
 //
 // Must create this after the constants above so that they have been
 // initialized before we initialize the cache.
-Cache* Cache::INSTANCE = &DEFAULT_INSTANCE;
-Cache Cache::DEFAULT_INSTANCE;
+HsProvStore* HsProvStore::INSTANCE = &DEFAULT_INSTANCE;
+HsProvStore HsProvStore::DEFAULT_INSTANCE;
 
 //
-// Cache methods
+// HsProvStore methods
 //
 
-Cache::Cache() : CassandraStore::Store(KEYSPACE) {}
+HsProvStore::HsProvStore() : CassandraStore::Store(KEYSPACE) {}
 
-Cache::~Cache() {}
+HsProvStore::~HsProvStore() {}
 
 
 //
 // PutRegData methods.
 //
 
-Cache::PutRegData::
+HsProvStore::PutRegData::
 PutRegData(const std::string& public_id,
            const std::string& default_public_id,
            const int64_t timestamp,
@@ -77,7 +77,7 @@ PutRegData(const std::string& public_id,
   _ttl(ttl)
 {}
 
-Cache::PutRegData::
+HsProvStore::PutRegData::
 PutRegData(const std::vector<std::string>& public_ids,
            const std::string& default_public_id,
            const int64_t timestamp,
@@ -89,17 +89,17 @@ PutRegData(const std::vector<std::string>& public_ids,
   _ttl(ttl)
 {}
 
-Cache::PutRegData::
+HsProvStore::PutRegData::
 ~PutRegData()
 {}
 
-Cache::PutRegData& Cache::PutRegData::with_xml(const std::string& xml)
+HsProvStore::PutRegData& HsProvStore::PutRegData::with_xml(const std::string& xml)
 {
   _columns[IMS_SUB_XML_COLUMN_NAME] = xml;
   return *this;
 }
 
-Cache::PutRegData& Cache::PutRegData::with_reg_state(const RegistrationState reg_state)
+HsProvStore::PutRegData& HsProvStore::PutRegData::with_reg_state(const RegistrationState reg_state)
 {
   if (reg_state == RegistrationState::REGISTERED)
   {
@@ -118,7 +118,7 @@ Cache::PutRegData& Cache::PutRegData::with_reg_state(const RegistrationState reg
   return *this;
 }
 
-Cache::PutRegData& Cache::PutRegData::with_associated_impis(const std::vector<std::string>& impis)
+HsProvStore::PutRegData& HsProvStore::PutRegData::with_associated_impis(const std::vector<std::string>& impis)
 {
   for (std::vector<std::string>::const_iterator impi = impis.begin();
        impi != impis.end();
@@ -134,7 +134,7 @@ Cache::PutRegData& Cache::PutRegData::with_associated_impis(const std::vector<st
   return *this;
 }
 
-Cache::PutRegData& Cache::PutRegData::with_charging_addrs(const ChargingAddresses& charging_addrs)
+HsProvStore::PutRegData& HsProvStore::PutRegData::with_charging_addrs(const ChargingAddresses& charging_addrs)
 {
   if (charging_addrs.ccfs.empty())
   {
@@ -170,7 +170,7 @@ Cache::PutRegData& Cache::PutRegData::with_charging_addrs(const ChargingAddresse
   return *this;
 }
 
-bool Cache::PutRegData::perform(CassandraStore::Client* client,
+bool HsProvStore::PutRegData::perform(CassandraStore::Client* client,
                                 SAS::TrailId trail)
 {
   for (std::vector<std::string>::iterator row = _public_ids.begin();
@@ -189,7 +189,7 @@ bool Cache::PutRegData::perform(CassandraStore::Client* client,
 // PutAssociatedPrivateID methods
 //
 
-Cache::PutAssociatedPrivateID::
+HsProvStore::PutAssociatedPrivateID::
 PutAssociatedPrivateID(const std::vector<std::string>& impus,
                        const std::string& default_public_id,
                        const std::string& impi,
@@ -204,12 +204,12 @@ PutAssociatedPrivateID(const std::vector<std::string>& impus,
 {}
 
 
-Cache::PutAssociatedPrivateID::
+HsProvStore::PutAssociatedPrivateID::
 ~PutAssociatedPrivateID()
 {}
 
 
-bool Cache::PutAssociatedPrivateID::perform(CassandraStore::Client* client,
+bool HsProvStore::PutAssociatedPrivateID::perform(CassandraStore::Client* client,
                                             SAS::TrailId trail)
 {
   std::vector<CassandraStore::RowColumns> to_put;
@@ -237,7 +237,7 @@ bool Cache::PutAssociatedPrivateID::perform(CassandraStore::Client* client,
 // PutAssociatedPublicID methods.
 //
 
-Cache::PutAssociatedPublicID::
+HsProvStore::PutAssociatedPublicID::
 PutAssociatedPublicID(const std::string& private_id,
                       const std::string& assoc_public_id,
                       const int64_t timestamp,
@@ -250,12 +250,12 @@ PutAssociatedPublicID(const std::string& private_id,
 {}
 
 
-Cache::PutAssociatedPublicID::
+HsProvStore::PutAssociatedPublicID::
 ~PutAssociatedPublicID()
 {}
 
 
-bool Cache::PutAssociatedPublicID::perform(CassandraStore::Client* client,
+bool HsProvStore::PutAssociatedPublicID::perform(CassandraStore::Client* client,
                                            SAS::TrailId trail)
 {
   std::map<std::string, std::string> columns;
@@ -271,7 +271,7 @@ bool Cache::PutAssociatedPublicID::perform(CassandraStore::Client* client,
 // PutAuthVector methods.
 //
 
-Cache::PutAuthVector::
+HsProvStore::PutAuthVector::
 PutAuthVector(const std::string& private_id,
               const DigestAuthVector& auth_vector,
               const int64_t timestamp,
@@ -284,12 +284,12 @@ PutAuthVector(const std::string& private_id,
 {}
 
 
-Cache::PutAuthVector::
+HsProvStore::PutAuthVector::
 ~PutAuthVector()
 {}
 
 
-bool Cache::PutAuthVector::perform(CassandraStore::Client* client,
+bool HsProvStore::PutAuthVector::perform(CassandraStore::Client* client,
                                    SAS::TrailId trail)
 {
   std::map<std::string, std::string> columns;
@@ -306,7 +306,7 @@ bool Cache::PutAuthVector::perform(CassandraStore::Client* client,
 // GetRegData methods
 //
 
-Cache::GetRegData::
+HsProvStore::GetRegData::
 GetRegData(const std::string& public_id) :
   CassandraStore::HAOperation(),
   _public_id(public_id),
@@ -319,12 +319,12 @@ GetRegData(const std::string& public_id) :
 {}
 
 
-Cache::GetRegData::
+HsProvStore::GetRegData::
 ~GetRegData()
 {}
 
 
-bool Cache::GetRegData::perform(CassandraStore::Client* client,
+bool HsProvStore::GetRegData::perform(CassandraStore::Client* client,
                                 SAS::TrailId trail)
 {
   int64_t now = generate_timestamp();
@@ -434,32 +434,32 @@ bool Cache::GetRegData::perform(CassandraStore::Client* client,
   return true;
 }
 
-void Cache::GetRegData::get_xml(std::string& xml, int32_t& ttl)
+void HsProvStore::GetRegData::get_xml(std::string& xml, int32_t& ttl)
 {
   xml = _xml;
   ttl = _xml_ttl;
 }
 
-void Cache::GetRegData::get_associated_impis(std::vector<std::string>& associated_impis)
+void HsProvStore::GetRegData::get_associated_impis(std::vector<std::string>& associated_impis)
 {
   associated_impis = _impis;
 }
 
 
-void Cache::GetRegData::get_registration_state(RegistrationState& reg_state, int32_t& ttl)
+void HsProvStore::GetRegData::get_registration_state(RegistrationState& reg_state, int32_t& ttl)
 {
   reg_state = _reg_state;
   ttl = _reg_state_ttl;
 }
 
 
-void Cache::GetRegData::get_charging_addrs(ChargingAddresses& charging_addrs)
+void HsProvStore::GetRegData::get_charging_addrs(ChargingAddresses& charging_addrs)
 {
   charging_addrs = _charging_addrs;
 }
 
 
-void Cache::GetRegData::get_result(std::pair<RegistrationState, std::string>& result)
+void HsProvStore::GetRegData::get_result(std::pair<RegistrationState, std::string>& result)
 {
   RegistrationState state;
   int32_t reg_ttl;
@@ -473,7 +473,7 @@ void Cache::GetRegData::get_result(std::pair<RegistrationState, std::string>& re
 }
 
 
-void Cache::GetRegData::get_result(Cache::GetRegData::Result& result)
+void HsProvStore::GetRegData::get_result(HsProvStore::GetRegData::Result& result)
 {
   int32_t unused_ttl;
 
@@ -487,7 +487,7 @@ void Cache::GetRegData::get_result(Cache::GetRegData::Result& result)
 // GetAssociatedPublicIDs methods
 //
 
-Cache::GetAssociatedPublicIDs::
+HsProvStore::GetAssociatedPublicIDs::
 GetAssociatedPublicIDs(const std::string& private_id) :
   CassandraStore::HAOperation(),
   _private_ids(1, private_id),
@@ -495,7 +495,7 @@ GetAssociatedPublicIDs(const std::string& private_id) :
 {}
 
 
-Cache::GetAssociatedPublicIDs::
+HsProvStore::GetAssociatedPublicIDs::
 GetAssociatedPublicIDs(const std::vector<std::string>& private_ids) :
   CassandraStore::HAOperation(),
   _private_ids(private_ids),
@@ -503,12 +503,12 @@ GetAssociatedPublicIDs(const std::vector<std::string>& private_ids) :
 {}
 
 
-Cache::GetAssociatedPublicIDs::
+HsProvStore::GetAssociatedPublicIDs::
 ~GetAssociatedPublicIDs()
 {}
 
 
-bool Cache::GetAssociatedPublicIDs::perform(CassandraStore::Client* client,
+bool HsProvStore::GetAssociatedPublicIDs::perform(CassandraStore::Client* client,
                                             SAS::TrailId trail)
 {
   std::map<std::string, std::vector<ColumnOrSuperColumn> > columns;
@@ -554,7 +554,7 @@ bool Cache::GetAssociatedPublicIDs::perform(CassandraStore::Client* client,
   return true;
 }
 
-void Cache::GetAssociatedPublicIDs::get_result(std::vector<std::string>& ids)
+void HsProvStore::GetAssociatedPublicIDs::get_result(std::vector<std::string>& ids)
 {
   ids = _public_ids;
 }
@@ -563,14 +563,14 @@ void Cache::GetAssociatedPublicIDs::get_result(std::vector<std::string>& ids)
 // GetAssociatedPrimaryPublicIDs methods
 //
 
-Cache::GetAssociatedPrimaryPublicIDs::
+HsProvStore::GetAssociatedPrimaryPublicIDs::
 GetAssociatedPrimaryPublicIDs(const std::string& private_id) :
   CassandraStore::HAOperation(),
   _private_ids(1, private_id),
   _public_ids()
 {}
 
-Cache::GetAssociatedPrimaryPublicIDs::
+HsProvStore::GetAssociatedPrimaryPublicIDs::
 GetAssociatedPrimaryPublicIDs(const std::vector<std::string>& private_ids) :
   CassandraStore::HAOperation(),
   _private_ids(private_ids),
@@ -578,7 +578,7 @@ GetAssociatedPrimaryPublicIDs(const std::vector<std::string>& private_ids) :
 {}
 
 
-bool Cache::GetAssociatedPrimaryPublicIDs::perform(CassandraStore::Client* client,
+bool HsProvStore::GetAssociatedPrimaryPublicIDs::perform(CassandraStore::Client* client,
                                                    SAS::TrailId trail)
 {
   std::set<std::string> public_ids_set;
@@ -618,7 +618,7 @@ bool Cache::GetAssociatedPrimaryPublicIDs::perform(CassandraStore::Client* clien
   return true;
 }
 
-void Cache::GetAssociatedPrimaryPublicIDs::get_result(std::vector<std::string>& ids)
+void HsProvStore::GetAssociatedPrimaryPublicIDs::get_result(std::vector<std::string>& ids)
 {
   ids = _public_ids;
 }
@@ -627,7 +627,7 @@ void Cache::GetAssociatedPrimaryPublicIDs::get_result(std::vector<std::string>& 
 // GetAuthVector methods.
 //
 
-Cache::GetAuthVector::
+HsProvStore::GetAuthVector::
 GetAuthVector(const std::string& private_id) :
   CassandraStore::HAOperation(),
   _private_id(private_id),
@@ -636,7 +636,7 @@ GetAuthVector(const std::string& private_id) :
 {}
 
 
-Cache::GetAuthVector::
+HsProvStore::GetAuthVector::
 GetAuthVector(const std::string& private_id,
               const std::string& public_id) :
   CassandraStore::HAOperation(),
@@ -646,12 +646,12 @@ GetAuthVector(const std::string& private_id,
 {}
 
 
-Cache::GetAuthVector::
+HsProvStore::GetAuthVector::
 ~GetAuthVector()
 {}
 
 
-bool Cache::GetAuthVector::perform(CassandraStore::Client* client,
+bool HsProvStore::GetAuthVector::perform(CassandraStore::Client* client,
                                    SAS::TrailId trail)
 {
   TRC_DEBUG("Looking for authentication vector for %s", _private_id.c_str());
@@ -712,7 +712,7 @@ bool Cache::GetAuthVector::perform(CassandraStore::Client* client,
     _cass_error_text = (boost::format(
                         "Private ID '%s' exists but does not have associated public ID '%s'")
                          % _private_id % _public_id).str();
-    TRC_DEBUG("Cache query failed: %s", _cass_error_text.c_str());
+    TRC_DEBUG("HsProvStore query failed: %s", _cass_error_text.c_str());
     return false;
   }
   else if (_auth_vector.ha1 == "")
@@ -720,7 +720,7 @@ bool Cache::GetAuthVector::perform(CassandraStore::Client* client,
     // The HA1 column was not found.  This cannot be defaulted so is an error.
     _cass_status = CassandraStore::NOT_FOUND;
     _cass_error_text = "HA1 column not found";
-    TRC_DEBUG("Cache query failed: %s", _cass_error_text.c_str());
+    TRC_DEBUG("HsProvStore query failed: %s", _cass_error_text.c_str());
     return false;
   }
   else
@@ -729,7 +729,7 @@ bool Cache::GetAuthVector::perform(CassandraStore::Client* client,
   }
 }
 
-void Cache::GetAuthVector::get_result(DigestAuthVector& av)
+void HsProvStore::GetAuthVector::get_result(DigestAuthVector& av)
 {
   av = _auth_vector;
 }
@@ -738,7 +738,7 @@ void Cache::GetAuthVector::get_result(DigestAuthVector& av)
 // DeletePublicIDs methods
 //
 
-Cache::DeletePublicIDs::
+HsProvStore::DeletePublicIDs::
 DeletePublicIDs(const std::string& public_id,
                 const std::vector<std::string>& impis,
                 int64_t timestamp) :
@@ -748,7 +748,7 @@ DeletePublicIDs(const std::string& public_id,
   _timestamp(timestamp)
 {}
 
-Cache::DeletePublicIDs::
+HsProvStore::DeletePublicIDs::
 DeletePublicIDs(const std::vector<std::string>& public_ids,
                 const std::vector<std::string>& impis,
                 int64_t timestamp) :
@@ -759,11 +759,11 @@ DeletePublicIDs(const std::vector<std::string>& public_ids,
 {}
 
 
-Cache::DeletePublicIDs::
+HsProvStore::DeletePublicIDs::
 ~DeletePublicIDs()
 {}
 
-bool Cache::DeletePublicIDs::perform(CassandraStore::Client* client,
+bool HsProvStore::DeletePublicIDs::perform(CassandraStore::Client* client,
                                      SAS::TrailId trail)
 {
   std::vector<CassandraStore::RowColumns> to_delete;
@@ -799,7 +799,7 @@ bool Cache::DeletePublicIDs::perform(CassandraStore::Client* client,
 // DeletePrivateIDs methods
 //
 
-Cache::DeletePrivateIDs::
+HsProvStore::DeletePrivateIDs::
 DeletePrivateIDs(const std::string& private_id, int64_t timestamp) :
   CassandraStore::Operation(),
   _private_ids(1, private_id),
@@ -807,7 +807,7 @@ DeletePrivateIDs(const std::string& private_id, int64_t timestamp) :
 {}
 
 
-Cache::DeletePrivateIDs::
+HsProvStore::DeletePrivateIDs::
 DeletePrivateIDs(const std::vector<std::string>& private_ids, int64_t timestamp) :
   CassandraStore::Operation(),
   _private_ids(private_ids),
@@ -815,12 +815,12 @@ DeletePrivateIDs(const std::vector<std::string>& private_ids, int64_t timestamp)
 {}
 
 
-Cache::DeletePrivateIDs::
+HsProvStore::DeletePrivateIDs::
 ~DeletePrivateIDs()
 {}
 
 
-bool Cache::DeletePrivateIDs::perform(CassandraStore::Client* client,
+bool HsProvStore::DeletePrivateIDs::perform(CassandraStore::Client* client,
                                       SAS::TrailId trail)
 {
   for (std::vector<std::string>::const_iterator it = _private_ids.begin();
@@ -837,14 +837,14 @@ bool Cache::DeletePrivateIDs::perform(CassandraStore::Client* client,
 // DeleteIMPIMapping methods
 //
 
-Cache::DeleteIMPIMapping::
+HsProvStore::DeleteIMPIMapping::
 DeleteIMPIMapping(const std::vector<std::string>& private_ids, int64_t timestamp) :
   CassandraStore::Operation(),
   _private_ids(private_ids),
   _timestamp(timestamp)
 {}
 
-bool Cache::DeleteIMPIMapping::perform(CassandraStore::Client* client,
+bool HsProvStore::DeleteIMPIMapping::perform(CassandraStore::Client* client,
                                        SAS::TrailId trail)
 {
   std::vector<CassandraStore::RowColumns> to_delete;
@@ -865,7 +865,7 @@ bool Cache::DeleteIMPIMapping::perform(CassandraStore::Client* client,
 // DissociateImplicitRegistrationSetFromImpi methods
 //
 
-Cache::DissociateImplicitRegistrationSetFromImpi::
+HsProvStore::DissociateImplicitRegistrationSetFromImpi::
 DissociateImplicitRegistrationSetFromImpi(const std::vector<std::string>& impus,
                                           const std::string& impi,
                                           int64_t timestamp) :
@@ -876,7 +876,7 @@ DissociateImplicitRegistrationSetFromImpi(const std::vector<std::string>& impus,
   _impis.push_back(impi);
 }
 
-Cache::DissociateImplicitRegistrationSetFromImpi::
+HsProvStore::DissociateImplicitRegistrationSetFromImpi::
 DissociateImplicitRegistrationSetFromImpi(const std::vector<std::string>& impus,
                                           const std::vector<std::string>& impis,
                                           int64_t timestamp) :
@@ -886,7 +886,7 @@ DissociateImplicitRegistrationSetFromImpi(const std::vector<std::string>& impus,
   _timestamp(timestamp)
 {}
 
-bool Cache::DissociateImplicitRegistrationSetFromImpi::perform(CassandraStore::Client* client,
+bool HsProvStore::DissociateImplicitRegistrationSetFromImpi::perform(CassandraStore::Client* client,
                                                                SAS::TrailId trail)
 {
   std::vector<CassandraStore::RowColumns> to_delete;
@@ -987,7 +987,7 @@ bool Cache::DissociateImplicitRegistrationSetFromImpi::perform(CassandraStore::C
 
 // Delete IMPUs methods for PPRs
 
-Cache::DeleteIMPUs::
+HsProvStore::DeleteIMPUs::
 DeleteIMPUs(const std::vector<std::string>& public_ids,
             int64_t timestamp) :
   CassandraStore::Operation(),
@@ -995,10 +995,10 @@ DeleteIMPUs(const std::vector<std::string>& public_ids,
   _timestamp(timestamp)
 {}
 
-Cache::DeleteIMPUs::~DeleteIMPUs()
+HsProvStore::DeleteIMPUs::~DeleteIMPUs()
 {}
 
-bool Cache::DeleteIMPUs::perform(CassandraStore::Client* client,
+bool HsProvStore::DeleteIMPUs::perform(CassandraStore::Client* client,
   	    	 	         SAS::TrailId trail)
 {
   std::vector<CassandraStore::RowColumns> to_delete;
@@ -1024,7 +1024,7 @@ bool Cache::DeleteIMPUs::perform(CassandraStore::Client* client,
 // database query.
 const int MAX_IMPUS_TO_RETURN = 1000;
 
-bool Cache::ListImpus::perform(CassandraStore::Client* client, SAS::TrailId trail)
+bool HsProvStore::ListImpus::perform(CassandraStore::Client* client, SAS::TrailId trail)
 {
   std::vector<KeySlice> key_slices;
 

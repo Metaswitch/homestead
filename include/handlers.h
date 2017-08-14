@@ -16,7 +16,6 @@
 
 #include "cx.h"
 #include "diameterstack.h"
-#include "cache.h"
 #include "httpstack_utils.h"
 #include "statisticsmanager.h"
 #include "sas.h"
@@ -334,8 +333,6 @@ public:
 
   void run();
 
-  typedef HssCacheTask::CacheTransaction<RegistrationTerminationTask> CacheTransaction;
-
 private:
   const Config* _cfg;
   Cx::RegistrationTerminationRequest _rtr;
@@ -345,10 +342,6 @@ private:
   std::vector<std::string> _impus;
   std::vector< std::pair<std::string, std::vector<std::string>> > _registration_sets;
 
-  void get_assoc_primary_public_ids_success(CassandraStore::Operation* op);
-  void get_assoc_primary_public_ids_failure(CassandraStore::Operation* op,
-                                            CassandraStore::ResultCode error,
-                                            std::string& text);
   void get_registration_sets_success(std::vector<ImplicitRegistrationSet*> reg_sets);
   void get_registration_sets_failure(Store::Status rc);
   void delete_reg_sets_success();
@@ -388,8 +381,6 @@ public:
   {}
 
   void run();
-
-  typedef HssCacheTask::CacheTransaction<PushProfileTask> CacheTransaction;
 
 private:
   const Config* _cfg;
@@ -444,13 +435,6 @@ public:
   virtual ~ImpuListTask() {};
 
   virtual void run();
-
-  void on_list_impu_success(CassandraStore::Operation* op);
-  void on_list_impu_failure(CassandraStore::Operation* op,
-                            CassandraStore::ResultCode error,
-                            std::string& text);
-
-  typedef HssCacheTask::CacheTransaction<ImpuListTask> CacheTransaction;
 
 protected:
   const Config* _cfg;

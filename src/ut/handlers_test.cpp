@@ -39,7 +39,6 @@
 
 #include "mockdiameterstack.hpp"
 #include "mockhttpstack.hpp"
-#include "mockcache.hpp"
 #include "mockhttpconnection.hpp"
 #include "fakehttpresolver.hpp"
 #include "handlers.h"

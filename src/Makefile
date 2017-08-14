@@ -9,7 +9,6 @@ COMMON_SOURCES := a_record_resolver.cpp \
                   base_communication_monitor.cpp \
                   baseresolver.cpp \
                   base64.cpp \
-                  cache.cpp \
                   cassandra_connection_pool.cpp \
                   cassandra_store.cpp \
                   communicationmonitor.cpp \
@@ -24,6 +23,7 @@ COMMON_SOURCES := a_record_resolver.cpp \
                   handlers.cpp \
                   health_checker.cpp \
                   homestead_xml_utils.cpp \
+                  hsprov_store.cpp \
                   hss_cache_processor.cpp \
                   http_connection_pool.cpp \
                   httpclient.cpp \
@@ -61,10 +61,10 @@ homestead_test_SOURCES := ${COMMON_SOURCES} \
                           test_main.cpp \
                           test_interposer.cpp \
                           cx_test.cpp \
-                          cache_test.cpp \
                           diameter_hss_connection_test.cpp \
                           handlers_test.cpp \
                           homestead_xml_utils_test.cpp \
+                          hsprov_store_test.cpp \
                           fakelogger.cpp \
                           fakesnmp.cpp \
                           mockfreediameter.cpp \

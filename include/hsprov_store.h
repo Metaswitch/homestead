@@ -1,40 +1,40 @@
 /**
- * @file cassandracache.h class definition of a cassandra-backed cache.
+ * @file hsprov_store.h class definition of a cassandra-backed store.
  *
- * Copyright (C) Metaswitch Networks 2016
+ * Copyright (C) Metaswitch Networks 2017
  * If license terms are provided to you in a COPYING file in the root directory
  * of the source code repository by which you are accessing this code, then
  * the license outlined in that COPYING file applies to your use.
  * Otherwise no rights are granted except for those provided to you by
  * Metaswitch Networks in a separate written agreement.
  */
-#ifndef CACHE_H_
-#define CACHE_H_
+#ifndef HSPROV_STORE_H__
+#define HSPROV_STORE_H__
 
 #include "cassandra_store.h"
 #include "reg_state.h"
 #include "charging_addresses.h"
 #include "authvector.h"
 
-class Cache : public CassandraStore::Store
+class HsProvStore : public CassandraStore::Store
 {
 public:
-  virtual ~Cache();
+  virtual ~HsProvStore();
 
   /// @return the singleton cache instance.
-  static inline Cache* get_instance() { return INSTANCE; }
+  static inline HsProvStore* get_instance() { return INSTANCE; }
 
 private:
   // Singleton variables.
-  static Cache* INSTANCE;
-  static Cache DEFAULT_INSTANCE;
+  static HsProvStore* INSTANCE;
+  static HsProvStore DEFAULT_INSTANCE;
 
 protected:
   // The constructors and assignment operation are protected to prevent multiple
   // instances of the class from being created.
-  Cache();
-  Cache(Cache const&);
-  void operator=(Cache const&);
+  HsProvStore();
+  HsProvStore(HsProvStore const&);
+  void operator=(HsProvStore const&);
 
 public:
   //

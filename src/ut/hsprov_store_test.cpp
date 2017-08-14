@@ -1,7 +1,7 @@
 /**
- * @file diameterstack_test.cpp UT for Sprout diameterstack module.
+ * @file hsprov_store_test.cpp UT for HsProvStore
  *
- * Copyright (C) Metaswitch Networks 2016
+ * Copyright (C) Metaswitch Networks 2017
  * If license terms are provided to you in a COPYING file in the root directory
  * of the source code repository by which you are accessing this code, then
  * the license outlined in that COPYING file applies to your use.
@@ -23,7 +23,7 @@
 #include "mockcommunicationmonitor.h"
 #include "cass_test_utils.h"
 
-#include <cache.h>
+#include <hsprov_store.h>
 
 using ::testing::PrintToString;
 using ::testing::Return;
@@ -59,10 +59,10 @@ const ChargingAddresses ECFS_CHARGING_ADDRS(CCF, ECFS);
 
 // The class under test.
 //
-// We don't test the Cache class directly as we need to use a
+// We don't test the HsProvStore class directly as we need to use a
 // MockCassandraConnectionPool that we can use to return MockCassandraClients.
-// However all other methods are the real ones from Cache.
-class TestCache : public Cache
+// However all other methods are the real ones from HsProvStore.
+class TestHsProvStore : public HsProvStore
 {
 public:
   void set_conn_pool(CassandraStore::CassandraConnectionPool* pool)
@@ -117,7 +117,7 @@ public:
     delete _iter; _iter = NULL;
   }
 
-  TestCache _cache;
+  TestHsProvStore _cache;
   MockCassandraClient _client;
   MockCassandraConnectionPool* _pool = new MockCassandraConnectionPool();
   MockCassandraResolver _resolver;
@@ -343,7 +343,7 @@ TEST_F(CacheInitializationTest, Connection)
 TEST_F(CacheRequestTest, PutRegDataMainline)
 {
   TestTransaction *trx = make_trx();
-  Cache::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", "kermit", 1000, 300);
+  HsProvStore::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", "kermit", 1000, 300);
   put_reg_data->with_xml("<xml>")
                .with_reg_state(RegistrationState::REGISTERED)
                .with_associated_impis(IMPIS)
@@ -378,7 +378,7 @@ TEST_F(CacheRequestTest, PutRegDataMainline)
 TEST_F(CacheRequestTest, PutRegDataUnregistered)
 {
   TestTransaction *trx = make_trx();
-  Cache::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", "kermit", 1000, 300);
+  HsProvStore::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", "kermit", 1000, 300);
   put_reg_data->with_xml("<xml>")
                .with_reg_state(RegistrationState::UNREGISTERED)
                .with_associated_impis(IMPIS)
@@ -413,7 +413,7 @@ TEST_F(CacheRequestTest, PutRegDataUnregistered)
 TEST_F(CacheRequestTest, NoTTLOnPut)
 {
   TestTransaction *trx = make_trx();
-  Cache::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", "kermit", 1000);
+  HsProvStore::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", "kermit", 1000);
   put_reg_data->with_xml("<xml>")
                .with_reg_state(RegistrationState::REGISTERED)
                .with_associated_impis(IMPIS)
@@ -454,7 +454,7 @@ TEST_F(CacheRequestTest, PutRegDataMultipleIDs)
   std::vector<CassandraStore::RowColumns> expected;
 
   TestTransaction *trx = make_trx();
-  Cache::PutRegData* put_reg_data = _cache.create_PutRegData(ids, "kermit", 1000);
+  HsProvStore::PutRegData* put_reg_data = _cache.create_PutRegData(ids, "kermit", 1000);
   put_reg_data->with_xml("<xml>")
                .with_reg_state(RegistrationState::REGISTERED)
                .with_associated_impis(IMPIS)
@@ -494,7 +494,7 @@ TEST_F(CacheRequestTest, PutRegDataNoXml)
   std::vector<CassandraStore::RowColumns> expected;
 
   TestTransaction *trx = make_trx();
-  Cache::PutRegData* put_reg_data = _cache.create_PutRegData(ids, "kermit", 1000);
+  HsProvStore::PutRegData* put_reg_data = _cache.create_PutRegData(ids, "kermit", 1000);
   put_reg_data->with_charging_addrs(FULL_CHARGING_ADDRS);
 
   std::map<std::string, std::string> columns;
@@ -523,7 +523,7 @@ TEST_F(CacheRequestTest, PutRegDataNoChargingAddresses)
   std::vector<CassandraStore::RowColumns> expected;
 
   TestTransaction *trx = make_trx();
-  Cache::PutRegData* put_reg_data = _cache.create_PutRegData(ids, "kermit", 1000);
+  HsProvStore::PutRegData* put_reg_data = _cache.create_PutRegData(ids, "kermit", 1000);
   put_reg_data->with_xml("<xml>");
 
   std::map<std::string, std::string> columns;
@@ -551,7 +551,7 @@ MATCHER_P(OperationHasResult, expected_rc, "")
 TEST_F(CacheRequestTest, PutOneTransportEx)
 {
   TestTransaction *trx = make_trx();
-  Cache::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", "kermit", 1000);
+  HsProvStore::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", "kermit", 1000);
   put_reg_data->with_xml("<xml>");
 
   apache::thrift::transport::TTransportException te;
@@ -577,7 +577,7 @@ TEST_F(CacheRequestTest, PutOneTransportEx)
 TEST_F(CacheRequestTest, PutTwoTransportEx)
 {
   TestTransaction *trx = make_trx();
-  Cache::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", "kermit", 1000);
+  HsProvStore::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", "kermit", 1000);
   put_reg_data->with_xml("<xml>");
 
   apache::thrift::transport::TTransportException te;
@@ -598,7 +598,7 @@ TEST_F(CacheRequestTest, PutTwoTransportEx)
 TEST_F(CacheRequestTest, PutConnectTransportExThenPutTransportEx)
 {
   TestTransaction *trx = make_trx();
-  Cache::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", "kermit", 1000);
+  HsProvStore::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", "kermit", 1000);
   put_reg_data->with_xml("<xml>");
 
   apache::thrift::transport::TTransportException te;
@@ -620,7 +620,7 @@ TEST_F(CacheRequestTest, PutConnectTransportExThenPutTransportEx)
 TEST_F(CacheRequestTest, PutTransportThenUnknownException)
 {
   TestTransaction *trx = make_trx();
-  Cache::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", "kermit", 1000);
+  HsProvStore::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", "kermit", 1000);
   put_reg_data->with_xml("<xml>");
 
   apache::thrift::transport::TTransportException te;
@@ -641,7 +641,7 @@ TEST_F(CacheRequestTest, PutTransportThenUnknownException)
 TEST_F(CacheRequestTest, PutOneTimedOutException)
 {
   TestTransaction *trx = make_trx();
-  Cache::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", "kermit", 1000);
+  HsProvStore::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", "kermit", 1000);
   put_reg_data->with_xml("<xml>");
 
   cass::TimedOutException te;
@@ -666,7 +666,7 @@ TEST_F(CacheRequestTest, PutOneTimedOutException)
 TEST_F(CacheRequestTest, PutTwoTimedOutExceptions)
 {
   TestTransaction *trx = make_trx();
-  Cache::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", "kermit", 1000);
+  HsProvStore::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", "kermit", 1000);
   put_reg_data->with_xml("<xml>");
 
   cass::TimedOutException te;
@@ -687,7 +687,7 @@ TEST_F(CacheRequestTest, PutTwoTimedOutExceptions)
 TEST_F(CacheRequestTest, PutInvalidRequestException)
 {
   TestTransaction *trx = make_trx();
-  Cache::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", "kermit", 1000);
+  HsProvStore::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", "kermit", 1000);
   put_reg_data->with_xml("<xml>");
 
   cass::InvalidRequestException ire;
@@ -703,7 +703,7 @@ TEST_F(CacheRequestTest, PutInvalidRequestException)
 TEST_F(CacheRequestTest, PutNotFoundException)
 {
   TestTransaction *trx = make_trx();
-  Cache::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", "kermit", 1000);
+  HsProvStore::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", "kermit", 1000);
   put_reg_data->with_xml("<xml>");
 
   cass::NotFoundException nfe;
@@ -719,7 +719,7 @@ TEST_F(CacheRequestTest, PutNotFoundException)
 TEST_F(CacheRequestTest, PutNoResultsException)
 {
   TestTransaction *trx = make_trx();
-  Cache::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", "kermit", 1000);
+  HsProvStore::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", "kermit", 1000);
   put_reg_data->with_xml("<xml>");
 
   CassandraStore::RowNotFoundException rnfe("muppets", "kermit");
@@ -735,7 +735,7 @@ TEST_F(CacheRequestTest, PutNoResultsException)
 TEST_F(CacheRequestTest, PutUnknownException)
 {
   TestTransaction *trx = make_trx();
-  Cache::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", "kermit", 1000);
+  HsProvStore::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", "kermit", 1000);
   put_reg_data->with_xml("<xml>");
 
   std::string ex("Made up exception");
@@ -751,7 +751,7 @@ TEST_F(CacheRequestTest, PutUnknownException)
 TEST_F(CacheRequestTest, PutsHaveConsistencyLevelOne)
 {
   TestTransaction *trx = make_trx();
-  Cache::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", "kermit", 1000);
+  HsProvStore::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", "kermit", 1000);
   put_reg_data->with_xml("<xml>");
 
   EXPECT_CALL(_resolver, success(_targets[0])).Times(1);
@@ -1004,7 +1004,7 @@ TEST_F(CacheRequestTest, GetRegDataMainline)
   std::vector<cass::ColumnOrSuperColumn> slice;
   make_slice(slice, columns);
 
-  ResultRecorder<Cache::GetRegData, Cache::GetRegData::Result> rec;
+  ResultRecorder<HsProvStore::GetRegData, HsProvStore::GetRegData::Result> rec;
   RecordingTransaction* trx = make_rec_trx(&rec);
   CassandraStore::Operation* op = _cache.create_GetRegData("kermit");
 
@@ -1034,7 +1034,7 @@ TEST_F(CacheRequestTest, GetRegDataTTL)
   std::vector<cass::ColumnOrSuperColumn> slice;
   make_slice(slice, columns);
 
-  ResultRecorder<Cache::GetRegData, Cache::GetRegData::Result> rec;
+  ResultRecorder<HsProvStore::GetRegData, HsProvStore::GetRegData::Result> rec;
   RecordingTransaction* trx = make_rec_trx(&rec);
   CassandraStore::Operation* op = _cache.create_GetRegData("kermit");
 
@@ -1065,7 +1065,7 @@ TEST_F(CacheRequestTest, GetRegDataUnregistered)
   // Test with a TTL of 3600
   make_slice(slice, columns, 3600);
 
-  ResultRecorder<Cache::GetRegData, Cache::GetRegData::Result> rec;
+  ResultRecorder<HsProvStore::GetRegData, HsProvStore::GetRegData::Result> rec;
   RecordingTransaction* trx = make_rec_trx(&rec);
   CassandraStore::Operation* op = _cache.create_GetRegData("kermit");
 
@@ -1102,7 +1102,7 @@ TEST_F(CacheRequestTest, GetRegDataNoRegState)
   std::vector<cass::ColumnOrSuperColumn> slice;
   make_slice(slice, columns);
 
-  ResultRecorder<Cache::GetRegData, Cache::GetRegData::Result> rec;
+  ResultRecorder<HsProvStore::GetRegData, HsProvStore::GetRegData::Result> rec;
   RecordingTransaction* trx = make_rec_trx(&rec);
   CassandraStore::Operation* op = _cache.create_GetRegData("kermit");
 
@@ -1134,7 +1134,7 @@ TEST_F(CacheRequestTest, GetRegDataInvalidRegState)
   std::vector<cass::ColumnOrSuperColumn> slice;
   make_slice(slice, columns);
 
-  ResultRecorder<Cache::GetRegData, Cache::GetRegData::Result> rec;
+  ResultRecorder<HsProvStore::GetRegData, HsProvStore::GetRegData::Result> rec;
   RecordingTransaction* trx = make_rec_trx(&rec);
   CassandraStore::Operation* op = _cache.create_GetRegData("kermit");
 
@@ -1159,7 +1159,7 @@ TEST_F(CacheRequestTest, GetRegDataNotFound)
 {
   CassandraStore::Operation* op =
     _cache.create_GetRegData("kermit");
-  ResultRecorder<Cache::GetRegData, Cache::GetRegData::Result > rec;
+  ResultRecorder<HsProvStore::GetRegData, HsProvStore::GetRegData::Result > rec;
   RecordingTransaction* trx = make_rec_trx(&rec);
 
   EXPECT_CALL(_client, get_slice(_, "kermit", _, _, _))
@@ -1189,7 +1189,7 @@ TEST_F(CacheRequestTest, GetAuthVectorAllColsReturned)
   std::vector<cass::ColumnOrSuperColumn> slice;
   make_slice(slice, columns);
 
-  ResultRecorder<Cache::GetAuthVector, DigestAuthVector> rec;
+  ResultRecorder<HsProvStore::GetAuthVector, DigestAuthVector> rec;
   RecordingTransaction* trx = make_rec_trx(&rec);
   CassandraStore::Operation* op = _cache.create_GetAuthVector("kermit");
 
@@ -1218,7 +1218,7 @@ TEST_F(CacheRequestTest, GetAuthVectorNonDefaultableColsReturned)
   std::vector<cass::ColumnOrSuperColumn> slice;
   make_slice(slice, columns);
 
-  ResultRecorder<Cache::GetAuthVector, DigestAuthVector> rec;
+  ResultRecorder<HsProvStore::GetAuthVector, DigestAuthVector> rec;
   RecordingTransaction* trx = make_rec_trx(&rec);
   CassandraStore::Operation* op = _cache.create_GetAuthVector("kermit");
 
@@ -1244,7 +1244,7 @@ TEST_F(CacheRequestTest, GetAuthVectorHa1NotReturned)
   std::vector<cass::ColumnOrSuperColumn> slice;
   make_slice(slice, columns);
 
-  ResultRecorder<Cache::GetAuthVector, DigestAuthVector> rec;
+  ResultRecorder<HsProvStore::GetAuthVector, DigestAuthVector> rec;
   RecordingTransaction* trx = make_rec_trx(&rec);
   CassandraStore::Operation* op = _cache.create_GetAuthVector("kermit");
 
@@ -1258,7 +1258,7 @@ TEST_F(CacheRequestTest, GetAuthVectorHa1NotReturned)
 
 TEST_F(CacheRequestTest, GetAuthVectorNoColsReturned)
 {
-  ResultRecorder<Cache::GetAuthVector, DigestAuthVector> rec;
+  ResultRecorder<HsProvStore::GetAuthVector, DigestAuthVector> rec;
   RecordingTransaction* trx = make_rec_trx(&rec);
   CassandraStore::Operation* op = _cache.create_GetAuthVector("kermit");
 
@@ -1287,7 +1287,7 @@ TEST_F(CacheRequestTest, GetAuthVectorPublicIdRequested)
   std::vector<cass::ColumnOrSuperColumn> slice;
   make_slice(slice, columns);
 
-  ResultRecorder<Cache::GetAuthVector, DigestAuthVector> rec;
+  ResultRecorder<HsProvStore::GetAuthVector, DigestAuthVector> rec;
   RecordingTransaction* trx = make_rec_trx(&rec);
   CassandraStore::Operation* op = _cache.create_GetAuthVector("kermit", "gonzo");
 
@@ -1318,7 +1318,7 @@ TEST_F(CacheRequestTest, GetAuthVectorPublicIdRequestedNotReturned)
   std::vector<cass::ColumnOrSuperColumn> slice;
   make_slice(slice, columns);
 
-  ResultRecorder<Cache::GetAuthVector, DigestAuthVector> rec;
+  ResultRecorder<HsProvStore::GetAuthVector, DigestAuthVector> rec;
   RecordingTransaction* trx = make_rec_trx(&rec);
   CassandraStore::Operation* op = _cache.create_GetAuthVector("kermit", "gonzo");
 
@@ -1341,7 +1341,7 @@ TEST_F(CacheRequestTest, GetAssocPublicIDsMainline)
   std::map<std::string, std::vector<cass::ColumnOrSuperColumn> > slice;
   slice["kermit"] = inner_slice;
 
-  ResultRecorder<Cache::GetAssociatedPublicIDs, std::vector<std::string>> rec;
+  ResultRecorder<HsProvStore::GetAssociatedPublicIDs, std::vector<std::string>> rec;
   RecordingTransaction* trx = make_rec_trx(&rec);
   CassandraStore::Operation* op = _cache.create_GetAssociatedPublicIDs("kermit");
 
@@ -1385,7 +1385,7 @@ TEST_F(CacheRequestTest, GetAssocPublicIDsMultipleIDs)
   make_slice(inner_slice2, columns2);
   slice["miss_piggy"] = inner_slice2;
 
-  ResultRecorder<Cache::GetAssociatedPublicIDs, std::vector<std::string>> rec;
+  ResultRecorder<HsProvStore::GetAssociatedPublicIDs, std::vector<std::string>> rec;
   RecordingTransaction* trx = make_rec_trx(&rec);
   std::vector<std::string> impis = {"kermit", "miss piggy"};
   CassandraStore::Operation* op = _cache.create_GetAssociatedPublicIDs(impis);
@@ -1414,7 +1414,7 @@ TEST_F(CacheRequestTest, GetAssocPublicIDsMultipleIDs)
 
 TEST_F(CacheRequestTest, GetAssocPublicIDsNoResults)
 {
-  ResultRecorder<Cache::GetAssociatedPublicIDs, std::vector<std::string>> rec;
+  ResultRecorder<HsProvStore::GetAssociatedPublicIDs, std::vector<std::string>> rec;
   RecordingTransaction* trx = make_rec_trx(&rec);
   CassandraStore::Operation* op = _cache.create_GetAssociatedPublicIDs("kermit");
 
@@ -1442,7 +1442,7 @@ TEST_F(CacheRequestTest, GetAssociatedPrimaryPublicIDs)
   std::map<std::string, std::vector<cass::ColumnOrSuperColumn> > slice;
   slice["gonzo"] = inner_slice;
 
-  ResultRecorder<Cache::GetAssociatedPrimaryPublicIDs, std::vector<std::string>> rec;
+  ResultRecorder<HsProvStore::GetAssociatedPrimaryPublicIDs, std::vector<std::string>> rec;
   RecordingTransaction* trx = make_rec_trx(&rec);
   CassandraStore::Operation* op = _cache.create_GetAssociatedPrimaryPublicIDs("gonzo");
 
@@ -1485,7 +1485,7 @@ TEST_F(CacheRequestTest, GetAssociatedPrimaryPublicIDsMultipleIMPIs)
   make_slice(inner_slice2, columns2);
   slice["gonzo2"] = inner_slice2;
 
-  ResultRecorder<Cache::GetAssociatedPrimaryPublicIDs, std::vector<std::string>> rec;
+  ResultRecorder<HsProvStore::GetAssociatedPrimaryPublicIDs, std::vector<std::string>> rec;
   RecordingTransaction* trx = make_rec_trx(&rec);
   std::vector<std::string> impis = {"gonzo", "gonzo2"};
   CassandraStore::Operation* op = _cache.create_GetAssociatedPrimaryPublicIDs(impis);
@@ -1513,7 +1513,7 @@ TEST_F(CacheRequestTest, GetAssociatedPrimaryPublicIDsMultipleIMPIs)
 
 TEST_F(CacheRequestTest, GetAssociatedPrimaryPublicIDsNoResults)
 {
-  ResultRecorder<Cache::GetAssociatedPrimaryPublicIDs, std::vector<std::string>> rec;
+  ResultRecorder<HsProvStore::GetAssociatedPrimaryPublicIDs, std::vector<std::string>> rec;
   RecordingTransaction* trx = make_rec_trx(&rec);
   CassandraStore::Operation* op = _cache.create_GetAssociatedPrimaryPublicIDs("gonzo");
 
@@ -1543,7 +1543,7 @@ TEST_F(CacheRequestTest, HaGetMainline)
   std::vector<cass::ColumnOrSuperColumn> slice;
   make_slice(slice, columns);
 
-  ResultRecorder<Cache::GetRegData, Cache::GetRegData::Result> rec;
+  ResultRecorder<HsProvStore::GetRegData, HsProvStore::GetRegData::Result> rec;
   RecordingTransaction* trx = make_rec_trx(&rec);
   CassandraStore::Operation* op = _cache.create_GetRegData("kermit");
 
@@ -1573,7 +1573,7 @@ TEST_F(CacheRequestTest, HaGet2ndReadNotFoundException)
   std::vector<cass::ColumnOrSuperColumn> slice;
   make_slice(slice, columns);
 
-  ResultRecorder<Cache::GetRegData, std::pair<RegistrationState, std::string> > rec;
+  ResultRecorder<HsProvStore::GetRegData, std::pair<RegistrationState, std::string> > rec;
   RecordingTransaction* trx = make_rec_trx(&rec);
   CassandraStore::Operation* op = _cache.create_GetRegData("kermit");
 
@@ -1598,7 +1598,7 @@ TEST_F(CacheRequestTest, HaGet2ndReadUnavailableException)
   std::vector<cass::ColumnOrSuperColumn> slice;
   make_slice(slice, columns);
 
-  ResultRecorder<Cache::GetRegData, std::pair<RegistrationState, std::string> > rec;
+  ResultRecorder<HsProvStore::GetRegData, std::pair<RegistrationState, std::string> > rec;
   RecordingTransaction* trx = make_rec_trx(&rec);
   CassandraStore::Operation* op = _cache.create_GetRegData("kermit");
 
@@ -1628,7 +1628,7 @@ TEST_F(CacheRequestTest, HaGet2ndReadTimedUutException)
   std::vector<cass::ColumnOrSuperColumn> slice;
   make_slice(slice, columns);
 
-  ResultRecorder<Cache::GetRegData, std::pair<RegistrationState, std::string> > rec;
+  ResultRecorder<HsProvStore::GetRegData, std::pair<RegistrationState, std::string> > rec;
   RecordingTransaction* trx = make_rec_trx(&rec);
   CassandraStore::Operation* op = _cache.create_GetRegData("kermit");
 
@@ -1655,7 +1655,7 @@ TEST_F(CacheRequestTest, HaGetRetryUsesConsistencyOne)
   std::vector<cass::ColumnOrSuperColumn> slice;
   make_slice(slice, columns);
 
-  ResultRecorder<Cache::GetRegData, Cache::GetRegData::Result> rec;
+  ResultRecorder<HsProvStore::GetRegData, HsProvStore::GetRegData::Result> rec;
   RecordingTransaction* trx = make_rec_trx(&rec);
   CassandraStore::Operation* op = _cache.create_GetRegData("kermit");
 
@@ -1719,7 +1719,7 @@ TEST(CacheGenerateTimestamp, CreatesMicroTimestamp)
   int64_t grace = 100000;
   int64_t us_curr = ts.tv_sec * 1000000 + ts.tv_nsec / 1000;
 
-  EXPECT_THAT(Cache::generate_timestamp(),
+  EXPECT_THAT(HsProvStore::generate_timestamp(),
               AllOf(Gt(us_curr - grace), Lt(us_curr + grace)));
 }
 
@@ -1730,7 +1730,7 @@ ACTION_P2(CheckLatency, trx, ms) { trx->check_latency(ms * 1000); }
 TEST_F(CacheLatencyTest, PutRecordsLatency)
 {
   TestTransaction *trx = make_trx();
-  Cache::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", "kermit", 1000);
+  HsProvStore::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", "kermit", 1000);
   put_reg_data->with_xml("<xml>");
 
   std::map<std::string, std::string> columns;
@@ -1768,7 +1768,7 @@ TEST_F(CacheLatencyTest, GetRecordsLatency)
   std::vector<cass::ColumnOrSuperColumn> slice;
   make_slice(slice, columns);
 
-  ResultRecorder<Cache::GetRegData, std::pair<RegistrationState, std::string> > rec;
+  ResultRecorder<HsProvStore::GetRegData, std::pair<RegistrationState, std::string> > rec;
   RecordingTransaction* trx = make_rec_trx(&rec);
   CassandraStore::Operation* op = _cache.create_GetRegData("kermit");
 
@@ -1787,7 +1787,7 @@ TEST_F(CacheLatencyTest, GetRecordsLatency)
 TEST_F(CacheLatencyTest, ErrorRecordsLatency)
 {
   TestTransaction *trx = make_trx();
-  Cache::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", "kermit", 1000);
+  HsProvStore::PutRegData* put_reg_data = _cache.create_PutRegData("kermit", "kermit", 1000);
   put_reg_data->with_xml("<xml>");
 
   cass::NotFoundException nfe;
@@ -2006,7 +2006,7 @@ class ListImpusRecorder : public ResultRecorderInterface
 public:
   void save(CassandraStore::Operation* op)
   {
-    impus = dynamic_cast<Cache::ListImpus*>(op)->get_impus_reference();
+    impus = dynamic_cast<HsProvStore::ListImpus*>(op)->get_impus_reference();
   }
 
   std::vector<std::string> impus;
