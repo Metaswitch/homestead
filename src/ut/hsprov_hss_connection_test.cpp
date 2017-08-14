@@ -247,8 +247,7 @@ TEST_F(HsProvHssConnectionTest, SendMAR)
   digest.realm = "realm";
   digest.qop = "qop";
 
-  EXPECT_CALL(mock_op, get_result(_))
-    .WillOnce(SetArgReferee<0>(digest));
+  EXPECT_CALL(mock_op, get_result(_)).WillOnce(SetArgReferee<0>(digest));
 
   // Expect that we'll call the callback with the correct answer
   EXPECT_CALL(*_answer_catcher, got_maa(
@@ -345,14 +344,14 @@ TEST_F(HsProvHssConnectionTest, SendMAROtherError)
   EXPECT_CALL(*_stats, update_H_cache_latency_us(12000));
   cwtest_advance_time_ms(12);
 
-  t->on_success(&mock_op);
+  t->on_failure(&mock_op);
 }
 
 //
 // UserAuthRequest tests
 //
 
-TEST_F(HsProvHssConnectionTest, SendUAROtherError)
+TEST_F(HsProvHssConnectionTest, SendUAR)
 {
   // Create a UAR
   HssConnection::UserAuthRequest request = {
@@ -372,4 +371,244 @@ TEST_F(HsProvHssConnectionTest, SendUAROtherError)
 
   // Send the UAR
   _hss_connection->send_user_auth_request(UAA_CB, request, FAKE_TRAIL_ID);
+}
+
+//
+// LocationInfoRequest tests
+//
+
+TEST_F(HsProvHssConnectionTest, SendLIR)
+{
+  // Create an LIR
+  HssConnection::LocationInfoRequest request = {
+    IMPU,
+    "true",
+    ""
+  };
+
+  // Expect we'll request the reg data from Cassandra
+  MockHsProvStore::MockGetRegData mock_op;
+
+  EXPECT_CALL(*_mock_store, create_GetRegData(IMPU))
+    .WillOnce(Return(&mock_op));
+  EXPECT_DO_ASYNC(*_mock_store, mock_op);
+
+  // Send the LIR
+  _hss_connection->send_location_info_request(LIA_CB, request, FAKE_TRAIL_ID);
+
+  // Confirm the transaction is not NULL
+  CassandraStore::Transaction* t = mock_op.get_trx();
+  ASSERT_FALSE(t == NULL);
+  t->start_timer();
+
+  // Expect that we'll request the XML from the Operation, and return some non-
+  // empty XML
+  EXPECT_CALL(mock_op, get_xml(_, _)).WillOnce(SetArgReferee<0>(IMS_SUB_XML));
+
+  // Expect that we'll call the callback with the correct answer
+  EXPECT_CALL(*_answer_catcher, got_lia(
+    AllOf(Field(&HssConnection::LocationInfoAnswer::_result_code, ::HssConnection::ResultCode::SUCCESS),
+          Field(&HssConnection::LocationInfoAnswer::_json_result, DIAMETER_SUCCESS),
+          Field(&HssConnection::LocationInfoAnswer::_server_name, SERVER_NAME),
+          Field(&HssConnection::LocationInfoAnswer::_wildcard_impu, ""),
+          Field(&HssConnection::LocationInfoAnswer::_server_capabilities, IsNull())))).Times(1).RetiresOnSaturation();
+
+  // Expect the stats to be updated
+  EXPECT_CALL(*_stats, update_H_cache_latency_us(12000));
+  cwtest_advance_time_ms(12);
+
+  t->on_success(&mock_op);
+}
+
+TEST_F(HsProvHssConnectionTest, SendLIRNoXML)
+{
+  // Create an LIR
+  HssConnection::LocationInfoRequest request = {
+    IMPU,
+    "true",
+    ""
+  };
+
+  // Expect we'll request the reg data from Cassandra
+  MockHsProvStore::MockGetRegData mock_op;
+
+  EXPECT_CALL(*_mock_store, create_GetRegData(IMPU))
+    .WillOnce(Return(&mock_op));
+  EXPECT_DO_ASYNC(*_mock_store, mock_op);
+
+  // Send the LIR
+  _hss_connection->send_location_info_request(LIA_CB, request, FAKE_TRAIL_ID);
+
+  // Confirm the transaction is not NULL
+  CassandraStore::Transaction* t = mock_op.get_trx();
+  ASSERT_FALSE(t == NULL);
+  t->start_timer();
+
+  // Expect that we'll request the XML from the Operation, and return some empty
+  // XML
+  EXPECT_CALL(mock_op, get_xml(_, _)).WillOnce(SetArgReferee<0>(""));
+
+  // Expect that we'll call the callback with a NOT_FOUND
+  EXPECT_CALL(*_answer_catcher, got_lia(
+    Field(&HssConnection::LocationInfoAnswer::_result_code, ::HssConnection::ResultCode::NOT_FOUND)))
+    .Times(1).RetiresOnSaturation();
+
+  // Expect the stats to be updated
+  EXPECT_CALL(*_stats, update_H_cache_latency_us(12000));
+  cwtest_advance_time_ms(12);
+
+  t->on_success(&mock_op);
+}
+
+TEST_F(HsProvHssConnectionTest, SendLIROtherError)
+{
+  // Create an LIR
+  HssConnection::LocationInfoRequest request = {
+    IMPU,
+    "true",
+    ""
+  };
+
+  // Expect we'll request the reg data from Cassandra, and we get an error
+  MockHsProvStore::MockGetRegData mock_op;
+  mock_op._cass_status = CassandraStore::NOT_FOUND;
+
+  EXPECT_CALL(*_mock_store, create_GetRegData(IMPU))
+    .WillOnce(Return(&mock_op));
+  EXPECT_DO_ASYNC(*_mock_store, mock_op);
+
+  // Send the LIR
+  _hss_connection->send_location_info_request(LIA_CB, request, FAKE_TRAIL_ID);
+
+  // Confirm the transaction is not NULL
+  CassandraStore::Transaction* t = mock_op.get_trx();
+  ASSERT_FALSE(t == NULL);
+  t->start_timer();
+
+  // Expect that we'll call the callback with the correct answer
+  // All other errors are treated as TIMEOUT, so that homestead sends a 504 response
+  EXPECT_CALL(*_answer_catcher, got_lia(
+    Field(&HssConnection::LocationInfoAnswer::_result_code, ::HssConnection::ResultCode::TIMEOUT)))
+    .Times(1).RetiresOnSaturation();
+
+  // Expect the stats to be updated
+  EXPECT_CALL(*_stats, update_H_cache_latency_us(12000));
+  cwtest_advance_time_ms(12);
+
+  t->on_failure(&mock_op);
+}
+
+//
+// ServerAssignmentRequest tests
+//
+
+TEST_F(HsProvHssConnectionTest, SendSAR)
+{
+  // Create an SAR
+  HssConnection::ServerAssignmentRequest request = {
+    IMPI,
+    IMPU,
+    SERVER_NAME,
+    Cx::ServerAssignmentType::REGISTRATION,
+    "true",
+    ""
+  };
+
+  // Expect we'll request the reg data from Cassandra
+  MockHsProvStore::MockGetRegData mock_op;
+
+  EXPECT_CALL(*_mock_store, create_GetRegData(IMPU))
+    .WillOnce(Return(&mock_op));
+  EXPECT_DO_ASYNC(*_mock_store, mock_op);
+
+  // Send the SAR
+  _hss_connection->send_server_assignment_request(SAA_CB, request, FAKE_TRAIL_ID);
+
+  // Confirm the transaction is not NULL
+  CassandraStore::Transaction* t = mock_op.get_trx();
+  ASSERT_FALSE(t == NULL);
+  t->start_timer();
+
+  // Expect that we'll get the charging addresses and XML from the completed
+  // operation
+  EXPECT_CALL(mock_op, get_xml(_, _)).WillOnce(SetArgReferee<0>(IMS_SUB_XML));
+  EXPECT_CALL(mock_op, get_charging_addrs(_)).WillOnce(SetArgReferee<0>(FULL_CHARGING_ADDRESSES));
+
+  // Expect that we'll call the callback with the correct answer, including the
+  // correct ChargingAddresses
+  EXPECT_CALL(*_answer_catcher, got_saa(
+    AllOf(Field(&HssConnection::ServerAssignmentAnswer::_result_code, ::HssConnection::ResultCode::SUCCESS),
+          Field(&HssConnection::ServerAssignmentAnswer::_service_profile, IMS_SUB_XML),
+          Field(&HssConnection::ServerAssignmentAnswer::_wildcard_impu, ""),
+          Field(&HssConnection::ServerAssignmentAnswer::_charging_addrs,
+            AllOf(Field(&ChargingAddresses::ccfs, CCFS),
+                  Field(&ChargingAddresses::ecfs, ECFS)))))).Times(1).RetiresOnSaturation();
+
+  // Expect the stats to be updated
+  EXPECT_CALL(*_stats, update_H_cache_latency_us(12000));
+  cwtest_advance_time_ms(12);
+
+  t->on_success(&mock_op);
+}
+
+TEST_F(HsProvHssConnectionTest, SendSARError)
+{
+  // Create an SAR
+  HssConnection::ServerAssignmentRequest request = {
+    IMPI,
+    IMPU,
+    SERVER_NAME,
+    Cx::ServerAssignmentType::REGISTRATION,
+    "true",
+    ""
+  };
+
+  // Expect we'll request the reg data from Cassandra
+  MockHsProvStore::MockGetRegData mock_op;
+  mock_op._cass_status = CassandraStore::CONNECTION_ERROR;
+
+  EXPECT_CALL(*_mock_store, create_GetRegData(IMPU))
+    .WillOnce(Return(&mock_op));
+  EXPECT_DO_ASYNC(*_mock_store, mock_op);
+
+  // Send the SAR
+  _hss_connection->send_server_assignment_request(SAA_CB, request, FAKE_TRAIL_ID);
+
+  // Confirm the transaction is not NULL
+  CassandraStore::Transaction* t = mock_op.get_trx();
+  ASSERT_FALSE(t == NULL);
+  t->start_timer();
+
+  // Expect that we'll call the callback with the correct answer
+  // All other errors are treated as TIMEOUT, so that homestead sends a 504 response
+  EXPECT_CALL(*_answer_catcher, got_saa(
+    Field(&HssConnection::ServerAssignmentAnswer::_result_code, ::HssConnection::ResultCode::TIMEOUT)))
+    .Times(1).RetiresOnSaturation();
+
+  // Expect the stats to be updated
+  EXPECT_CALL(*_stats, update_H_cache_latency_us(12000));
+  cwtest_advance_time_ms(12);
+
+  t->on_failure(&mock_op);
+}
+
+TEST_F(HsProvHssConnectionTest, SendSARDeReg)
+{
+  // Create an SAR
+  HssConnection::ServerAssignmentRequest request = {
+    IMPI,
+    IMPU,
+    SERVER_NAME,
+    Cx::ServerAssignmentType::USER_DEREGISTRATION,
+    "true",
+    ""
+  };
+
+  // Expect that we'll call the callback with SUCCESS
+  EXPECT_CALL(*_answer_catcher, got_saa(
+    Field(&HssConnection::ServerAssignmentAnswer::_result_code, ::HssConnection::ResultCode::SUCCESS)))
+    .Times(1).RetiresOnSaturation();
+
+  // Send the SAR
+  _hss_connection->send_server_assignment_request(SAA_CB, request, FAKE_TRAIL_ID);
 }

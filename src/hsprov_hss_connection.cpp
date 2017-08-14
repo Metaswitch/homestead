@@ -41,6 +41,7 @@ const static std::string DIGEST_QOP_COLUMN_NAME      = "digest_qop";
 // Column name marking rows created by homestead-prov
 const static std::string EXISTS_COLUMN_NAME = "_exists";
 
+std::string HsProvHssConnection::_configured_server_name;
 
 template <class AnswerType>
 void HsProvHssConnection::HsProvTransaction<AnswerType>::on_response(CassandraStore::Operation* op)
@@ -96,14 +97,94 @@ MultimediaAuthAnswer HsProvHssConnection::MARHsProvTransaction::create_answer(Ca
   return maa;
 }
 
+LocationInfoAnswer HsProvHssConnection::LIRHsProvTransaction::create_answer(CassandraStore::Operation* op)
+{
+  HsProvStore::GetRegData* get_reg_data = (HsProvStore::GetRegData*)op;
+  CassandraStore::ResultCode cass_result = op->get_result_code();
+
+  int32_t json_result = 0;
+  std::string server_name;
+  ResultCode rc = ResultCode::SUCCESS;
+
+  if (cass_result == CassandraStore::OK)
+  {
+    std::string xml;
+    int32_t ttl;
+    get_reg_data->get_xml(xml, ttl);
+
+    if (!xml.empty())
+    {
+      //TODO we should not return success if nothing is found
+      json_result = DIAMETER_SUCCESS;
+      server_name = _configured_server_name;
+    }
+    else
+    {
+      rc = ResultCode::NOT_FOUND;
+    }
+  }
+  else
+  {
+    TRC_DEBUG("HsProv query failed with rc %d", cass_result);
+
+    // For any other error, we want Homestead to return a 504 so pretend there
+    // was an upstream timeout
+    rc = ResultCode::TIMEOUT;
+  }
+
+  LocationInfoAnswer lia = LocationInfoAnswer(rc,
+                                              json_result,
+                                              server_name,
+                                              NULL,
+                                              "");
+  return lia;
+}
+
+ServerAssignmentAnswer HsProvHssConnection::SARHsProvTransaction::create_answer(CassandraStore::Operation* op)
+{
+  HsProvStore::GetRegData* get_reg_data = (HsProvStore::GetRegData*)op;
+  CassandraStore::ResultCode cass_result = op->get_result_code();
+
+  // Now, parse into our generic SAA
+  std::string service_profile;
+  ChargingAddresses charging_addresses;
+  ResultCode rc = ResultCode::SUCCESS;
+
+  if (cass_result == CassandraStore::OK)
+  {
+    int32_t unused;
+    get_reg_data->get_xml(service_profile, unused);
+    get_reg_data->get_charging_addrs(charging_addresses);
+
+    if (service_profile.empty())
+    {
+      //TODO we should not return success if nothing is found
+      rc = ResultCode::NOT_FOUND;
+    }
+  }
+  else
+  {
+    TRC_DEBUG("HsProv query failed with rc %d", cass_result);
+
+    // For any other error, we want Homestead to return a 504 so pretend there
+    // was an upstream timeout
+    rc = ResultCode::TIMEOUT;
+  }
+
+  ServerAssignmentAnswer saa = ServerAssignmentAnswer(rc,
+                                                      charging_addresses,
+                                                      service_profile,
+                                                      "");
+  return saa;
+}
+
 HsProvHssConnection::HsProvHssConnection(StatisticsManager* stats_manager,
                                          HsProvStore* store,
                                          std::string server_name) :
   HssConnection(stats_manager),
-  _store(store),
-  _configured_server_name(server_name)
+  _store(store)
 {
-
+  _configured_server_name = server_name;
 }
 
 // Send a multimedia auth request to the HSS
@@ -115,11 +196,11 @@ void HsProvHssConnection::send_multimedia_auth_request(maa_cb callback,
   CassandraStore::Transaction* tsx = new MARHsProvTransaction(trail, callback, _stats_manager);
 
   // Create the CassandraStore::Operation that will actually get the info.
-  CassandraStore::Operation* get_av = _store->create_GetAuthVector(request.impi, request.impu);
+  CassandraStore::Operation* op = _store->create_GetAuthVector(request.impi, request.impu);
 
   // Get the info from Cassandra
   // (Note that the Store takes ownership of the Transaction and Operation from us)
-  _store->do_async(get_av, tsx);
+  _store->do_async(op, tsx);
 }
 
 // Send a user auth request to the HSS
@@ -129,23 +210,59 @@ void HsProvHssConnection::send_user_auth_request(uaa_cb callback,
 {
   // We don't actually talk to Cassandra for a UAR, we just create and return
   // a faked response
-  UserAuthAnswer uaa = UserAuthAnswer(ResultCode::SUCCESS, DIAMETER_SUCCESS, _configured_server_name, NULL);
+  UserAuthAnswer uaa = UserAuthAnswer(ResultCode::SUCCESS,
+                                      DIAMETER_SUCCESS,
+                                      _configured_server_name,
+                                      NULL);
   callback(uaa);
 }
 
 // Send a location info request to the HSS
 void HsProvHssConnection::send_location_info_request(lia_cb callback,
-                                                       LocationInfoRequest request,
-                                                       SAS::TrailId trail)
+                                                     LocationInfoRequest request,
+                                                     SAS::TrailId trail)
 {
+  // Create the CassandraTransaction that we'll use to send the request
+  CassandraStore::Transaction* tsx = new LIRHsProvTransaction(trail, callback, _stats_manager);
+
+  // Create the CassandraStore::Operation that will actually get the info.
+  CassandraStore::Operation* op = _store->create_GetRegData(request.impu);
+
+  // Get the info from Cassandra
+  // (Note that the Store takes ownership of the Transaction and Operation from us)
+  _store->do_async(op, tsx);
 }
 
 // Send a server assignment request to the HSS
 void HsProvHssConnection::send_server_assignment_request(saa_cb callback,
-                                                           ServerAssignmentRequest request,
-                                                           SAS::TrailId trail)
+                                                         ServerAssignmentRequest request,
+                                                         SAS::TrailId trail)
 {
+  if ((request.type == Cx::ServerAssignmentType::REGISTRATION) ||
+      (request.type == Cx::ServerAssignmentType::RE_REGISTRATION) ||
+      (request.type == Cx::ServerAssignmentType::UNREGISTERED_USER))
+  {
+    // If this is a (re-)registration or a call to an unregistered user, we have
+    // to get the data from Cassandra
+
+    // Create the CassandraTransaction that we'll use to send the request
+    CassandraStore::Transaction* tsx = new SARHsProvTransaction(trail, callback, _stats_manager);
+
+    // Create the CassandraStore::Operation that will actually get the info.
+    CassandraStore::Operation* op = _store->create_GetRegData(request.impu);
+
+    // Get the info from Cassandra
+    // (Note that the Store takes ownership of the Transaction and Operation from us)
+    _store->do_async(op, tsx);
+  }
+  else
+  {
+    // For any other type of SAR, there's nothing for Homestead-prov to do, so
+    // we just create the SAA now
+    // We don't need to specify any of the info in the SAA as it's going to be
+    // deleted from the cache anyway
+    ServerAssignmentAnswer saa = ServerAssignmentAnswer(ResultCode::SUCCESS);
+    callback(saa);
+  }
 }
-
-
 }; // namespace HssConnection

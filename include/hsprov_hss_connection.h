@@ -90,15 +90,6 @@ public:
     virtual MultimediaAuthAnswer create_answer(CassandraStore::Operation* op) override;
   };
 
-  class UARHsProvTransaction : public HsProvTransaction<UserAuthAnswer>
-  {
-  public:
-    // Inherit the superclass' constructor
-    using HsProvTransaction::HsProvTransaction;
-
-    virtual UserAuthAnswer create_answer(CassandraStore::Operation* op) override;
-  };
-
   class LIRHsProvTransaction : public HsProvTransaction<LocationInfoAnswer>
   {
   public:
@@ -119,7 +110,7 @@ public:
 
 private:
   HsProvStore* _store;
-  std::string _configured_server_name;
+  static std::string _configured_server_name;
 };
 }; // namespace HssConnection
 #endif
