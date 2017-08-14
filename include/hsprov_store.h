@@ -49,24 +49,11 @@ public:
     /// @param public_id the public identity.
     GetRegData(const std::string& public_id);
     virtual ~GetRegData();
-    virtual void get_result(std::pair<RegistrationState, std::string>& result);
 
     /// Access the result of the request.
     ///
     /// @param xml the IMS subscription XML document.
-    /// @param ttl the column's time-to-live.
-    virtual void get_xml(std::string& xml, int32_t& ttl);
-
-    /// Access the result of the request.
-    ///
-    /// @param reg_state the registration state value.
-    /// @param ttl the column's time-to-live.
-    virtual void get_registration_state(RegistrationState& reg_state, int32_t& ttl);
-
-    /// Access the result of the request.
-    ///
-    /// @param impis The IMPIs associated with this IMS Subscription
-    virtual void get_associated_impis(std::vector<std::string>& impis);
+    virtual void get_xml(std::string& xml);
 
     /// Access the result of the request.
     ///
@@ -76,8 +63,6 @@ public:
     struct Result
     {
       std::string xml;
-      RegistrationState state;
-      std::vector<std::string> impis;
       ChargingAddresses charging_addrs;
     };
     virtual void get_result(Result& result);
@@ -88,10 +73,6 @@ public:
 
     // Result.
     std::string _xml;
-    RegistrationState _reg_state;
-    int32_t _xml_ttl;
-    int32_t _reg_state_ttl;
-    std::vector<std::string> _impis;
     ChargingAddresses _charging_addrs;
 
     bool perform(CassandraStore::Client* client, SAS::TrailId trail);

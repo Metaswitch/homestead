@@ -63,10 +63,6 @@ GetRegData(const std::string& public_id) :
   CassandraStore::HAOperation(),
   _public_id(public_id),
   _xml(),
-  _reg_state(RegistrationState::NOT_REGISTERED),
-  _xml_ttl(0),
-  _reg_state_ttl(0),
-  _impis(),
   _charging_addrs()
 {}
 
@@ -79,26 +75,26 @@ HsProvStore::GetRegData::
 bool HsProvStore::GetRegData::perform(CassandraStore::Client* client,
                                 SAS::TrailId trail)
 {
-  int64_t now = generate_timestamp();
   TRC_DEBUG("Issuing get for key %s", _public_id.c_str());
+
+  std::vector<std::string> requested_columns = {
+    IMS_SUB_XML_COLUMN_NAME,
+    PRIMARY_CCF_COLUMN_NAME,
+    SECONDARY_CCF_COLUMN_NAME,
+    PRIMARY_ECF_COLUMN_NAME,
+    SECONDARY_ECF_COLUMN_NAME
+  };
+
   std::vector<ColumnOrSuperColumn> results;
 
-  ha_get_all_columns(client, IMPU, _public_id, results, trail);
+  ha_get_columns(client, IMPU, _public_id, requested_columns, results, trail);
 
   for(std::vector<ColumnOrSuperColumn>::iterator it = results.begin(); it != results.end(); ++it)
   {
     if (it->column.name == IMS_SUB_XML_COLUMN_NAME)
     {
       _xml = it->column.value;
-
-      // Cassandra timestamps are in microseconds (see
-      // generate_timestamp) but TTLs are in seconds, so divide the
-      // timestamps by a million.
-      if (it->column.ttl > 0)
-      {
-        _xml_ttl = ((it->column.timestamp/1000000) + it->column.ttl) - (now / 1000000);
-      };
-      TRC_DEBUG("Retrieved XML column with TTL %d and value %s", _xml_ttl, _xml.c_str());
+      TRC_DEBUG("Retrieved XML column with value %s", _xml.c_str());
     }
     else if ((it->column.name == PRIMARY_CCF_COLUMN_NAME) && (it->column.value != ""))
     {
@@ -126,67 +122,25 @@ bool HsProvStore::GetRegData::perform(CassandraStore::Client* client,
     }
   }
 
-  // If we're storing user data for this subscriber (i.e. there is
-  // XML), then by definition they cannot be in NOT_REGISTERED state
-  // - they must be in UNREGISTERED state.
-  if ((_reg_state == RegistrationState::NOT_REGISTERED) && !_xml.empty())
-  {
-    TRC_DEBUG("Found stored XML for subscriber, treating as UNREGISTERED state");
-    _reg_state = RegistrationState::UNREGISTERED;
-  }
-
   // All exceptions will rise up to the calling function, where the return code
   // will be set as unsuccessful.
 
   return true;
 }
 
-void HsProvStore::GetRegData::get_xml(std::string& xml, int32_t& ttl)
+void HsProvStore::GetRegData::get_xml(std::string& xml)
 {
   xml = _xml;
-  ttl = _xml_ttl;
 }
-
-void HsProvStore::GetRegData::get_associated_impis(std::vector<std::string>& associated_impis)
-{
-  associated_impis = _impis;
-}
-
-
-void HsProvStore::GetRegData::get_registration_state(RegistrationState& reg_state, int32_t& ttl)
-{
-  reg_state = _reg_state;
-  ttl = _reg_state_ttl;
-}
-
 
 void HsProvStore::GetRegData::get_charging_addrs(ChargingAddresses& charging_addrs)
 {
   charging_addrs = _charging_addrs;
 }
 
-
-void HsProvStore::GetRegData::get_result(std::pair<RegistrationState, std::string>& result)
-{
-  RegistrationState state;
-  int32_t reg_ttl;
-  std::string xml;
-  int32_t xml_ttl;
-
-  get_registration_state(state, reg_ttl);
-  get_xml(xml, xml_ttl);
-  result.first = state;
-  result.second = xml;
-}
-
-
 void HsProvStore::GetRegData::get_result(HsProvStore::GetRegData::Result& result)
 {
-  int32_t unused_ttl;
-
-  get_registration_state(result.state, unused_ttl);
-  get_xml(result.xml, unused_ttl);
-  get_associated_impis(result.impis);
+  get_xml(result.xml);
   get_charging_addrs(result.charging_addrs);
 }
 

@@ -70,9 +70,7 @@ public:
     MockGetRegData() : GetRegData("") {}
     virtual ~MockGetRegData() {}
 
-    MOCK_METHOD2(get_xml, void(std::string& xml, int& ttl));
-    MOCK_METHOD2(get_registration_state, void(RegistrationState& state, int& ttl));
-    MOCK_METHOD1(get_associated_impis, void(std::vector<std::string>& associated_impis));
+    MOCK_METHOD1(get_xml, void(std::string& xml));
     MOCK_METHOD1(get_charging_addrs, void(ChargingAddresses& charging_addrs));
   };
 

@@ -45,8 +45,6 @@ using ::testing::NiceMock;
 using namespace CassTestUtils;
 
 // Test constants.
-const std::vector<std::string> IMPIS = {"somebody@example.com"};
-const std::vector<std::string> EMPTY_IMPIS;
 const std::deque<std::string> NO_CFS = {};
 const std::deque<std::string> CCF = {"ccf"};
 const std::deque<std::string> CCFS = {"ccf1", "ccf2"};
@@ -56,6 +54,13 @@ const ChargingAddresses NO_CHARGING_ADDRS(NO_CFS, NO_CFS);
 const ChargingAddresses FULL_CHARGING_ADDRS(CCFS, ECFS);
 const ChargingAddresses CCFS_CHARGING_ADDRS(CCFS, ECF);
 const ChargingAddresses ECFS_CHARGING_ADDRS(CCF, ECFS);
+const std::vector<std::string> REG_DATA_COLUMNS = {
+  "ims_subscription_xml",
+  "primary_ccf",
+  "secondary_ccf",
+  "primary_ecf",
+  "secondary_ecf"
+};
 
 MATCHER_P(OperationHasResult, expected_rc, "")
 {
@@ -365,7 +370,7 @@ TEST_F(HsProvStoreRequestTest, GetRegDataMainline)
   EXPECT_CALL(_client, get_slice(_,
                                  "kermit",
                                  ColumnPathForTable("impu"),
-                                 AllColumns(),
+                                 SpecificColumns(REG_DATA_COLUMNS),
                                  _))
     .WillOnce(SetArgReferee<0>(slice));
 
@@ -395,7 +400,7 @@ TEST_F(HsProvStoreRequestTest, GetRegDataUnregistered)
   EXPECT_CALL(_client, get_slice(_,
                                  "kermit",
                                  ColumnPathForTable("impu"),
-                                 AllColumns(),
+                                 SpecificColumns(REG_DATA_COLUMNS),
                                  _))
     .WillOnce(SetArgReferee<0>(slice));
 
@@ -427,7 +432,7 @@ TEST_F(HsProvStoreRequestTest, GetRegDataNoRegState)
   EXPECT_CALL(_client, get_slice(_,
                                  "kermit",
                                  ColumnPathForTable("impu"),
-                                 AllColumns(),
+                                 SpecificColumns(REG_DATA_COLUMNS),
                                  _))
     .WillOnce(SetArgReferee<0>(slice));
 
@@ -456,7 +461,7 @@ TEST_F(HsProvStoreRequestTest, GetRegDataInvalidRegState)
   EXPECT_CALL(_client, get_slice(_,
                                  "kermit",
                                  ColumnPathForTable("impu"),
-                                 AllColumns(),
+                                 SpecificColumns(REG_DATA_COLUMNS),
                                  _))
     .WillOnce(SetArgReferee<0>(slice));
 
@@ -653,7 +658,7 @@ TEST_F(HsProvStoreRequestTest, HaGetMainline)
   EXPECT_CALL(_client, get_slice(_,
                                  "kermit",
                                  ColumnPathForTable("impu"),
-                                 AllColumns(),
+                                 SpecificColumns(REG_DATA_COLUMNS),
                                  cass::ConsistencyLevel::TWO))
     .WillOnce(SetArgReferee<0>(slice));
 
@@ -676,7 +681,7 @@ TEST_F(HsProvStoreRequestTest, HaGet2ndReadNotFoundException)
   std::vector<cass::ColumnOrSuperColumn> slice;
   make_slice(slice, columns);
 
-  ResultRecorder<HsProvStore::GetRegData, std::pair<RegistrationState, std::string> > rec;
+  ResultRecorder<HsProvStore::GetRegData, HsProvStore::GetRegData::Result> rec;
   RecordingTransaction* trx = make_rec_trx(&rec);
   CassandraStore::Operation* op = _cache.create_GetRegData("kermit");
 
@@ -701,7 +706,7 @@ TEST_F(HsProvStoreRequestTest, HaGet2ndReadUnavailableException)
   std::vector<cass::ColumnOrSuperColumn> slice;
   make_slice(slice, columns);
 
-  ResultRecorder<HsProvStore::GetRegData, std::pair<RegistrationState, std::string> > rec;
+  ResultRecorder<HsProvStore::GetRegData, HsProvStore::GetRegData::Result> rec;
   RecordingTransaction* trx = make_rec_trx(&rec);
   CassandraStore::Operation* op = _cache.create_GetRegData("kermit");
 
@@ -731,7 +736,7 @@ TEST_F(HsProvStoreRequestTest, HaGet2ndReadTimedUutException)
   std::vector<cass::ColumnOrSuperColumn> slice;
   make_slice(slice, columns);
 
-  ResultRecorder<HsProvStore::GetRegData, std::pair<RegistrationState, std::string> > rec;
+  ResultRecorder<HsProvStore::GetRegData, HsProvStore::GetRegData::Result> rec;
   RecordingTransaction* trx = make_rec_trx(&rec);
   CassandraStore::Operation* op = _cache.create_GetRegData("kermit");
 
@@ -774,7 +779,7 @@ TEST_F(HsProvStoreRequestTest, HaGetRetryUsesConsistencyOne)
     EXPECT_CALL(_client, get_slice(_,
                                    "kermit",
                                    ColumnPathForTable("impu"),
-                                   AllColumns(),
+                                   SpecificColumns(REG_DATA_COLUMNS),
                                    cass::ConsistencyLevel::TWO))
       .WillOnce(Throw(te)).RetiresOnSaturation();
 
@@ -783,7 +788,7 @@ TEST_F(HsProvStoreRequestTest, HaGetRetryUsesConsistencyOne)
     EXPECT_CALL(_client, get_slice(_,
                                    "kermit",
                                    ColumnPathForTable("impu"),
-                                   AllColumns(),
+                                   SpecificColumns(REG_DATA_COLUMNS),
                                    cass::ConsistencyLevel::ONE))
       .WillOnce(Throw(te)).RetiresOnSaturation();
     EXPECT_CALL(_resolver, success(_targets[0])).Times(1);
@@ -793,7 +798,7 @@ TEST_F(HsProvStoreRequestTest, HaGetRetryUsesConsistencyOne)
     EXPECT_CALL(_client, get_slice(_,
                                    "kermit",
                                    ColumnPathForTable("impu"),
-                                   AllColumns(),
+                                   SpecificColumns(REG_DATA_COLUMNS),
                                    cass::ConsistencyLevel::ONE))
       .WillOnce(SetArgReferee<0>(slice));
     EXPECT_CALL(_resolver, success(_targets[1])).Times(1);
@@ -841,7 +846,7 @@ TEST_F(HsProvStoreLatencyTest, GetRecordsLatency)
   std::vector<cass::ColumnOrSuperColumn> slice;
   make_slice(slice, columns);
 
-  ResultRecorder<HsProvStore::GetRegData, std::pair<RegistrationState, std::string> > rec;
+  ResultRecorder<HsProvStore::GetRegData, HsProvStore::GetRegData::Result> rec;
   RecordingTransaction* trx = make_rec_trx(&rec);
   CassandraStore::Operation* op = _cache.create_GetRegData("kermit");
 
@@ -867,7 +872,7 @@ TEST_F(HsProvStoreLatencyTest, GetErrorRecordsLatency)
   std::vector<cass::ColumnOrSuperColumn> slice;
   make_slice(slice, columns);
 
-  ResultRecorder<HsProvStore::GetRegData, std::pair<RegistrationState, std::string> > rec;
+  ResultRecorder<HsProvStore::GetRegData, HsProvStore::GetRegData::Result> rec;
   RecordingTransaction* trx = make_rec_trx(&rec);
   CassandraStore::Operation* op = _cache.create_GetRegData("kermit");
 

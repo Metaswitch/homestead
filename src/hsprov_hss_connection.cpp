@@ -109,8 +109,7 @@ LocationInfoAnswer HsProvHssConnection::LIRHsProvTransaction::create_answer(Cass
   if (cass_result == CassandraStore::OK)
   {
     std::string xml;
-    int32_t ttl;
-    get_reg_data->get_xml(xml, ttl);
+    get_reg_data->get_xml(xml);
 
     if (!xml.empty())
     {
@@ -152,8 +151,7 @@ ServerAssignmentAnswer HsProvHssConnection::SARHsProvTransaction::create_answer(
 
   if (cass_result == CassandraStore::OK)
   {
-    int32_t unused;
-    get_reg_data->get_xml(service_profile, unused);
+    get_reg_data->get_xml(service_profile);
     get_reg_data->get_charging_addrs(charging_addresses);
 
     if (service_profile.empty())

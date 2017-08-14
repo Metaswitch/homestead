@@ -403,7 +403,7 @@ TEST_F(HsProvHssConnectionTest, SendLIR)
 
   // Expect that we'll request the XML from the Operation, and return some non-
   // empty XML
-  EXPECT_CALL(mock_op, get_xml(_, _)).WillOnce(SetArgReferee<0>(IMS_SUB_XML));
+  EXPECT_CALL(mock_op, get_xml(_)).WillOnce(SetArgReferee<0>(IMS_SUB_XML));
 
   // Expect that we'll call the callback with the correct answer
   EXPECT_CALL(*_answer_catcher, got_lia(
@@ -446,7 +446,7 @@ TEST_F(HsProvHssConnectionTest, SendLIRNoXML)
 
   // Expect that we'll request the XML from the Operation, and return some empty
   // XML
-  EXPECT_CALL(mock_op, get_xml(_, _)).WillOnce(SetArgReferee<0>(""));
+  EXPECT_CALL(mock_op, get_xml(_)).WillOnce(SetArgReferee<0>(""));
 
   // Expect that we'll call the callback with a NOT_FOUND
   EXPECT_CALL(*_answer_catcher, got_lia(
@@ -531,7 +531,7 @@ TEST_F(HsProvHssConnectionTest, SendSAR)
 
   // Expect that we'll get the charging addresses and XML from the completed
   // operation
-  EXPECT_CALL(mock_op, get_xml(_, _)).WillOnce(SetArgReferee<0>(IMS_SUB_XML));
+  EXPECT_CALL(mock_op, get_xml(_)).WillOnce(SetArgReferee<0>(IMS_SUB_XML));
   EXPECT_CALL(mock_op, get_charging_addrs(_)).WillOnce(SetArgReferee<0>(FULL_CHARGING_ADDRESSES));
 
   // Expect that we'll call the callback with the correct answer, including the
