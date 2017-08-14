@@ -110,17 +110,12 @@ LocationInfoAnswer HsProvHssConnection::LIRHsProvTransaction::create_answer(Cass
   {
     std::string xml;
     get_reg_data->get_xml(xml);
-
-    if (!xml.empty())
-    {
-      //TODO we should not return success if nothing is found
-      json_result = DIAMETER_SUCCESS;
-      server_name = _configured_server_name;
-    }
-    else
-    {
-      rc = ResultCode::NOT_FOUND;
-    }
+    json_result = DIAMETER_SUCCESS;
+    server_name = _configured_server_name;
+  }
+  else if (cass_result == CassandraStore::NOT_FOUND)
+  {
+    rc = ResultCode::NOT_FOUND;
   }
   else
   {
@@ -153,12 +148,10 @@ ServerAssignmentAnswer HsProvHssConnection::SARHsProvTransaction::create_answer(
   {
     get_reg_data->get_xml(service_profile);
     get_reg_data->get_charging_addrs(charging_addresses);
-
-    if (service_profile.empty())
-    {
-      //TODO we should not return success if nothing is found
-      rc = ResultCode::NOT_FOUND;
-    }
+  }
+  else if (cass_result == CassandraStore::NOT_FOUND)
+  {
+    rc = ResultCode::NOT_FOUND;
   }
   else
   {

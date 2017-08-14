@@ -302,7 +302,7 @@ TEST_F(HsProvHssConnectionTest, SendMARNotFound)
   EXPECT_CALL(*_stats, update_H_cache_latency_us(12000));
   cwtest_advance_time_ms(12);
 
-  t->on_success(&mock_op);
+  t->on_failure(&mock_op);
 }
 
 TEST_F(HsProvHssConnectionTest, SendMAROtherError)
@@ -420,7 +420,7 @@ TEST_F(HsProvHssConnectionTest, SendLIR)
   t->on_success(&mock_op);
 }
 
-TEST_F(HsProvHssConnectionTest, SendLIRNoXML)
+TEST_F(HsProvHssConnectionTest, SendLIRNotFound)
 {
   // Create an LIR
   HssConnection::LocationInfoRequest request = {
@@ -429,8 +429,9 @@ TEST_F(HsProvHssConnectionTest, SendLIRNoXML)
     ""
   };
 
-  // Expect we'll request the reg data from Cassandra
+  // Expect we'll request the reg data from Cassandra, and we get an error
   MockHsProvStore::MockGetRegData mock_op;
+  mock_op._cass_status = CassandraStore::NOT_FOUND;
 
   EXPECT_CALL(*_mock_store, create_GetRegData(IMPU))
     .WillOnce(Return(&mock_op));
@@ -444,11 +445,7 @@ TEST_F(HsProvHssConnectionTest, SendLIRNoXML)
   ASSERT_FALSE(t == NULL);
   t->start_timer();
 
-  // Expect that we'll request the XML from the Operation, and return some empty
-  // XML
-  EXPECT_CALL(mock_op, get_xml(_)).WillOnce(SetArgReferee<0>(""));
-
-  // Expect that we'll call the callback with a NOT_FOUND
+  // Expect that we'll call the callback with the correct answer
   EXPECT_CALL(*_answer_catcher, got_lia(
     Field(&HssConnection::LocationInfoAnswer::_result_code, ::HssConnection::ResultCode::NOT_FOUND)))
     .Times(1).RetiresOnSaturation();
@@ -457,7 +454,7 @@ TEST_F(HsProvHssConnectionTest, SendLIRNoXML)
   EXPECT_CALL(*_stats, update_H_cache_latency_us(12000));
   cwtest_advance_time_ms(12);
 
-  t->on_success(&mock_op);
+  t->on_failure(&mock_op);
 }
 
 TEST_F(HsProvHssConnectionTest, SendLIROtherError)
@@ -471,7 +468,7 @@ TEST_F(HsProvHssConnectionTest, SendLIROtherError)
 
   // Expect we'll request the reg data from Cassandra, and we get an error
   MockHsProvStore::MockGetRegData mock_op;
-  mock_op._cass_status = CassandraStore::NOT_FOUND;
+  mock_op._cass_status = CassandraStore::CONNECTION_ERROR;
 
   EXPECT_CALL(*_mock_store, create_GetRegData(IMPU))
     .WillOnce(Return(&mock_op));
@@ -549,6 +546,47 @@ TEST_F(HsProvHssConnectionTest, SendSAR)
   cwtest_advance_time_ms(12);
 
   t->on_success(&mock_op);
+}
+
+TEST_F(HsProvHssConnectionTest, SendSARNotFound)
+{
+  // Create an SAR
+  HssConnection::ServerAssignmentRequest request = {
+    IMPI,
+    IMPU,
+    SERVER_NAME,
+    Cx::ServerAssignmentType::REGISTRATION,
+    "true",
+    ""
+  };
+
+  // Expect we'll request the reg data from Cassandra
+  MockHsProvStore::MockGetRegData mock_op;
+  mock_op._cass_status = CassandraStore::NOT_FOUND;
+
+  EXPECT_CALL(*_mock_store, create_GetRegData(IMPU))
+    .WillOnce(Return(&mock_op));
+  EXPECT_DO_ASYNC(*_mock_store, mock_op);
+
+  // Send the SAR
+  _hss_connection->send_server_assignment_request(SAA_CB, request, FAKE_TRAIL_ID);
+
+  // Confirm the transaction is not NULL
+  CassandraStore::Transaction* t = mock_op.get_trx();
+  ASSERT_FALSE(t == NULL);
+  t->start_timer();
+
+  // Expect that we'll call the callback with the correct answer
+  // All other errors are treated as TIMEOUT, so that homestead sends a 504 response
+  EXPECT_CALL(*_answer_catcher, got_saa(
+    Field(&HssConnection::ServerAssignmentAnswer::_result_code, ::HssConnection::ResultCode::NOT_FOUND)))
+    .Times(1).RetiresOnSaturation();
+
+  // Expect the stats to be updated
+  EXPECT_CALL(*_stats, update_H_cache_latency_us(12000));
+  cwtest_advance_time_ms(12);
+
+  t->on_failure(&mock_op);
 }
 
 TEST_F(HsProvHssConnectionTest, SendSARError)
