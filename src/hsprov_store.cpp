@@ -21,20 +21,14 @@ using namespace org::apache::cassandra;
 // Keyspace and column family names.
 const static std::string KEYSPACE = "homestead_cache";
 const static std::string IMPI = "impi";
-const static std::string IMPI_MAPPING = "impi_mapping";
 const static std::string IMPU = "impu";
 
 // Column names in the IMPU column family.
 const static std::string IMS_SUB_XML_COLUMN_NAME = "ims_subscription_xml";
-const static std::string REG_STATE_COLUMN_NAME = "is_registered";
 const static std::string PRIMARY_CCF_COLUMN_NAME = "primary_ccf";
 const static std::string SECONDARY_CCF_COLUMN_NAME = "secondary_ccf";
 const static std::string PRIMARY_ECF_COLUMN_NAME = "primary_ecf";
 const static std::string SECONDARY_ECF_COLUMN_NAME = "secondary_ecf";
-const static std::string IMPI_COLUMN_PREFIX = "associated_impi__";
-
-// Column names in the IMPI_MAPPING column family
-const static std::string IMPI_MAPPING_PREFIX = "associated_primary_impu__";
 
 // Column names in the IMPI column family.
 const static std::string ASSOC_PUBLIC_ID_COLUMN_PREFIX = "public_id_";
@@ -59,248 +53,6 @@ HsProvStore HsProvStore::DEFAULT_INSTANCE;
 HsProvStore::HsProvStore() : CassandraStore::Store(KEYSPACE) {}
 
 HsProvStore::~HsProvStore() {}
-
-
-//
-// PutRegData methods.
-//
-
-HsProvStore::PutRegData::
-PutRegData(const std::string& public_id,
-           const std::string& default_public_id,
-           const int64_t timestamp,
-           const int32_t ttl):
-  CassandraStore::Operation(),
-  _public_ids(1, public_id),
-  _default_public_id(default_public_id),
-  _timestamp(timestamp),
-  _ttl(ttl)
-{}
-
-HsProvStore::PutRegData::
-PutRegData(const std::vector<std::string>& public_ids,
-           const std::string& default_public_id,
-           const int64_t timestamp,
-           const int32_t ttl):
-  CassandraStore::Operation(),
-  _public_ids(public_ids),
-  _default_public_id(default_public_id),
-  _timestamp(timestamp),
-  _ttl(ttl)
-{}
-
-HsProvStore::PutRegData::
-~PutRegData()
-{}
-
-HsProvStore::PutRegData& HsProvStore::PutRegData::with_xml(const std::string& xml)
-{
-  _columns[IMS_SUB_XML_COLUMN_NAME] = xml;
-  return *this;
-}
-
-HsProvStore::PutRegData& HsProvStore::PutRegData::with_reg_state(const RegistrationState reg_state)
-{
-  if (reg_state == RegistrationState::REGISTERED)
-  {
-    _columns[REG_STATE_COLUMN_NAME] = CassandraStore::BOOLEAN_TRUE;
-  }
-  else if (reg_state == RegistrationState::UNREGISTERED)
-  {
-    _columns[REG_STATE_COLUMN_NAME] = CassandraStore::BOOLEAN_FALSE;
-  }
-  else
-  {
-    // LCOV_EXCL_START - invalid case not hit in UT
-    TRC_ERROR("Unexpected registration state %d", reg_state);
-    // LCOV_EXCL_STOP
-  }
-  return *this;
-}
-
-HsProvStore::PutRegData& HsProvStore::PutRegData::with_associated_impis(const std::vector<std::string>& impis)
-{
-  for (std::vector<std::string>::const_iterator impi = impis.begin();
-       impi != impis.end();
-       impi++)
-  {
-    std::string column_name = IMPI_COLUMN_PREFIX + *impi;
-    _columns[column_name] = "";
-
-    std::map<std::string, std::string> impi_columns;
-    impi_columns[IMPI_MAPPING_PREFIX + _default_public_id] = "";
-    _to_put.push_back(CassandraStore::RowColumns(IMPI_MAPPING, *impi, impi_columns));
-  }
-  return *this;
-}
-
-HsProvStore::PutRegData& HsProvStore::PutRegData::with_charging_addrs(const ChargingAddresses& charging_addrs)
-{
-  if (charging_addrs.ccfs.empty())
-  {
-    _columns[PRIMARY_CCF_COLUMN_NAME] = "";
-    _columns[SECONDARY_CCF_COLUMN_NAME] = "";
-  }
-  else if (charging_addrs.ccfs.size() == 1)
-  {
-    _columns[PRIMARY_CCF_COLUMN_NAME] = charging_addrs.ccfs[0];
-    _columns[SECONDARY_CCF_COLUMN_NAME] = "";
-  }
-  else
-  {
-    _columns[PRIMARY_CCF_COLUMN_NAME] = charging_addrs.ccfs[0];
-    _columns[SECONDARY_CCF_COLUMN_NAME] = charging_addrs.ccfs[1];
-  }
-
-  if (charging_addrs.ecfs.empty())
-  {
-    _columns[PRIMARY_ECF_COLUMN_NAME] = "";
-    _columns[SECONDARY_ECF_COLUMN_NAME] = "";
-  }
-  else if (charging_addrs.ecfs.size() == 1)
-  {
-    _columns[PRIMARY_ECF_COLUMN_NAME] = charging_addrs.ecfs[0];
-    _columns[SECONDARY_ECF_COLUMN_NAME] = "";
-  }
-  else
-  {
-    _columns[PRIMARY_ECF_COLUMN_NAME] = charging_addrs.ecfs[0];
-    _columns[SECONDARY_ECF_COLUMN_NAME] = charging_addrs.ecfs[1];
-  }
-  return *this;
-}
-
-bool HsProvStore::PutRegData::perform(CassandraStore::Client* client,
-                                SAS::TrailId trail)
-{
-  for (std::vector<std::string>::iterator row = _public_ids.begin();
-       row != _public_ids.end();
-       row++)
-  {
-    _to_put.push_back(CassandraStore::RowColumns(IMPU, *row, _columns));
-  }
-
-  client->put_columns(_to_put, _timestamp, _ttl);
-
-  return true;
-}
-
-//
-// PutAssociatedPrivateID methods
-//
-
-HsProvStore::PutAssociatedPrivateID::
-PutAssociatedPrivateID(const std::vector<std::string>& impus,
-                       const std::string& default_public_id,
-                       const std::string& impi,
-                       const int64_t timestamp,
-                       const int32_t ttl) :
-  CassandraStore::Operation(),
-  _impus(impus),
-  _default_public_id(default_public_id),
-  _impi(impi),
-  _timestamp(timestamp),
-  _ttl(ttl)
-{}
-
-
-HsProvStore::PutAssociatedPrivateID::
-~PutAssociatedPrivateID()
-{}
-
-
-bool HsProvStore::PutAssociatedPrivateID::perform(CassandraStore::Client* client,
-                                            SAS::TrailId trail)
-{
-  std::vector<CassandraStore::RowColumns> to_put;
-  std::map<std::string, std::string> impu_columns;
-  std::map<std::string, std::string> impi_columns;
-  impu_columns[IMPI_COLUMN_PREFIX + _impi] = "";
-
-  impi_columns[IMPI_MAPPING_PREFIX + _default_public_id] = "";
-  to_put.push_back(CassandraStore::RowColumns(IMPI_MAPPING, _impi, impi_columns));
-
-  for (std::vector<std::string>::iterator row = _impus.begin();
-       row != _impus.end();
-       row++)
-  {
-    to_put.push_back(CassandraStore::RowColumns(IMPU, *row, impu_columns));
-  }
-
-  client->put_columns(to_put, _timestamp, _ttl);
-
-  return true;
-}
-
-
-//
-// PutAssociatedPublicID methods.
-//
-
-HsProvStore::PutAssociatedPublicID::
-PutAssociatedPublicID(const std::string& private_id,
-                      const std::string& assoc_public_id,
-                      const int64_t timestamp,
-                      const int32_t ttl) :
-  CassandraStore::Operation(),
-  _private_id(private_id),
-  _assoc_public_id(assoc_public_id),
-  _timestamp(timestamp),
-  _ttl(ttl)
-{}
-
-
-HsProvStore::PutAssociatedPublicID::
-~PutAssociatedPublicID()
-{}
-
-
-bool HsProvStore::PutAssociatedPublicID::perform(CassandraStore::Client* client,
-                                           SAS::TrailId trail)
-{
-  std::map<std::string, std::string> columns;
-  columns[ASSOC_PUBLIC_ID_COLUMN_PREFIX + _assoc_public_id] = "";
-
-  std::vector<std::string> keys(1, _private_id);
-
-  client->put_columns(IMPI, keys, columns, _timestamp, _ttl);
-  return true;
-}
-
-//
-// PutAuthVector methods.
-//
-
-HsProvStore::PutAuthVector::
-PutAuthVector(const std::string& private_id,
-              const DigestAuthVector& auth_vector,
-              const int64_t timestamp,
-              const int32_t ttl) :
-  CassandraStore::Operation(),
-  _private_ids(1, private_id),
-  _auth_vector(auth_vector),
-  _timestamp(timestamp),
-  _ttl(ttl)
-{}
-
-
-HsProvStore::PutAuthVector::
-~PutAuthVector()
-{}
-
-
-bool HsProvStore::PutAuthVector::perform(CassandraStore::Client* client,
-                                   SAS::TrailId trail)
-{
-  std::map<std::string, std::string> columns;
-  columns[DIGEST_HA1_COLUMN_NAME]      = _auth_vector.ha1;
-  columns[DIGEST_REALM_COLUMN_NAME]    = _auth_vector.realm;
-  columns[DIGEST_QOP_COLUMN_NAME]      = _auth_vector.qop;
-
-  client->put_columns(IMPI, _private_ids, columns, _timestamp, _ttl);
-  return true;
-}
-
 
 //
 // GetRegData methods
@@ -331,105 +83,60 @@ bool HsProvStore::GetRegData::perform(CassandraStore::Client* client,
   TRC_DEBUG("Issuing get for key %s", _public_id.c_str());
   std::vector<ColumnOrSuperColumn> results;
 
-  try
+  ha_get_all_columns(client, IMPU, _public_id, results, trail);
+
+  for(std::vector<ColumnOrSuperColumn>::iterator it = results.begin(); it != results.end(); ++it)
   {
-    ha_get_all_columns(client, IMPU, _public_id, results, trail);
-
-    for(std::vector<ColumnOrSuperColumn>::iterator it = results.begin(); it != results.end(); ++it)
+    if (it->column.name == IMS_SUB_XML_COLUMN_NAME)
     {
-      if (it->column.name == IMS_SUB_XML_COLUMN_NAME)
-      {
-        _xml = it->column.value;
+      _xml = it->column.value;
 
-        // Cassandra timestamps are in microseconds (see
-        // generate_timestamp) but TTLs are in seconds, so divide the
-        // timestamps by a million.
-        if (it->column.ttl > 0)
-        {
-          _xml_ttl = ((it->column.timestamp/1000000) + it->column.ttl) - (now / 1000000);
-        };
-        TRC_DEBUG("Retrieved XML column with TTL %d and value %s", _xml_ttl, _xml.c_str());
-      }
-      else if (it->column.name == REG_STATE_COLUMN_NAME)
+      // Cassandra timestamps are in microseconds (see
+      // generate_timestamp) but TTLs are in seconds, so divide the
+      // timestamps by a million.
+      if (it->column.ttl > 0)
       {
-        if (it->column.ttl > 0)
-        {
-          _reg_state_ttl = ((it->column.timestamp/1000000) + it->column.ttl) - (now / 1000000);
-        };
-        if (it->column.value == CassandraStore::BOOLEAN_TRUE)
-        {
-          _reg_state = RegistrationState::REGISTERED;
-          TRC_DEBUG("Retrieved is_registered column with value True and TTL %d",
-                    _reg_state_ttl);
-        }
-        else if (it->column.value == CassandraStore::BOOLEAN_FALSE)
-        {
-          _reg_state = RegistrationState::UNREGISTERED;
-          TRC_DEBUG("Retrieved is_registered column with value False and TTL %d",
-                    _reg_state_ttl);
-        }
-        else if ((it->column.value == ""))
-        {
-          TRC_DEBUG("Retrieved is_registered column with empty value and TTL %d",
-                    _reg_state_ttl);
-        }
-        else
-        {
-          TRC_WARNING("Registration state column has invalid value %d %s",
-                      it->column.value.c_str()[0],
-                      it->column.value.c_str());
-        };
-      }
-      else if (it->column.name.find(IMPI_COLUMN_PREFIX) == 0)
-      {
-        std::string impi = it->column.name.substr(IMPI_COLUMN_PREFIX.length());
-        _impis.push_back(impi);
-      }
-      else if ((it->column.name == PRIMARY_CCF_COLUMN_NAME) && (it->column.value != ""))
-      {
-        _charging_addrs.ccfs.push_front(it->column.value);
-        TRC_DEBUG("Retrieved primary_ccf column with value %s",
-                  it->column.value.c_str());
-      }
-      else if ((it->column.name == SECONDARY_CCF_COLUMN_NAME) && (it->column.value != ""))
-      {
-        _charging_addrs.ccfs.push_back(it->column.value);
-        TRC_DEBUG("Retrieved secondary_ccf column with value %s",
-                  it->column.value.c_str());
-      }
-      else if ((it->column.name == PRIMARY_ECF_COLUMN_NAME) && (it->column.value != ""))
-      {
-        _charging_addrs.ecfs.push_front(it->column.value);
-        TRC_DEBUG("Retrieved primary_ecf column with value %s",
-                  it->column.value.c_str());
-      }
-      else if ((it->column.name == SECONDARY_ECF_COLUMN_NAME) && (it->column.value != ""))
-      {
-        _charging_addrs.ecfs.push_back(it->column.value);
-        TRC_DEBUG("Retrieved secondary_ecf column with value %s",
-                  it->column.value.c_str());
-      }
+        _xml_ttl = ((it->column.timestamp/1000000) + it->column.ttl) - (now / 1000000);
+      };
+      TRC_DEBUG("Retrieved XML column with TTL %d and value %s", _xml_ttl, _xml.c_str());
     }
-
-    // If we're storing user data for this subscriber (i.e. there is
-    // XML), then by definition they cannot be in NOT_REGISTERED state
-    // - they must be in UNREGISTERED state.
-    if ((_reg_state == RegistrationState::NOT_REGISTERED) && !_xml.empty())
+    else if ((it->column.name == PRIMARY_CCF_COLUMN_NAME) && (it->column.value != ""))
     {
-      TRC_DEBUG("Found stored XML for subscriber, treating as UNREGISTERED state");
-      _reg_state = RegistrationState::UNREGISTERED;
+      _charging_addrs.ccfs.push_front(it->column.value);
+      TRC_DEBUG("Retrieved primary_ccf column with value %s",
+                it->column.value.c_str());
     }
-
-  }
-  catch(CassandraStore::RowNotFoundException& rnfe)
-  {
-    // This is a valid state rather than an exceptional one, so we
-    // catch the exception and return success. Values ae left in the
-    // default state (NOT_REGISTERED and empty XML).
+    else if ((it->column.name == SECONDARY_CCF_COLUMN_NAME) && (it->column.value != ""))
+    {
+      _charging_addrs.ccfs.push_back(it->column.value);
+      TRC_DEBUG("Retrieved secondary_ccf column with value %s",
+                it->column.value.c_str());
+    }
+    else if ((it->column.name == PRIMARY_ECF_COLUMN_NAME) && (it->column.value != ""))
+    {
+      _charging_addrs.ecfs.push_front(it->column.value);
+      TRC_DEBUG("Retrieved primary_ecf column with value %s",
+                it->column.value.c_str());
+    }
+    else if ((it->column.name == SECONDARY_ECF_COLUMN_NAME) && (it->column.value != ""))
+    {
+      _charging_addrs.ecfs.push_back(it->column.value);
+      TRC_DEBUG("Retrieved secondary_ecf column with value %s",
+                it->column.value.c_str());
+    }
   }
 
-  // All other exceptions will rise up to the calling function, where the return
-  // code will be set as unsuccessful.
+  // If we're storing user data for this subscriber (i.e. there is
+  // XML), then by definition they cannot be in NOT_REGISTERED state
+  // - they must be in UNREGISTERED state.
+  if ((_reg_state == RegistrationState::NOT_REGISTERED) && !_xml.empty())
+  {
+    TRC_DEBUG("Found stored XML for subscriber, treating as UNREGISTERED state");
+    _reg_state = RegistrationState::UNREGISTERED;
+  }
+
+  // All exceptions will rise up to the calling function, where the return code
+  // will be set as unsuccessful.
 
   return true;
 }
@@ -481,146 +188,6 @@ void HsProvStore::GetRegData::get_result(HsProvStore::GetRegData::Result& result
   get_xml(result.xml, unused_ttl);
   get_associated_impis(result.impis);
   get_charging_addrs(result.charging_addrs);
-}
-
-//
-// GetAssociatedPublicIDs methods
-//
-
-HsProvStore::GetAssociatedPublicIDs::
-GetAssociatedPublicIDs(const std::string& private_id) :
-  CassandraStore::HAOperation(),
-  _private_ids(1, private_id),
-  _public_ids()
-{}
-
-
-HsProvStore::GetAssociatedPublicIDs::
-GetAssociatedPublicIDs(const std::vector<std::string>& private_ids) :
-  CassandraStore::HAOperation(),
-  _private_ids(private_ids),
-  _public_ids()
-{}
-
-
-HsProvStore::GetAssociatedPublicIDs::
-~GetAssociatedPublicIDs()
-{}
-
-
-bool HsProvStore::GetAssociatedPublicIDs::perform(CassandraStore::Client* client,
-                                            SAS::TrailId trail)
-{
-  std::map<std::string, std::vector<ColumnOrSuperColumn> > columns;
-  std::set<std::string> public_ids;
-
-  TRC_DEBUG("Looking for public IDs for private ID %s out of a total %d private IDs.",
-            _private_ids.front().c_str(),
-            _private_ids.size());
-  try
-  {
-    ha_multiget_columns_with_prefix(client,
-                                    IMPI,
-                                    _private_ids,
-                                    ASSOC_PUBLIC_ID_COLUMN_PREFIX,
-                                    columns,
-                                    trail);
-  }
-  catch(CassandraStore::RowNotFoundException& rnfe)
-  {
-    TRC_INFO("Couldn't find any public IDs");
-  }
-
-  // Convert the query results from a vector of columns to a vector containing
-  // the column names. The public_id prefix has already been stripped, so this
-  // is just a list of public IDs and can be passed directly to on_success.
-  for(std::map<std::string, std::vector<ColumnOrSuperColumn> >::const_iterator key_it = columns.begin();
-      key_it != columns.end();
-      ++key_it)
-  {
-    for(std::vector<ColumnOrSuperColumn>::const_iterator column = key_it->second.begin();
-        column != key_it->second.end();
-        ++column)
-    {
-      TRC_DEBUG("Found associated public ID %s", column->column.name.c_str());
-      public_ids.insert(column->column.name);
-    }
-  }
-
-  // Move the std::set of public_ids to the std::vector of _public_ids so that they
-  // are available to the handler.
-  std::copy(public_ids.begin(), public_ids.end(), std::back_inserter(_public_ids));
-
-  return true;
-}
-
-void HsProvStore::GetAssociatedPublicIDs::get_result(std::vector<std::string>& ids)
-{
-  ids = _public_ids;
-}
-
-//
-// GetAssociatedPrimaryPublicIDs methods
-//
-
-HsProvStore::GetAssociatedPrimaryPublicIDs::
-GetAssociatedPrimaryPublicIDs(const std::string& private_id) :
-  CassandraStore::HAOperation(),
-  _private_ids(1, private_id),
-  _public_ids()
-{}
-
-HsProvStore::GetAssociatedPrimaryPublicIDs::
-GetAssociatedPrimaryPublicIDs(const std::vector<std::string>& private_ids) :
-  CassandraStore::HAOperation(),
-  _private_ids(private_ids),
-  _public_ids()
-{}
-
-
-bool HsProvStore::GetAssociatedPrimaryPublicIDs::perform(CassandraStore::Client* client,
-                                                   SAS::TrailId trail)
-{
-  std::set<std::string> public_ids_set;
-  std::map<std::string, std::vector<ColumnOrSuperColumn> > columns;
-
-  TRC_DEBUG("Looking for primary public IDs for private ID %s out of a total %d private IDs", _private_ids.front().c_str(), _private_ids.size());
-  try
-  {
-    ha_multiget_columns_with_prefix(client,
-                                    IMPI_MAPPING,
-                                    _private_ids,
-                                    IMPI_MAPPING_PREFIX,
-                                    columns,
-                                    trail);
-  }
-  catch(CassandraStore::RowNotFoundException& rnfe)
-  {
-    TRC_INFO("Couldn't find any public IDs");
-  }
-
-  // Convert the query results from a vector of columns to a vector containing
-  // the column names. The public_id prefix has already been stripped, so this
-  // is just a list of public IDs and can be passed directly to on_success.
-  for(std::map<std::string, std::vector<ColumnOrSuperColumn> >::const_iterator key_it = columns.begin();
-      key_it != columns.end();
-      ++key_it)
-  {
-    for(std::vector<ColumnOrSuperColumn>::const_iterator column = key_it->second.begin();
-        column != key_it->second.end();
-        ++column)
-    {
-      TRC_DEBUG("Found associated public ID %s", column->column.name.c_str());
-      public_ids_set.insert(column->column.name);
-    }
-  }
-  std::copy(public_ids_set.begin(), public_ids_set.end(), std::back_inserter(_public_ids));
-  return true;
-}
-
-void HsProvStore::GetAssociatedPrimaryPublicIDs::get_result(std::vector<std::string>& ids)
-{
-  ids = _public_ids;
 }
 
 //
@@ -732,334 +299,4 @@ bool HsProvStore::GetAuthVector::perform(CassandraStore::Client* client,
 void HsProvStore::GetAuthVector::get_result(DigestAuthVector& av)
 {
   av = _auth_vector;
-}
-
-//
-// DeletePublicIDs methods
-//
-
-HsProvStore::DeletePublicIDs::
-DeletePublicIDs(const std::string& public_id,
-                const std::vector<std::string>& impis,
-                int64_t timestamp) :
-  CassandraStore::Operation(),
-  _public_ids(1, public_id),
-  _impis(impis),
-  _timestamp(timestamp)
-{}
-
-HsProvStore::DeletePublicIDs::
-DeletePublicIDs(const std::vector<std::string>& public_ids,
-                const std::vector<std::string>& impis,
-                int64_t timestamp) :
-  CassandraStore::Operation(),
-  _public_ids(public_ids),
-  _impis(impis),
-  _timestamp(timestamp)
-{}
-
-
-HsProvStore::DeletePublicIDs::
-~DeletePublicIDs()
-{}
-
-bool HsProvStore::DeletePublicIDs::perform(CassandraStore::Client* client,
-                                     SAS::TrailId trail)
-{
-  std::vector<CassandraStore::RowColumns> to_delete;
-
-  for (std::vector<std::string>::const_iterator it = _public_ids.begin();
-       it != _public_ids.end();
-       ++it)
-  {
-    // Don't specify columns as we're deleting the whole row
-    to_delete.push_back(CassandraStore::RowColumns(IMPU, *it));
-  }
-
-  std::string primary_public_id = _public_ids.front();
-  std::map<std::string, std::string> impi_columns_to_delete;
-  impi_columns_to_delete[IMPI_MAPPING_PREFIX + primary_public_id] = "";
-
-  for (std::vector<std::string>::const_iterator it = _impis.begin();
-       it != _impis.end();
-       ++it)
-  {
-    // Delete the column for this primary public ID from the IMPI
-    // mapping table
-    to_delete.push_back(CassandraStore::RowColumns(IMPI_MAPPING, *it, impi_columns_to_delete));
-  }
-
-  // Perform the batch deletion we've built up
-  client->delete_columns(to_delete, _timestamp);
-
-  return true;
-}
-
-//
-// DeletePrivateIDs methods
-//
-
-HsProvStore::DeletePrivateIDs::
-DeletePrivateIDs(const std::string& private_id, int64_t timestamp) :
-  CassandraStore::Operation(),
-  _private_ids(1, private_id),
-  _timestamp(timestamp)
-{}
-
-
-HsProvStore::DeletePrivateIDs::
-DeletePrivateIDs(const std::vector<std::string>& private_ids, int64_t timestamp) :
-  CassandraStore::Operation(),
-  _private_ids(private_ids),
-  _timestamp(timestamp)
-{}
-
-
-HsProvStore::DeletePrivateIDs::
-~DeletePrivateIDs()
-{}
-
-
-bool HsProvStore::DeletePrivateIDs::perform(CassandraStore::Client* client,
-                                      SAS::TrailId trail)
-{
-  for (std::vector<std::string>::const_iterator it = _private_ids.begin();
-       it != _private_ids.end();
-       ++it)
-  {
-    client->delete_row(IMPI, *it, _timestamp);
-  }
-
-  return true;
-}
-
-//
-// DeleteIMPIMapping methods
-//
-
-HsProvStore::DeleteIMPIMapping::
-DeleteIMPIMapping(const std::vector<std::string>& private_ids, int64_t timestamp) :
-  CassandraStore::Operation(),
-  _private_ids(private_ids),
-  _timestamp(timestamp)
-{}
-
-bool HsProvStore::DeleteIMPIMapping::perform(CassandraStore::Client* client,
-                                       SAS::TrailId trail)
-{
-  std::vector<CassandraStore::RowColumns> to_delete;
-
-  for (std::vector<std::string>::const_iterator it = _private_ids.begin();
-       it != _private_ids.end();
-       ++it)
-  {
-    // Don't specify columns as we're deleting the whole row
-    to_delete.push_back(CassandraStore::RowColumns(IMPI_MAPPING, *it));
-  }
-
-  client->delete_columns(to_delete, _timestamp);
-  return true;
-}
-
-//
-// DissociateImplicitRegistrationSetFromImpi methods
-//
-
-HsProvStore::DissociateImplicitRegistrationSetFromImpi::
-DissociateImplicitRegistrationSetFromImpi(const std::vector<std::string>& impus,
-                                          const std::string& impi,
-                                          int64_t timestamp) :
-  CassandraStore::HAOperation(),
-  _impus(impus),
-  _timestamp(timestamp)
-{
-  _impis.push_back(impi);
-}
-
-HsProvStore::DissociateImplicitRegistrationSetFromImpi::
-DissociateImplicitRegistrationSetFromImpi(const std::vector<std::string>& impus,
-                                          const std::vector<std::string>& impis,
-                                          int64_t timestamp) :
-  CassandraStore::HAOperation(),
-  _impus(impus),
-  _impis(impis),
-  _timestamp(timestamp)
-{}
-
-bool HsProvStore::DissociateImplicitRegistrationSetFromImpi::perform(CassandraStore::Client* client,
-                                                               SAS::TrailId trail)
-{
-  std::vector<CassandraStore::RowColumns> to_delete;
-
-  // Go through IMPI mapping table and delete the columns
-
-  std::string primary_public_id = _impus.front();
-
-  std::map<std::string, std::string> impi_columns_to_delete;
-  std::map<std::string, std::string> impu_columns_to_delete;
-
-  // Value doesn't matter for deletions
-  impi_columns_to_delete[IMPI_MAPPING_PREFIX + primary_public_id] = "";
-  for (std::vector<std::string>::const_iterator it = _impis.begin();
-       it != _impis.end();
-       ++it)
-  {
-    TRC_DEBUG("Deleting association between primary public ID %s and IMPI %s", primary_public_id.c_str(), it->c_str());
-    impu_columns_to_delete[IMPI_COLUMN_PREFIX + *it] = "";
-    to_delete.push_back(CassandraStore::RowColumns(IMPI_MAPPING, *it, impi_columns_to_delete));
-  }
-
-  // Check how many IMPIs are associated with this implicit
-  // registration set (all the columns are the same, so we only need
-  // to check the first)
-
-  std::vector<ColumnOrSuperColumn> columns;
-  ha_get_columns_with_prefix(client,
-                             IMPU,
-                             primary_public_id,
-                             IMPI_COLUMN_PREFIX,
-                             columns,
-                             trail);
-  TRC_DEBUG("%d IMPIs are associated with this IRS", columns.size());
-
-  std::set<std::string> associated_impis_set;
-
-  for (std::vector<ColumnOrSuperColumn>::const_iterator it = columns.begin();
-       it != columns.end();
-       ++it)
-  {
-    associated_impis_set.insert(it->column.name);
-  }
-
-
-  // Are any IMPIs in _impis but not in associated_impis_set? If so,
-  // warn.
-
-  std::vector<std::string> output;
-  std::set_difference(_impis.begin(),
-                      _impis.end(),
-                      associated_impis_set.begin(),
-                      associated_impis_set.end(),
-                      std::back_inserter(output));
-
-  TRC_DEBUG("Set difference: %d", output.size());
-
-  if (output.size() > 0)
-  {
-    TRC_WARNING("DissociateImplicitRegistrationSetFromImpi was called but not all the provided IMPIs are associated with the IMPU");
-  }
-
-  //  Are we deleting all the associated impis?
-
-  output.clear();
-  std::set_intersection(_impis.begin(),
-                        _impis.end(),
-                        associated_impis_set.begin(),
-                        associated_impis_set.end(),
-                        std::back_inserter(output));
-  TRC_DEBUG("Set intersection: %d %d", output.size(), associated_impis_set.size());
-
-  bool deleting_all_impis = (output.size() == associated_impis_set.size());
-
-  for (std::vector<std::string>::const_iterator it = _impus.begin();
-       it != _impus.end();
-       ++it)
-  {
-    if (!deleting_all_impis)
-    {
-      // Go through IMPU table and delete the column
-      // specifically for this IMPI
-      to_delete.push_back(CassandraStore::RowColumns(IMPU, *it, impu_columns_to_delete));
-    }
-    else
-    {
-      // Delete the IMPU rows completely by not specifying columns
-      to_delete.push_back(CassandraStore::RowColumns(IMPU, *it));
-    }
-  }
-
-  // Perform the batch deletion we've built up
-  client->delete_columns(to_delete, _timestamp);
-
-  return true;
-}
-
-
-// Delete IMPUs methods for PPRs
-
-HsProvStore::DeleteIMPUs::
-DeleteIMPUs(const std::vector<std::string>& public_ids,
-            int64_t timestamp) :
-  CassandraStore::Operation(),
-  _public_ids(public_ids),
-  _timestamp(timestamp)
-{}
-
-HsProvStore::DeleteIMPUs::~DeleteIMPUs()
-{}
-
-bool HsProvStore::DeleteIMPUs::perform(CassandraStore::Client* client,
-  	    	 	         SAS::TrailId trail)
-{
-  std::vector<CassandraStore::RowColumns> to_delete;
-
-  for (std::vector<std::string>::const_iterator it = _public_ids.begin();
-       it != _public_ids.end();
-       ++it)
-  {
-    // Don't specify columns as we're deleting the whole row
-    to_delete.push_back(CassandraStore::RowColumns(IMPU, *it));
-  }
-
-  client->delete_columns(to_delete, _timestamp);
-
-  return true;
-}
-
-//
-// Operation that lists all the IMPUs in the impu table.
-//
-
-// The maximum number of IMPUs to request (and therefore return) on each
-// database query.
-const int MAX_IMPUS_TO_RETURN = 1000;
-
-bool HsProvStore::ListImpus::perform(CassandraStore::Client* client, SAS::TrailId trail)
-{
-  std::vector<KeySlice> key_slices;
-
-  // Specify what column family (table) we want to work on.
-  ColumnParent cparent;
-  cparent.__set_column_family(IMPU);
-
-  // Specify what columns we want. We ask for the reg_state and _exists columns.
-  //
-  // In Cassandra, deleted rows appear like rows with no columns. So we need to
-  // ask for a column we know should exist (to determine if the row exists or
-  // not). The only column that must exists is the subscription XML so fetch
-  // this.
-  //
-  // TODO: The XML column contains a lot of data so it would be better to
-  // instead write an `_exists` column to cassandra and use that to determine if
-  // the row is present.
-  SlicePredicate sp;
-  sp.__set_column_names({IMS_SUB_XML_COLUMN_NAME});
-
-  KeyRange kr;
-  kr.__set_start_key(""); // Start from the beginning.
-  kr.__set_end_key("");   // No end.
-  kr.__set_count(MAX_IMPUS_TO_RETURN);
-
-  client->get_range_slices(key_slices, cparent, sp, kr, ConsistencyLevel::ONE);
-
-  for (const KeySlice& key_slice: key_slices)
-  {
-    // Only report an IMPU if some of its columns exist (see comment above).
-    if (!key_slice.columns.empty())
-    {
-      _impus.push_back(key_slice.key);
-    }
-  }
-
-  return true;
 }
