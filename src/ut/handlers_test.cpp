@@ -3039,7 +3039,7 @@ TEST_F(HandlersTest, ImpuRegDataHssUnknownError)
   ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
     
   // Create IRS to be returned from the cache
-  ImplicitRegistrationSet* irs = new ImplicitRegistrationSet(IMPU);
+  FakeImplicitRegistrationSet* irs = new FakeImplicitRegistrationSet(IMPU);
   irs->set_ims_sub_xml(IMPU_IMS_SUBSCRIPTION);
   irs->set_reg_state(RegistrationState::NOT_REGISTERED);
   irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
