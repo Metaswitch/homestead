@@ -11,6 +11,7 @@
 #ifndef IMPU_STORE_H_
 #define IMPU_STORE_H_
 
+#include "charging_addresses.h"
 #include "reg_state.h"
 #include "store.h"
 
@@ -24,25 +25,30 @@ public:
   class Impu
   {
   protected:
-    Impu(std::string impu, uint64_t cas) :
+    Impu(const std::string impu, uint64_t cas) :
       impu(impu),
       cas(cas)
     {
     }
- 
+
   public:
     virtual ~Impu(){
     }
 
     virtual bool is_default_impu() = 0;
 
+    virtual void to_data(std::string& data);
+
+    static Impu* from_data(const std::string& impu, std::string& data, uint64_t& cas);
+
     static Impu* from_json(rapidjson::Value* json, uint64_t cas);
 
     virtual void write_json(rapidjson::Writer<rapidjson::StringBuffer>* writer) = 0;
- 
+
     const ImpuStore* store;
     const std::string impu;
     const uint64_t cas;
+    int64_t expiry;
   };
 
   class DefaultImpu : public Impu
@@ -61,7 +67,7 @@ public:
 
     virtual void write_json(rapidjson::Writer<rapidjson::StringBuffer>* writer){}
 
-    virtual ~DefaultImpu(){};
+    virtual ~DefaultImpu(){}
 
     static Impu* from_json(rapidjson::Value* json, uint64_t cas);
 
@@ -75,9 +81,9 @@ public:
     virtual bool is_default_impu(){ return true; }
 
     RegistrationState registration_state;
+    ChargingAddresses charging_addresses;
     std::vector<std::string> associated_impus;
     std::vector<std::string> impis;
-    bool is_registered;
   };
 
   class AssociatedImpu : public Impu
@@ -113,9 +119,16 @@ public:
     {
     }
 
-    static Impu* from_json(rapidjson::Value* json, uint64_t cas);
+    static ImpiMapping* from_data(const std::string& impu,
+                                  std::string& data,
+                                  uint64_t& cas);
+
+    static ImpiMapping* from_json(rapidjson::Value* json,
+                                  uint64_t cas);
 
     virtual void write_json(rapidjson::Writer<rapidjson::StringBuffer>* writer){}
+
+    virtual void to_data(std::string& data);
 
     virtual ~ImpiMapping(){
     }
@@ -154,6 +167,7 @@ public:
   private:
     std::vector<std::string> default_impus;
     const uint64_t cas;
+    int64_t expiry;
   };
 
   ImpuStore(Store* store) : _store(store)
