@@ -12,13 +12,14 @@
 #define HSS_CONNECTION_H__
 
 #include <string>
+
+#include "authvector.h"
+#include "cx.h"
 #include "servercapabilities.h"
 #include "charging_addresses.h"
 #include "statisticsmanager.h"
 
 namespace HssConnection {
-
-
 
 // This enum represents the various responses we can get from the HSS.
 // The DiameterHssConnection will map from combinations of Diameter result code
@@ -343,8 +344,16 @@ public:
                                               ServerAssignmentRequest request,
                                               SAS::TrailId trail) = 0;
 
+  static void configure_auth_schemes(const std::string& scheme_digest,
+                                     const std::string& scheme_akav1,
+                                     const std::string& scheme_akav2);
+
 protected:
   StatisticsManager* _stats_manager;
+
+  static std::string _scheme_digest;
+  static std::string _scheme_akav1;
+  static std::string _scheme_akav2;
 };
 
 }; // namespace HssConnection

@@ -69,25 +69,12 @@ public:
                                               ServerAssignmentRequest request,
                                               SAS::TrailId trail);
 
-  static void configure_auth_schemes(const std::string& scheme_digest,
-                                     const std::string& scheme_akav1,
-                                     const std::string& scheme_akav2)
-  {
-    _scheme_digest = scheme_digest;
-    _scheme_akav1 = scheme_akav1;
-    _scheme_akav2 = scheme_akav2;
-  }
-
 private:
   Cx::Dictionary* _dict;
   Diameter::Stack* _diameter_stack;
   std::string _dest_realm;
   std::string _dest_host;
   int _diameter_timeout_ms;
-
-  static std::string _scheme_digest;
-  static std::string _scheme_akav1;
-  static std::string _scheme_akav2;
 
   // Inner classes for the DiameterTransactions.
   template <class AnswerType>

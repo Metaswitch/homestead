@@ -23,8 +23,10 @@ COMMON_SOURCES := a_record_resolver.cpp \
                   handlers.cpp \
                   health_checker.cpp \
                   homestead_xml_utils.cpp \
+                  hsprov_hss_connection.cpp \
                   hsprov_store.cpp \
                   hss_cache_processor.cpp \
+                  hss_connection.cpp \
                   http_connection_pool.cpp \
                   httpclient.cpp \
                   httpconnection.cpp \
@@ -64,6 +66,7 @@ homestead_test_SOURCES := ${COMMON_SOURCES} \
                           diameter_hss_connection_test.cpp \
                           handlers_test.cpp \
                           homestead_xml_utils_test.cpp \
+                          hsprov_hss_connection_test.cpp \
                           hsprov_store_test.cpp \
                           fakelogger.cpp \
                           fakesnmp.cpp \

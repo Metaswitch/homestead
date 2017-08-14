@@ -15,10 +15,6 @@
 
 namespace HssConnection {
 
-std::string DiameterHssConnection::_scheme_digest;
-std::string DiameterHssConnection::_scheme_akav1;
-std::string DiameterHssConnection::_scheme_akav2;
-
 static SNMP::CxCounterTable* mar_results_tbl;
 static SNMP::CxCounterTable* sar_results_tbl;
 static SNMP::CxCounterTable* uar_results_tbl;
@@ -119,15 +115,15 @@ MultimediaAuthAnswer DiameterHssConnection::MARDiameterTransaction::create_answe
     auth_scheme = diameter_maa.sip_auth_scheme();
     av = NULL;
 
-    if (auth_scheme == DiameterHssConnection::_scheme_digest)
+    if (auth_scheme == HssConnection::_scheme_digest)
     {
       av = new DigestAuthVector(diameter_maa.digest_auth_vector());
     }
-    else if (auth_scheme == DiameterHssConnection::_scheme_akav1)
+    else if (auth_scheme == HssConnection::_scheme_akav1)
     {
       av = new AKAAuthVector(diameter_maa.aka_auth_vector());
     }
-    else if (auth_scheme == DiameterHssConnection::_scheme_akav2)
+    else if (auth_scheme == HssConnection::_scheme_akav2)
     {
       av = new AKAAuthVector(diameter_maa.akav2_auth_vector());
     }

@@ -220,7 +220,7 @@ public:
                                                _ppr_results_table,
                                                _rtr_results_table);
 
-    HssConnection::DiameterHssConnection::configure_auth_schemes(SCHEME_DIGEST, SCHEME_AKA, SCHEME_AKAV2);
+    HssConnection::HssConnection::configure_auth_schemes(SCHEME_DIGEST, SCHEME_AKA, SCHEME_AKAV2);
   
     cwtest_completely_control_time();
   }
