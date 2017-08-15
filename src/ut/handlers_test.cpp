@@ -3029,7 +3029,7 @@ TEST_F(HandlersTest, ImpuRegDataHssUnavailable)
 
   ImpuRegDataTask::Config cfg(true, 3600, 7200);
   ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
-    
+
   // Create IRS to be returned from the cache
   FakeImplicitRegistrationSet* irs = new FakeImplicitRegistrationSet(IMPU);
   irs->set_ims_sub_xml(IMPU_IMS_SUBSCRIPTION);
@@ -3051,7 +3051,7 @@ TEST_F(HandlersTest, ImpuRegDataHssUnavailable)
           Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::REGISTRATION)),
     _))
     .WillOnce(InvokeArgument<0>(ByRef(answer)));
-  
+
   // Expect a 503
   EXPECT_CALL(*_httpstack, send_reply(_, 503, _));
 
