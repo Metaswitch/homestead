@@ -41,8 +41,6 @@ public:
 
     static Impu* from_data(const std::string& impu, std::string& data, uint64_t& cas);
 
-    static Impu* from_json(rapidjson::Value* json, uint64_t cas);
-
     virtual void write_json(rapidjson::Writer<rapidjson::StringBuffer>* writer) = 0;
 
     const ImpuStore* store;
@@ -71,7 +69,9 @@ public:
 
     virtual ~DefaultImpu(){}
 
-    static Impu* from_json(rapidjson::Value* json, uint64_t cas);
+    static Impu* from_json(const std::string& impu,
+                           rapidjson::Value& json,
+                           uint64_t cas);
 
     bool has_associated_impu(const std::string& impu)
     {
@@ -92,7 +92,9 @@ public:
   class AssociatedImpu : public Impu
   {
   public:
-    AssociatedImpu(std::string impu, std::string default_impu, uint64_t cas) :
+    AssociatedImpu(std::string impu,
+                   std::string default_impu,
+                   uint64_t cas) :
       Impu(impu, cas),
       default_impu(default_impu)
     {
@@ -105,13 +107,17 @@ public:
 
     const std::string default_impu;
 
-    static Impu* from_json(rapidjson::Value* json, uint64_t cas);
+    static Impu* from_json(const std::string& impu,
+                           rapidjson::Value& json,
+                           uint64_t cas);
   };
 
   class ImpiMapping
   {
   public:
-    ImpiMapping(std::string impi, std::vector<std::string> default_impus, uint64_t cas) :
+    ImpiMapping(std::string impi,
+                std::vector<std::string> default_impus,
+                uint64_t cas) :
       impi(impi),
       cas(cas),
       _default_impus(default_impus)
@@ -129,7 +135,8 @@ public:
                                   std::string& data,
                                   uint64_t& cas);
 
-    static ImpiMapping* from_json(rapidjson::Value* json,
+    static ImpiMapping* from_json(const std::string& impi,
+                                  rapidjson::Value& json,
                                   uint64_t cas);
 
     virtual void write_json(rapidjson::Writer<rapidjson::StringBuffer>* writer){}
