@@ -1002,8 +1002,6 @@ void ImpuRegDataTask::send_reply()
 void ImpuRegDataTask::on_get_reg_data_failure(Store::Status rc)
 {
   TRC_DEBUG("IMS subscription cache query failed: %d", rc);
-  SAS::Event event(this->trail(), SASEvent::NO_REG_DATA_CACHE, 0);
-  SAS::report_event(event);
 
   if (rc == Store::Status::NOT_FOUND)
   {
@@ -1019,6 +1017,8 @@ void ImpuRegDataTask::on_get_reg_data_failure(Store::Status rc)
     else
     {
       TRC_DEBUG("No IMS subscription found for public ID %s - reject", _impu.c_str());
+      SAS::Event event(this->trail(), SASEvent::CACHE_GET_REG_DATA_FAIL, 0);
+      SAS::report_event(event);
       send_http_reply(HTTP_NOT_FOUND);
       delete this;
     }
@@ -1027,6 +1027,8 @@ void ImpuRegDataTask::on_get_reg_data_failure(Store::Status rc)
   {
     // Send a 504 in all other cases (the request won't be retried)
     TRC_DEBUG("Cache query failed with rc %d", rc);
+    SAS::Event event(this->trail(), SASEvent::CACHE_GET_REG_DATA_FAIL, 0);
+    SAS::report_event(event);
     send_http_reply(HTTP_GATEWAY_TIMEOUT);
     delete this;
   }
