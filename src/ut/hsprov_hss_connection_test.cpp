@@ -233,7 +233,7 @@ TEST_F(HsProvHssConnectionTest, SendMAR)
 
 
   // Expect the stats to be updated
-  EXPECT_CALL(*_stats, update_H_cache_latency_us(12000));
+  EXPECT_CALL(*_stats, update_H_hsprov_latency_us(12000));
   cwtest_advance_time_ms(12);
 
   t->on_success(&mock_op);
@@ -274,7 +274,7 @@ TEST_F(HsProvHssConnectionTest, SendMARNotFound)
 
 
   // Expect the stats to be updated
-  EXPECT_CALL(*_stats, update_H_cache_latency_us(12000));
+  EXPECT_CALL(*_stats, update_H_hsprov_latency_us(12000));
   cwtest_advance_time_ms(12);
 
   t->on_failure(&mock_op);
@@ -316,7 +316,7 @@ TEST_F(HsProvHssConnectionTest, SendMAROtherError)
 
 
   // Expect the stats to be updated
-  EXPECT_CALL(*_stats, update_H_cache_latency_us(12000));
+  EXPECT_CALL(*_stats, update_H_hsprov_latency_us(12000));
   cwtest_advance_time_ms(12);
 
   t->on_failure(&mock_op);
@@ -387,7 +387,7 @@ TEST_F(HsProvHssConnectionTest, SendLIR)
           Field(&HssConnection::LocationInfoAnswer::_wildcard_impu, "")))).Times(1).RetiresOnSaturation();
 
   // Expect the stats to be updated
-  EXPECT_CALL(*_stats, update_H_cache_latency_us(12000));
+  EXPECT_CALL(*_stats, update_H_hsprov_latency_us(12000));
   cwtest_advance_time_ms(12);
 
   t->on_success(&mock_op);
@@ -424,7 +424,7 @@ TEST_F(HsProvHssConnectionTest, SendLIRNotFound)
     .Times(1).RetiresOnSaturation();
 
   // Expect the stats to be updated
-  EXPECT_CALL(*_stats, update_H_cache_latency_us(12000));
+  EXPECT_CALL(*_stats, update_H_hsprov_latency_us(12000));
   cwtest_advance_time_ms(12);
 
   t->on_failure(&mock_op);
@@ -462,7 +462,7 @@ TEST_F(HsProvHssConnectionTest, SendLIROtherError)
     .Times(1).RetiresOnSaturation();
 
   // Expect the stats to be updated
-  EXPECT_CALL(*_stats, update_H_cache_latency_us(12000));
+  EXPECT_CALL(*_stats, update_H_hsprov_latency_us(12000));
   cwtest_advance_time_ms(12);
 
   t->on_failure(&mock_op);
@@ -515,7 +515,7 @@ TEST_F(HsProvHssConnectionTest, SendSAR)
                   Field(&ChargingAddresses::ecfs, ECFS)))))).Times(1).RetiresOnSaturation();
 
   // Expect the stats to be updated
-  EXPECT_CALL(*_stats, update_H_cache_latency_us(12000));
+  EXPECT_CALL(*_stats, update_H_hsprov_latency_us(12000));
   cwtest_advance_time_ms(12);
 
   t->on_success(&mock_op);
@@ -556,7 +556,7 @@ TEST_F(HsProvHssConnectionTest, SendSARNotFound)
     .Times(1).RetiresOnSaturation();
 
   // Expect the stats to be updated
-  EXPECT_CALL(*_stats, update_H_cache_latency_us(12000));
+  EXPECT_CALL(*_stats, update_H_hsprov_latency_us(12000));
   cwtest_advance_time_ms(12);
 
   t->on_failure(&mock_op);
@@ -597,7 +597,7 @@ TEST_F(HsProvHssConnectionTest, SendSARError)
     .Times(1).RetiresOnSaturation();
 
   // Expect the stats to be updated
-  EXPECT_CALL(*_stats, update_H_cache_latency_us(12000));
+  EXPECT_CALL(*_stats, update_H_hsprov_latency_us(12000));
   cwtest_advance_time_ms(12);
 
   t->on_failure(&mock_op);

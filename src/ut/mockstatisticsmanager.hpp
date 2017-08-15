@@ -26,7 +26,7 @@ public:
   MOCK_METHOD1(update_H_hss_latency_us, void(unsigned long sample));
   MOCK_METHOD1(update_H_hss_digest_latency_us, void(unsigned long sample));
   MOCK_METHOD1(update_H_hss_subscription_latency_us, void(unsigned long sample));
-  MOCK_METHOD1(update_H_cache_latency_us, void(unsigned long sample));
+  MOCK_METHOD1(update_H_hsprov_latency_us, void(unsigned long sample));
 
   MOCK_METHOD0(incr_H_incoming_requests, void());
   MOCK_METHOD0(incr_H_rejected_overload, void());

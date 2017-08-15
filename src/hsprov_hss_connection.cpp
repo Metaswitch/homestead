@@ -59,7 +59,7 @@ void HsProvHssConnection::HsProvTransaction<T>::update_latency_stats()
   {
     // TODO
     // This should not be cache, this should be Cassandra latency
-    _stats_manager->update_H_cache_latency_us(latency);
+    _stats_manager->update_H_hsprov_latency_us(latency);
   }
 }
 
