@@ -261,9 +261,11 @@ public:
   inline MultimediaAuthAnswer(Diameter::Message& msg) : Diameter::Message(msg) {};
 
   std::string sip_auth_scheme() const;
-  DigestAuthVector digest_auth_vector() const;
-  AKAAuthVector aka_auth_vector() const;
-  AKAAuthVector akav2_auth_vector() const;
+
+  // These create the AuthVector* and pass ownership to the calling function
+  DigestAuthVector* digest_auth_vector() const;
+  AKAAuthVector* aka_auth_vector() const;
+  AKAAuthVector* akav2_auth_vector() const;
 };
 
 enum ServerAssignmentType

@@ -284,17 +284,19 @@ TEST_F(CxTest, MAATest)
   EXPECT_EQ(RESULT_CODE_SUCCESS, test_i32);
   EXPECT_EQ(SIP_AUTH_SCHEME_AKA, maa.sip_auth_scheme());
 
-  DigestAuthVector maa_digest = maa.digest_auth_vector();
-  EXPECT_EQ(digest.ha1, maa_digest.ha1);
-  EXPECT_EQ(digest.realm, maa_digest.realm);
-  EXPECT_EQ(digest.qop, maa_digest.qop);
+  DigestAuthVector* maa_digest = maa.digest_auth_vector();
+  EXPECT_EQ(digest.ha1, maa_digest->ha1);
+  EXPECT_EQ(digest.realm, maa_digest->realm);
+  EXPECT_EQ(digest.qop, maa_digest->qop);
+  delete maa_digest; maa_digest = NULL;
 
   // The AKA values should be decoded from base64/hex.
-  AKAAuthVector maa_aka = maa.aka_auth_vector();
-  EXPECT_EQ("c3VyZS4=", maa_aka.challenge);
-  EXPECT_EQ("726573706f6e7365", maa_aka.response);
-  EXPECT_EQ("63727970745f6b6579", maa_aka.crypt_key);
-  EXPECT_EQ("696e746567726974795f6b6579", maa_aka.integrity_key);
+  AKAAuthVector* maa_aka = maa.aka_auth_vector();
+  EXPECT_EQ("c3VyZS4=", maa_aka->challenge);
+  EXPECT_EQ("726573706f6e7365", maa_aka->response);
+  EXPECT_EQ("63727970745f6b6579", maa_aka->crypt_key);
+  EXPECT_EQ("696e746567726974795f6b6579", maa_aka->integrity_key);
+  delete maa_aka; maa_aka = NULL;
 }
 
 TEST_F(CxTest, MAATestNoAuthScheme)
@@ -325,17 +327,19 @@ TEST_F(CxTest, MAATestNoAuthScheme)
   EXPECT_EQ(RESULT_CODE_SUCCESS, test_i32);
   EXPECT_EQ(EMPTY_STRING, maa.sip_auth_scheme());
 
-  DigestAuthVector maa_digest = maa.digest_auth_vector();
-  EXPECT_EQ(digest.ha1, maa_digest.ha1);
-  EXPECT_EQ(digest.realm, maa_digest.realm);
-  EXPECT_EQ(digest.qop, maa_digest.qop);
+  DigestAuthVector* maa_digest = maa.digest_auth_vector();
+  EXPECT_EQ(digest.ha1, maa_digest->ha1);
+  EXPECT_EQ(digest.realm, maa_digest->realm);
+  EXPECT_EQ(digest.qop, maa_digest->qop);
+  delete maa_digest; maa_digest = NULL;
 
   // The AKA values should be decoded from base64/hex.
-  AKAAuthVector maa_aka = maa.aka_auth_vector();
-  EXPECT_EQ("c3VyZS4=", maa_aka.challenge);
-  EXPECT_EQ("726573706f6e7365", maa_aka.response);
-  EXPECT_EQ("63727970745f6b6579", maa_aka.crypt_key);
-  EXPECT_EQ("696e746567726974795f6b6579", maa_aka.integrity_key);
+  AKAAuthVector* maa_aka = maa.aka_auth_vector();
+  EXPECT_EQ("c3VyZS4=", maa_aka->challenge);
+  EXPECT_EQ("726573706f6e7365", maa_aka->response);
+  EXPECT_EQ("63727970745f6b6579", maa_aka->crypt_key);
+  EXPECT_EQ("696e746567726974795f6b6579", maa_aka->integrity_key);
+  delete maa_aka; maa_aka = NULL;
 }
 
 //

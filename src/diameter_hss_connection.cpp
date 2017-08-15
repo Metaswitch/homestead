@@ -117,15 +117,15 @@ MultimediaAuthAnswer DiameterHssConnection::MARDiameterTransaction::create_answe
 
     if (auth_scheme == HssConnection::_scheme_digest)
     {
-      av = new DigestAuthVector(diameter_maa.digest_auth_vector());
+      av = diameter_maa.digest_auth_vector();
     }
     else if (auth_scheme == HssConnection::_scheme_akav1)
     {
-      av = new AKAAuthVector(diameter_maa.aka_auth_vector());
+      av = diameter_maa.aka_auth_vector();
     }
     else if (auth_scheme == HssConnection::_scheme_akav2)
     {
-      av = new AKAAuthVector(diameter_maa.akav2_auth_vector());
+      av = diameter_maa.akav2_auth_vector();
     }
     else
     {
