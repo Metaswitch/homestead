@@ -54,14 +54,16 @@ public:
   class DefaultImpu : public Impu
   {
   public:
-    DefaultImpu(std::string impu,
-                std::vector<std::string> associated_impus,
-                std::vector<std::string> impis,
-                bool is_registered,
+    DefaultImpu(const std::string& impu,
+                const std::vector<std::string>& associated_impus,
+                const std::vector<std::string>& impis,
+                RegistrationState registration_state,
+                const std::string& service_profile,
                 uint64_t cas) :
       Impu(impu, cas),
       associated_impus(associated_impus),
-      impis(impis)
+      impis(impis),
+      service_profile(service_profile)
     {
     }
 
@@ -84,6 +86,7 @@ public:
     ChargingAddresses charging_addresses;
     std::vector<std::string> associated_impus;
     std::vector<std::string> impis;
+    std::string service_profile;
   };
 
   class AssociatedImpu : public Impu
