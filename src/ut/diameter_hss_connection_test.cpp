@@ -135,8 +135,6 @@ public:
   static SNMP::CxCounterTable* _sar_results_table;
   static SNMP::CxCounterTable* _uar_results_table;
   static SNMP::CxCounterTable* _lir_results_table;
-  static SNMP::CxCounterTable* _ppr_results_table;
-  static SNMP::CxCounterTable* _rtr_results_table;
 
   // Used to catch diameter messages and transactions on the MockDiameterStack
   // so that we can inspect them.
@@ -165,15 +163,11 @@ public:
     _sar_results_table = SNMP::CxCounterTable::create("", "");
     _uar_results_table = SNMP::CxCounterTable::create("", "");
     _lir_results_table = SNMP::CxCounterTable::create("", "");
-    _ppr_results_table = SNMP::CxCounterTable::create("", "");
-    _rtr_results_table = SNMP::CxCounterTable::create("", "");
 
     HssConnection::configure_cx_results_tables(_mar_results_table,
                                                _sar_results_table,
                                                _uar_results_table,
-                                               _lir_results_table,
-                                               _ppr_results_table,
-                                               _rtr_results_table);
+                                               _lir_results_table);
 
     HssConnection::HssConnection::configure_auth_schemes(SCHEME_DIGEST, SCHEME_AKA, SCHEME_AKAV2);
   
@@ -196,8 +190,6 @@ public:
     delete _sar_results_table; _sar_results_table = NULL;
     delete _uar_results_table; _uar_results_table = NULL;
     delete _lir_results_table; _lir_results_table = NULL;
-    delete _ppr_results_table; _ppr_results_table = NULL;
-    delete _rtr_results_table; _rtr_results_table = NULL;
   }
 
 
@@ -260,8 +252,6 @@ SNMP::CxCounterTable* DiameterHssConnectionTest::_mar_results_table = NULL;
 SNMP::CxCounterTable* DiameterHssConnectionTest::_sar_results_table = NULL;
 SNMP::CxCounterTable* DiameterHssConnectionTest::_uar_results_table = NULL;
 SNMP::CxCounterTable* DiameterHssConnectionTest::_lir_results_table = NULL;
-SNMP::CxCounterTable* DiameterHssConnectionTest::_ppr_results_table = NULL;
-SNMP::CxCounterTable* DiameterHssConnectionTest::_rtr_results_table = NULL;
 
 // These functions allow us to pass the answers to our _answer_catcher, which
 // we use to check the contents of the answer

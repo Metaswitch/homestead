@@ -155,9 +155,7 @@ private:
 void configure_cx_results_tables(SNMP::CxCounterTable* mar_results_table,
                                  SNMP::CxCounterTable* sar_results_table,
                                  SNMP::CxCounterTable* uar_results_table,
-                                 SNMP::CxCounterTable* lir_results_table,
-                                 SNMP::CxCounterTable* ppr_results_table,
-                                 SNMP::CxCounterTable* rtr_results_table);
+                                 SNMP::CxCounterTable* lir_results_table);
 
 }; // namespace HssConnection
 #endif
