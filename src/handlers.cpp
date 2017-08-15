@@ -802,7 +802,7 @@ void ImpuRegDataTask::on_get_reg_data_success(ImplicitRegistrationSet* irs)
   std::vector<std::string> associated_impis = irs->get_associated_impis();
   ChargingAddresses charging_addrs = irs->get_charging_addresses();
 
-  SAS::Event event(trail, SASEvent::CACHE_GET_REG_DATA_SUCCESS, 0);
+  SAS::Event event(this->trail(), SASEvent::CACHE_GET_REG_DATA_SUCCESS, 0);
   event.add_compressed_param(service_profile, &SASEvent::PROFILE_SERVICE_PROFILE);
   event.add_static_param(reg_state);
   std::string associated_impis_str = boost::algorithm::join(associated_impis, ", ");
@@ -1348,7 +1348,7 @@ void RegistrationTerminationTask::run()
   TRC_INFO("Received Registration-Termination request with dereg reason %d",
            _deregistration_reason);
 
-  SAS::Event rtr_received(trail(), SASEvent::RTR_RECEIVED, 0);
+  SAS::Event rtr_received(this->trail(), SASEvent::RTR_RECEIVED, 0);
   rtr_received.add_var_param(impi);
   rtr_received.add_static_param(associated_identities.size());
   SAS::report_event(rtr_received);
@@ -1586,7 +1586,7 @@ void RegistrationTerminationTask::send_rta(const std::string result_code)
 
   // Send the RTA back to the HSS.
   TRC_INFO("Ready to send RTA");
-  rta.send(trail());
+  rta.send(this->trail());
 }
 
 void PushProfileTask::run()
@@ -1738,5 +1738,5 @@ void PushProfileTask::send_ppa(const std::string result_code)
 */
   // Send the PPA back to the HSS.
   TRC_INFO("Ready to send PPA");
-  ppa.send(trail());
+  ppa.send(this->trail());
 }
