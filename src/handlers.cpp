@@ -408,16 +408,16 @@ void ImpiRegistrationStatusTask::on_uar_response(const HssConnection::UserAuthAn
     else
     {
       TRC_DEBUG("Got Server-Capabilities");
-      ServerCapabilities* capabilities = uaa.get_server_capabilities();
+      ServerCapabilities capabilities = uaa.get_server_capabilities();
 
-      if (!capabilities->server_name.empty())
+      if (!capabilities.server_name.empty())
       {
-        TRC_DEBUG("Got Server-Name %s from Capabilities AVP", capabilities->server_name.c_str());
+        TRC_DEBUG("Got Server-Name %s from Capabilities AVP", capabilities.server_name.c_str());
         writer.String(JSON_SCSCF.c_str());
-        writer.String(capabilities->server_name.c_str());
+        writer.String(capabilities.server_name.c_str());
       }
 
-      capabilities->write_capabilities(&writer);
+      capabilities.write_capabilities(&writer);
     }
 
     writer.EndObject();
@@ -536,15 +536,15 @@ void ImpuLocationInfoTask::on_lir_response(const HssConnection::LocationInfoAnsw
     else
     {
       TRC_DEBUG("Got Server-Capabilities");
-      ServerCapabilities* capabilities = lia.get_server_capabilities();
-      if (!capabilities->server_name.empty())
+      ServerCapabilities capabilities = lia.get_server_capabilities();
+      if (!capabilities.server_name.empty())
       {
-        TRC_DEBUG("Got Server-Name %s from Capabilities AVP", capabilities->server_name.c_str());
+        TRC_DEBUG("Got Server-Name %s from Capabilities AVP", capabilities.server_name.c_str());
         writer.String(JSON_SCSCF.c_str());
-        writer.String(capabilities->server_name.c_str());
+        writer.String(capabilities.server_name.c_str());
       }
 
-      capabilities->write_capabilities(&writer);
+      capabilities.write_capabilities(&writer);
     }
 
     // If the HSS returned a wildcarded public user identity, add this to

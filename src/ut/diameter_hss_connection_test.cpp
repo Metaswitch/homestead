@@ -65,8 +65,6 @@ using ::testing::Field;
 using ::testing::AllOf;
 using ::testing::ByRef;
 using ::testing::ReturnNull;
-using ::testing::IsNull;
-using ::testing::Pointee;
 using ::testing::InvokeWithoutArgs;
 
 const SAS::TrailId FAKE_TRAIL_ID = 0x12345678;
@@ -828,8 +826,7 @@ TEST_F(DiameterHssConnectionTest, SendUARServerName)
   EXPECT_CALL(*_answer_catcher, got_uaa(
     AllOf(Field(&HssConnection::UserAuthAnswer::_result_code, ::HssConnection::ResultCode::SUCCESS),
           Field(&HssConnection::UserAuthAnswer::_json_result, DIAMETER_SUCCESS),
-          Field(&HssConnection::UserAuthAnswer::_server_name, SERVER_NAME),
-          Field(&HssConnection::UserAuthAnswer::_server_capabilities, IsNull())))).Times(1).RetiresOnSaturation();
+          Field(&HssConnection::UserAuthAnswer::_server_name, SERVER_NAME)))).Times(1).RetiresOnSaturation();
 
   // Expect the stats to be updated
   EXPECT_CALL(*_stats, update_H_hss_latency_us(12000));
@@ -895,9 +892,9 @@ TEST_F(DiameterHssConnectionTest, SendUARServerCapabilities)
     AllOf(Field(&HssConnection::UserAuthAnswer::_result_code, ::HssConnection::ResultCode::SUCCESS),
           Field(&HssConnection::UserAuthAnswer::_json_result, DIAMETER_SUCCESS),
           Field(&HssConnection::UserAuthAnswer::_server_name, ""),
-          Field(&HssConnection::UserAuthAnswer::_server_capabilities, Pointee(
-            AllOf(Field(&ServerCapabilities::mandatory_capabilities, mandatory_capabilities),
-                  Field(&ServerCapabilities::optional_capabilities, optional_capabilities))
+          Field(&HssConnection::UserAuthAnswer::_server_capabilities, AllOf(
+            Field(&ServerCapabilities::mandatory_capabilities, mandatory_capabilities),
+            Field(&ServerCapabilities::optional_capabilities, optional_capabilities)
           ))))).Times(1).RetiresOnSaturation();
 
   // Expect the stats to be updated
@@ -1406,8 +1403,7 @@ TEST_F(DiameterHssConnectionTest, SendLIROriginating)
     AllOf(Field(&HssConnection::LocationInfoAnswer::_result_code, ::HssConnection::ResultCode::SUCCESS),
           Field(&HssConnection::LocationInfoAnswer::_json_result, DIAMETER_SUCCESS),
           Field(&HssConnection::LocationInfoAnswer::_server_name, SERVER_NAME),
-          Field(&HssConnection::LocationInfoAnswer::_wildcard_impu, ""),
-          Field(&HssConnection::LocationInfoAnswer::_server_capabilities, IsNull())))).Times(1).RetiresOnSaturation();
+          Field(&HssConnection::LocationInfoAnswer::_wildcard_impu, "")))).Times(1).RetiresOnSaturation();
 
   // Expect the stats to be updated
   EXPECT_CALL(*_stats, update_H_hss_latency_us(12000));
@@ -1470,9 +1466,9 @@ TEST_F(DiameterHssConnectionTest, SendLIRAuthTypeCapabilities)
           Field(&HssConnection::LocationInfoAnswer::_json_result, DIAMETER_SUCCESS),
           Field(&HssConnection::LocationInfoAnswer::_server_name, ""),
           Field(&HssConnection::LocationInfoAnswer::_wildcard_impu, ""),
-          Field(&HssConnection::LocationInfoAnswer::_server_capabilities, Pointee(
-            AllOf(Field(&ServerCapabilities::mandatory_capabilities, mandatory_capabilities),
-                  Field(&ServerCapabilities::optional_capabilities, optional_capabilities))
+          Field(&HssConnection::LocationInfoAnswer::_server_capabilities, AllOf(
+            Field(&ServerCapabilities::mandatory_capabilities, mandatory_capabilities),
+            Field(&ServerCapabilities::optional_capabilities, optional_capabilities)
           ))))).Times(1).RetiresOnSaturation();
 
   // Expect the stats to be updated
@@ -1536,8 +1532,7 @@ TEST_F(DiameterHssConnectionTest, SendLIRWildcardImpu)
     AllOf(Field(&HssConnection::LocationInfoAnswer::_result_code, ::HssConnection::ResultCode::SUCCESS),
           Field(&HssConnection::LocationInfoAnswer::_json_result, DIAMETER_SUCCESS),
           Field(&HssConnection::LocationInfoAnswer::_server_name, SERVER_NAME),
-          Field(&HssConnection::LocationInfoAnswer::_wildcard_impu, "wildcard"),
-          Field(&HssConnection::LocationInfoAnswer::_server_capabilities, IsNull())))).Times(1).RetiresOnSaturation();
+          Field(&HssConnection::LocationInfoAnswer::_wildcard_impu, "wildcard")))).Times(1).RetiresOnSaturation();
 
   // Expect the stats to be updated
   EXPECT_CALL(*_stats, update_H_hss_latency_us(12000));
@@ -1599,8 +1594,7 @@ TEST_F(DiameterHssConnectionTest, SendLIRUnregisteredService)
     AllOf(Field(&HssConnection::LocationInfoAnswer::_result_code, ::HssConnection::ResultCode::SUCCESS),
           Field(&HssConnection::LocationInfoAnswer::_json_result, DIAMETER_UNREGISTERED_SERVICE),
           Field(&HssConnection::LocationInfoAnswer::_server_name, SERVER_NAME),
-          Field(&HssConnection::LocationInfoAnswer::_wildcard_impu, ""),
-          Field(&HssConnection::LocationInfoAnswer::_server_capabilities, IsNull())))).Times(1).RetiresOnSaturation();
+          Field(&HssConnection::LocationInfoAnswer::_wildcard_impu, "")))).Times(1).RetiresOnSaturation();
 
   // Expect the stats to be updated
   EXPECT_CALL(*_stats, update_H_hss_latency_us(12000));
@@ -1662,8 +1656,7 @@ TEST_F(DiameterHssConnectionTest, SendLIRIdentityNotRegistered)
     AllOf(Field(&HssConnection::LocationInfoAnswer::_result_code, ::HssConnection::ResultCode::SUCCESS),
           Field(&HssConnection::LocationInfoAnswer::_json_result, DIAMETER_ERROR_IDENTITY_NOT_REGISTERED),
           Field(&HssConnection::LocationInfoAnswer::_server_name, SERVER_NAME),
-          Field(&HssConnection::LocationInfoAnswer::_wildcard_impu, ""),
-          Field(&HssConnection::LocationInfoAnswer::_server_capabilities, IsNull())))).Times(1).RetiresOnSaturation();
+          Field(&HssConnection::LocationInfoAnswer::_wildcard_impu, "")))).Times(1).RetiresOnSaturation();
 
   // Expect the stats to be updated
   EXPECT_CALL(*_stats, update_H_hss_latency_us(12000));

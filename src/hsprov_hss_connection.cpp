@@ -101,6 +101,7 @@ LocationInfoAnswer HsProvHssConnection::LIRHsProvTransaction::create_answer(Cass
 {
   HsProvStore::GetRegData* get_reg_data = (HsProvStore::GetRegData*)op;
   CassandraStore::ResultCode cass_result = op->get_result_code();
+  ServerCapabilities capabilities;
 
   int32_t json_result = 0;
   std::string server_name;
@@ -129,7 +130,7 @@ LocationInfoAnswer HsProvHssConnection::LIRHsProvTransaction::create_answer(Cass
   LocationInfoAnswer lia = LocationInfoAnswer(rc,
                                               json_result,
                                               server_name,
-                                              NULL,
+                                              capabilities,
                                               "");
   return lia;
 }
@@ -201,10 +202,11 @@ void HsProvHssConnection::send_user_auth_request(uaa_cb callback,
 {
   // We don't actually talk to Cassandra for a UAR, we just create and return
   // a faked response
+  ServerCapabilities capabilities;
   UserAuthAnswer uaa = UserAuthAnswer(ResultCode::SUCCESS,
                                       DIAMETER_SUCCESS,
                                       _configured_server_name,
-                                      NULL);
+                                      capabilities);
   callback(uaa);
 }
 

@@ -341,8 +341,7 @@ TEST_F(HsProvHssConnectionTest, SendUAR)
   EXPECT_CALL(*_answer_catcher, got_uaa(
     AllOf(Field(&HssConnection::UserAuthAnswer::_result_code, ::HssConnection::ResultCode::SUCCESS),
           Field(&HssConnection::UserAuthAnswer::_json_result, DIAMETER_SUCCESS),
-          Field(&HssConnection::UserAuthAnswer::_server_name, SERVER_NAME),
-          Field(&HssConnection::UserAuthAnswer::_server_capabilities, IsNull())))).Times(1).RetiresOnSaturation();
+          Field(&HssConnection::UserAuthAnswer::_server_name, SERVER_NAME)))).Times(1).RetiresOnSaturation();
 
   // Send the UAR
   _hss_connection->send_user_auth_request(UAA_CB, request, FAKE_TRAIL_ID);
@@ -385,8 +384,7 @@ TEST_F(HsProvHssConnectionTest, SendLIR)
     AllOf(Field(&HssConnection::LocationInfoAnswer::_result_code, ::HssConnection::ResultCode::SUCCESS),
           Field(&HssConnection::LocationInfoAnswer::_json_result, DIAMETER_SUCCESS),
           Field(&HssConnection::LocationInfoAnswer::_server_name, SERVER_NAME),
-          Field(&HssConnection::LocationInfoAnswer::_wildcard_impu, ""),
-          Field(&HssConnection::LocationInfoAnswer::_server_capabilities, IsNull())))).Times(1).RetiresOnSaturation();
+          Field(&HssConnection::LocationInfoAnswer::_wildcard_impu, "")))).Times(1).RetiresOnSaturation();
 
   // Expect the stats to be updated
   EXPECT_CALL(*_stats, update_H_cache_latency_us(12000));

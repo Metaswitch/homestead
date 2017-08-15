@@ -1152,7 +1152,7 @@ TEST_F(HandlersTest, ImpiRegStatusServerName)
     HssConnection::UserAuthAnswer(HssConnection::ResultCode::SUCCESS,
                                   DIAMETER_SUCCESS,
                                   SERVER_NAME,
-                                  NULL);
+                                  NO_CAPABILITIES);
 
   // Expect that the UAR has the correct IMPI, IMPU and visited network
   EXPECT_CALL(*_hss, send_user_auth_request(_,
@@ -1182,14 +1182,12 @@ TEST_F(HandlersTest, ImpiRegStatusCapabilities)
   ImpiRegistrationStatusTask::Config cfg(DEST_REALM);
   ImpiRegistrationStatusTask* task = new ImpiRegistrationStatusTask(req, &cfg, FAKE_TRAIL_ID);
 
-  ServerCapabilities* capabilities = new ServerCapabilities(CAPABILITIES);
-
   // Create a UAA to return
   HssConnection::UserAuthAnswer answer =
     HssConnection::UserAuthAnswer(HssConnection::ResultCode::SUCCESS,
                                   DIAMETER_SUCCESS,
                                   "",
-                                  capabilities);
+                                  CAPABILITIES);
 
   // Expect that the UAR has the correct IMPI, IMPU and visited network
   EXPECT_CALL(*_hss, send_user_auth_request(_,
@@ -1219,14 +1217,12 @@ TEST_F(HandlersTest, ImpiRegStatusCapabilitiesWithServerName)
   ImpiRegistrationStatusTask::Config cfg(DEST_REALM);
   ImpiRegistrationStatusTask* task = new ImpiRegistrationStatusTask(req, &cfg, FAKE_TRAIL_ID);
 
-  ServerCapabilities* capabilities = new ServerCapabilities(CAPABILITIES_WITH_SERVER_NAME);
-
   // Create a UAA to return
   HssConnection::UserAuthAnswer answer =
     HssConnection::UserAuthAnswer(HssConnection::ResultCode::SUCCESS,
                                   DIAMETER_SUCCESS,
                                   "",
-                                  capabilities);
+                                  CAPABILITIES_WITH_SERVER_NAME);
 
   // Expect that the UAR has the correct IMPI, IMPU and visited network
   EXPECT_CALL(*_hss, send_user_auth_request(_,
@@ -1264,7 +1260,7 @@ TEST_F(HandlersTest, ImpiRegStatusPassesHealthCheck)
     HssConnection::UserAuthAnswer(HssConnection::ResultCode::SUCCESS,
                                   DIAMETER_SUCCESS,
                                   SERVER_NAME,
-                                  NULL);
+                                  NO_CAPABILITIES);
 
   // Expect that the UAR has the correct IMPI, IMPU and visited network
   EXPECT_CALL(*_hss, send_user_auth_request(_,
@@ -1301,7 +1297,7 @@ TEST_F(HandlersTest, ImpiRegStatusOptParams)
     HssConnection::UserAuthAnswer(HssConnection::ResultCode::SUCCESS,
                                   DIAMETER_SUCCESS,
                                   SERVER_NAME,
-                                  NULL);
+                                  NO_CAPABILITIES);
 
   // Expect that the UAR has the correct IMPI, IMPU and visited network
   EXPECT_CALL(*_hss, send_user_auth_request(_,
@@ -1367,7 +1363,7 @@ TEST_F(HandlersTest, LocationInfoMainline)
     HssConnection::LocationInfoAnswer(HssConnection::ResultCode::SUCCESS,
                                       DIAMETER_SUCCESS,
                                       SERVER_NAME,
-                                      NULL,
+                                      NO_CAPABILITIES,
                                       "");
 
   // Check the contents of the LIR
@@ -1394,14 +1390,12 @@ TEST_F(HandlersTest, LocationInfoServerCapabilitiesNoServerName)
   ImpuLocationInfoTask::Config cfg = ImpuLocationInfoTask::Config();
   ImpuLocationInfoTask* task = new ImpuLocationInfoTask(req, &cfg, FAKE_TRAIL_ID);
 
-  ServerCapabilities* capabilities = new ServerCapabilities(CAPABILITIES);
-
   // Create an LIA to return
   HssConnection::LocationInfoAnswer answer =
     HssConnection::LocationInfoAnswer(HssConnection::ResultCode::SUCCESS,
                                       DIAMETER_SUCCESS,
                                       "",
-                                      capabilities,
+                                      CAPABILITIES,
                                       "");
 
   // Check the contents of the LIR
@@ -1428,14 +1422,12 @@ TEST_F(HandlersTest, LocationInfoServerCapabilitiesWithServerName)
   ImpuLocationInfoTask::Config cfg = ImpuLocationInfoTask::Config();
   ImpuLocationInfoTask* task = new ImpuLocationInfoTask(req, &cfg, FAKE_TRAIL_ID);
 
-  ServerCapabilities* capabilities = new ServerCapabilities(CAPABILITIES_WITH_SERVER_NAME);
-
   // Create an LIA to return
   HssConnection::LocationInfoAnswer answer =
     HssConnection::LocationInfoAnswer(HssConnection::ResultCode::SUCCESS,
                                       DIAMETER_SUCCESS,
                                       "",
-                                      capabilities,
+                                      CAPABILITIES_WITH_SERVER_NAME,
                                       "");
 
   // Check the contents of the LIR
@@ -1467,7 +1459,7 @@ TEST_F(HandlersTest, LocationInfoWithWildcard)
     HssConnection::LocationInfoAnswer(HssConnection::ResultCode::SUCCESS,
                                       DIAMETER_SUCCESS,
                                       SERVER_NAME,
-                                      NULL,
+                                      NO_CAPABILITIES,
                                       WILDCARD);
 
   // Check the contents of the LIR
@@ -1499,7 +1491,7 @@ TEST_F(HandlersTest, LocationInfoOptParams)
     HssConnection::LocationInfoAnswer(HssConnection::ResultCode::SUCCESS,
                                       DIAMETER_SUCCESS,
                                       SERVER_NAME,
-                                      NULL,
+                                      NO_CAPABILITIES,
                                       WILDCARD);
 
   // Check the contents of the LIR

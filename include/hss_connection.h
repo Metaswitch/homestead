@@ -143,27 +143,19 @@ private:
 class UserAuthAnswer : public HssResponse
 {
 public:
-  ~UserAuthAnswer()
-  {
-    if (_server_capabilities)
-    {
-      delete _server_capabilities; _server_capabilities = NULL;
-    }
-  }
+  ~UserAuthAnswer(){}
 
   UserAuthAnswer(ResultCode rc) : HssResponse(rc),
     _json_result(0),
     _server_name(""),
-    _server_capabilities(NULL)
+    _server_capabilities()
   {
   }
 
-  // Takes ownership of the ServerCapabilities* passed in, and will delete it in its
-  // destructor
   UserAuthAnswer(ResultCode rc,
                  int32_t json_result,
                  std::string server_name,
-                 ServerCapabilities* capabilities) : HssResponse(rc),
+                 ServerCapabilities capabilities) : HssResponse(rc),
     _json_result(json_result),
     _server_name(server_name),
     _server_capabilities(capabilities)
@@ -179,8 +171,8 @@ public:
   {
     return _server_name;
   }
-  // The pointer is only valid for the life of the UserAuthAnswer
-  ServerCapabilities* get_server_capabilities() const
+
+  ServerCapabilities get_server_capabilities() const
   {
     return _server_capabilities;
   }
@@ -189,34 +181,26 @@ private:
   // This is the result that we'll send on the JSON response
   int32_t _json_result;
   std::string _server_name;
-  ServerCapabilities* _server_capabilities;
+  ServerCapabilities _server_capabilities;
 };
 
 class LocationInfoAnswer : public HssResponse
 {
 public:
-  ~LocationInfoAnswer()
-  {
-    if (_server_capabilities)
-    {
-      delete _server_capabilities; _server_capabilities = NULL;
-    }
-  }
+  ~LocationInfoAnswer(){}
 
   LocationInfoAnswer(ResultCode rc) : HssResponse(rc),
     _json_result(0),
     _server_name(""),
-    _server_capabilities(NULL),
+    _server_capabilities(),
     _wildcard_impu("")
   {
   }
 
-  // Takes ownership of the ServerCapabilities* passed in, and will delete it in its
-  // destructor
   LocationInfoAnswer(ResultCode rc,
                  int32_t json_result,
                  std::string server_name,
-                 ServerCapabilities* capabilities,
+                 ServerCapabilities capabilities,
                  std::string wildcard_impu) : HssResponse(rc),
     _json_result(json_result),
     _server_name(server_name),
@@ -235,8 +219,7 @@ public:
     return _server_name;
   }
 
-  // The pointer is only valid for the life of the UserAuthAnswer
-  ServerCapabilities* get_server_capabilities() const
+  ServerCapabilities get_server_capabilities() const
   {
     return _server_capabilities;
   }
@@ -250,7 +233,7 @@ private:
   // This is the result that we'll send on the JSON response
   int32_t _json_result;
   std::string _server_name;
-  ServerCapabilities* _server_capabilities;
+  ServerCapabilities _server_capabilities;
   std::string _wildcard_impu;
 };
 

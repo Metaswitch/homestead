@@ -161,7 +161,7 @@ UserAuthAnswer DiameterHssConnection::UARDiameterTransaction::create_answer(Diam
   // Now, parse into our generic UAA
   int32_t json_result = 0;
   std::string server_name;
-  ServerCapabilities* server_capabilities = NULL;
+  ServerCapabilities server_capabilities;
   ResultCode rc = ResultCode::SUCCESS;
 
   int32_t result_code = 0;
@@ -184,7 +184,7 @@ UserAuthAnswer DiameterHssConnection::UARDiameterTransaction::create_answer(Diam
     if (!diameter_uaa.server_name(server_name))
     {
       // If we don't have a server name, create the ServerCapabilities
-      server_capabilities = new ServerCapabilities(diameter_uaa.server_capabilities());
+      server_capabilities = diameter_uaa.server_capabilities();
     }
   }
   else if ((experimental_result == DIAMETER_ERROR_USER_UNKNOWN) ||
@@ -222,7 +222,7 @@ LocationInfoAnswer DiameterHssConnection::LIRDiameterTransaction::create_answer(
   // Now, parse into our generic LIA
   int32_t json_result = 0;
   std::string server_name;
-  ServerCapabilities* server_capabilities = NULL;
+  ServerCapabilities server_capabilities;
   std::string wildcard_impu;
   ResultCode rc = ResultCode::SUCCESS;
 
@@ -249,7 +249,7 @@ LocationInfoAnswer DiameterHssConnection::LIRDiameterTransaction::create_answer(
     if (!diameter_lia.server_name(server_name))
     {
       // If we don't have a server name, create the ServerCapabilities
-      server_capabilities = new ServerCapabilities(diameter_lia.server_capabilities());
+      server_capabilities = diameter_lia.server_capabilities();
     }
 
     // Get the wildcard impu
