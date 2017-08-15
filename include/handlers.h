@@ -73,7 +73,6 @@ protected:
   static HssCacheProcessor* _cache;
   static HssConnection::HssConnection* _hss;
   static HealthChecker* _health_checker;
-  static StatisticsManager* _stats_manager;
 };
 
 class ImpiTask : public HssCacheTask

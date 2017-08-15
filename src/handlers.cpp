@@ -28,7 +28,6 @@ const std::string SIP_URI_PRE = "sip:";
 std::string HssCacheTask::_configured_server_name;
 HssConnection::HssConnection* HssCacheTask::_hss = NULL;
 HssCacheProcessor* HssCacheTask::_cache = NULL;
-StatisticsManager* HssCacheTask::_stats_manager = NULL;
 HealthChecker* HssCacheTask::_health_checker = NULL;
 
 void HssCacheTask::configure_hss_connection(HssConnection::HssConnection* hss,
@@ -46,11 +45,6 @@ void HssCacheTask::configure_cache(HssCacheProcessor* cache)
 void HssCacheTask::configure_health_checker(HealthChecker* hc)
 {
   _health_checker = hc;
-}
-
-void HssCacheTask::configure_stats(StatisticsManager* stats_manager)
-{
-  _stats_manager = stats_manager;
 }
 
 // General IMPI handling.
@@ -1605,6 +1599,11 @@ void PushProfileTask::run()
   {
     // Otherwise, we need to get the specified IMPI's entire subscription from
     // the cache
+    TRC_DEBUG("Looking up registration sets from the cache for IMPI: %s", _impi.c_str());
+    SAS::Event event(this->trail(), SASEvent::CACHE_GET_REG_DATA_IMPIS, 0);
+    event.add_var_param(_impi);
+    SAS::report_event(event);
+
     ims_sub_success_cb success_cb =
       std::bind(&PushProfileTask::on_get_ims_sub_success, this, std::placeholders::_1);
 
@@ -1617,11 +1616,17 @@ void PushProfileTask::run()
 
 void PushProfileTask::on_get_ims_sub_success(ImsSubscription* ims_sub)
 {
+  // Build up a SAS log as we go, that we'll only send if we decide we can
+  // process the PPR correctly
+  SAS::Event put_cache_event(this->trail(), SASEvent::CACHE_PUT_REG_DATA_IMPI, 0);
+  put_cache_event.add_var_param(_impi);
+
+  std::string new_default_id;
+
   // If we have IMS Subscription XML on the PPR, then we need to verify that
   // it's not going to change the default impu for that IRS
   if (_ims_sub_present)
   {
-    std::string new_default_id;
     XmlUtils::get_default_id(_ims_subscription, new_default_id);
 
     ImplicitRegistrationSet* irs = ims_sub->get_irs_for_default_impu(new_default_id);
@@ -1671,13 +1676,31 @@ void PushProfileTask::on_get_ims_sub_success(ImsSubscription* ims_sub)
     irs->set_ims_sub_xml(_ims_subscription);
   }
 
+  if (_ims_sub_present)
+  {
+    // Add the impu and XMl to the SAS event
+    put_cache_event.add_var_param(new_default_id);
+    put_cache_event.add_compressed_param(_ims_subscription, &SASEvent::PROFILE_SERVICE_PROFILE);
+  }
+  else
+  {
+    // Put an empty string for the impu, and note that the XML is unchanged
+    put_cache_event.add_var_param("");
+    put_cache_event.add_compressed_param("IMS subscription unchanged", &SASEvent::PROFILE_SERVICE_PROFILE);
+  }
+
   // We now may have to update the charging addresses
   if (_charging_addrs_present)
   {
     ims_sub->set_charging_addrs(_charging_addrs);
+    put_cache_event.add_var_param(_charging_addrs.log_string());
+  }
+  else
+  {
+    put_cache_event.add_var_param("Charging addresses unchanged");
   }
 
-  // TODO SAS logging?
+  SAS::report_event(put_cache_event);
 
   // Now, save the updated ImsSubscription in the cache
   void_success_cb success_cb =
@@ -1691,7 +1714,8 @@ void PushProfileTask::on_get_ims_sub_success(ImsSubscription* ims_sub)
 
 void PushProfileTask::on_get_ims_sub_failure(Store::Status rc)
 {
-  //TODO
+  SAS::Event event(this->trail(), SASEvent::CACHE_GET_REG_DATA_FAIL, 0);
+  SAS::report_event(event);
   TRC_DEBUG("Failed to get IMS subscription from cache - report to HSS");
   send_ppa(DIAMETER_REQ_FAILURE);
   delete this;
@@ -1699,7 +1723,7 @@ void PushProfileTask::on_get_ims_sub_failure(Store::Status rc)
 
 void PushProfileTask::on_save_ims_sub_success()
 {
-  SAS::Event event(this->trail(), SASEvent::UPDATED_REG_DATA, 0);
+  SAS::Event event(this->trail(), SASEvent::CACHE_PUT_REG_DATA_SUCCESS, 0);
   SAS::report_event(event);
   send_ppa(DIAMETER_REQ_SUCCESS);
   delete this;
@@ -1708,6 +1732,9 @@ void PushProfileTask::on_save_ims_sub_success()
 void PushProfileTask::on_save_ims_sub_failure(Store::Status rc)
 {
   TRC_DEBUG("Failed to update registration data - report failure to HSS");
+  SAS::Event event(this->trail(), SASEvent::CACHE_PUT_REG_DATA_FAIL, 0);
+  event.add_static_param(rc);
+  SAS::report_event(event);
   send_ppa(DIAMETER_REQ_FAILURE);
   delete this;
 }

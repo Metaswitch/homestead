@@ -3022,6 +3022,44 @@ TEST_F(HandlersTest, ImpuRegDataHssNotFound)
   EXPECT_EQ("", req.content());
 }
 
+TEST_F(HandlersTest, ImpuRegDataHssUnavailable)
+{
+  // Tests that a SERVER_UNAVAILABLE error from the HSS triggers a 503 response
+  MockHttpStack::Request req = make_request("reg", true, true, false);
+
+  ImpuRegDataTask::Config cfg(true, 3600, 7200);
+  ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
+    
+  // Create IRS to be returned from the cache
+  FakeImplicitRegistrationSet* irs = new FakeImplicitRegistrationSet(IMPU);
+  irs->set_ims_sub_xml(IMPU_IMS_SUBSCRIPTION);
+  irs->set_reg_state(RegistrationState::NOT_REGISTERED);
+  irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
+  irs->set_associated_impis(IMPI_IN_VECTOR);
+
+  // Expect a cache lookup will return IRS in state NOT_REGISTERED
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<0>(irs));
+
+  // Then send a SAR, which gets a SERVER_UNAVAILABLE error
+  HssConnection::ServerAssignmentAnswer answer =
+    HssConnection::ServerAssignmentAnswer(HssConnection::ResultCode::SERVER_UNAVAILABLE);
+  EXPECT_CALL(*_hss, send_server_assignment_request(_,
+    AllOf(Field(&HssConnection::ServerAssignmentRequest::impi, IMPI),
+          Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
+          Field(&HssConnection::ServerAssignmentRequest::server_name, SERVER_NAME),
+          Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::REGISTRATION)),
+    _))
+    .WillOnce(InvokeArgument<0>(ByRef(answer)));
+  
+  // Expect a 503
+  EXPECT_CALL(*_httpstack, send_reply(_, 503, _));
+
+  task->run();
+
+  EXPECT_EQ("", req.content());
+}
+
 TEST_F(HandlersTest, ImpuRegDataHssUnknownError)
 {
   // Tests that a TIMEOUT error from the HSS triggers a 504 response
