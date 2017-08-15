@@ -14,6 +14,7 @@ COMMON_SOURCES := a_record_resolver.cpp \
                   communicationmonitor.cpp \
                   counter.cpp \
                   cx.cpp \
+                  diameter_handlers.cpp \
                   diameter_hss_connection.cpp \
                   diameterstack.cpp \
                   diameterresolver.cpp \
@@ -63,6 +64,7 @@ homestead_test_SOURCES := ${COMMON_SOURCES} \
                           test_main.cpp \
                           test_interposer.cpp \
                           cx_test.cpp \
+                          diameter_handlers_test.cpp \
                           diameter_hss_connection_test.cpp \
                           handlers_test.cpp \
                           homestead_xml_utils_test.cpp \
