@@ -107,6 +107,9 @@ private:
     void on_timeout();
     void on_response(Diameter::Message& rsp);
     void increment_results(int32_t result, int32_t experimental, uint32_t vendor);
+    void sas_log_hss_failure(int event_id,
+                             int32_t result_code,
+                             int32_t experimental_result_code);
 
   private:
     void update_latency_stats();

@@ -9,9 +9,10 @@
  * Metaswitch Networks in a separate written agreement.
  */
 
-#include "diameter_hss_connection.h"
-#include "servercapabilities.h"
 #include "charging_addresses.h"
+#include "diameter_hss_connection.h"
+#include "homesteadsasevent.h"
+#include "servercapabilities.h"
 
 namespace HssConnection {
 
@@ -88,6 +89,17 @@ void DiameterHssConnection::DiameterTransaction<T>::update_latency_stats()
   }
 }
 
+template <class T>
+void DiameterHssConnection::DiameterTransaction<T>::sas_log_hss_failure(int event_id,
+                                                                        int32_t result_code,
+                                                                        int32_t experimental_result_code)
+{
+  SAS::Event event(trail(), event_id, 0);
+  event.add_static_param(result_code);
+  event.add_static_param(experimental_result_code);
+  SAS::report_event(event);
+}
+
 MultimediaAuthAnswer DiameterHssConnection::MARDiameterTransaction::create_answer(Diameter::Message& rsp)
 {
   // First, create the Diameter MAA from the response
@@ -129,7 +141,7 @@ MultimediaAuthAnswer DiameterHssConnection::MARDiameterTransaction::create_answe
     }
     else
     {
-      // TODO SAS log here
+      // TODO SAS log here, or maybe just in the handler?
       rc = UNKNOWN_AUTH_SCHEME;
     }
   }
@@ -140,10 +152,17 @@ MultimediaAuthAnswer DiameterHssConnection::MARDiameterTransaction::create_answe
   else if (experimental_result == DIAMETER_ERROR_USER_UNKNOWN &&
            vendor_id == VENDOR_ID_3GPP)
   {
+    TRC_INFO("Multimedia-Auth answer - user unknown");
+    SAS::Event event(this->trail(), SASEvent::NO_AV_HSS, 0);
+    SAS::report_event(event);
     rc = NOT_FOUND;
   }
   else
   {
+    TRC_INFO("Multimedia-Auth answer with result code %d and experimental result code %d and vendor id %d - reject",
+             result_code, experimental_result, vendor_id);
+    SAS::Event event(this->trail(), SASEvent::NO_AV_HSS, 0);
+    SAS::report_event(event);
     rc = UNKNOWN;
   }
 
@@ -190,15 +209,18 @@ UserAuthAnswer DiameterHssConnection::UARDiameterTransaction::create_answer(Diam
   else if ((experimental_result == DIAMETER_ERROR_USER_UNKNOWN) ||
            (experimental_result == DIAMETER_ERROR_IDENTITIES_DONT_MATCH))
   {
+    sas_log_hss_failure(SASEvent::REG_STATUS_HSS_FAIL, result_code, experimental_result);
     rc = ResultCode::NOT_FOUND;
   }
   else if ((result_code == DIAMETER_AUTHORIZATION_REJECTED) ||
            (experimental_result == DIAMETER_ERROR_ROAMING_NOT_ALLOWED))
   {
+    sas_log_hss_failure(SASEvent::REG_STATUS_HSS_FAIL, result_code, experimental_result);
     rc = ResultCode::FORBIDDEN;
   }
   else if (result_code == DIAMETER_TOO_BUSY)
   {
+    sas_log_hss_failure(SASEvent::REG_STATUS_HSS_FAIL, result_code, experimental_result);
     rc = ResultCode::TIMEOUT;
   }
   else if (result_code == DIAMETER_UNABLE_TO_DELIVER)
@@ -207,6 +229,7 @@ UserAuthAnswer DiameterHssConnection::UARDiameterTransaction::create_answer(Diam
   }
   else
   {
+    sas_log_hss_failure(SASEvent::REG_STATUS_HSS_FAIL, result_code, experimental_result);
     rc = ResultCode::UNKNOWN;
   }
 
@@ -258,10 +281,12 @@ LocationInfoAnswer DiameterHssConnection::LIRDiameterTransaction::create_answer(
   else if ((vendor_id == VENDOR_ID_3GPP) &&
            (experimental_result == DIAMETER_ERROR_USER_UNKNOWN))
   {
+    sas_log_hss_failure(SASEvent::LOC_INFO_HSS_FAIL, result_code, experimental_result);
     rc = ResultCode::NOT_FOUND;
   }
   else if (result_code == DIAMETER_TOO_BUSY)
   {
+    sas_log_hss_failure(SASEvent::LOC_INFO_HSS_FAIL, result_code, experimental_result);
     rc = ResultCode::TIMEOUT;
   }
   else if (result_code == DIAMETER_UNABLE_TO_DELIVER)
@@ -270,6 +295,7 @@ LocationInfoAnswer DiameterHssConnection::LIRDiameterTransaction::create_answer(
   }
   else
   {
+    sas_log_hss_failure(SASEvent::LOC_INFO_HSS_FAIL, result_code, experimental_result);
     rc = ResultCode::UNKNOWN;
   }
 

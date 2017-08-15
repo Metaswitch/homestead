@@ -164,7 +164,6 @@ public:
 
   void run();
   void on_uar_response(const HssConnection::UserAuthAnswer& uaa);
-  void sas_log_hss_failure(int32_t result_code,int32_t experimental_result_code);
 
 private:
   const Config* _cfg;
@@ -194,7 +193,6 @@ public:
 
   void run();
   void on_lir_response(const HssConnection::LocationInfoAnswer& lia);
-  void sas_log_hss_failure(int32_t result_code,int32_t experimental_result_code);
 
 private:
   const Config* _cfg;

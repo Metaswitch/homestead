@@ -132,7 +132,6 @@ void ImpiTask::send_mar()
 
   // Send the request
   _hss->send_multimedia_auth_request(callback, request, this->trail());
-  //TRC_DEBUG("Sent");
 }
 
 void ImpiTask::on_mar_response(const HssConnection::MultimediaAuthAnswer& maa)
@@ -181,9 +180,7 @@ void ImpiTask::on_mar_response(const HssConnection::MultimediaAuthAnswer& maa)
   }
   else if (rc == HssConnection::ResultCode::NOT_FOUND)
   {
-    TRC_INFO("Multimedia-Auth answer - user unknown");
-    SAS::Event event(this->trail(), SASEvent::NO_AV_HSS, 0);
-    SAS::report_event(event);
+    // SAS logging for the errors is the responsibility of the HssConnection
     send_http_reply(HTTP_NOT_FOUND);
   }
   else if (rc == HssConnection::ResultCode::TIMEOUT)
@@ -193,15 +190,12 @@ void ImpiTask::on_mar_response(const HssConnection::MultimediaAuthAnswer& maa)
     // We also record a penalty for the purposes of overload control
     record_penalty();
 
-        // TODO SAS logging?
-    //sas_log_hss_failure(result_code, experimental_result_code);
+    // SAS logging for the errors is the responsibility of the HssConnection
     send_http_reply(HTTP_GATEWAY_TIMEOUT);
   }
   else
   {
-    TRC_INFO("Multimedia-Auth answer with error %d - reject", rc);
-    SAS::Event event(this->trail(), SASEvent::NO_AV_HSS, 0);
-    SAS::report_event(event);
+    // SAS logging for the errors is the responsibility of the HssConnection
     send_http_reply(HTTP_SERVER_ERROR);
   }
 
@@ -433,15 +427,15 @@ void ImpiRegistrationStatusTask::on_uar_response(const HssConnection::UserAuthAn
   else if (rc == HssConnection::ResultCode::NOT_FOUND)
   {
     TRC_INFO("User unknown or public/private ID conflict - reject");
-    // TODO SAS logging?
-    //sas_log_hss_failure(rc, experimental_rc);
+
+    // SAS logging for the errors is the responsibility of the HssConnection
     send_http_reply(HTTP_NOT_FOUND);
   }
   else if (rc == HssConnection::ResultCode::FORBIDDEN)
   {
     TRC_INFO("Authorization rejected due to roaming not allowed - reject");
-        // TODO SAS logging?
-    //sas_log_hss_failure(result_code, experimental_result_code);
+
+    // SAS logging for the errors is the responsibility of the HssConnection
     send_http_reply(HTTP_FORBIDDEN);
   }
   else if (rc == HssConnection::ResultCode::TIMEOUT)
@@ -451,8 +445,7 @@ void ImpiRegistrationStatusTask::on_uar_response(const HssConnection::UserAuthAn
     // We also record a penalty for the purposes of overload control
     record_penalty();
 
-        // TODO SAS logging?
-    //sas_log_hss_failure(result_code, experimental_result_code);
+    // SAS logging for the errors is the responsibility of the HssConnection
     send_http_reply(HTTP_GATEWAY_TIMEOUT);
   }
   else if (rc == HssConnection::ResultCode::SERVER_UNAVAILABLE)
@@ -468,21 +461,12 @@ void ImpiRegistrationStatusTask::on_uar_response(const HssConnection::UserAuthAn
   else
   {
     TRC_INFO("User-Authorization answer with result %d - reject", rc);
-    //TODO SAS logging
-    //sas_log_hss_failure(result_code, experimental_result_code);
+
+    // SAS logging for the errors is the responsibility of the HssConnection
     send_http_reply(HTTP_SERVER_ERROR);
   }
 
   delete this;
-}
-
-void ImpiRegistrationStatusTask::sas_log_hss_failure(int32_t result_code,
-                                                     int32_t experimental_result_code)
-{
-  SAS::Event event(this->trail(), SASEvent::REG_STATUS_HSS_FAIL, 0);
-  event.add_static_param(result_code);
-  event.add_static_param(experimental_result_code);
-  SAS::report_event(event);
 }
 
 //
@@ -564,8 +548,8 @@ void ImpuLocationInfoTask::on_lir_response(const HssConnection::LocationInfoAnsw
   else if (rc == HssConnection::ResultCode::NOT_FOUND)
   {
     TRC_INFO("User unknown or public/private ID conflict - reject");
-    //TODO sas log
-    //sas_log_hss_failure(result_code, experimental_result_code);
+
+    // SAS logging for the errors is the responsibility of the HssConnection
     send_http_reply(HTTP_NOT_FOUND);
   }
   else if (rc == HssConnection::ResultCode::TIMEOUT)
@@ -575,8 +559,7 @@ void ImpuLocationInfoTask::on_lir_response(const HssConnection::LocationInfoAnsw
     // We also record a penalty for the purposes of overload control
     record_penalty();
 
-    //TODO SAS
-    //sas_log_hss_failure(result_code, experimental_result_code);
+    // SAS logging for the errors is the responsibility of the HssConnection
     send_http_reply(HTTP_GATEWAY_TIMEOUT);
   }
   else if (rc == HssConnection::ResultCode::SERVER_UNAVAILABLE)
@@ -592,21 +575,12 @@ void ImpuLocationInfoTask::on_lir_response(const HssConnection::LocationInfoAnsw
   else
   {
     TRC_INFO("Location-Info answer with result %d - reject", rc);
-    //TODO SAS
-    //sas_log_hss_failure(result_code, experimental_result_code);
+
+    // SAS logging for the errors is the responsibility of the HssConnection
     send_http_reply(HTTP_SERVER_ERROR);
   }
 
   delete this;
-}
-
-void ImpuLocationInfoTask::sas_log_hss_failure(int32_t result_code,
-                                               int32_t experimental_result_code)
-{
-  SAS::Event event(this->trail(), SASEvent::LOC_INFO_HSS_FAIL, 0);
-  event.add_static_param(result_code);
-  event.add_static_param(experimental_result_code);
-  SAS::report_event(event);
 }
 
 //
