@@ -31,8 +31,6 @@ HssCacheProcessor* HssCacheTask::_cache = NULL;
 StatisticsManager* HssCacheTask::_stats_manager = NULL;
 HealthChecker* HssCacheTask::_health_checker = NULL;
 
-
-
 void HssCacheTask::configure_hss_connection(HssConnection::HssConnection* hss,
                                             std::string configured_server_name)
 {
@@ -54,30 +52,6 @@ void HssCacheTask::configure_stats(StatisticsManager* stats_manager)
 {
   _stats_manager = stats_manager;
 }
-
-// Common SAS log function
-/*TODO
-static void sas_log_get_reg_data_success(Cache::GetRegData* get_reg_data, SAS::TrailId trail)
-{
-  std::string xml;
-  int32_t ttl;
-  RegistrationState state;
-  std::vector<std::string> associated_impis;
-  ChargingAddresses charging_addrs;
-
-  get_reg_data->get_xml(xml, ttl);
-  get_reg_data->get_registration_state(state, ttl);
-  get_reg_data->get_associated_impis(associated_impis);
-  get_reg_data->get_charging_addrs(charging_addrs);
-
-  SAS::Event event(trail, SASEvent::CACHE_GET_REG_DATA_SUCCESS, 0);
-  event.add_compressed_param(xml, &SASEvent::PROFILE_SERVICE_PROFILE);
-  event.add_static_param(state);
-  std::string associated_impis_str = boost::algorithm::join(associated_impis, ", ");
-  event.add_var_param(associated_impis_str);
-  event.add_var_param(charging_addrs.log_string());
-  SAS::report_event(event);
-}*/
 
 // General IMPI handling.
 
@@ -818,8 +792,7 @@ std::string regstate_to_str(RegistrationState state)
 void ImpuRegDataTask::on_get_reg_data_success(ImplicitRegistrationSet* irs)
 {
   TRC_DEBUG("Got IMS subscription from cache");
-  //TODO SAS
-  //sas_log_get_reg_data_success(get_reg_data, trail());
+
   // We take ownership of the ImplicitRegistrationSet that the Cache has created
   _irs = irs;
 
@@ -828,6 +801,14 @@ void ImpuRegDataTask::on_get_reg_data_success(ImplicitRegistrationSet* irs)
   RegistrationState reg_state = irs->get_reg_state();
   std::vector<std::string> associated_impis = irs->get_associated_impis();
   ChargingAddresses charging_addrs = irs->get_charging_addresses();
+
+  SAS::Event event(trail, SASEvent::CACHE_GET_REG_DATA_SUCCESS, 0);
+  event.add_compressed_param(service_profile, &SASEvent::PROFILE_SERVICE_PROFILE);
+  event.add_static_param(reg_state);
+  std::string associated_impis_str = boost::algorithm::join(associated_impis, ", ");
+  event.add_var_param(associated_impis_str);
+  event.add_var_param(charging_addrs.log_string());
+  SAS::report_event(event);
 
   TRC_DEBUG("TTL for this database record is %d, IMS Subscription XML is %s, registration state is %s, and the charging addresses are %s",
             ttl,
@@ -1147,10 +1128,9 @@ void ImpuRegDataTask::on_put_reg_data_success()
 
 void ImpuRegDataTask::on_put_reg_data_failure(Store::Status rc)
 {
-  //TODOSAS::Event event(this->trail(), SASEvent::CACHE_PUT_REG_DATA_FAIL, 0);
-  //TODOevent.add_static_param(error);
-  //TODOevent.add_var_param(text);
-  //TODOSAS::report_event(event);
+  SAS::Event event(this->trail(), SASEvent::CACHE_PUT_REG_DATA_FAIL, 0);
+  event.add_static_param(rc);
+  SAS::report_event(event);
 
   // Failed to cache Reg Data.  Return an error in the hope that the client might try again
   send_http_reply(HTTP_SERVER_UNAVAILABLE);
