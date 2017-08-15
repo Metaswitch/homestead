@@ -35,25 +35,9 @@ using ::testing::IsNull;
 
 //TODO commonalize this with HsProvHssConnectionTest's versions
 
-// We pass AuthVector*s around, not the subclasses, so we need a custom matcher
-// to check that an AuthVector* matches a given DigestAuthVector
-MATCHER_P3(IsDigestAndMatches, ha1, realm, qop, "")
-{
-  if (arg != NULL)
-  {
-    DigestAuthVector* digest = dynamic_cast<DigestAuthVector*>(arg);
-    if (digest != NULL)
-    {
-      return ((digest->ha1 == ha1) &&
-              (digest->realm == realm) &&
-              (digest->qop == qop));
-    }
-  }
-  return false;
-}
-
 const SAS::TrailId FAKE_TRAIL_ID = 0x12345678;
 
+// Allows us to catch an MAA, UAA, LIA or SAA and check their contents
 class MockAnswerCatcher
 {
 public:

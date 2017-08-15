@@ -69,52 +69,9 @@ using ::testing::IsNull;
 using ::testing::Pointee;
 using ::testing::InvokeWithoutArgs;
 
-
-// We pass AuthVector*s around, not the subclasses, so we need some custom
-// matchers to check that an AuthVector* matches a given DigestAuthVector or
-// AKAAuthVector
-MATCHER_P3(IsDigestAndMatches, ha1, realm, qop, "")
-{
-  if (arg != NULL)
-  {
-    DigestAuthVector* digest = dynamic_cast<DigestAuthVector*>(arg);
-    if (digest != NULL)
-    {
-      return ((digest->ha1 == ha1) &&
-              (digest->realm == realm) &&
-              (digest->qop == qop));
-    }
-  }
-  return false;
-}
-
-MATCHER_P5(IsAKAAndMatches, version, challenge, response, crypt_key, integrity_key, "")
-{
-  if (arg != NULL)
-  {
-    AKAAuthVector* aka = dynamic_cast<AKAAuthVector*>(arg);
-    if (aka != NULL)
-    {
-      return ((aka->version == version) &&
-              (aka->challenge == challenge) &&
-              (aka->response == response) &&
-              (aka->crypt_key == crypt_key) &&
-              (aka->integrity_key == integrity_key));
-    }
-    else
-    {
-      *result_listener << "which isn't an AKAAuthVector*";
-    }
-  }
-  else
-  {
-    *result_listener << "which is NULL";
-  }
-  return false;
-}
-
 const SAS::TrailId FAKE_TRAIL_ID = 0x12345678;
 
+// Allows us to catch an MAA, UAA, LIA or SAA and check their contents
 class MockAnswerCatcher
 {
 public:
