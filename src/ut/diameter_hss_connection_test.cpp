@@ -2213,7 +2213,7 @@ TEST_F(DiameterHssConnectionTest, SendSARUnknown)
   ASSERT_FALSE(_caught_diam_tsx == NULL);
   _caught_diam_tsx->start_timer();
 
-  // Turn the caught Diameter msg structure into a UAR and check its contents.
+  // Turn the caught Diameter msg structure into an SAR and check its contents.
   Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
   Cx::ServerAssignmentRequest sar(msg);
   EXPECT_TRUE(sar.get_str_from_avp(_cx_dict->DESTINATION_REALM, test_str));
@@ -2284,6 +2284,20 @@ TEST_F(DiameterHssConnectionTest, DiameterTimeout)
   // Check that we've caught the message and it's not null
   ASSERT_FALSE(_caught_diam_tsx == NULL);
   _caught_diam_tsx->start_timer();
+
+  // Turn the caught Diameter msg structure into an SAR and check its contents.
+  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
+  Cx::ServerAssignmentRequest sar(msg);
+  EXPECT_TRUE(sar.get_str_from_avp(_cx_dict->DESTINATION_REALM, test_str));
+  EXPECT_EQ(DEST_REALM, test_str);
+  EXPECT_TRUE(sar.get_str_from_avp(_cx_dict->DESTINATION_HOST, test_str));
+  EXPECT_EQ(DEST_HOST, test_str);
+  EXPECT_EQ(IMPI, sar.impi());
+  EXPECT_EQ(IMPU, sar.impu());
+  EXPECT_TRUE(sar.server_name(test_str));
+  EXPECT_EQ(SERVER_NAME, test_str);
+  EXPECT_TRUE(sar.server_assignment_type(test_i32));
+  EXPECT_EQ(Cx::ServerAssignmentType::REGISTRATION, test_i32);
 
   // Expect that we'll call the callback with a SERVER_UNAVAILABLE ResultCode
   EXPECT_CALL(*_answer_catcher, got_saa(
