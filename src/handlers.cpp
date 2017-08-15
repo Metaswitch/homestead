@@ -1245,7 +1245,7 @@ void ImpuRegDataTask::on_sar_response(const HssConnection::ServerAssignmentAnswe
     // don't want to delete the data (since the new Homestead node will receive
     // the request, not find the subscriber registered in the cache and reject
     // the request without trying to notify the HSS).
-    SAS::Event event(this->trail(), SASEvent::CACHE_DELETE_IMPU, 0);
+    SAS::Event event(this->trail(), SASEvent::CACHE_DELETE_REG_DATA, 0);
     event.add_var_param(_irs->default_impu);
     SAS::report_event(event);
 
@@ -1289,7 +1289,7 @@ std::string ImpuRegDataTask::wildcard_id()
 
 void ImpuRegDataTask::on_del_impu_benign(bool not_found)
 {
-  SAS::Event event(this->trail(), (not_found) ? SASEvent::CACHE_DELETE_IMPUS_NOT_FOUND : SASEvent::CACHE_DELETE_IMPUS_SUCCESS, 0);
+  SAS::Event event(this->trail(), (not_found) ? SASEvent::CACHE_DELETE_REG_DATA_NOT_FOUND : SASEvent::CACHE_DELETE_REG_DATA_SUCCESS, 0);
   SAS::report_event(event);
 
   send_reply();
@@ -1313,7 +1313,7 @@ void ImpuRegDataTask::on_del_impu_failure(Store::Status status)
   else
   {
     // Not benign.  Return the original error if it wasn't OK
-    SAS::Event event(this->trail(), SASEvent::CACHE_DELETE_IMPUS_FAIL, 0);
+    SAS::Event event(this->trail(), SASEvent::CACHE_DELETE_REG_DATA_FAIL, 0);
     event.add_static_param(status);
     SAS::report_event(event);
 
@@ -1383,7 +1383,7 @@ void RegistrationTerminationTask::run()
     // deregister all of the IRSs for the provided list of IMPIs, so start by
     // getting all the IRSs for these IMPIs from the cache
     std::string impis_str = boost::algorithm::join(_impis, ", ");
-    TRC_DEBUG("Looking up IRSs from the cache for IMPIs: %s", impis_str.c_str());
+    TRC_DEBUG("Looking up registration sets from the cache for IMPIs: %s", impis_str.c_str());
     SAS::Event event(this->trail(), SASEvent::CACHE_GET_REG_DATA_IMPIS, 0);
     event.add_var_param(impis_str);
     SAS::report_event(event);
@@ -1400,7 +1400,7 @@ void RegistrationTerminationTask::run()
     // want to only deregister those specific impus, so start by getting all the
     // IRSs from the cache for those IMPUS
     std::string impus_str = boost::algorithm::join(_impus, ", ");
-    TRC_DEBUG("Finding registration sets for public identities %s", impus_str.c_str());
+    TRC_DEBUG("Looking up registration sets from the cache for IMPUs %s", impus_str.c_str());
     SAS::Event event(this->trail(), SASEvent::CACHE_GET_REG_DATA, 0);
     event.add_var_param(impus_str);
     SAS::report_event(event);
@@ -1513,22 +1513,11 @@ void RegistrationTerminationTask::get_registration_sets_success(std::vector<Impl
     }
 
     // Now delete our cached registration sets
-    /* TODO SAS log
-    SAS::Event event(this->trail(), SASEvent::CACHE_DISASSOC_REG_SET, 0);
-    std::string reg_set_str = boost::algorithm::join(reg_set.second, ", ");
-    event.add_var_param(reg_set_str);
-    std::string impis_str = boost::algorithm::join(_impis, ", ");
-    event.add_var_param(impis_str);
+    SAS::Event event(this->trail(), SASEvent::CACHE_DELETE_REG_DATA, 0);
+    std::string impus_str = boost::algorithm::join(default_public_identities, ", ");
+    event.add_var_param(impus_str);
     SAS::report_event(event);
 
-      std::string _impis_str = boost::algorithm::join(_impis, ", ");
-  TRC_DEBUG("Deleting IMPI mappings for the following IMPIs: %s",
-            _impis_str.c_str());
-  SAS::Event event(this->trail(), SASEvent::CACHE_DELETE_IMPI_MAP, 0);
-  event.add_var_param(_impis_str);
-  SAS::report_event(event);
-
-    */
     void_success_cb success_cb =
       std::bind(&RegistrationTerminationTask::delete_reg_sets_success, this);
 
