@@ -1310,8 +1310,7 @@ void ImpuRegDataTask::on_del_impu_failure(Store::Status status)
   {
     // Not benign.  Return the original error if it wasn't OK
     SAS::Event event(this->trail(), SASEvent::CACHE_DELETE_IMPUS_FAIL, 0);
-    //TODOevent.add_static_param(error);
-    //TODOevent.add_var_param(text);
+    event.add_static_param(status);
     SAS::report_event(event);
 
     send_http_reply((_http_rc == HTTP_OK) ? HTTP_SERVER_UNAVAILABLE : _http_rc);
