@@ -1245,6 +1245,10 @@ void ImpuRegDataTask::on_sar_response(const HssConnection::ServerAssignmentAnswe
     // don't want to delete the data (since the new Homestead node will receive
     // the request, not find the subscriber registered in the cache and reject
     // the request without trying to notify the HSS).
+    SAS::Event event(this->trail(), SASEvent::CACHE_DELETE_IMPU, 0);
+    event.add_var_param(_irs->default_impu);
+    SAS::report_event(event);
+
     void_success_cb success_cb =
       std::bind(&ImpuRegDataTask::on_del_impu_success, this);
 
@@ -1378,10 +1382,9 @@ void RegistrationTerminationTask::run()
     // If we don't have a list of impus and the reason is allowed, we want to
     // deregister all of the IRSs for the provided list of IMPIs, so start by
     // getting all the IRSs for these IMPIs from the cache
-    // TODO - SAS logging - change as no longer assoc primary impus
     std::string impis_str = boost::algorithm::join(_impis, ", ");
     TRC_DEBUG("Looking up IRSs from the cache for IMPIs: %s", impis_str.c_str());
-    SAS::Event event(this->trail(), SASEvent::CACHE_GET_ASSOC_PRIMARY_IMPUS, 0);
+    SAS::Event event(this->trail(), SASEvent::CACHE_GET_REG_DATA_IMPIS, 0);
     event.add_var_param(impis_str);
     SAS::report_event(event);
 
@@ -1396,11 +1399,12 @@ void RegistrationTerminationTask::run()
     // If we have a list of IMPUs to deregister and the reason is allowed, we
     // want to only deregister those specific impus, so start by getting all the
     // IRSs from the cache for those IMPUS
-    SAS::Event event(this->trail(), SASEvent::CACHE_GET_REG_DATA, 0);
     std::string impus_str = boost::algorithm::join(_impus, ", ");
+    TRC_DEBUG("Finding registration sets for public identities %s", impus_str.c_str());
+    SAS::Event event(this->trail(), SASEvent::CACHE_GET_REG_DATA, 0);
     event.add_var_param(impus_str);
     SAS::report_event(event);
-    TRC_DEBUG("Finding registration sets for public identities %s", impus_str.c_str());
+
     _cfg->cache->get_implicit_registration_sets_for_impus(success_cb,
                                                           failure_cb,
                                                           _impus,
@@ -1422,7 +1426,6 @@ void RegistrationTerminationTask::get_registration_sets_success(std::vector<Impl
 {
   // Save the vector of reg_sets?
   //TODO
-
   if (reg_sets.empty())
   {
     TRC_DEBUG("No registered IMPUs to deregister found");
