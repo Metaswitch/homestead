@@ -161,6 +161,15 @@ public:
   // Delete all of the IMPIs
   void delete_impis();
 
+  enum State
+  {
+    ADDED,
+    UNCHANGED,
+    DELETED
+  };
+
+  typedef std::map<std::string, State> Data;
+
 private:
   const ImpuStore* _store;
   const uint64_t _cas;
@@ -173,15 +182,6 @@ private:
   bool _changed;
   bool _refreshed;
   bool _existing;
-
-  enum State
-  {
-    ADDED,
-    UNCHANGED,
-    DELETED
-  };
-
-  typedef std::map<std::string, State> Data;
 
   static std::vector<std::string> get(const Data& data, State status)
   {

@@ -110,12 +110,15 @@ public:
   public:
     ImpiMapping(std::string impi, std::vector<std::string> default_impus, uint64_t cas) :
       impi(impi),
-      default_impus(default_impus),
-      cas(cas)
+      cas(cas),
+      _default_impus(default_impus)
     {
     }
 
-    ImpiMapping(std::string impi, std::string impu) : impi(impi), default_impus({ impu }), cas(0L)
+    ImpiMapping(std::string impi, std::string impu) :
+      impi(impi),
+      cas(0L),
+      _default_impus({ impu })
     {
     }
 
@@ -135,39 +138,44 @@ public:
 
     void add_default_impu(const std::string& impu)
     {
-      default_impus.push_back(impu);
+      _default_impus.push_back(impu);
     }
 
     bool has_default_impu(const std::string& impu)
     {
-      return std::find(default_impus.begin(),
-                       default_impus.end(),
-                       impu) != default_impus.end();
+      return std::find(_default_impus.begin(),
+                       _default_impus.end(),
+                       impu) != _default_impus.end();
     }
 
     void remove_default_impu(const std::string& impu)
     {
-      default_impus.erase(std::remove(default_impus.begin(),
-                                      default_impus.end(),
-                                      impu));
+      _default_impus.erase(std::remove(_default_impus.begin(),
+                                       _default_impus.end(),
+                                       impu));
     }
 
     bool is_empty()
     {
-      return default_impus.size() == 0;
+      return _default_impus.size() == 0;
     }
 
     const std::string impi;
+    const uint64_t cas;
 
     const std::vector<std::string>& get_default_impus()
     {
-      return default_impus;
+      return _default_impus;
+    }
+
+    int64_t expiry() const
+    {
+      return _expiry;
     }
 
   private:
-    std::vector<std::string> default_impus;
-    const uint64_t cas;
-    int64_t expiry;
+    std::vector<std::string> _default_impus;
+    int64_t _expiry;
   };
 
   ImpuStore(Store* store) : _store(store)

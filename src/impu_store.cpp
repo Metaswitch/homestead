@@ -125,7 +125,7 @@ Store::Status ImpuStore::set_impi_mapping(ImpiMapping* mapping,
                                           mapping->impi,
                                           data,
                                           mapping->cas,
-                                          mapping->expiry,
+                                          mapping->expiry(),
                                           trail);
 
   return status;
