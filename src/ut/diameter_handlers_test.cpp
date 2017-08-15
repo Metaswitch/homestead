@@ -117,6 +117,8 @@ public:
   static MockHttpConnection* _mock_http_conn;
   static SproutConnection* _sprout_conn;
 
+  static SNMP::CxCounterTable* _rtr_results_table;
+  static SNMP::CxCounterTable* _ppr_results_table;
 
   // Used to catch diameter messages and transactions on the MockDiameterStack
   // so that we can inspect them.
@@ -148,6 +150,10 @@ public:
     TRC_ERROR("sr2sr2 abuot to do diameterdict");
     _cx_dict = new Cx::Dictionary();
   
+    _rtr_results_table = SNMP::CxCounterTable::create("", "");
+    _ppr_results_table = SNMP::CxCounterTable::create("", "");
+    configure_handler_cx_results_tables(_rtr_results_table, _ppr_results_table);
+
     cwtest_completely_control_time();
   }
 
@@ -164,6 +170,9 @@ public:
     _real_stack->stop();
     _real_stack->wait_stopped();
     _real_stack = NULL;
+
+    delete _rtr_results_table; _rtr_results_table = NULL;
+    delete _ppr_results_table; _ppr_results_table = NULL;
   }
 
 
@@ -394,6 +403,9 @@ MockHssCacheProcessor* DiameterHandlersTest::_cache = NULL;
 MockHttpStack* DiameterHandlersTest::_httpstack = NULL;
 MockHttpConnection* DiameterHandlersTest::_mock_http_conn = NULL;
 SproutConnection* DiameterHandlersTest::_sprout_conn = NULL;
+
+SNMP::CxCounterTable* DiameterHandlersTest::_rtr_results_table = NULL;
+SNMP::CxCounterTable* DiameterHandlersTest::_ppr_results_table = NULL;
 
 //
 // RegistrationTermination tests

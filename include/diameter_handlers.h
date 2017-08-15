@@ -117,4 +117,8 @@ private:
 
   void send_ppa(const std::string result_code);
 };
+
+void configure_handler_cx_results_tables(SNMP::CxCounterTable* ppr_results_table,
+                                         SNMP::CxCounterTable* rtr_results_table);
+
 #endif

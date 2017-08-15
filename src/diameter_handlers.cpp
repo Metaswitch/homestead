@@ -19,6 +19,8 @@
 
 #include "boost/algorithm/string/join.hpp"
 
+static SNMP::CxCounterTable* ppr_results_tbl;
+static SNMP::CxCounterTable* rtr_results_tbl;
 
 const std::string SIP_URI_PRE = "sip:";
 
@@ -250,8 +252,7 @@ void RegistrationTerminationTask::send_rta(const std::string result_code)
                                         result_code,
                                         _msg.auth_session_state(),
                                         _impis);
-/*
-TODO sort out the results tables
+
   if (result_code == DIAMETER_REQ_SUCCESS)
   {
     rtr_results_tbl->increment(SNMP::DiameterAppId::BASE, 2001);
@@ -259,7 +260,7 @@ TODO sort out the results tables
   else if (result_code == DIAMETER_REQ_FAILURE)
   {
     rtr_results_tbl->increment(SNMP::DiameterAppId::BASE, 5012);
-  }*/
+  }
 
   // Send the RTA back to the HSS.
   TRC_INFO("Ready to send RTA");
@@ -436,7 +437,7 @@ void PushProfileTask::send_ppa(const std::string result_code)
                             _cfg->dict,
                             result_code,
                             _msg.auth_session_state());
-/* TODO
+
   if (result_code == DIAMETER_REQ_SUCCESS)
   {
     ppr_results_tbl->increment(SNMP::DiameterAppId::BASE, 2001);
@@ -445,8 +446,15 @@ void PushProfileTask::send_ppa(const std::string result_code)
   {
     ppr_results_tbl->increment(SNMP::DiameterAppId::BASE, 5012);
   }
-*/
+
   // Send the PPA back to the HSS.
   TRC_INFO("Ready to send PPA");
   ppa.send(this->trail());
+}
+
+void configure_handler_cx_results_tables(SNMP::CxCounterTable* ppr_results_table,
+                                         SNMP::CxCounterTable* rtr_results_table)
+{
+  ppr_results_tbl = ppr_results_table;
+  rtr_results_tbl = rtr_results_table;
 }
