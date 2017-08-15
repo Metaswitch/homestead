@@ -18,7 +18,6 @@
 #include "diameterstack.h"
 #include "mockdiameterstack.hpp"
 #include "cx.h"
-#include "handlers.h"
 
 /// Fixture for CxTest.
 class CxTest : public testing::Test

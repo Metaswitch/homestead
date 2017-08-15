@@ -41,7 +41,6 @@
 #include "mockhttpstack.hpp"
 #include "mockhttpconnection.hpp"
 #include "fakehttpresolver.hpp"
-#include "handlers.h"
 #include "mockstatisticsmanager.hpp"
 #include "sproutconnection.h"
 #include "mock_health_checker.hpp"

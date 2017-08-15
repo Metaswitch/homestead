@@ -1,5 +1,5 @@
 /**
- * @file handlers_test.cpp UT for Handlers module.
+ * @file http_handlers_test.cpp UT for HTTP Handlers module.
  *
  * Copyright (C) Metaswitch Networks 2017
  * If license terms are provided to you in a COPYING file in the root directory
@@ -42,7 +42,7 @@
 #include "mockhttpconnection.hpp"
 #include "fakehttpresolver.hpp"
 #include "fake_implicit_reg_set.h"
-#include "handlers.h"
+#include "http_handlers.h"
 #include "mockstatisticsmanager.hpp"
 #include "sproutconnection.h"
 #include "mock_health_checker.hpp"
@@ -73,8 +73,8 @@ using ::testing::ReturnNull;
 
 const SAS::TrailId FAKE_TRAIL_ID = 0x12345678;
 
-// Fixture for HandlersTest.
-class HandlersTest : public testing::Test
+// Fixture for HTTPHandlersTest.
+class HTTPHandlersTest : public testing::Test
 {
 public:
   static const std::string DEST_REALM;
@@ -178,8 +178,8 @@ public:
   int32_t test_i32;
   uint32_t test_u32;
 
-  HandlersTest() {}
-  virtual ~HandlersTest()
+  HTTPHandlersTest() {}
+  virtual ~HTTPHandlersTest()
   {
     Mock::VerifyAndClear(_httpstack);
   }
@@ -442,127 +442,127 @@ public:
   }
 };
 
-const std::string HandlersTest::DEST_REALM = "dest-realm";
-const std::string HandlersTest::DEST_HOST = "dest-host";
-const std::string HandlersTest::DEFAULT_SERVER_NAME = "sprout";
-const std::string HandlersTest::PROVIDED_SERVER_NAME = "sprout-site2";
-const std::string HandlersTest::SERVER_NAME = "scscf";
-const std::string HandlersTest::WILDCARD = "sip:im!.*!@scscf";
-const std::string HandlersTest::NEW_WILDCARD = "sip:newim!.*!@scscf";
-const std::string HandlersTest::IMPI = "_impi@example.com";
-const std::string HandlersTest::IMPU = "sip:impu@example.com";
-const std::string HandlersTest::IMPU2 = "sip:impu2@example.com";
-const std::string HandlersTest::IMPU3 = "sip:impu3@example.com";
-const std::string HandlersTest::IMPU4 = "sip:impu4@example.com";
-const std::string HandlersTest::IMPU5 = "sip:impu5@example.com";
-const std::string HandlersTest::IMPU6 = "sip:impu6@example.com";
-const std::string HandlersTest::IMS_SUBSCRIPTION = "<?xml version=\"1.0\"?><IMSSubscription><PrivateID>" + IMPI + "</PrivateID><ServiceProfile><PublicIdentity><Identity>" + IMPU + "</Identity></PublicIdentity></ServiceProfile></IMSSubscription>";
-const std::string HandlersTest::REGDATA_RESULT = "<ClearwaterRegData>\n\t<RegistrationState>REGISTERED</RegistrationState>\n\t<IMSSubscription>\n\t\t<PrivateID>" + IMPI + "</PrivateID>\n\t\t<ServiceProfile>\n\t\t\t<PublicIdentity>\n\t\t\t\t<Identity>" + IMPU + "</Identity>\n\t\t\t</PublicIdentity>\n\t\t\t<PublicIdentity>\n\t\t\t\t<Identity>" + IMPU4 + "</Identity>\n\t\t\t</PublicIdentity>\n\t\t</ServiceProfile>\n\t</IMSSubscription>\n</ClearwaterRegData>\n\n";
-const std::string HandlersTest::REGDATA_RESULT_INCLUDES_BARRING = "<ClearwaterRegData>\n\t<RegistrationState>REGISTERED</RegistrationState>\n\t<IMSSubscription>\n\t\t<PrivateID>" + IMPI + "</PrivateID>\n\t\t<ServiceProfile>\n\t\t\t<PublicIdentity>\n\t\t\t\t<Identity>" + IMPU + "</Identity>\n\t\t\t\t<BarringIndication>1</BarringIndication>\n\t\t\t</PublicIdentity>\n\t\t\t<PublicIdentity>\n\t\t\t\t<Identity>" + IMPU2 + "</Identity>\n\t\t\t</PublicIdentity>\n\t\t</ServiceProfile>\n\t</IMSSubscription>\n</ClearwaterRegData>\n\n";
-const std::string HandlersTest::REGDATA_RESULT_DEREG = "<ClearwaterRegData>\n\t<RegistrationState>NOT_REGISTERED</RegistrationState>\n\t<IMSSubscription>\n\t\t<PrivateID>" + IMPI + "</PrivateID>\n\t\t<ServiceProfile>\n\t\t\t<PublicIdentity>\n\t\t\t\t<Identity>" + IMPU + "</Identity>\n\t\t\t</PublicIdentity>\n\t\t\t<PublicIdentity>\n\t\t\t\t<Identity>" + IMPU4 + "</Identity>\n\t\t\t</PublicIdentity>\n\t\t</ServiceProfile>\n\t</IMSSubscription>\n</ClearwaterRegData>\n\n";
-const std::string HandlersTest::REGDATA_BLANK_RESULT_DEREG = "<ClearwaterRegData>\n\t<RegistrationState>NOT_REGISTERED</RegistrationState>\n</ClearwaterRegData>\n\n";
-const std::string HandlersTest::REGDATA_RESULT_UNREG = "<ClearwaterRegData>\n\t<RegistrationState>UNREGISTERED</RegistrationState>\n\t<IMSSubscription>\n\t\t<PrivateID>" + IMPI + "</PrivateID>\n\t\t<ServiceProfile>\n\t\t\t<PublicIdentity>\n\t\t\t\t<Identity>" + IMPU + "</Identity>\n\t\t\t</PublicIdentity>\n\t\t\t<PublicIdentity>\n\t\t\t\t<Identity>" + IMPU4 + "</Identity>\n\t\t\t</PublicIdentity>\n\t\t</ServiceProfile>\n\t</IMSSubscription>\n</ClearwaterRegData>\n\n";
-const std::string HandlersTest::VISITED_NETWORK = "visited-network.com";
-const std::string HandlersTest::AUTH_TYPE_DEREG = "DEREG";
-const std::string HandlersTest::AUTH_TYPE_CAPAB = "CAPAB";
+const std::string HTTPHandlersTest::DEST_REALM = "dest-realm";
+const std::string HTTPHandlersTest::DEST_HOST = "dest-host";
+const std::string HTTPHandlersTest::DEFAULT_SERVER_NAME = "sprout";
+const std::string HTTPHandlersTest::PROVIDED_SERVER_NAME = "sprout-site2";
+const std::string HTTPHandlersTest::SERVER_NAME = "scscf";
+const std::string HTTPHandlersTest::WILDCARD = "sip:im!.*!@scscf";
+const std::string HTTPHandlersTest::NEW_WILDCARD = "sip:newim!.*!@scscf";
+const std::string HTTPHandlersTest::IMPI = "_impi@example.com";
+const std::string HTTPHandlersTest::IMPU = "sip:impu@example.com";
+const std::string HTTPHandlersTest::IMPU2 = "sip:impu2@example.com";
+const std::string HTTPHandlersTest::IMPU3 = "sip:impu3@example.com";
+const std::string HTTPHandlersTest::IMPU4 = "sip:impu4@example.com";
+const std::string HTTPHandlersTest::IMPU5 = "sip:impu5@example.com";
+const std::string HTTPHandlersTest::IMPU6 = "sip:impu6@example.com";
+const std::string HTTPHandlersTest::IMS_SUBSCRIPTION = "<?xml version=\"1.0\"?><IMSSubscription><PrivateID>" + IMPI + "</PrivateID><ServiceProfile><PublicIdentity><Identity>" + IMPU + "</Identity></PublicIdentity></ServiceProfile></IMSSubscription>";
+const std::string HTTPHandlersTest::REGDATA_RESULT = "<ClearwaterRegData>\n\t<RegistrationState>REGISTERED</RegistrationState>\n\t<IMSSubscription>\n\t\t<PrivateID>" + IMPI + "</PrivateID>\n\t\t<ServiceProfile>\n\t\t\t<PublicIdentity>\n\t\t\t\t<Identity>" + IMPU + "</Identity>\n\t\t\t</PublicIdentity>\n\t\t\t<PublicIdentity>\n\t\t\t\t<Identity>" + IMPU4 + "</Identity>\n\t\t\t</PublicIdentity>\n\t\t</ServiceProfile>\n\t</IMSSubscription>\n</ClearwaterRegData>\n\n";
+const std::string HTTPHandlersTest::REGDATA_RESULT_INCLUDES_BARRING = "<ClearwaterRegData>\n\t<RegistrationState>REGISTERED</RegistrationState>\n\t<IMSSubscription>\n\t\t<PrivateID>" + IMPI + "</PrivateID>\n\t\t<ServiceProfile>\n\t\t\t<PublicIdentity>\n\t\t\t\t<Identity>" + IMPU + "</Identity>\n\t\t\t\t<BarringIndication>1</BarringIndication>\n\t\t\t</PublicIdentity>\n\t\t\t<PublicIdentity>\n\t\t\t\t<Identity>" + IMPU2 + "</Identity>\n\t\t\t</PublicIdentity>\n\t\t</ServiceProfile>\n\t</IMSSubscription>\n</ClearwaterRegData>\n\n";
+const std::string HTTPHandlersTest::REGDATA_RESULT_DEREG = "<ClearwaterRegData>\n\t<RegistrationState>NOT_REGISTERED</RegistrationState>\n\t<IMSSubscription>\n\t\t<PrivateID>" + IMPI + "</PrivateID>\n\t\t<ServiceProfile>\n\t\t\t<PublicIdentity>\n\t\t\t\t<Identity>" + IMPU + "</Identity>\n\t\t\t</PublicIdentity>\n\t\t\t<PublicIdentity>\n\t\t\t\t<Identity>" + IMPU4 + "</Identity>\n\t\t\t</PublicIdentity>\n\t\t</ServiceProfile>\n\t</IMSSubscription>\n</ClearwaterRegData>\n\n";
+const std::string HTTPHandlersTest::REGDATA_BLANK_RESULT_DEREG = "<ClearwaterRegData>\n\t<RegistrationState>NOT_REGISTERED</RegistrationState>\n</ClearwaterRegData>\n\n";
+const std::string HTTPHandlersTest::REGDATA_RESULT_UNREG = "<ClearwaterRegData>\n\t<RegistrationState>UNREGISTERED</RegistrationState>\n\t<IMSSubscription>\n\t\t<PrivateID>" + IMPI + "</PrivateID>\n\t\t<ServiceProfile>\n\t\t\t<PublicIdentity>\n\t\t\t\t<Identity>" + IMPU + "</Identity>\n\t\t\t</PublicIdentity>\n\t\t\t<PublicIdentity>\n\t\t\t\t<Identity>" + IMPU4 + "</Identity>\n\t\t\t</PublicIdentity>\n\t\t</ServiceProfile>\n\t</IMSSubscription>\n</ClearwaterRegData>\n\n";
+const std::string HTTPHandlersTest::VISITED_NETWORK = "visited-network.com";
+const std::string HTTPHandlersTest::AUTH_TYPE_DEREG = "DEREG";
+const std::string HTTPHandlersTest::AUTH_TYPE_CAPAB = "CAPAB";
 const std::vector<int32_t> mandatory_capabilities = {1, 3};
 const std::vector<int32_t> optional_capabilities = {2, 4};
 const std::vector<int32_t> no_capabilities = {};
-const ServerCapabilities HandlersTest::CAPABILITIES(mandatory_capabilities, optional_capabilities, "");
-const ServerCapabilities HandlersTest::NO_CAPABILITIES(no_capabilities, no_capabilities, "");
-const ServerCapabilities HandlersTest::CAPABILITIES_WITH_SERVER_NAME(no_capabilities, no_capabilities, SERVER_NAME);
-const int32_t HandlersTest::AUTH_SESSION_STATE = 1;
-const std::string HandlersTest::ASSOCIATED_IDENTITY1 = "associated_identity1@example.com";
-const std::string HandlersTest::ASSOCIATED_IDENTITY2 = "associated_identity2@example.com";
-std::vector<std::string> HandlersTest::ASSOCIATED_IDENTITIES = {ASSOCIATED_IDENTITY1, ASSOCIATED_IDENTITY2};
-std::vector<std::string> HandlersTest::IMPU_TEST = {IMPU};
-std::vector<std::string> HandlersTest::IMPUS = {IMPU, IMPU2};
-std::vector<std::string> HandlersTest::IMPU_LIST = {IMPU2, IMPU};
-std::vector<std::string> HandlersTest::THREE_DEFAULT_IMPUS = {IMPU, IMPU2, IMPU3};
-std::vector<std::string> HandlersTest::THREE_DEFAULT_IMPUS2 = {IMPU, IMPU3, IMPU5};
-std::vector<std::string> HandlersTest::IMPU_IN_VECTOR = {IMPU};
-std::vector<std::string> HandlersTest::IMPU2_IN_VECTOR = {IMPU2};
-std::vector<std::string> HandlersTest::IMPU3_IN_VECTOR = {IMPU3};
-std::vector<std::string> HandlersTest::IMPI_IN_VECTOR = {IMPI};
-std::vector<std::string> HandlersTest::ASSOCIATED_IDENTITY1_IN_VECTOR = {ASSOCIATED_IDENTITY1};
-std::vector<std::string> HandlersTest::IMPU_REG_SET = {IMPU, IMPU4};
-std::vector<std::string> HandlersTest::IMPU_REG_SET2 = {IMPU, IMPU2};
-std::vector<std::string> HandlersTest::IMPU3_REG_SET = {IMPU3, IMPU2};
-std::vector<std::string> HandlersTest::IMPU5_REG_SET = {IMPU5, IMPU6};
-const std::string HandlersTest::IMPU_IMS_SUBSCRIPTION = "<?xml version=\"1.0\"?><IMSSubscription><PrivateID>" + IMPI + "</PrivateID><ServiceProfile><PublicIdentity><Identity>" + IMPU + "</Identity></PublicIdentity><PublicIdentity><Identity>" + IMPU4 + "</Identity></PublicIdentity></ServiceProfile></IMSSubscription>";
-const std::string HandlersTest::IMPU_IMS_SUBSCRIPTION2 = "<?xml version=\"1.0\"?><IMSSubscription><PrivateID>" + IMPI + "</PrivateID><ServiceProfile><PublicIdentity><Identity>" + IMPU + "</Identity></PublicIdentity><PublicIdentity><Identity>" + IMPU2 + "</Identity></PublicIdentity></ServiceProfile></IMSSubscription>";
-const std::string HandlersTest::IMPU_IMS_SUBSCRIPTION_INVALID = "<?xml version=\"1.0\"?><IMSSubscriptio></IMSSubscriptio>";
-const std::string HandlersTest::IMPU3_IMS_SUBSCRIPTION = "<?xml version=\"1.0\"?><IMSSubscription><PrivateID>" + IMPI + "</PrivateID><ServiceProfile><PublicIdentity><Identity>" + IMPU3 + "</Identity></PublicIdentity><PublicIdentity><Identity>" + IMPU2 + "</Identity></PublicIdentity></ServiceProfile></IMSSubscription>";
-const std::string HandlersTest::IMPU5_IMS_SUBSCRIPTION = "<?xml version=\"1.0\"?><IMSSubscription><PrivateID>" + IMPI + "</PrivateID><ServiceProfile><PublicIdentity><Identity>" + IMPU5 + "</Identity></PublicIdentity><PublicIdentity><Identity>" + IMPU6 + "</Identity></PublicIdentity></ServiceProfile></IMSSubscription>";
-const std::string HandlersTest::IMPU_IMS_SUBSCRIPTION_WITH_BARRING = "<?xml version=\"1.0\"?><IMSSubscription><PrivateID>" + IMPI + "</PrivateID><ServiceProfile><PublicIdentity><Identity>" + IMPU + "</Identity><BarringIndication>1</BarringIndication></PublicIdentity><PublicIdentity><Identity>" + IMPU2 + "</Identity></PublicIdentity></ServiceProfile></IMSSubscription>";
-const std::string HandlersTest::IMPU_IMS_SUBSCRIPTION_WITH_BARRING2 = "<?xml version=\"1.0\"?><IMSSubscription><PrivateID>" + IMPI + "</PrivateID><ServiceProfile><PublicIdentity><Identity>" + IMPU + "</Identity><BarringIndication>1</BarringIndication></PublicIdentity><PublicIdentity><Identity>" + IMPU4 + "</Identity></PublicIdentity></ServiceProfile></IMSSubscription>";
-const std::string HandlersTest::IMPU_IMS_SUBSCRIPTION_WITH_BARRING3 = "<?xml version=\"1.0\"?><IMSSubscription><PrivateID>" + IMPI + "</PrivateID><ServiceProfile><PublicIdentity><Identity>" + IMPU + "</Identity></PublicIdentity><PublicIdentity><Identity>" + IMPU4 + "</Identity><BarringIndication>1</BarringIndication></PublicIdentity></ServiceProfile></IMSSubscription>";
-const std::string HandlersTest::IMPU_IMS_SUBSCRIPTION_BARRING_INDICATION = "<?xml version=\"1.0\"?><IMSSubscription><PrivateID>" + IMPI + "</PrivateID><ServiceProfile><PublicIdentity><Identity>" + IMPU + "</Identity><BarringIndication>0</BarringIndication></PublicIdentity><PublicIdentity><Identity>" + IMPU2 + "</Identity></PublicIdentity></ServiceProfile></IMSSubscription>";
-std::vector<std::string> HandlersTest::EMPTY_VECTOR = {};
-const std::string HandlersTest::DEREG_BODY_PAIRINGS = "{\"registrations\":[{\"primary-impu\":\"" + IMPU3 + "\",\"impi\":\"" + IMPI +
+const ServerCapabilities HTTPHandlersTest::CAPABILITIES(mandatory_capabilities, optional_capabilities, "");
+const ServerCapabilities HTTPHandlersTest::NO_CAPABILITIES(no_capabilities, no_capabilities, "");
+const ServerCapabilities HTTPHandlersTest::CAPABILITIES_WITH_SERVER_NAME(no_capabilities, no_capabilities, SERVER_NAME);
+const int32_t HTTPHandlersTest::AUTH_SESSION_STATE = 1;
+const std::string HTTPHandlersTest::ASSOCIATED_IDENTITY1 = "associated_identity1@example.com";
+const std::string HTTPHandlersTest::ASSOCIATED_IDENTITY2 = "associated_identity2@example.com";
+std::vector<std::string> HTTPHandlersTest::ASSOCIATED_IDENTITIES = {ASSOCIATED_IDENTITY1, ASSOCIATED_IDENTITY2};
+std::vector<std::string> HTTPHandlersTest::IMPU_TEST = {IMPU};
+std::vector<std::string> HTTPHandlersTest::IMPUS = {IMPU, IMPU2};
+std::vector<std::string> HTTPHandlersTest::IMPU_LIST = {IMPU2, IMPU};
+std::vector<std::string> HTTPHandlersTest::THREE_DEFAULT_IMPUS = {IMPU, IMPU2, IMPU3};
+std::vector<std::string> HTTPHandlersTest::THREE_DEFAULT_IMPUS2 = {IMPU, IMPU3, IMPU5};
+std::vector<std::string> HTTPHandlersTest::IMPU_IN_VECTOR = {IMPU};
+std::vector<std::string> HTTPHandlersTest::IMPU2_IN_VECTOR = {IMPU2};
+std::vector<std::string> HTTPHandlersTest::IMPU3_IN_VECTOR = {IMPU3};
+std::vector<std::string> HTTPHandlersTest::IMPI_IN_VECTOR = {IMPI};
+std::vector<std::string> HTTPHandlersTest::ASSOCIATED_IDENTITY1_IN_VECTOR = {ASSOCIATED_IDENTITY1};
+std::vector<std::string> HTTPHandlersTest::IMPU_REG_SET = {IMPU, IMPU4};
+std::vector<std::string> HTTPHandlersTest::IMPU_REG_SET2 = {IMPU, IMPU2};
+std::vector<std::string> HTTPHandlersTest::IMPU3_REG_SET = {IMPU3, IMPU2};
+std::vector<std::string> HTTPHandlersTest::IMPU5_REG_SET = {IMPU5, IMPU6};
+const std::string HTTPHandlersTest::IMPU_IMS_SUBSCRIPTION = "<?xml version=\"1.0\"?><IMSSubscription><PrivateID>" + IMPI + "</PrivateID><ServiceProfile><PublicIdentity><Identity>" + IMPU + "</Identity></PublicIdentity><PublicIdentity><Identity>" + IMPU4 + "</Identity></PublicIdentity></ServiceProfile></IMSSubscription>";
+const std::string HTTPHandlersTest::IMPU_IMS_SUBSCRIPTION2 = "<?xml version=\"1.0\"?><IMSSubscription><PrivateID>" + IMPI + "</PrivateID><ServiceProfile><PublicIdentity><Identity>" + IMPU + "</Identity></PublicIdentity><PublicIdentity><Identity>" + IMPU2 + "</Identity></PublicIdentity></ServiceProfile></IMSSubscription>";
+const std::string HTTPHandlersTest::IMPU_IMS_SUBSCRIPTION_INVALID = "<?xml version=\"1.0\"?><IMSSubscriptio></IMSSubscriptio>";
+const std::string HTTPHandlersTest::IMPU3_IMS_SUBSCRIPTION = "<?xml version=\"1.0\"?><IMSSubscription><PrivateID>" + IMPI + "</PrivateID><ServiceProfile><PublicIdentity><Identity>" + IMPU3 + "</Identity></PublicIdentity><PublicIdentity><Identity>" + IMPU2 + "</Identity></PublicIdentity></ServiceProfile></IMSSubscription>";
+const std::string HTTPHandlersTest::IMPU5_IMS_SUBSCRIPTION = "<?xml version=\"1.0\"?><IMSSubscription><PrivateID>" + IMPI + "</PrivateID><ServiceProfile><PublicIdentity><Identity>" + IMPU5 + "</Identity></PublicIdentity><PublicIdentity><Identity>" + IMPU6 + "</Identity></PublicIdentity></ServiceProfile></IMSSubscription>";
+const std::string HTTPHandlersTest::IMPU_IMS_SUBSCRIPTION_WITH_BARRING = "<?xml version=\"1.0\"?><IMSSubscription><PrivateID>" + IMPI + "</PrivateID><ServiceProfile><PublicIdentity><Identity>" + IMPU + "</Identity><BarringIndication>1</BarringIndication></PublicIdentity><PublicIdentity><Identity>" + IMPU2 + "</Identity></PublicIdentity></ServiceProfile></IMSSubscription>";
+const std::string HTTPHandlersTest::IMPU_IMS_SUBSCRIPTION_WITH_BARRING2 = "<?xml version=\"1.0\"?><IMSSubscription><PrivateID>" + IMPI + "</PrivateID><ServiceProfile><PublicIdentity><Identity>" + IMPU + "</Identity><BarringIndication>1</BarringIndication></PublicIdentity><PublicIdentity><Identity>" + IMPU4 + "</Identity></PublicIdentity></ServiceProfile></IMSSubscription>";
+const std::string HTTPHandlersTest::IMPU_IMS_SUBSCRIPTION_WITH_BARRING3 = "<?xml version=\"1.0\"?><IMSSubscription><PrivateID>" + IMPI + "</PrivateID><ServiceProfile><PublicIdentity><Identity>" + IMPU + "</Identity></PublicIdentity><PublicIdentity><Identity>" + IMPU4 + "</Identity><BarringIndication>1</BarringIndication></PublicIdentity></ServiceProfile></IMSSubscription>";
+const std::string HTTPHandlersTest::IMPU_IMS_SUBSCRIPTION_BARRING_INDICATION = "<?xml version=\"1.0\"?><IMSSubscription><PrivateID>" + IMPI + "</PrivateID><ServiceProfile><PublicIdentity><Identity>" + IMPU + "</Identity><BarringIndication>0</BarringIndication></PublicIdentity><PublicIdentity><Identity>" + IMPU2 + "</Identity></PublicIdentity></ServiceProfile></IMSSubscription>";
+std::vector<std::string> HTTPHandlersTest::EMPTY_VECTOR = {};
+const std::string HTTPHandlersTest::DEREG_BODY_PAIRINGS = "{\"registrations\":[{\"primary-impu\":\"" + IMPU3 + "\",\"impi\":\"" + IMPI +
                                                                       "\"},{\"primary-impu\":\"" + IMPU3 + "\",\"impi\":\"" + ASSOCIATED_IDENTITY1 +
                                                                       "\"},{\"primary-impu\":\"" + IMPU3 + "\",\"impi\":\"" + ASSOCIATED_IDENTITY2 +
                                                                       "\"},{\"primary-impu\":\"" + IMPU + "\",\"impi\":\"" + IMPI +
                                                                       "\"},{\"primary-impu\":\"" + IMPU + "\",\"impi\":\"" + ASSOCIATED_IDENTITY1 +
                                                                       "\"},{\"primary-impu\":\"" + IMPU + "\",\"impi\":\"" + ASSOCIATED_IDENTITY2 + "\"}]}";
-const std::string HandlersTest::DEREG_BODY_LIST = "{\"registrations\":[{\"primary-impu\":\"" + IMPU3 + "\"},{\"primary-impu\":\"" + IMPU + "\"}]}";
+const std::string HTTPHandlersTest::DEREG_BODY_LIST = "{\"registrations\":[{\"primary-impu\":\"" + IMPU3 + "\"},{\"primary-impu\":\"" + IMPU + "\"}]}";
 // These are effectively the same as above, but depending on the exact code path the ordering of IMPUS can be different.
-const std::string HandlersTest::DEREG_BODY_PAIRINGS2 = "{\"registrations\":[{\"primary-impu\":\"" + IMPU + "\",\"impi\":\"" + IMPI +
+const std::string HTTPHandlersTest::DEREG_BODY_PAIRINGS2 = "{\"registrations\":[{\"primary-impu\":\"" + IMPU + "\",\"impi\":\"" + IMPI +
                                                                        "\"},{\"primary-impu\":\"" + IMPU + "\",\"impi\":\"" + ASSOCIATED_IDENTITY1 +
                                                                        "\"},{\"primary-impu\":\"" + IMPU + "\",\"impi\":\"" + ASSOCIATED_IDENTITY2 +
                                                                        "\"},{\"primary-impu\":\"" + IMPU3 + "\",\"impi\":\"" + IMPI +
                                                                        "\"},{\"primary-impu\":\"" + IMPU3 + "\",\"impi\":\"" + ASSOCIATED_IDENTITY1 +
                                                                        "\"},{\"primary-impu\":\"" + IMPU3 + "\",\"impi\":\"" + ASSOCIATED_IDENTITY2 + "\"}]}";
-const std::string HandlersTest::DEREG_BODY_LIST2 = "{\"registrations\":[{\"primary-impu\":\"" + IMPU + "\"},{\"primary-impu\":\"" + IMPU3 + "\"}]}";
-const std::string HandlersTest::SCHEME_UNKNOWN = "Unknwon";
-const std::string HandlersTest::DEREG_BODY_PAIRINGS3 = "{\"registrations\":[{\"primary-impu\":\"" + IMPU2 + "\",\"impi\":\"" + IMPI +
+const std::string HTTPHandlersTest::DEREG_BODY_LIST2 = "{\"registrations\":[{\"primary-impu\":\"" + IMPU + "\"},{\"primary-impu\":\"" + IMPU3 + "\"}]}";
+const std::string HTTPHandlersTest::SCHEME_UNKNOWN = "Unknwon";
+const std::string HTTPHandlersTest::DEREG_BODY_PAIRINGS3 = "{\"registrations\":[{\"primary-impu\":\"" + IMPU2 + "\",\"impi\":\"" + IMPI +
                                                                        "\"},{\"primary-impu\":\"" + IMPU2 + "\",\"impi\":\"" + ASSOCIATED_IDENTITY1 +
                                                                        "\"},{\"primary-impu\":\"" + IMPU2 + "\",\"impi\":\"" + ASSOCIATED_IDENTITY2 + "\"}]}";
-const std::string HandlersTest::DEREG_BODY_LIST3 = "{\"registrations\":[{\"primary-impu\":\"" + IMPU2 + "\"}]}";
-const std::string HandlersTest::DEREG_BODY_PAIRINGS4 = "{\"registrations\":[{\"primary-impu\":\"" + IMPU + "\",\"impi\":\"" + IMPI +
+const std::string HTTPHandlersTest::DEREG_BODY_LIST3 = "{\"registrations\":[{\"primary-impu\":\"" + IMPU2 + "\"}]}";
+const std::string HTTPHandlersTest::DEREG_BODY_PAIRINGS4 = "{\"registrations\":[{\"primary-impu\":\"" + IMPU + "\",\"impi\":\"" + IMPI +
                                                                        "\"},{\"primary-impu\":\"" + IMPU + "\",\"impi\":\"" + ASSOCIATED_IDENTITY1 +
                                                                        "\"},{\"primary-impu\":\"" + IMPU + "\",\"impi\":\"" + ASSOCIATED_IDENTITY2 + "\"}]}";
-const std::string HandlersTest::DEREG_BODY_PAIRINGS5 = "{\"registrations\":[{\"primary-impu\":\"" + IMPU4 + "\",\"impi\":\"" + IMPI +
+const std::string HTTPHandlersTest::DEREG_BODY_PAIRINGS5 = "{\"registrations\":[{\"primary-impu\":\"" + IMPU4 + "\",\"impi\":\"" + IMPI +
                                                                        "\"},{\"primary-impu\":\"" + IMPU4 + "\",\"impi\":\"" + ASSOCIATED_IDENTITY1 +
                                                                        "\"},{\"primary-impu\":\"" + IMPU4 + "\",\"impi\":\"" + ASSOCIATED_IDENTITY2 +
                                                                        "\"},{\"primary-impu\":\"" + IMPU3 + "\",\"impi\":\"" + IMPI +
                                                                        "\"},{\"primary-impu\":\"" + IMPU3 + "\",\"impi\":\"" + ASSOCIATED_IDENTITY1 +
                                                                        "\"},{\"primary-impu\":\"" + IMPU3 + "\",\"impi\":\"" + ASSOCIATED_IDENTITY2 + "\"}]}";
-const std::string HandlersTest::SCHEME_DIGEST = "SIP Digest";
-const std::string HandlersTest::SCHEME_AKA = "Digest-AKAv1-MD5";
-const std::string HandlersTest::SCHEME_AKAV2 = "Digest-AKAv2-SHA-256";
-const std::string HandlersTest::SIP_AUTHORIZATION = "Authorization";
-const std::deque<std::string> HandlersTest::NO_CFS = {};
-const std::deque<std::string> HandlersTest::ECFS = {"ecf1", "ecf"};
-const std::deque<std::string> HandlersTest::CCFS = {"ccf1", "ccf2"};
-const ChargingAddresses HandlersTest::NO_CHARGING_ADDRESSES(NO_CFS, NO_CFS);
-const ChargingAddresses HandlersTest::FULL_CHARGING_ADDRESSES(CCFS, ECFS);
-const std::string HandlersTest::TEL_URI = "tel:123";
-const std::string HandlersTest::TEL_URI2 = "tel:321";
-const std::string HandlersTest::TEL_URIS_IMS_SUBSCRIPTION = "<?xml version=\"1.0\"?><IMSSubscription><PrivateID>" + IMPI + "</PrivateID><ServiceProfile><PublicIdentity><Identity>" + TEL_URI + "</Identity></PublicIdentity><PublicIdentity><Identity>" + TEL_URI2 + "</Identity></PublicIdentity></ServiceProfile></IMSSubscription>";
-const std::string HandlersTest::TEL_URIS_IMS_SUBSCRIPTION_WITH_BARRING = "<?xml version=\"1.0\"?><IMSSubscription><PrivateID>" + IMPI + "</PrivateID><ServiceProfile><PublicIdentity><Identity>" + TEL_URI + "</Identity><BarringIndication>1</BarringIndication></PublicIdentity><PublicIdentity><Identity>" + TEL_URI2 + "</Identity></PublicIdentity></ServiceProfile></IMSSubscription>";
-std::vector<std::string> HandlersTest::TEL_URIS_IN_VECTOR = {TEL_URI, TEL_URI2};
+const std::string HTTPHandlersTest::SCHEME_DIGEST = "SIP Digest";
+const std::string HTTPHandlersTest::SCHEME_AKA = "Digest-AKAv1-MD5";
+const std::string HTTPHandlersTest::SCHEME_AKAV2 = "Digest-AKAv2-SHA-256";
+const std::string HTTPHandlersTest::SIP_AUTHORIZATION = "Authorization";
+const std::deque<std::string> HTTPHandlersTest::NO_CFS = {};
+const std::deque<std::string> HTTPHandlersTest::ECFS = {"ecf1", "ecf"};
+const std::deque<std::string> HTTPHandlersTest::CCFS = {"ccf1", "ccf2"};
+const ChargingAddresses HTTPHandlersTest::NO_CHARGING_ADDRESSES(NO_CFS, NO_CFS);
+const ChargingAddresses HTTPHandlersTest::FULL_CHARGING_ADDRESSES(CCFS, ECFS);
+const std::string HTTPHandlersTest::TEL_URI = "tel:123";
+const std::string HTTPHandlersTest::TEL_URI2 = "tel:321";
+const std::string HTTPHandlersTest::TEL_URIS_IMS_SUBSCRIPTION = "<?xml version=\"1.0\"?><IMSSubscription><PrivateID>" + IMPI + "</PrivateID><ServiceProfile><PublicIdentity><Identity>" + TEL_URI + "</Identity></PublicIdentity><PublicIdentity><Identity>" + TEL_URI2 + "</Identity></PublicIdentity></ServiceProfile></IMSSubscription>";
+const std::string HTTPHandlersTest::TEL_URIS_IMS_SUBSCRIPTION_WITH_BARRING = "<?xml version=\"1.0\"?><IMSSubscription><PrivateID>" + IMPI + "</PrivateID><ServiceProfile><PublicIdentity><Identity>" + TEL_URI + "</Identity><BarringIndication>1</BarringIndication></PublicIdentity><PublicIdentity><Identity>" + TEL_URI2 + "</Identity></PublicIdentity></ServiceProfile></IMSSubscription>";
+std::vector<std::string> HTTPHandlersTest::TEL_URIS_IN_VECTOR = {TEL_URI, TEL_URI2};
 
-const std::string HandlersTest::HTTP_PATH_REG_TRUE = "/registrations?send-notifications=true";
-const std::string HandlersTest::HTTP_PATH_REG_FALSE = "/registrations?send-notifications=false";
+const std::string HTTPHandlersTest::HTTP_PATH_REG_TRUE = "/registrations?send-notifications=true";
+const std::string HTTPHandlersTest::HTTP_PATH_REG_FALSE = "/registrations?send-notifications=false";
 
-msg* HandlersTest::_caught_fd_msg = NULL;
-Cx::Dictionary* HandlersTest::_cx_dict = NULL;
-Diameter::Stack* HandlersTest::_real_stack = NULL;
-MockDiameterStack* HandlersTest::_mock_stack = NULL;
-HttpResolver* HandlersTest::_mock_resolver = NULL;
-MockHssCacheProcessor* HandlersTest::_cache = NULL;
-//FakeHssConnection* HandlersTest::_hss = NULL;
-MockHssConnection* HandlersTest::_hss = NULL;
-MockHttpStack* HandlersTest::_httpstack = NULL;
-MockHttpConnection* HandlersTest::_mock_http_conn = NULL;
-SproutConnection* HandlersTest::_sprout_conn = NULL;
+msg* HTTPHandlersTest::_caught_fd_msg = NULL;
+Cx::Dictionary* HTTPHandlersTest::_cx_dict = NULL;
+Diameter::Stack* HTTPHandlersTest::_real_stack = NULL;
+MockDiameterStack* HTTPHandlersTest::_mock_stack = NULL;
+HttpResolver* HTTPHandlersTest::_mock_resolver = NULL;
+MockHssCacheProcessor* HTTPHandlersTest::_cache = NULL;
+//FakeHssConnection* HTTPHandlersTest::_hss = NULL;
+MockHssConnection* HTTPHandlersTest::_hss = NULL;
+MockHttpStack* HTTPHandlersTest::_httpstack = NULL;
+MockHttpConnection* HTTPHandlersTest::_mock_http_conn = NULL;
+SproutConnection* HTTPHandlersTest::_sprout_conn = NULL;
 
 //
 // Digest and AV tests
 //
 
-TEST_F(HandlersTest, ImpiDigestMainline)
+TEST_F(HTTPHandlersTest, ImpiDigestMainline)
 {
   // Test that an IMPI Digest Task requests the AV from the HSS and returns it
   // on the response
@@ -604,7 +604,7 @@ TEST_F(HandlersTest, ImpiDigestMainline)
   EXPECT_EQ(build_digest_json(*digest), req.content());
 }
 
-TEST_F(HandlersTest, ImpiDigestNoImpu)
+TEST_F(HTTPHandlersTest, ImpiDigestNoImpu)
 {
   // Tests IMPI Digest task with no IMPU specified
   MockHttpStack::Request req(_httpstack,
@@ -621,7 +621,7 @@ TEST_F(HandlersTest, ImpiDigestNoImpu)
   task->run();
 }
 
-TEST_F(HandlersTest, ImpiDigestHssTimeout)
+TEST_F(HTTPHandlersTest, ImpiDigestHssTimeout)
 {
   // Tests IMPI Digest task when HSS times out the request
   MockHttpStack::Request req(_httpstack,
@@ -650,7 +650,7 @@ TEST_F(HandlersTest, ImpiDigestHssTimeout)
   task->run();
 }
 
-TEST_F(HandlersTest, ImpiDigestHssBusy)
+TEST_F(HTTPHandlersTest, ImpiDigestHssBusy)
 {
   // Tests IMPI Digest task when HSS times out the request
   MockHttpStack::Request req(_httpstack,
@@ -682,7 +682,7 @@ TEST_F(HandlersTest, ImpiDigestHssBusy)
   task->run();
 }
 
-TEST_F(HandlersTest, ImpiDigestHssUserUnknown)
+TEST_F(HTTPHandlersTest, ImpiDigestHssUserUnknown)
 {
   // Tests IMPI Digest task when HSS returns user unknown
   MockHttpStack::Request req(_httpstack,
@@ -711,7 +711,7 @@ TEST_F(HandlersTest, ImpiDigestHssUserUnknown)
   task->run();
 }
 
-TEST_F(HandlersTest, ImpiDigestHssOtherError)
+TEST_F(HTTPHandlersTest, ImpiDigestHssOtherError)
 {
   // Tests IMPI Digest task when HSS returns an unhandled error type
   MockHttpStack::Request req(_httpstack,
@@ -740,7 +740,7 @@ TEST_F(HandlersTest, ImpiDigestHssOtherError)
   task->run();
 }
 
-TEST_F(HandlersTest, ImpiDigestHssUnknownScheme)
+TEST_F(HTTPHandlersTest, ImpiDigestHssUnknownScheme)
 {
   // Tests IMPI Digest task when HSS returns SUCCESS but with unknown auth scheme
   MockHttpStack::Request req(_httpstack,
@@ -771,7 +771,7 @@ TEST_F(HandlersTest, ImpiDigestHssUnknownScheme)
   task->run();
 }
 
-TEST_F(HandlersTest, ImpiDigestHssAKAReturned)
+TEST_F(HTTPHandlersTest, ImpiDigestHssAKAReturned)
 {
   // Tests IMPI Digest task when HSS returns SUCCESS but with AKA auth scheme
   MockHttpStack::Request req(_httpstack,
@@ -802,7 +802,7 @@ TEST_F(HandlersTest, ImpiDigestHssAKAReturned)
   task->run();
 }
 
-TEST_F(HandlersTest, ImpiAvEmptyQoP)
+TEST_F(HTTPHandlersTest, ImpiAvEmptyQoP)
 {
   // Tests IMPI AV task when no QoP is specified
   MockHttpStack::Request req(_httpstack,
@@ -843,7 +843,7 @@ TEST_F(HandlersTest, ImpiAvEmptyQoP)
   EXPECT_EQ(build_av_json(*digest), req.content());
 }
 
-TEST_F(HandlersTest, ImpiAvNoPublicId)
+TEST_F(HTTPHandlersTest, ImpiAvNoPublicId)
 {
   // Tests IMPI AV Task with no Public ID gives a 404
   MockHttpStack::Request req(_httpstack,
@@ -860,7 +860,7 @@ TEST_F(HandlersTest, ImpiAvNoPublicId)
   task->run();
 }
 
-TEST_F(HandlersTest, ImpiAKA)
+TEST_F(HTTPHandlersTest, ImpiAKA)
 {
   // Tests AKAv1 Impi AV Task
   MockHttpStack::Request req(_httpstack,
@@ -901,7 +901,7 @@ TEST_F(HandlersTest, ImpiAKA)
   EXPECT_EQ(build_aka_json(*aka), req.content());
 }
 
-TEST_F(HandlersTest, ImpiAKAv2)
+TEST_F(HTTPHandlersTest, ImpiAKAv2)
 {
   // Tests AKAv1 Impi AV Task
   MockHttpStack::Request req(_httpstack,
@@ -943,7 +943,7 @@ TEST_F(HandlersTest, ImpiAKAv2)
   EXPECT_EQ(build_aka_json(*aka), req.content());
 }
 
-TEST_F(HandlersTest, ImpiAuthInvalidScheme)
+TEST_F(HTTPHandlersTest, ImpiAuthInvalidScheme)
 {
   // Tests Impi AV Task with invalid auth scheme
   MockHttpStack::Request req(_httpstack,
@@ -960,7 +960,7 @@ TEST_F(HandlersTest, ImpiAuthInvalidScheme)
   task->run();
 }
 
-TEST_F(HandlersTest, ImpiAKANoImpu)
+TEST_F(HTTPHandlersTest, ImpiAKANoImpu)
 {
   // Tests Impi AV Task with no impu gets 404
   MockHttpStack::Request req(_httpstack,
@@ -981,7 +981,7 @@ TEST_F(HandlersTest, ImpiAKANoImpu)
 // ImpiRegistrationStatusTask tests
 //
 
-TEST_F(HandlersTest, ImpiRegStatusServerName)
+TEST_F(HTTPHandlersTest, ImpiRegStatusServerName)
 {
   // Tests ImpiRegistrationStatusTask sends UAR to HSS and then sends correct
   // response
@@ -1017,7 +1017,7 @@ TEST_F(HandlersTest, ImpiRegStatusServerName)
   EXPECT_EQ(build_icscf_json(DIAMETER_SUCCESS, SERVER_NAME, CAPABILITIES, ""), req.content());
 }
 
-TEST_F(HandlersTest, ImpiRegStatusCapabilities)
+TEST_F(HTTPHandlersTest, ImpiRegStatusCapabilities)
 {
   // Tests ImpiRegistrationStatusTask when UAA has capabilities with no server name
   MockHttpStack::Request req(_httpstack,
@@ -1052,7 +1052,7 @@ TEST_F(HandlersTest, ImpiRegStatusCapabilities)
   EXPECT_EQ(build_icscf_json(DIAMETER_SUCCESS, "", CAPABILITIES, ""), req.content());
 }
 
-TEST_F(HandlersTest, ImpiRegStatusCapabilitiesWithServerName)
+TEST_F(HTTPHandlersTest, ImpiRegStatusCapabilitiesWithServerName)
 {
   // Tests ImpiRegistrationStatusTask when the UAA has capabilities with a server name
   MockHttpStack::Request req(_httpstack,
@@ -1087,7 +1087,7 @@ TEST_F(HandlersTest, ImpiRegStatusCapabilitiesWithServerName)
   EXPECT_EQ(build_icscf_json(DIAMETER_SUCCESS, "", CAPABILITIES_WITH_SERVER_NAME, ""), req.content());
 }
 
-TEST_F(HandlersTest, ImpiRegStatusPassesHealthCheck)
+TEST_F(HTTPHandlersTest, ImpiRegStatusPassesHealthCheck)
 {
   // Tests that a 200 reponse triggers the health-checker
   MockHealthChecker* hc = new MockHealthChecker();
@@ -1127,7 +1127,7 @@ TEST_F(HandlersTest, ImpiRegStatusPassesHealthCheck)
   delete hc;
 }
 
-TEST_F(HandlersTest, ImpiRegStatusOptParams)
+TEST_F(HTTPHandlersTest, ImpiRegStatusOptParams)
 {
   // Tests that optional parameters are passed to the HSS on the UAR
   MockHttpStack::Request req(_httpstack,
@@ -1161,17 +1161,17 @@ TEST_F(HandlersTest, ImpiRegStatusOptParams)
 }
 
 // The following tests verify UAA error codes map to correct HTTP error codes
-TEST_F(HandlersTest, ImpiRegStatusUserUnknown)
+TEST_F(HTTPHandlersTest, ImpiRegStatusUserUnknown)
 {
   registration_status_error_template(HssConnection::ResultCode::NOT_FOUND, HTTP_NOT_FOUND);
 }
 
-TEST_F(HandlersTest, ImpiRegStatusForbidden)
+TEST_F(HTTPHandlersTest, ImpiRegStatusForbidden)
 {
   registration_status_error_template(HssConnection::ResultCode::FORBIDDEN, HTTP_FORBIDDEN);
 }
 
-TEST_F(HandlersTest, ImpiRegStatusTimeout)
+TEST_F(HTTPHandlersTest, ImpiRegStatusTimeout)
 {
   // For a timeout, we expect to record a penalty
   EXPECT_CALL(*_httpstack, record_penalty()).Times(1);
@@ -1179,12 +1179,12 @@ TEST_F(HandlersTest, ImpiRegStatusTimeout)
   registration_status_error_template(HssConnection::ResultCode::TIMEOUT, HTTP_GATEWAY_TIMEOUT);
 }
 
-TEST_F(HandlersTest, ImpiRegStatusServerUnavailable)
+TEST_F(HTTPHandlersTest, ImpiRegStatusServerUnavailable)
 {
   registration_status_error_template(HssConnection::ResultCode::SERVER_UNAVAILABLE, HTTP_SERVER_UNAVAILABLE);
 }
 
-TEST_F(HandlersTest, ImpiRegStatusOtherError)
+TEST_F(HTTPHandlersTest, ImpiRegStatusOtherError)
 {
   registration_status_error_template(HssConnection::ResultCode::UNKNOWN, HTTP_SERVER_ERROR);
 }
@@ -1193,7 +1193,7 @@ TEST_F(HandlersTest, ImpiRegStatusOtherError)
 // Location Info tests
 //
 
-TEST_F(HandlersTest, LocationInfoMainline)
+TEST_F(HTTPHandlersTest, LocationInfoMainline)
 {
   // Tests mainline LocationInfo task
   MockHttpStack::Request req(_httpstack,
@@ -1225,7 +1225,7 @@ TEST_F(HandlersTest, LocationInfoMainline)
   EXPECT_EQ(build_icscf_json(DIAMETER_SUCCESS, SERVER_NAME, CAPABILITIES, ""), req.content());
 }
 
-TEST_F(HandlersTest, LocationInfoServerCapabilitiesNoServerName)
+TEST_F(HTTPHandlersTest, LocationInfoServerCapabilitiesNoServerName)
 {
   // Tests a LocationInfo task when server capabilities are returned without a server name
   MockHttpStack::Request req(_httpstack,
@@ -1257,7 +1257,7 @@ TEST_F(HandlersTest, LocationInfoServerCapabilitiesNoServerName)
   EXPECT_EQ(build_icscf_json(DIAMETER_SUCCESS, "", CAPABILITIES, ""), req.content());
 }
 
-TEST_F(HandlersTest, LocationInfoServerCapabilitiesWithServerName)
+TEST_F(HTTPHandlersTest, LocationInfoServerCapabilitiesWithServerName)
 {
   // Tests a LocationInfo task when server capabilities are returned with a server name
   MockHttpStack::Request req(_httpstack,
@@ -1289,7 +1289,7 @@ TEST_F(HandlersTest, LocationInfoServerCapabilitiesWithServerName)
   EXPECT_EQ(build_icscf_json(DIAMETER_SUCCESS, "", CAPABILITIES_WITH_SERVER_NAME, ""), req.content());
 }
 
-TEST_F(HandlersTest, LocationInfoWithWildcard)
+TEST_F(HTTPHandlersTest, LocationInfoWithWildcard)
 {
   // Tests LocationInfo with wildcarded public identity
   MockHttpStack::Request req(_httpstack,
@@ -1321,7 +1321,7 @@ TEST_F(HandlersTest, LocationInfoWithWildcard)
   EXPECT_EQ(build_icscf_json(DIAMETER_SUCCESS, SERVER_NAME, CAPABILITIES, WILDCARD), req.content());
 }
 
-TEST_F(HandlersTest, LocationInfoOptParams)
+TEST_F(HTTPHandlersTest, LocationInfoOptParams)
 {
   // Tests LocationInfo with optional parameters
   MockHttpStack::Request req(_httpstack,
@@ -1357,12 +1357,12 @@ TEST_F(HandlersTest, LocationInfoOptParams)
   EXPECT_EQ(build_icscf_json(DIAMETER_SUCCESS, SERVER_NAME, CAPABILITIES, WILDCARD), req.content());
 }
 
-TEST_F(HandlersTest, LocationInfoNotFound)
+TEST_F(HTTPHandlersTest, LocationInfoNotFound)
 {
   location_info_error_template(HssConnection::ResultCode::NOT_FOUND, HTTP_NOT_FOUND);
 }
 
-TEST_F(HandlersTest, LocationInfoTimeout)
+TEST_F(HTTPHandlersTest, LocationInfoTimeout)
 {
   // For a timeout, we expect to record a penalty
   EXPECT_CALL(*_httpstack, record_penalty()).Times(1);
@@ -1370,12 +1370,12 @@ TEST_F(HandlersTest, LocationInfoTimeout)
   location_info_error_template(HssConnection::ResultCode::TIMEOUT, HTTP_GATEWAY_TIMEOUT);
 }
 
-TEST_F(HandlersTest, LocationInfoServerUnavailable)
+TEST_F(HTTPHandlersTest, LocationInfoServerUnavailable)
 {
   location_info_error_template(HssConnection::ResultCode::SERVER_UNAVAILABLE, HTTP_SERVER_UNAVAILABLE);
 }
 
-TEST_F(HandlersTest, LocationInfoUnknownError)
+TEST_F(HTTPHandlersTest, LocationInfoUnknownError)
 {
   location_info_error_template(HssConnection::ResultCode::UNKNOWN, HTTP_SERVER_ERROR);
 }
@@ -1384,7 +1384,7 @@ TEST_F(HandlersTest, LocationInfoUnknownError)
 // ImpuRegData tests
 //
 
-TEST_F(HandlersTest, ImpuReadRegDataMainline)
+TEST_F(HTTPHandlersTest, ImpuReadRegDataMainline)
 {
   // Test that GET request returns cached IRS
   MockHttpStack::Request req(_httpstack,
@@ -1414,7 +1414,7 @@ TEST_F(HandlersTest, ImpuReadRegDataMainline)
   EXPECT_EQ(REGDATA_RESULT, req.content());
 }
 
-TEST_F(HandlersTest, ImpuReadRegDataCacheGetNotFound)
+TEST_F(HTTPHandlersTest, ImpuReadRegDataCacheGetNotFound)
 {
   // Test that GET request not foudn in cache results in 404
   MockHttpStack::Request req(_httpstack,
@@ -1439,7 +1439,7 @@ TEST_F(HandlersTest, ImpuReadRegDataCacheGetNotFound)
   EXPECT_EQ("", req.content());
 }
 
-TEST_F(HandlersTest, ImpuReadRegDataNonGet)
+TEST_F(HTTPHandlersTest, ImpuReadRegDataNonGet)
 {
   // Test that a non-GET request is rejected
   MockHttpStack::Request req(_httpstack,
@@ -1461,7 +1461,7 @@ TEST_F(HandlersTest, ImpuReadRegDataNonGet)
   EXPECT_EQ("", req.content());
 }
 
-TEST_F(HandlersTest, ImpuRegDataInitialReg)
+TEST_F(HTTPHandlersTest, ImpuRegDataInitialReg)
 {
   MockHttpStack::Request req = make_request("reg", true, true, false);
 
@@ -1510,7 +1510,7 @@ TEST_F(HandlersTest, ImpuRegDataInitialReg)
   EXPECT_EQ(REGDATA_RESULT, req.content());
 }
 
-TEST_F(HandlersTest, ImpuRegDataInitialRegNoServerName)
+TEST_F(HTTPHandlersTest, ImpuRegDataInitialRegNoServerName)
 {
   MockHttpStack::Request req = make_request("reg", true, false, false);
 
@@ -1559,7 +1559,7 @@ TEST_F(HandlersTest, ImpuRegDataInitialRegNoServerName)
   EXPECT_EQ(REGDATA_RESULT, req.content());
 }
 
-TEST_F(HandlersTest, ImpuRegDataInitialRegCacheGetNotFound)
+TEST_F(HTTPHandlersTest, ImpuRegDataInitialRegCacheGetNotFound)
 {
   // Tests that if we get a NOT_FOUND error from the cache on an initial
   // register, we still send the SAR to the HSS and continue processing
@@ -1611,7 +1611,7 @@ TEST_F(HandlersTest, ImpuRegDataInitialRegCacheGetNotFound)
   EXPECT_EQ(REGDATA_RESULT, req.content());
 }
 
-TEST_F(HandlersTest, ImpuRegDataInitialRegCacheGetError)
+TEST_F(HTTPHandlersTest, ImpuRegDataInitialRegCacheGetError)
 {
   MockHttpStack::Request req = make_request("reg", true, false, false);
 
@@ -1631,7 +1631,7 @@ TEST_F(HandlersTest, ImpuRegDataInitialRegCacheGetError)
   EXPECT_EQ("", req.content());
 }
 
-TEST_F(HandlersTest, ImpuRegDataInitialRegCachePutError)
+TEST_F(HTTPHandlersTest, ImpuRegDataInitialRegCachePutError)
 {
   MockHttpStack::Request req = make_request("reg", true, true, false);
 
@@ -1681,7 +1681,7 @@ TEST_F(HandlersTest, ImpuRegDataInitialRegCachePutError)
   EXPECT_EQ("", req.content());
 }
 
-TEST_F(HandlersTest, ImpuRegDataReReg)
+TEST_F(HTTPHandlersTest, ImpuRegDataReReg)
 {
   MockHttpStack::Request req = make_request("reg", true, true, false);
 
@@ -1731,7 +1731,7 @@ TEST_F(HandlersTest, ImpuRegDataReReg)
   EXPECT_EQ(REGDATA_RESULT, req.content());
 }
 
-TEST_F(HandlersTest, ImpuRegDataReRegNoCache)
+TEST_F(HTTPHandlersTest, ImpuRegDataReRegNoCache)
 {
   MockHttpStack::Request req = make_request("reg", true, true, false);
   req.add_header_to_incoming_req("Cache-control", "no-cache");
@@ -1783,7 +1783,7 @@ TEST_F(HandlersTest, ImpuRegDataReRegNoCache)
   EXPECT_EQ(REGDATA_RESULT, req.content());
 }
 
-TEST_F(HandlersTest, ImpuRegDataReRegCached)
+TEST_F(HTTPHandlersTest, ImpuRegDataReRegCached)
 {
   // Tests that a new enough record in the cache will not trigger a SAR
   MockHttpStack::Request req = make_request("reg", true, true, false);
@@ -1814,7 +1814,7 @@ TEST_F(HandlersTest, ImpuRegDataReRegCached)
   EXPECT_EQ(REGDATA_RESULT, req.content());
 }
 
-TEST_F(HandlersTest, ImpuRegDataReRegNewBinding)
+TEST_F(HTTPHandlersTest, ImpuRegDataReRegNewBinding)
 {
   MockHttpStack::Request req = make_request("reg", true, true, false);
 
@@ -1866,7 +1866,7 @@ TEST_F(HandlersTest, ImpuRegDataReRegNewBinding)
 
 // TODO does this test get us anything?
 // It's up to the cache to decide how to store the default impu
-TEST_F(HandlersTest, ImpuRegDataRegIncludesBarring)
+TEST_F(HTTPHandlersTest, ImpuRegDataRegIncludesBarring)
 {
   // Tests that the first unbarred public id is used when putting data into the
   // cache
@@ -1917,7 +1917,7 @@ TEST_F(HandlersTest, ImpuRegDataRegIncludesBarring)
   EXPECT_EQ(REGDATA_RESULT_INCLUDES_BARRING, req.content());
 }
 
-TEST_F(HandlersTest, ImpuRegDataCallWildcardWithSAR)
+TEST_F(HTTPHandlersTest, ImpuRegDataCallWildcardWithSAR)
 {
   // Tests that an SAA with a wildcard triggers a new lookup in the cache
   // The initial request doesn't include a wildcard
@@ -1964,7 +1964,7 @@ TEST_F(HandlersTest, ImpuRegDataCallWildcardWithSAR)
   task->run();
 }
 
-TEST_F(HandlersTest, ImpuRegDataCallNewWildcard)
+TEST_F(HTTPHandlersTest, ImpuRegDataCallNewWildcard)
 {
   // Tests that an SAA with a new wildcard triggers a new lookup in the cache
   MockHttpStack::Request req = make_request("call", false, false, true);
@@ -2011,7 +2011,7 @@ TEST_F(HandlersTest, ImpuRegDataCallNewWildcard)
   task->run();
 }
 
-TEST_F(HandlersTest, ImpuRegDataCallNewWildcardNotFound)
+TEST_F(HTTPHandlersTest, ImpuRegDataCallNewWildcardNotFound)
 {
   // Tests that an SAA with a new wildcard triggers a new lookup in the cache,
   // and if that doesn't find anything we send another SAR with the new wildcard
@@ -2077,7 +2077,7 @@ TEST_F(HandlersTest, ImpuRegDataCallNewWildcardNotFound)
   task->run();
 }
 
-TEST_F(HandlersTest, ImpuRegDataCallWildcardLoop)
+TEST_F(HTTPHandlersTest, ImpuRegDataCallWildcardLoop)
 {
   // Tests that if the SAA reports a new wildcard but it hasn't been updated,
   // we send a 503
@@ -2119,7 +2119,7 @@ TEST_F(HandlersTest, ImpuRegDataCallWildcardLoop)
 
 //TODO inappropriate wildcard request should be tested by diameter stuff
 
-TEST_F(HandlersTest, ImpuRegDataCallMainline)
+TEST_F(HTTPHandlersTest, ImpuRegDataCallMainline)
 {
   // Tests that a "call" request for a registered sub doesn't trigger an SAR
   MockHttpStack::Request req = make_request("call", true, false, false);
@@ -2146,7 +2146,7 @@ TEST_F(HandlersTest, ImpuRegDataCallMainline)
   EXPECT_EQ(REGDATA_RESULT, req.content());
 }
 
-TEST_F(HandlersTest, ImpuRegDataCallWildcard)
+TEST_F(HTTPHandlersTest, ImpuRegDataCallWildcard)
 {
   // Tests a "call" request for a wildcard impu
   MockHttpStack::Request req = make_request("call", true, false, true);
@@ -2173,7 +2173,7 @@ TEST_F(HandlersTest, ImpuRegDataCallWildcard)
   EXPECT_EQ(REGDATA_RESULT, req.content());
 }
 
-TEST_F(HandlersTest, ImpuRegDataCallUnregisteredService)
+TEST_F(HTTPHandlersTest, ImpuRegDataCallUnregisteredService)
 {
   // Tests "call" request handling for unregistered service
   MockHttpStack::Request req = make_request("call", true, false, false);
@@ -2200,7 +2200,7 @@ TEST_F(HandlersTest, ImpuRegDataCallUnregisteredService)
   EXPECT_EQ(REGDATA_RESULT_UNREG, req.content());
 }
 
-TEST_F(HandlersTest, ImpuRegDataCallNewUnregisteredService)
+TEST_F(HTTPHandlersTest, ImpuRegDataCallNewUnregisteredService)
 {
   // Tests "call" request handling for unregistered service for a subscriber
   // whose data is not already in the cache
@@ -2248,7 +2248,7 @@ TEST_F(HandlersTest, ImpuRegDataCallNewUnregisteredService)
   EXPECT_EQ(REGDATA_RESULT_UNREG, req.content());
 }
 
-TEST_F(HandlersTest, ImpuRegDataDeregUser)
+TEST_F(HTTPHandlersTest, ImpuRegDataDeregUser)
 {
   // Tests user-initiated de-registration
   MockHttpStack::Request req = make_request("dereg-user", true, true, false);
@@ -2297,7 +2297,7 @@ TEST_F(HandlersTest, ImpuRegDataDeregUser)
   EXPECT_EQ(REGDATA_RESULT_DEREG, req.content());
 }
 
-TEST_F(HandlersTest, ImpuRegDataDeregTimeout)
+TEST_F(HTTPHandlersTest, ImpuRegDataDeregTimeout)
 {
   // Tests timeout-initiated de-registration
   MockHttpStack::Request req = make_request("dereg-timeout", true, true, false);
@@ -2346,7 +2346,7 @@ TEST_F(HandlersTest, ImpuRegDataDeregTimeout)
   EXPECT_EQ(REGDATA_RESULT_DEREG, req.content());
 }
 
-TEST_F(HandlersTest, ImpuRegDataDeregAdmin)
+TEST_F(HTTPHandlersTest, ImpuRegDataDeregAdmin)
 {
   // Tests administrative de-registration
   MockHttpStack::Request req = make_request("dereg-admin", true, true, false);
@@ -2395,7 +2395,7 @@ TEST_F(HandlersTest, ImpuRegDataDeregAdmin)
   EXPECT_EQ(REGDATA_RESULT_DEREG, req.content());
 }
 
-TEST_F(HandlersTest, ImpuRegDataDeregNoIMPI)
+TEST_F(HTTPHandlersTest, ImpuRegDataDeregNoIMPI)
 {
   // Tests that if an IMPI is not explicitly provided on a deregistration we use
   // the one from the cached user-data
@@ -2445,7 +2445,7 @@ TEST_F(HandlersTest, ImpuRegDataDeregNoIMPI)
   EXPECT_EQ(REGDATA_RESULT_DEREG, req.content());
 }
 
-TEST_F(HandlersTest, ImpuRegDataDeregCacheError)
+TEST_F(HTTPHandlersTest, ImpuRegDataDeregCacheError)
 {
   // Tests that if the cache delete operation fails, we send an appropriate error
   MockHttpStack::Request req = make_request("dereg-admin", false, true, false);
@@ -2495,7 +2495,7 @@ TEST_F(HandlersTest, ImpuRegDataDeregCacheError)
   EXPECT_EQ("", req.content());
 }
 
-TEST_F(HandlersTest, ImpuRegDataDeregCacheNotFound)
+TEST_F(HTTPHandlersTest, ImpuRegDataDeregCacheNotFound)
 {
   // Tests that a NOT_FOUND error on deletion results in a 200 OK
   MockHttpStack::Request req = make_request("dereg-admin", false, true, false);
@@ -2544,7 +2544,7 @@ TEST_F(HandlersTest, ImpuRegDataDeregCacheNotFound)
   EXPECT_EQ(REGDATA_RESULT_DEREG, req.content());
 }
 
-TEST_F(HandlersTest, ImpuRegDataDeregUnregSub)
+TEST_F(HTTPHandlersTest, ImpuRegDataDeregUnregSub)
 {
   // Tests that an unregistered user is deregistered wih the HSS
   MockHttpStack::Request req = make_request("dereg-admin", true, true, false);
@@ -2593,7 +2593,7 @@ TEST_F(HandlersTest, ImpuRegDataDeregUnregSub)
   EXPECT_EQ(REGDATA_RESULT_DEREG, req.content());
 }
 
-TEST_F(HandlersTest, ImpuRegDataDeregAuthFailedRegistered)
+TEST_F(HTTPHandlersTest, ImpuRegDataDeregAuthFailedRegistered)
 {
   // Tests auth failure flow. This should only affect the HSS and not the cache,
   // and should not change the registered state (as it just means a subscriber
@@ -2636,7 +2636,7 @@ TEST_F(HandlersTest, ImpuRegDataDeregAuthFailedRegistered)
   EXPECT_EQ(REGDATA_RESULT, req.content());
 }
 
-TEST_F(HandlersTest, ImpuRegDataDeregAuthFailedNotRegistered)
+TEST_F(HTTPHandlersTest, ImpuRegDataDeregAuthFailedNotRegistered)
 {
   // Tests auth failure flow. This should only affect the HSS and not the cache,
   // and should not change the registered state (as it just means a subscriber
@@ -2679,7 +2679,7 @@ TEST_F(HandlersTest, ImpuRegDataDeregAuthFailedNotRegistered)
   EXPECT_EQ(REGDATA_RESULT_DEREG, req.content());
 }
 
-TEST_F(HandlersTest, ImpuRegDataDeregAuthTimeout)
+TEST_F(HTTPHandlersTest, ImpuRegDataDeregAuthTimeout)
 {
   // Tests auth timeout flow. This should only affect the HSS and not the cache,
   // and should not change the registered state (as it just means a subscriber
@@ -2722,7 +2722,7 @@ TEST_F(HandlersTest, ImpuRegDataDeregAuthTimeout)
   EXPECT_EQ(REGDATA_RESULT_DEREG, req.content());
 }
 
-TEST_F(HandlersTest, ImpuRegDataDeregInvalid)
+TEST_F(HTTPHandlersTest, ImpuRegDataDeregInvalid)
 {
   // Tests that an attempt to deregister a not registered sub gets a
   // 400 Bad Request
@@ -2750,7 +2750,7 @@ TEST_F(HandlersTest, ImpuRegDataDeregInvalid)
   EXPECT_EQ("", req.content());
 }
 
-TEST_F(HandlersTest, ImpuRegDataInvalidXML)
+TEST_F(HTTPHandlersTest, ImpuRegDataInvalidXML)
 {
   // Tests that getting invalid xml from the HSS results in a 500 response
   MockHttpStack::Request req = make_request("reg", true, false, false);
@@ -2788,7 +2788,7 @@ TEST_F(HandlersTest, ImpuRegDataInvalidXML)
   EXPECT_EQ("", req.content());
 }
 
-TEST_F(HandlersTest, ImpuRegDataInvalidPUT)
+TEST_F(HTTPHandlersTest, ImpuRegDataInvalidPUT)
 {
   // Tests that a PUT without a req-type is rejected
   MockHttpStack::Request req = MockHttpStack::Request(_httpstack,
@@ -2809,7 +2809,7 @@ TEST_F(HandlersTest, ImpuRegDataInvalidPUT)
   EXPECT_EQ("", req.content());
 }
 
-TEST_F(HandlersTest, ImpuRegDataInvalidMethod)
+TEST_F(HTTPHandlersTest, ImpuRegDataInvalidMethod)
 {
   // Tests that a non-GET or -PUT request is rejected
   MockHttpStack::Request req = MockHttpStack::Request(_httpstack,
@@ -2830,7 +2830,7 @@ TEST_F(HandlersTest, ImpuRegDataInvalidMethod)
   EXPECT_EQ("", req.content());
 }
 
-TEST_F(HandlersTest, ImpuRegDataHssNotFound)
+TEST_F(HTTPHandlersTest, ImpuRegDataHssNotFound)
 {
   // Tests that a NOT_FOUND error from the HSS triggers a 404 response
   MockHttpStack::Request req = make_request("reg", true, true, false);
@@ -2868,7 +2868,7 @@ TEST_F(HandlersTest, ImpuRegDataHssNotFound)
   EXPECT_EQ("", req.content());
 }
 
-TEST_F(HandlersTest, ImpuRegDataHssUnavailable)
+TEST_F(HTTPHandlersTest, ImpuRegDataHssUnavailable)
 {
   // Tests that a SERVER_UNAVAILABLE error from the HSS triggers a 503 response
   MockHttpStack::Request req = make_request("reg", true, true, false);
@@ -2906,7 +2906,7 @@ TEST_F(HandlersTest, ImpuRegDataHssUnavailable)
   EXPECT_EQ("", req.content());
 }
 
-TEST_F(HandlersTest, ImpuRegDataHssUnknownError)
+TEST_F(HTTPHandlersTest, ImpuRegDataHssUnknownError)
 {
   // Tests that a TIMEOUT error from the HSS triggers a 504 response
   MockHttpStack::Request req = make_request("reg", true, true, false);

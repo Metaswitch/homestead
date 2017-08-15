@@ -1,5 +1,5 @@
 /**
- * @file handlers.h handlers for homestead
+ * @file http_handlers.h handlers for homestead
  *
  * Copyright (C) Metaswitch Networks 2017
  * If license terms are provided to you in a COPYING file in the root directory
@@ -9,19 +9,15 @@
  * Metaswitch Networks in a separate written agreement.
  */
 
-#ifndef HANDLERS_H__
-#define HANDLERS_H__
-
-#include <boost/bind.hpp>
+#ifndef HTTP_HANDLERS_H__
+#define HTTP_HANDLERS_H__
 
 #include "cx.h"
 #include "diameterstack.h"
 #include "httpstack_utils.h"
-#include "statisticsmanager.h"
 #include "sas.h"
 #include "sproutconnection.h"
 #include "health_checker.h"
-#include "snmp_cx_counter_table.h"
 #include "hss_connection.h"
 #include "hss_cache_processor.h"
 #include "implicit_reg_set.h"

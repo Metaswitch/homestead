@@ -1,5 +1,5 @@
 /**
- * @file handlers.cpp handlers for homestead
+ * @file http_handlers.cpp HTTP handlers for homestead
  *
  * Copyright (C) Metaswitch Networks 2017
  * If license terms are provided to you in a COPYING file in the root directory
@@ -9,11 +9,10 @@
  * Metaswitch Networks in a separate written agreement.
  */
 
-#include "handlers.h"
+#include "http_handlers.h"
 #include "homestead_xml_utils.h"
 #include "servercapabilities.h"
 #include "homesteadsasevent.h"
-#include "snmp_cx_counter_table.h"
 
 #include "log.h"
 

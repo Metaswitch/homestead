@@ -21,7 +21,7 @@ COMMON_SOURCES := a_record_resolver.cpp \
                   dnscachedresolver.cpp \
                   dnsparser.cpp \
                   exception_handler.cpp \
-                  handlers.cpp \
+                  http_handlers.cpp \
                   health_checker.cpp \
                   homestead_xml_utils.cpp \
                   hsprov_hss_connection.cpp \
@@ -66,7 +66,7 @@ homestead_test_SOURCES := ${COMMON_SOURCES} \
                           cx_test.cpp \
                           diameter_handlers_test.cpp \
                           diameter_hss_connection_test.cpp \
-                          handlers_test.cpp \
+                          http_handlers_test.cpp \
                           homestead_xml_utils_test.cpp \
                           hsprov_hss_connection_test.cpp \
                           hsprov_store_test.cpp \
