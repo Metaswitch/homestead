@@ -159,7 +159,7 @@ MultimediaAuthAnswer DiameterHssConnection::MARDiameterTransaction::create_answe
   }
   else
   {
-    TRC_INFO("Multimedia-Auth answer with result code %d and experimental result code %d and vendor id %d - reject",
+    TRC_INFO("Multimedia-Auth answer with result code %d and experimental result code %d and vendor id %d",
              result_code, experimental_result, vendor_id);
     SAS::Event event(this->trail(), SASEvent::NO_AV_HSS, 0);
     SAS::report_event(event);
@@ -342,15 +342,44 @@ ServerAssignmentAnswer DiameterHssConnection::SARDiameterTransaction::create_ans
   else if ((experimental_result == DIAMETER_ERROR_USER_UNKNOWN) &&
            (vendor_id == VENDOR_ID_3GPP))
   {
+    TRC_INFO("Server-Assignment answer - user unknown");
+    SAS::Event event(this->trail(), SASEvent::REG_DATA_HSS_FAIL, 0);
+    event.add_static_param(result_code);
+    event.add_static_param(experimental_result_code);
+    SAS::report_event(event);
     rc = ResultCode::NOT_FOUND;
   }
   else if (experimental_result == DIAMETER_ERROR_IN_ASSIGNMENT_TYPE)
   {
     diameter_saa.wildcarded_public_identity(wildcard_impu);
-    rc = ResultCode::NEW_WILDCARD;
+    if (!wildcard_impu.empty())
+    {
+      // The callback will handle tracking whether the wildcard has actually changed
+      rc = ResultCode::NEW_WILDCARD;
+    }
+    else
+    {
+      // An error has been recieved in the SAA, and no wildcard returned
+      int type = 0;
+      saa.server_assignment_type(type);
+      TRC_INFO("Server-Assignment answer with experimental result code "
+               "DIAMETER_ERROR_IN_ASSIGNMENT_TYPE with vendor id %d and "
+               "assignment type %d",
+               vendor_id, type);
+      SAS::Event event(this->trail(), SASEvent::REG_DATA_HSS_FAIL_ASSIGNMENT_TYPE, 0);
+
+      // Present this case as a generic error
+      rc = ResultCode::UNKNOWN;
+    }
   }
   else
   {
+    TRC_INFO("Server-Assignment answer with result code %d and experimental result code %d with vendor id %d",
+             result_code, experimental_result_code, vendor_id);
+    SAS::Event event(this->trail(), SASEvent::REG_DATA_HSS_FAIL, 0);
+    event.add_static_param(result_code);
+    event.add_static_param(experimental_result_code);
+    SAS::report_event(event);
     rc = ResultCode::UNKNOWN;
   }
 

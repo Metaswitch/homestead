@@ -101,8 +101,7 @@ void ImpiTask::get_av()
   if (_impu.empty())
   {
     TRC_INFO("Public ID unknown - reject");
-    // TODO - should change this SAS event to just be "NO_IMPU"
-    SAS::Event event(this->trail(), SASEvent::NO_IMPU_AKA, 0);
+    SAS::Event event(this->trail(), SASEvent::NO_IMPU, 0);
     SAS::report_event(event);
     send_http_reply(HTTP_NOT_FOUND);
     delete this;
@@ -185,7 +184,7 @@ void ImpiTask::on_mar_response(const HssConnection::MultimediaAuthAnswer& maa)
   }
   else if (rc == HssConnection::ResultCode::TIMEOUT)
   {
-    TRC_INFO("HSS busy - reject");
+    TRC_INFO("Timeout error - reject");
 
     // We also record a penalty for the purposes of overload control
     record_penalty();
@@ -440,7 +439,7 @@ void ImpiRegistrationStatusTask::on_uar_response(const HssConnection::UserAuthAn
   }
   else if (rc == HssConnection::ResultCode::TIMEOUT)
   {
-    TRC_INFO("HSS busy - reject");
+    TRC_INFO("Timeout error - reject");
 
     // We also record a penalty for the purposes of overload control
     record_penalty();
@@ -554,7 +553,7 @@ void ImpuLocationInfoTask::on_lir_response(const HssConnection::LocationInfoAnsw
   }
   else if (rc == HssConnection::ResultCode::TIMEOUT)
   {
-    TRC_INFO("HSS busy - reject");
+    TRC_INFO("Timeout error - reject");
 
     // We also record a penalty for the purposes of overload control
     record_penalty();
@@ -900,7 +899,6 @@ void ImpuRegDataTask::on_get_reg_data_success(ImplicitRegistrationSet* irs)
       }
       else
       {
-        // TODO - should we be writing to the cache to update the TTL?
         // No state changes are required for a re-register if we're not
         // notifying a HSS - just respond.
         send_reply();
@@ -1076,8 +1074,6 @@ void ImpuRegDataTask::send_server_assignment_request(Cx::ServerAssignmentType ty
 
 void ImpuRegDataTask::put_in_cache()
 {
-  _irs->set_ttl(_cfg->record_ttl);
-
   // TODO - if all the impus are barred, there will be no default id
   //        Old code would just cache it anyway. Still do that?
   std::string default_public_id = "";
@@ -1173,51 +1169,51 @@ void ImpuRegDataTask::on_sar_response(const HssConnection::ServerAssignmentAnswe
     // Get the charging addresses and user data.
     _irs->set_charging_addresses(saa.get_charging_addresses());
     _irs->set_ims_sub_xml(saa.get_service_profile());
+
+    // We need to update the TTL on receiving an SAA
+    _irs->set_ttl(_cfg->record_ttl);
   }
   else if (rc == HssConnection::ResultCode::SERVER_UNAVAILABLE)
   {
-    // LCOV_EXCL_START - nothing interesting to UT.
-    // This may mean we don't have any Diameter connections. Another Homestead
-    // node might have Diameter connections (either to the HSS, or to an SLF
-    // which is able to talk to the HSS), and we should return a 503 so that
-    // Sprout tries a different Homestead.
+    // This may mean we can't access the Hss. Another Homestead node might be
+    // able to, and we should return a 503 so that Sprout tries a different
+    // Homestead.
+
+    // SAS logging for the errors is the responsibility of the HssConnection
     _http_rc = HTTP_SERVER_UNAVAILABLE;
-    // LCOV_EXCL_STOP
   }
   else if (rc == HssConnection::ResultCode::NOT_FOUND)
   {
-    TRC_INFO("Server-Assignment answer - user unknown");
-    //todo sas log
-    //SAS::Event event(this->trail(), SASEvent::REG_DATA_HSS_FAIL, 0);
-    //event.add_static_param(result_code);
-    //event.add_static_param(experimental_result_code);
-    //SAS::report_event(event);
+    TRC_INFO("Server-Assignment answer - not found");
+
+    // SAS logging for the errors is the responsibility of the HssConnection
     _http_rc = HTTP_NOT_FOUND;
   }
   else if (rc == HssConnection::ResultCode::NEW_WILDCARD)
   {
     // An error has been recieved in the SAA, and the wildcard has been
-    // updated. Return to searching the cache with the new wildcarded public
-    // identity,and continue the processing from there - possibly send another
-    // SAR and recieve an SAA, and send an http response.
-    //SAS::Event event(this->trail(), SASEvent::REG_DATA_HSS_UPDATED_WILDCARD, 0);
-    //event.add_var_param(current_wildcard);
-    //event.add_var_param(_hss_wildcard);
-    //SAS::report_event(event);
-
+    // provided on the response
     std::string current_wildcard = wildcard_id();
     _hss_wildcard = saa.get_wildcard_impu();
+
     if (current_wildcard == _hss_wildcard)
     {
       // The wildcard has not actually been updated. Return an error rather than
       // retrying to avoid looping.
-      //TODO sas logging
+      // SAS logging for the errors is the responsibility of the HssConnection
       _http_rc = HTTP_SERVER_ERROR;
     }
     else
     {
-      // We have an updated wildcard, so perform a new lookup. We need to
-      //delete the old IRS
+      // We have an updated wildcard, so perform a new lookup with the new one.
+
+      // Log this to SAS
+      SAS::Event event(this->trail(), SASEvent::REG_DATA_HSS_UPDATED_WILDCARD, 0);
+      event.add_var_param(current_wildcard);
+      event.add_var_param(_hss_wildcard);
+      SAS::report_event(event);
+
+      // We need to delete the old IRS
       delete _irs; _irs = NULL;
 
       get_reg_data();
@@ -1228,22 +1224,19 @@ void ImpuRegDataTask::on_sar_response(const HssConnection::ServerAssignmentAnswe
   }
   else if (rc == HssConnection::ResultCode::TIMEOUT)
   {
-    TRC_INFO("HSS busy - reject");
+    TRC_INFO("Timeout error - reject");
 
     // We also record a penalty for the purposes of overload control
     record_penalty();
 
-        // TODO SAS logging?
-    //sas_log_hss_failure(result_code, experimental_result_code);
+    // SAS logging for the errors is the responsibility of the HssConnection
     _http_rc = HTTP_GATEWAY_TIMEOUT;
   }
   else
   {
     TRC_INFO("Server-Assignment answer with result code %d - reject", rc);
-    /*TODOSAS::Event event(this->trail(), SASEvent::REG_DATA_HSS_FAIL, 0);
-    event.add_static_param(result_code);
-    event.add_static_param(experimental_result_code);
-    SAS::report_event(event);*/
+
+    // SAS logging for the errors is the responsibility of the HssConnection
     _http_rc = HTTP_SERVER_ERROR;
   }
 
