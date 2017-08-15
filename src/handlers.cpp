@@ -1396,11 +1396,11 @@ void RegistrationTerminationTask::run()
     // If we have a list of IMPUs to deregister and the reason is allowed, we
     // want to only deregister those specific impus, so start by getting all the
     // IRSs from the cache for those IMPUS
-    // TODO - SAS logging
-    /*TRC_DEBUG("Finding registration set for public identity %s", impu.c_str());
     SAS::Event event(this->trail(), SASEvent::CACHE_GET_REG_DATA, 0);
-    event.add_var_param(impu);
-    SAS::report_event(event);*/
+    std::string impus_str = boost::algorithm::join(_impus, ", ");
+    event.add_var_param(impus_str);
+    SAS::report_event(event);
+    TRC_DEBUG("Finding registration sets for public identities %s", impus_str.c_str());
     _cfg->cache->get_implicit_registration_sets_for_impus(success_cb,
                                                           failure_cb,
                                                           _impus,
