@@ -204,24 +204,6 @@ void ImpiTask::on_mar_response(const HssConnection::MultimediaAuthAnswer& maa)
     SAS::report_event(event);
     send_http_reply(HTTP_SERVER_ERROR);
   }
-  /* TODO
-
-  // IMS mandates that exactly one of result code or experimental result code
-  // will be set, so we can unambiguously assume that, if one is set, then the
-  // other one won't be.
-  if (result_code != 0)
-  {
-    mar_results_tbl->increment(SNMP::DiameterAppId::BASE, result_code);
-  }
-  else if (experimental_result_code != 0 && vendor_id == VENDOR_ID_3GPP)
-  {
-    mar_results_tbl->increment(SNMP::DiameterAppId::_3GPP, experimental_result_code);
-  }
-  TRC_DEBUG("Received Multimedia-Auth answer with result code %d and experimental result code %d with vendor id %d",
-            result_code, experimental_result_code, vendor_id);
-
-
-  TODO*/
 
   delete this;
 }
@@ -400,27 +382,6 @@ void ImpiRegistrationStatusTask::run()
 
   // Send the request
   _hss->send_user_auth_request(callback, request, this->trail());
-  /*TODO
-     TRC_DEBUG("No HSS configured - fake response if subscriber exists");
-    SAS::Event event(this->trail(), SASEvent::ICSCF_NO_HSS, 0);
-    SAS::report_event(event);
-    rapidjson::StringBuffer sb;
-    rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
-    writer.StartObject();
-    writer.String(JSON_RC.c_str());
-    writer.Int(DIAMETER_SUCCESS);
-    writer.String(JSON_SCSCF.c_str());
-    writer.String(_configured_server_name.c_str());
-    writer.EndObject();
-    _req.add_content(sb.GetString());
-    send_http_reply(HTTP_OK);
-    if (_health_checker)
-    {
-      _health_checker->health_check_passed();
-    }
-    delete this;
-  }
-  TODO*/
 }
 
 void ImpiRegistrationStatusTask::on_uar_response(const HssConnection::UserAuthAnswer& uaa)
@@ -511,29 +472,6 @@ void ImpiRegistrationStatusTask::on_uar_response(const HssConnection::UserAuthAn
     //sas_log_hss_failure(result_code, experimental_result_code);
     send_http_reply(HTTP_SERVER_ERROR);
   }
-
-  /*TODO
-  Cx::UserAuthorizationAnswer uaa(rsp);
-  int32_t result_code = 0;
-  uaa.result_code(result_code);
-  int32_t experimental_result_code = 0;
-  uint32_t vendor_id = 0;
-  uaa.experimental_result(experimental_result_code, vendor_id);
-
-  // IMS mandates that exactly one of result code or experimental result code
-  // will be set, so we can unambiguously assume that, if one is set, then the
-  // other one won't be.
-  if (result_code != 0)
-  {
-    uar_results_tbl->increment(SNMP::DiameterAppId::BASE, result_code);
-  }
-  else if (experimental_result_code != 0 &&
-           vendor_id == VENDOR_ID_3GPP)
-  {
-    uar_results_tbl->increment(SNMP::DiameterAppId::_3GPP, experimental_result_code);
-  }
-
-  */
 
   delete this;
 }
@@ -658,30 +596,7 @@ void ImpuLocationInfoTask::on_lir_response(const HssConnection::LocationInfoAnsw
     //sas_log_hss_failure(result_code, experimental_result_code);
     send_http_reply(HTTP_SERVER_ERROR);
   }
-  /*TODO
-  Cx::LocationInfoAnswer lia(rsp);
-  int32_t result_code = 0;
-  lia.result_code(result_code);
-  int32_t experimental_result_code = 0;
-  uint32_t vendor_id = 0;
-  lia.experimental_result(experimental_result_code, vendor_id);
 
-  // IMS mandates that exactly one of result code or experimental result code
-  // will be set, so we can unambiguously assume that, if one is set, then the
-  // other one won't be.
-  if (result_code != 0)
-  {
-    lir_results_tbl->increment(SNMP::DiameterAppId::BASE, result_code);
-  }
-  else if (experimental_result_code != 0 &&
-           vendor_id == VENDOR_ID_3GPP)
-  {
-    lir_results_tbl->increment(SNMP::DiameterAppId::_3GPP, experimental_result_code);
-  }
-  TRC_DEBUG("Received Location-Info answer with result %d/%d (vendor %d)",
-            result_code, experimental_result_code, vendor_id);
-
-  */
   delete this;
 }
 
@@ -975,8 +890,6 @@ void ImpuRegDataTask::on_get_reg_data_success(ImplicitRegistrationSet* irs)
     new_binding = true;
   }
 
- //TODO sr2sr2 reg_state vs _original and _new states
-
   // Work out whether we're allowed to answer only using the cache. If not we
   // will have to contact the HSS.
   bool cache_not_allowed = (_req.header("Cache-control") == "no-cache");
@@ -1101,301 +1014,6 @@ void ImpuRegDataTask::on_get_reg_data_success(ImplicitRegistrationSet* irs)
     return;
     // LCOV_EXCL_STOP - unreachable
   }
-  /*TODO
-  Cache::GetRegData* get_reg_data = (Cache::GetRegData*)op;
-  sas_log_get_reg_data_success(get_reg_data, trail());
-
-  std::vector<std::string> associated_impis;
-  int32_t ttl = 0;
-  get_reg_data->get_xml(_xml, ttl);
-  get_reg_data->get_registration_state(_original_state, ttl);
-  get_reg_data->get_associated_impis(associated_impis);
-  get_reg_data->get_charging_addrs(_charging_addrs);
-  bool new_binding = false;
-
-
-  // By default, we should remain in the existing state.
-  _new_state = _original_state;
-
-  // GET requests shouldn't change the state - just respond with what
-  // we have in the database
-  if (_req.method() == htp_method_GET)
-  {
-    send_reply();
-    delete this;
-    return;
-  }
-
-  // If Sprout didn't specify a private Id on the request, we may
-  // have one embedded in the cached User-Data which we can retrieve.
-  // If Sprout did specify a private Id on the request, check whether
-  // we have a record of this binding.
-  if (_impi.empty())
-  {
-    _impi = XmlUtils::get_private_id(_xml);
-  }
-  else if ((!_xml.empty()) &&
-           ((associated_impis.empty()) ||
-            (std::find(associated_impis.begin(), associated_impis.end(), _impi) == associated_impis.end())))
-  {
-    TRC_DEBUG("Subscriber registering with new binding");
-    new_binding = true;
-  }
-
-  // Split the processing depending on whether an HSS is configured.
-  if (_cfg->hss_configured)
-  {
-    // If the subscriber is registering with a new binding, store
-    // the private Id in the cache.
-    if (new_binding)
-    {
-      /////////////////////////////////////////////////////////
-      // sr2sr2 This is actually done on save iRS now
-      /////////////////////////////////////////////////////////
-      
-      TRC_DEBUG("Associating private identity %s to IRS for %s",
-                _impi.c_str(),
-                _impu.c_str());
-      std::string default_public_id;
-      std::vector<std::string> public_ids =
-        XmlUtils::get_public_and_default_ids(_xml, default_public_id);
-      CassandraStore::Operation* put_associated_private_id =
-        _cache->create_PutAssociatedPrivateID(public_ids,
-                                              default_public_id,
-                                              _impi,
-                                              Cache::generate_timestamp(),
-                                              _cfg->record_ttl);
-      CassandraStore::Transaction* tsx = new CacheTransaction;
-
-      // TODO: Technically, we should be blocking our response until this PUT
-      // has completed (in case the client relies on it having been done by the
-      // time it gets control again).  This is awkward to implement, so pend
-      // this change until a use case arises that needs it.
-      _cache->do_async(put_associated_private_id, tsx);
-    }
-
-    // Work out whether we're allowed to answer only using the cache. If not we
-    // will have to contact the HSS.
-    bool cache_not_allowed = (_req.header("Cache-control") == "no-cache");
-
-    if (_type == RequestType::REG)
-    {
-      // This message was based on a REGISTER request from Sprout. Check
-      // the subscriber's state in Cassandra to determine whether this
-      // is an initial registration or a re-registration. If this subscriber
-      // is already registered but is registering with a new binding, we
-      // still need to tell the HSS.
-      if ((_original_state == RegistrationState::REGISTERED) && (!new_binding))
-      {
-        int record_age = _cfg->record_ttl - ttl;
-        TRC_DEBUG("Handling re-registration with binding age of %d", record_age);
-        _new_state = RegistrationState::REGISTERED;
-
-        // We refresh the record's TTL everytime we receive an SAA from
-        // the HSS. As such once the record is older than the HSS Reregistration
-        // time, we need to send a new SAR to the HSS.
-        //
-        // Alternatively we need to notify the HSS if the HTTP request does not
-        // allow cached responses.
-        if (record_age >= _cfg->hss_reregistration_time)
-        {
-          TRC_DEBUG("Sending re-registration to HSS as %d seconds have passed",
-                    record_age, _cfg->hss_reregistration_time);
-          send_server_assignment_request(Cx::ServerAssignmentType::RE_REGISTRATION);
-        }
-        else if (cache_not_allowed)
-        {
-          TRC_DEBUG("Sending re-registration to HSS as cached responses are not allowed");
-          send_server_assignment_request(Cx::ServerAssignmentType::RE_REGISTRATION);
-        }
-        else
-        {
-          // No state changes are required for a re-register if we're
-          // not notifying a HSS - just respond.
-          send_reply();
-          delete this;
-          return;
-        }
-      }
-      else
-      {
-        // Send a Server-Assignment-Request and cache the response.
-        TRC_DEBUG("Handling initial registration");
-        _new_state = RegistrationState::REGISTERED;
-        send_server_assignment_request(Cx::ServerAssignmentType::REGISTRATION);
-      }
-    }
-    else if (_type == RequestType::CALL)
-    {
-      // This message was based on an initial non-REGISTER request
-      // (INVITE, PUBLISH, MESSAGE etc.).
-      TRC_DEBUG("Handling call");
-
-      if (_original_state == RegistrationState::NOT_REGISTERED)
-      {
-        // We don't know anything about this subscriber. Send a
-        // Server-Assignment-Request to provide unregistered service for
-        // this subscriber.
-        TRC_DEBUG("Moving to unregistered state");
-        _new_state = RegistrationState::UNREGISTERED;
-        send_server_assignment_request(Cx::ServerAssignmentType::UNREGISTERED_USER);
-      }
-      else
-      {
-        // We're already assigned to handle this subscriber - respond
-        // with the iFCs anfd whether they're in registered state or not.
-        send_reply();
-        delete this;
-        return;
-      }
-    }
-    else if (is_deregistration_request(_type))
-    {
-      // Sprout wants to deregister this subscriber (because of a
-      // REGISTER with Expires: 0, a timeout of all bindings, a failed
-      // app server, etc.).
-      if (_original_state != RegistrationState::NOT_REGISTERED)
-      {
-        // Forget about this subscriber entirely and send an appropriate SAR.
-        TRC_DEBUG("Handling deregistration");
-        _new_state = RegistrationState::NOT_REGISTERED;
-        send_server_assignment_request(sar_type_for_request(_type));
-      }
-      else
-      {
-        // We treat a deregistration for a deregistered user as an error
-        // - this is useful for preventing loops, where we try and
-        // continually deregister a user.
-        TRC_DEBUG("Rejecting deregistration for user who was not registered");
-        SAS::Event event(this->trail(), SASEvent::SUB_NOT_REG, 0);
-        SAS::report_event(event);
-        send_http_reply(HTTP_BAD_REQUEST);
-        delete this;
-        return;
-      }
-    }
-    else if (is_auth_failure_request(_type))
-    {
-      // Authentication failures don't change our state (if a user's
-      // already registered, failing to log in with a new binding
-      // shouldn't deregister them - if they're not registered and fail
-      // to log in, they're already in the right state).
-
-      // Notify the HSS, so that it removes the Auth-Pending flag.
-      TRC_DEBUG("Handling authentication failure/timeout");
-      send_server_assignment_request(sar_type_for_request(_type));
-    }
-    else
-    {
-      // LCOV_EXCL_START - unreachable
-      TRC_ERROR("Invalid type %d", _type);
-      delete this;
-      return;
-      // LCOV_EXCL_STOP - unreachable
-    }
-  }
-  else
-  {
-    // No HSS
-    bool caching = false;
-    if (_type == RequestType::REG)
-    {
-      // This message was based on a REGISTER request from Sprout. Check
-      // the subscriber's state in Cassandra to determine whether this
-      // is an initial registration or a re-registration.
-      switch (_original_state)
-      {
-      case RegistrationState::REGISTERED:
-        // No state changes in the cache are required for a re-register -
-        // just respond.
-        TRC_DEBUG("Handling re-registration");
-        _new_state = RegistrationState::REGISTERED;
-        send_reply();
-        break;
-
-      case RegistrationState::UNREGISTERED:
-        // We have been locally provisioned with this subscriber, so
-        // put it into REGISTERED state.
-        TRC_DEBUG("Handling initial registration");
-        _new_state = RegistrationState::REGISTERED;
-        put_in_cache();
-        caching = true;
-        break;
-
-      default:
-        // We have no record of this subscriber, so they don't exist.
-        TRC_DEBUG("Unrecognised subscriber");
-        SAS::Event event(this->trail(), SASEvent::NO_SUB_CACHE, 0);
-        SAS::report_event(event);
-        send_http_reply(HTTP_NOT_FOUND);
-        break;
-      }
-    }
-    else if (_type == RequestType::CALL)
-    {
-      // This message was based on an initial non-REGISTER request
-      // (INVITE, PUBLISH, MESSAGE etc.).
-      TRC_DEBUG("Handling call");
-
-      if (_original_state == RegistrationState::NOT_REGISTERED)
-      {
-        // We don't know anything about this subscriber so reject
-        // the request.
-        send_http_reply(HTTP_NOT_FOUND);
-      }
-      else
-      {
-        // We're already assigned to handle this subscriber - respond
-        // with the iFCs and whether they're in registered state or not.
-        send_reply();
-      }
-    }
-    else if (is_deregistration_request(_type))
-    {
-      // Sprout wants to deregister this subscriber (because of a
-      // REGISTER with Expires: 0, a timeout of all bindings, a failed
-      // app server, etc.).
-      if (_original_state == RegistrationState::REGISTERED)
-      {
-        // Move the subscriber into unregistered state (but retain the
-        // data, as it's not stored anywhere else).
-        TRC_DEBUG("Handling deregistration");
-        _new_state = RegistrationState::UNREGISTERED;
-        put_in_cache();
-        caching = true;
-      }
-      else
-      {
-        // We treat a deregistration for a deregistered user as an error
-        // - this is useful for preventing loops, where we try and
-        // continually deregister a user
-        TRC_DEBUG("Rejecting deregistration for user who was not registered");
-        send_http_reply(HTTP_BAD_REQUEST);
-      }
-    }
-    else if (is_auth_failure_request(_type))
-    {
-      // Authentication failures don't change our state (if a user's
-      // already registered, failing to log in with a new binding
-      // shouldn't deregister them - if they're not registered and fail
-      // to log in, they're already in the right state).
-      TRC_DEBUG("Handling authentication failure/timeout");
-      send_reply();
-    }
-    else
-    {
-      // LCOV_EXCL_START - unreachable
-      TRC_ERROR("Invalid type %d", _type);
-      // LCOV_EXCL_STOP - unreachable
-    }
-
-    // If we're not caching the registration data, delete the task now
-    if (!caching)
-    {
-      delete this;
-    }
-  }
-  TODO*/
 }
 
 void ImpuRegDataTask::send_reply()
@@ -1484,11 +1102,7 @@ void ImpuRegDataTask::send_server_assignment_request(Cx::ServerAssignmentType ty
 
 void ImpuRegDataTask::put_in_cache()
 {
-  //TODO - TTL should be registration based, no?
-
   _irs->set_ttl(_cfg->record_ttl);
-
-  // TODO want ttl for non-hss too, don't we?
 
   // TODO - if all the impus are barred, there will be no default id
   //        Old code would just cache it anyway. Still do that?
@@ -1658,26 +1272,6 @@ void ImpuRegDataTask::on_sar_response(const HssConnection::ServerAssignmentAnswe
     SAS::report_event(event);*/
     _http_rc = HTTP_SERVER_ERROR;
   }
-    /*TODO this should be in the diameterhssconnection
-    std::string current_wildcard = wildcard_id();
-    saa.wildcarded_public_identity(_hss_wildcard);
-    if (current_wildcard == _hss_wildcard)
-    {
-      // An error has been recieved in the SAA, and the wildcard has not been
-      // updated. Return an error instead of retrying to avoid being stuck in a
-      // loop.
-      int type = 0;
-      saa.server_assignment_type(type);
-      TRC_INFO("Server-Assignment answer with experimental result code "
-               "DIAMETER_ERROR_IN_ASSIGNMENT_TYPE and wildcarded public id %s, "
-               "with vendor id %d and assignment type %d - reject",
-               _hss_wildcard.c_str(), vendor_id, type);
-      SAS::Event event(this->trail(), SASEvent::REG_DATA_HSS_FAIL_ASSIGNMENT_TYPE, 0);
-      event.add_static_param(type);
-      SAS::report_event(event);
-      _http_rc = HTTP_SERVER_ERROR;
-    }
-    */
 
   // Update the cache if required.
   bool pending_cache_op = false;
@@ -1704,9 +1298,6 @@ void ImpuRegDataTask::on_sar_response(const HssConnection::ServerAssignmentAnswe
     // don't want to delete the data (since the new Homestead node will receive
     // the request, not find the subscriber registered in the cache and reject
     // the request without trying to notify the HSS).
-
-    // TODO: previously we created a batch delete fro multiple impus on the xml,
-    // but pretty sure that's an implementation detail so not doing that
     void_success_cb success_cb =
       std::bind(&ImpuRegDataTask::on_del_impu_success, this);
 
@@ -1727,32 +1318,8 @@ void ImpuRegDataTask::on_sar_response(const HssConnection::ServerAssignmentAnswe
     delete _irs; _irs = NULL;
     delete this;
   }
+
   return;
-
-  /*TODO
-  Cx::ServerAssignmentAnswer saa(rsp);
-  int32_t result_code = 0;
-  saa.result_code(result_code);
-  int32_t experimental_result_code = 0;
-  uint32_t vendor_id = 0;
-  saa.experimental_result(experimental_result_code, vendor_id);
-
-  // IMS mandates that exactly one of result code or experimental result code
-  // will be set, so we can unambiguously assume that, if one is set, then the
-  // other one won't be.
-  if (result_code != 0)
-  {
-    sar_results_tbl->increment(SNMP::DiameterAppId::BASE, result_code);
-  }
-  else if (experimental_result_code != 0 &&
-           vendor_id == VENDOR_ID_3GPP)
-  {
-    sar_results_tbl->increment(SNMP::DiameterAppId::_3GPP, experimental_result_code);
-  }
-  TRC_DEBUG("Received Server-Assignment answer with result code %d and experimental result code %d with vendor id %d",
-            result_code, experimental_result_code);
-TODO*/
-
 }
 
 // Returns the public id to use - priorities any wildcarded public id.
