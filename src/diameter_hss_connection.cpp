@@ -345,7 +345,7 @@ ServerAssignmentAnswer DiameterHssConnection::SARDiameterTransaction::create_ans
     TRC_INFO("Server-Assignment answer - user unknown");
     SAS::Event event(this->trail(), SASEvent::REG_DATA_HSS_FAIL, 0);
     event.add_static_param(result_code);
-    event.add_static_param(experimental_result_code);
+    event.add_static_param(experimental_result);
     SAS::report_event(event);
     rc = ResultCode::NOT_FOUND;
   }
@@ -361,7 +361,7 @@ ServerAssignmentAnswer DiameterHssConnection::SARDiameterTransaction::create_ans
     {
       // An error has been recieved in the SAA, and no wildcard returned
       int type = 0;
-      saa.server_assignment_type(type);
+      diameter_saa.server_assignment_type(type);
       TRC_INFO("Server-Assignment answer with experimental result code "
                "DIAMETER_ERROR_IN_ASSIGNMENT_TYPE with vendor id %d and "
                "assignment type %d",
@@ -375,10 +375,10 @@ ServerAssignmentAnswer DiameterHssConnection::SARDiameterTransaction::create_ans
   else
   {
     TRC_INFO("Server-Assignment answer with result code %d and experimental result code %d with vendor id %d",
-             result_code, experimental_result_code, vendor_id);
+             result_code, experimental_result, vendor_id);
     SAS::Event event(this->trail(), SASEvent::REG_DATA_HSS_FAIL, 0);
     event.add_static_param(result_code);
-    event.add_static_param(experimental_result_code);
+    event.add_static_param(experimental_result);
     SAS::report_event(event);
     rc = ResultCode::UNKNOWN;
   }
