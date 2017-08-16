@@ -260,7 +260,7 @@ Store::Status ImpuStore::Impu::to_data(std::string& data)
         // Compression failed - retry with a bigger buffer.
         // Buffer size is the only reason it can fail. We stop
         // the buffer growing beyond reason.
-        int new_buffer_length = _buffer_len * 2;
+        int new_buffer_length = buffer_length * 2;
 
         if (new_buffer_length > MAX_BUFFER_LEN)
         {
@@ -272,7 +272,7 @@ Store::Status ImpuStore::Impu::to_data(std::string& data)
           break;
         }
 
-        buffer_length = new_buffer_len;
+        buffer_length = new_buffer_length;
 
         buffer = (char*) realloc((void*)buffer, buffer_length);
         LZ4_resetStream(stream);
