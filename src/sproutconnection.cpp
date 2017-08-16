@@ -19,6 +19,7 @@
 const std::string SproutConnection::JSON_REGISTRATIONS = "registrations";
 const std::string SproutConnection::JSON_PRIMARY_IMPU = "primary-impu";
 const std::string SproutConnection::JSON_IMPI = "impi";
+const std::string SproutConnection::JSON_ASSOCIATED_IDENTITIES = "associated-identities";
 
 SproutConnection::SproutConnection(HttpConnection* http) : _http(http)
 {
@@ -95,3 +96,38 @@ std::string SproutConnection::create_body(const std::vector<std::string>& defaul
   writer.EndObject();
   return sb.GetString();
 }
+
+HTTPCode SproutConnection::change_associated_identities(const std::string& default_id,
+							const std::vector<std::string>& impus,
+							SAS::TrailId trail)
+{
+  std::string path = "/registrations/" + default_id;
+  std::string body = change_ids_create_body(impus);
+  TRC_DEBUG("JSON Body is %s", body.c_str());
+  HTTPCode ret_code = _http->send_post(path, body, trail);
+  TRC_DEBUG("HTTP return code from Sprout: %d", ret_code);
+  return ret_code;
+}
+
+std::string SproutConnection::change_ids_create_body(const std::vector<std::string>& impus)
+{
+  // Utility function to create HTTP body to send to Sprout
+  rapidjson::StringBuffer sb;
+  rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
+
+  writer.StartObject();
+  {
+    writer.String(JSON_ASSOCIATED_IDENTITIES.c_str());
+    writer.StartArray();
+    for (std::vector<std::string>::const_iterator i = impus.begin();
+	 i != impus.end();
+         i++)
+    {
+      writer.String((*i).c_str());
+    }
+    writer.EndArray();
+  }
+  writer.EndObject();
+  return sb.GetString();
+}
+

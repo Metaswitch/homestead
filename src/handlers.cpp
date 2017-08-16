@@ -2379,6 +2379,7 @@ void PushProfileTask::on_get_primary_impus_failure(CassandraStore::Operation* op
 
 void PushProfileTask::on_get_primary_impus_success(CassandraStore::Operation* op)
 {
+  TRC_DEBUG("Returned a vector of default identities");
   // Returns a list of default IMPUs, one default IMPU per IRS.
   Cache::GetAssociatedPrimaryPublicIDs* get_primary_public_ids =
     (Cache::GetAssociatedPrimaryPublicIDs*)op;
@@ -2510,6 +2511,7 @@ void PushProfileTask::get_irs()
 
 void PushProfileTask::on_get_irs_success(CassandraStore::Operation* op)
 {
+  TRC_DEBUG("Registration set found for public identity %s", _default_public_id.c_str());
   Cache::GetRegData* get_reg_data_result = (Cache::GetRegData*)op;
   sas_log_get_reg_data_success(get_reg_data_result, trail());
   std::string ims_sub;
@@ -2540,9 +2542,52 @@ void PushProfileTask::on_get_irs_failure(CassandraStore::Operation* op,
 
 void PushProfileTask::update_reg_data()
 {
+  TRC_DEBUG("PPR is valid");
+  HTTPCode ret_code = 0;
   if (!_ims_sub_present || !is_first_irs())
   {
     _impus = _irs_impus;
+  }
+
+  if (_ims_sub_present && is_first_irs())
+  {
+    find_impus_to_delete();
+    if (!_impus_to_delete.empty() || any_new_impus())
+    {
+      TRC_DEBUG("Identities have changed, going to inform sprout");
+      ret_code = _cfg->sprout_conn->change_associated_identities(_default_public_id,
+    							         _impus,
+								 this->trail());
+      TRC_DEBUG("Informed Sprout");
+      switch (ret_code)
+      {
+      case HTTP_OK:
+      {
+        TRC_DEBUG("NOTIFY sent from Sprout");
+      }
+      break;
+
+      case HTTP_BADMETHOD:
+      case HTTP_BAD_REQUEST:
+      case HTTP_SERVER_ERROR:
+      {
+        TRC_DEBUG("Send Push Profile answer indicating failure");
+        send_ppa(DIAMETER_REQ_FAILURE);
+	delete this;
+	return;
+      }
+      break;
+
+      default:
+      {
+        TRC_ERROR("Unexpected HTTP return code, send Push Profile answer indicating failure");
+	send_ppa(DIAMETER_REQ_FAILURE);
+        delete this;
+        return;
+      }
+      break;
+      }
+    }
   }
 
   Cache::PutRegData* put_reg_data =
@@ -2562,7 +2607,6 @@ void PushProfileTask::update_reg_data()
     put_reg_data->with_xml(_ims_subscription);
     event.add_compressed_param(_ims_subscription, &SASEvent::PROFILE_SERVICE_PROFILE);
     // Delete any IMPUs from the cache that have been deleted from IRS.
-    find_impus_to_delete();
     if (!_impus_to_delete.empty())
     {
       delete_impus();

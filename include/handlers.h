@@ -589,17 +589,20 @@ public:
   {
     Config(Cache* _cache,
            Cx::Dictionary* _dict,
+	   SproutConnection* _sprout_conn,
            int _impu_cache_ttl = 0,
            int _hss_reregistration_time = 3600,
            int _record_ttl = 7200) :
       cache(_cache),
       dict(_dict),
+      sprout_conn(_sprout_conn),
       impu_cache_ttl(_impu_cache_ttl),
       hss_reregistration_time(_hss_reregistration_time),
       record_ttl(_record_ttl) {}
 
     Cache* cache;
     Cx::Dictionary* dict;
+    SproutConnection* sprout_conn;
     int impu_cache_ttl;
     int hss_reregistration_time;
     int record_ttl;

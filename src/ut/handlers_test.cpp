@@ -134,6 +134,7 @@ public:
   static const std::string DEREG_BODY_LIST;
   static const std::string DEREG_BODY_LIST2;
   static const std::string DEREG_BODY_LIST3;
+  static const std::string PUSH_PROFILE_BODY;
   static const std::deque<std::string> NO_CFS;
   static const std::deque<std::string> CCFS;
   static const std::deque<std::string> ECFS;
@@ -1487,7 +1488,7 @@ public:
     // then the request will be freed twice.
     ppr._free_on_delete = false;
 
-    *pcfg = new PushProfileTask::Config(_cache, _cx_dict, 0, 3600);
+    *pcfg = new PushProfileTask::Config(_cache, _cx_dict, _sprout_conn, 0, 3600);
     *ptask = new PushProfileTask(_cx_dict, &ppr._fd_msg, *pcfg, FAKE_TRAIL_ID);
 
     // We have to make sure the message is pointing at the mock stack.
@@ -1574,6 +1575,15 @@ public:
       .Times(1)
       .WillOnce(Return(mock_op));
     EXPECT_DO_ASYNC(*_cache, *mock_op);
+  }
+
+  void ppr_sprout_connection(std::string impu, std::string body, HTTPCode http_ret_code)
+  {
+    // Expect a post to be sent to Sprout.
+    std::string http_path = "/registrations/" + impu;
+    EXPECT_CALL(*_mock_http_conn, send_post(http_path, body, _))
+      .Times(1)
+      .WillOnce(Return(http_ret_code));
   }
 
   void ppr_expect_ppa()
@@ -1900,6 +1910,7 @@ const std::string HandlersTest::DEREG_BODY_PAIRINGS5 = "{\"registrations\":[{\"p
                                                                        "\"},{\"primary-impu\":\"" + IMPU3 + "\",\"impi\":\"" + IMPI +
                                                                        "\"},{\"primary-impu\":\"" + IMPU3 + "\",\"impi\":\"" + ASSOCIATED_IDENTITY1 +
                                                                        "\"},{\"primary-impu\":\"" + IMPU3 + "\",\"impi\":\"" + ASSOCIATED_IDENTITY2 + "\"}]}";
+const std::string HandlersTest::PUSH_PROFILE_BODY = "{\"associated-identities\":[\"" + IMPU + "\",\"" + IMPU4 + "\"]}";
 const std::string HandlersTest::SCHEME_DIGEST = "SIP Digest";
 const std::string HandlersTest::SCHEME_AKA = "Digest-AKAv1-MD5";
 const std::string HandlersTest::SCHEME_AKAV2 = "Digest-AKAv2-SHA-256";
@@ -4646,6 +4657,7 @@ TEST_F(HandlersTest, PushProfileChangeIDs)
   CassandraStore::Transaction* t = mock_op.get_trx();
   ASSERT_FALSE(t == NULL);
   ppr_get_default_ids(&mock_op, IMPU_IN_VECTOR);
+  ppr_sprout_connection(IMPU, PUSH_PROFILE_BODY, HTTP_OK);
 
   MockCache::MockGetRegData mock_op2;
   ppr_expect_get_reg_data(&mock_op2, IMPU);
@@ -4797,6 +4809,8 @@ TEST_F(HandlersTest, PushProfileIMSSubChangeIDs)
   CassandraStore::Transaction* t = mock_op.get_trx();
   ASSERT_FALSE(t == NULL);
   ppr_get_default_ids(&mock_op, IMPU_IN_VECTOR);
+
+  ppr_sprout_connection(IMPU, PUSH_PROFILE_BODY, HTTP_OK);
 
   MockCache::MockGetRegData mock_op2;
   ppr_expect_get_reg_data(&mock_op2, IMPU);

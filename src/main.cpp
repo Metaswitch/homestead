@@ -791,6 +791,7 @@ int main(int argc, char**argv)
                                                          options.hss_reregistration_time);
     ppr_config = new PushProfileTask::Config(cache,
                                              dict,
+					     sprout_conn,
                                              options.impu_cache_ttl,
                                              options.hss_reregistration_time,
                                              record_ttl);
