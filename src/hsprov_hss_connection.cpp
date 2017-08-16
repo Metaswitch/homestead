@@ -57,8 +57,6 @@ void HsProvHssConnection::HsProvTransaction<T>::update_latency_stats()
   unsigned long latency = 0;
   if ((_stats_manager != NULL) && get_duration(latency))
   {
-    // TODO
-    // This should not be cache, this should be Cassandra latency
     _stats_manager->update_H_hsprov_latency_us(latency);
   }
 }
@@ -70,7 +68,7 @@ MultimediaAuthAnswer HsProvHssConnection::MARHsProvTransaction::create_answer(Ca
 
   ResultCode rc = ResultCode::SUCCESS;
   AuthVector* av = NULL;
-  
+
   if (cass_result == CassandraStore::OK)
   {
     // HsProv uses DigestAuthVectors only

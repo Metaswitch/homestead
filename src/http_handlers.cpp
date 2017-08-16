@@ -103,6 +103,8 @@ void ImpiTask::send_mar()
 void ImpiTask::on_mar_response(const HssConnection::MultimediaAuthAnswer& maa)
 {
   HssConnection::ResultCode rc = maa.get_result();
+  TRC_DEBUG("Received Multimedia-Authorization answer with result code %d", rc);
+
   if (rc == HssConnection::ResultCode::SUCCESS)
   {
     std::string sip_auth_scheme = maa.get_scheme();
@@ -467,6 +469,8 @@ void ImpuLocationInfoTask::run()
 void ImpuLocationInfoTask::on_lir_response(const HssConnection::LocationInfoAnswer& lia)
 {
   HssConnection::ResultCode rc = lia.get_result();
+  TRC_DEBUG("Received Server-Assignment answer with result code %d", rc);
+
   if (rc == HssConnection::ResultCode::SUCCESS)
   {
     rapidjson::StringBuffer sb;
@@ -1136,7 +1140,6 @@ void ImpuRegDataTask::on_put_reg_data_failure(Store::Status rc)
 void ImpuRegDataTask::on_sar_response(const HssConnection::ServerAssignmentAnswer& saa)
 {
   HssConnection::ResultCode rc = saa.get_result();
-
   TRC_DEBUG("Received Server-Assignment answer with result code %d", rc);
 
   if (rc == HssConnection::ResultCode::SUCCESS)
