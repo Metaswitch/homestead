@@ -1104,7 +1104,7 @@ void ImpuRegDataTask::put_in_cache()
     _cache->put_implicit_registration_set(success_cb, failure_cb, _irs, this->trail());
 
     // We've relinquished ownership of _irs to the cache
-    _irs = NULL;
+    //TODO _irs = NULL;
   }
   else
   {
@@ -1256,7 +1256,7 @@ void ImpuRegDataTask::on_sar_response(const HssConnection::ServerAssignmentAnswe
     _cache->delete_implicit_registration_set(success_cb, failure_cb, _irs, this->trail());
 
     // We've relinquished ownership of _irs to the cache
-    _irs = NULL;
+    //TODO _irs = NULL;
     pending_cache_op = true;
   }
 
