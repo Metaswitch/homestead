@@ -67,7 +67,8 @@ ImpuStore::Impu* ImpuStore::Impu::from_data(std::string const& impu,
 
     do
     {
-      length_long |= ((data[offset] & 0x75) << (7*(offset - 1)));
+      length_long |= ((data[offset] & 0x7f) << (7*(offset - 1)));
+      offset++;
     } while(((data[offset] & 0x80) != 0) && length_long < INT_MAX);
 
     if (length_long > INT_MAX)
@@ -321,7 +322,8 @@ Store::Status ImpuStore::Impu::to_data(std::string& data)
   while (uncomp_size_len != 0)
   {
     // Get 7 bits into a byte
-    char size_byte = (uncomp_size >> (uncomp_size_len * 7)) & 0x7f;
+    char size_byte = uncomp_size & 0x7f;
+    uncomp_size = uncomp_size >> 7;
 
     if (uncomp_size_len > 1)
     {
