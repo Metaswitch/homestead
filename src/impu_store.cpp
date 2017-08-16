@@ -234,7 +234,7 @@ Store::Status ImpuStore::Impu::to_data(std::string& data)
     // Check we have a LZ4 stream with the V0 dict pre-prepared.
     if (_thrd_lz4_stream == NULL)
     {
-      LZ4_stream_t* _thrd_lz4_stream = LZ4_createStream();
+      _thrd_lz4_stream = LZ4_createStream();
       LZ4_loadDict(_thrd_lz4_stream, _dict_v0, _dict_v0_size);
       LZ4_stream_preserve(_thrd_lz4_stream, &_thrd_lz4_hash);
     }
