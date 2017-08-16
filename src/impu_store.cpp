@@ -92,7 +92,7 @@ ImpuStore::Impu* ImpuStore::Impu::from_data(std::string const& impu,
 
     if (rc == 0 || rc != length)
     {
-      TRC_WARNING("Failed to decompress LZ4 IMPU data - read %u/%u",
+      TRC_WARNING("Failed to decompress LZ4 IMPU data - read %d/%d",
                   rc, length);
 
       delete[] json;
