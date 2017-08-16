@@ -18,12 +18,20 @@
 #include <algorithm>
 #include <rapidjson/document.h>
 #include <rapidjson/writer.h>
+#include <lz4.h>
 
 class ImpuStore
 {
 public:
   class Impu
   {
+  private:
+    static thread_local LZ4_stream_t* _thrd_lz4_stream;
+    static thread_local struct preserved_hash_table_entry_t* _thrd_lz4_hash;
+
+    static const char* _dict_v0;
+    static int _dict_v0_size;
+
   protected:
     Impu(const std::string impu, uint64_t cas) :
       impu(impu),
@@ -37,13 +45,11 @@ public:
 
     virtual bool is_default_impu() = 0;
 
-    virtual void to_data(std::string& data);
+    virtual Store::Status to_data(std::string& data);
 
     static Impu* from_data(const std::string& impu, std::string& data, uint64_t& cas);
 
-    static Impu* from_json(rapidjson::Value* json, uint64_t cas);
-
-    virtual void write_json(rapidjson::Writer<rapidjson::StringBuffer>* writer) = 0;
+    virtual void write_json(rapidjson::Writer<rapidjson::StringBuffer>& writer) = 0;
 
     const ImpuStore* store;
     const std::string impu;
@@ -54,22 +60,26 @@ public:
   class DefaultImpu : public Impu
   {
   public:
-    DefaultImpu(std::string impu,
-                std::vector<std::string> associated_impus,
-                std::vector<std::string> impis,
-                bool is_registered,
+    DefaultImpu(const std::string& impu,
+                const std::vector<std::string>& associated_impus,
+                const std::vector<std::string>& impis,
+                RegistrationState registration_state,
+                const std::string& service_profile,
                 uint64_t cas) :
       Impu(impu, cas),
       associated_impus(associated_impus),
-      impis(impis)
+      impis(impis),
+      service_profile(service_profile)
     {
     }
 
-    virtual void write_json(rapidjson::Writer<rapidjson::StringBuffer>* writer){}
+    virtual void write_json(rapidjson::Writer<rapidjson::StringBuffer>& writer);
 
     virtual ~DefaultImpu(){}
 
-    static Impu* from_json(rapidjson::Value* json, uint64_t cas);
+    static Impu* from_json(const std::string& impu,
+                           rapidjson::Value& json,
+                           uint64_t cas);
 
     bool has_associated_impu(const std::string& impu)
     {
@@ -84,12 +94,15 @@ public:
     ChargingAddresses charging_addresses;
     std::vector<std::string> associated_impus;
     std::vector<std::string> impis;
+    std::string service_profile;
   };
 
   class AssociatedImpu : public Impu
   {
   public:
-    AssociatedImpu(std::string impu, std::string default_impu, uint64_t cas) :
+    AssociatedImpu(std::string impu,
+                   std::string default_impu,
+                   uint64_t cas) :
       Impu(impu, cas),
       default_impu(default_impu)
     {
@@ -97,18 +110,23 @@ public:
 
     virtual ~AssociatedImpu(){}
 
-    virtual void write_json(rapidjson::Writer<rapidjson::StringBuffer>* writer){}
+    virtual void write_json(rapidjson::Writer<rapidjson::StringBuffer>& writer);
+
     virtual bool is_default_impu(){ return false; }
 
     const std::string default_impu;
 
-    static Impu* from_json(rapidjson::Value* json, uint64_t cas);
+    static Impu* from_json(const std::string& impu,
+                           rapidjson::Value& json,
+                           uint64_t cas);
   };
 
   class ImpiMapping
   {
   public:
-    ImpiMapping(std::string impi, std::vector<std::string> default_impus, uint64_t cas) :
+    ImpiMapping(std::string impi,
+                std::vector<std::string> default_impus,
+                uint64_t cas) :
       impi(impi),
       cas(cas),
       _default_impus(default_impus)
@@ -126,12 +144,13 @@ public:
                                   std::string& data,
                                   uint64_t& cas);
 
-    static ImpiMapping* from_json(rapidjson::Value* json,
+    static ImpiMapping* from_json(const std::string& impi,
+                                  rapidjson::Value& json,
                                   uint64_t cas);
 
-    virtual void write_json(rapidjson::Writer<rapidjson::StringBuffer>* writer){}
+    virtual void write_json(rapidjson::Writer<rapidjson::StringBuffer>& writer);
 
-    virtual void to_data(std::string& data);
+    virtual Store::Status to_data(std::string& data);
 
     virtual ~ImpiMapping(){
     }

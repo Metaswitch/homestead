@@ -87,6 +87,7 @@ COMMON_CPPFLAGS := -I../include \
 homestead_CPPFLAGS := ${COMMON_CPPFLAGS}
 homestead_test_CPPFLAGS := ${COMMON_CPPFLAGS} -DGTEST_USE_OWN_TR1_TUPLE=0
 
+# We need SAS in the test build as we use it's implementation of lz4
 COMMON_LDFLAGS := -L../usr/lib \
                   -lmemcached \
                   -lmemcachedutil \
@@ -104,11 +105,10 @@ COMMON_LDFLAGS := -L../usr/lib \
                   -lpthread \
                   -lcurl \
                   -lc \
+                  -lsas \
+                  -lz \
                   -lboost_filesystem \
                   $(shell net-snmp-config --netsnmp-agent-libs)
-
-# Only use the real SAS library in the production build.
-homestead_LDFLAGS := ${COMMON_LDFLAGS} -lsas -lz
 
 # Test build also uses libcurl (to verify HttpStack operation)
 homestead_test_LDFLAGS := ${COMMON_LDFLAGS} -lcurl -ldl

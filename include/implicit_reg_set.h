@@ -33,7 +33,7 @@ public:
 
 public:
 
-  virtual std::string get_ims_sub_xml() const = 0;
+  virtual const std::string& get_ims_sub_xml() const = 0;
   virtual RegistrationState get_reg_state() const = 0;
   virtual std::vector<std::string> get_associated_impis() const = 0;
   virtual const ChargingAddresses& get_charging_addresses() const = 0;

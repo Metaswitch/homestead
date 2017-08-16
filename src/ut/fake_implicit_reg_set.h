@@ -20,7 +20,7 @@ class FakeImplicitRegistrationSet : public ImplicitRegistrationSet
   {
   }
 
-  virtual std::string get_ims_sub_xml() const
+  virtual const std::string& get_ims_sub_xml() const
   {
     return _ims_sub_xml;
   }
