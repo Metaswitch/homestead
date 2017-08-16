@@ -976,7 +976,11 @@ int main(int argc, char**argv)
                                                       options.server_name);
   }
 
-  // Common HttpHandlers setup
+  // Common setup
+  HssConnection::HssConnection::configure_auth_schemes(options.scheme_digest,
+                                                       options.scheme_akav1,
+                                                       options.scheme_akav2);
+
   HssCacheTask::configure_hss_connection(hss_conn, options.server_name);
 
   ImpiTask::Config impi_handler_config(options.scheme_unknown,
