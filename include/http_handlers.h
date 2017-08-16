@@ -55,7 +55,6 @@ public:
                                        std::string server_name);
   static void configure_cache(HssCacheProcessor* cache);
   static void configure_health_checker(HealthChecker* hc);
-  static void configure_stats(StatisticsManager* stats_manager);
 
   inline HssCacheProcessor* cache() const
   {
