@@ -145,11 +145,9 @@ public:
     _mock_resolver = new FakeHttpResolver("1.2.3.4");
     _mock_http_conn = new MockHttpConnection(_mock_resolver);
     _sprout_conn = new SproutConnection(_mock_http_conn);
-    TRC_ERROR("sr2sr2 abuot to do diameter");
     _mock_stack = new MockDiameterStack();
-    TRC_ERROR("sr2sr2 abuot to do diameterdict");
     _cx_dict = new Cx::Dictionary();
-  
+
     _rtr_results_table = SNMP::CxCounterTable::create("", "");
     _ppr_results_table = SNMP::CxCounterTable::create("", "");
     configure_handler_cx_results_tables(_rtr_results_table, _ppr_results_table);
@@ -325,7 +323,7 @@ public:
   }
 
   void ppr_check_ppa(int success_or_failure)
-  {  
+  {
     Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
     Cx::PushProfileAnswer ppa(msg);
     EXPECT_TRUE(ppa.result_code(test_i32));
@@ -725,14 +723,17 @@ TEST_F(DiameterHandlersTest, PPRMainline)
   // We'll then save the ImsSubscription in the cache
   EXPECT_CALL(*_cache, put_ims_subscription(_, _, sub, FAKE_TRAIL_ID))
     .WillOnce(InvokeArgument<0>());
-  
+
   ppr_expect_ppa();
 
   task->run();
 
   ppr_check_ppa(DIAMETER_SUCCESS);
   ppr_tear_down(pcfg);
-  delete sub;
+
+  // The FakeImplicitRegistrationSet* is not actually owned by the
+  // MockImsSubscription so we have to delete it manually
+  delete irs;
 }
 
 
@@ -779,7 +780,10 @@ TEST_F(DiameterHandlersTest, PPRChangeIDs)
 
   ppr_check_ppa(DIAMETER_SUCCESS);
   ppr_tear_down(pcfg);
-  delete sub;
+
+  // The FakeImplicitRegistrationSet* is not actually owned by the
+  // MockImsSubscription so we have to delete it manually
+  delete irs;
 }
 
 TEST_F(DiameterHandlersTest, PPRChargingAddrs)
@@ -791,11 +795,6 @@ TEST_F(DiameterHandlersTest, PPRChargingAddrs)
   ppr_setup(&task, &pcfg, IMPI, "", FULL_CHARGING_ADDRESSES);
 
   // Create the ImsSubscription that will be returned
-  FakeImplicitRegistrationSet* irs = new FakeImplicitRegistrationSet(IMPU);
-  irs->set_ims_sub_xml(IMPU_IMS_SUBSCRIPTION);
-  irs->set_reg_state(RegistrationState::REGISTERED);
-  irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
-
   MockImsSubscription* sub = new MockImsSubscription();
 
   // Expect that we'll look up the ImsSubscription for the provided IMPI
@@ -815,12 +814,8 @@ TEST_F(DiameterHandlersTest, PPRChargingAddrs)
 
   task->run();
 
-  // Check that the IRS still has the correct XML
-  EXPECT_EQ(irs->get_ims_sub_xml(), IMPU_IMS_SUBSCRIPTION);
-
   ppr_check_ppa(DIAMETER_SUCCESS);
   ppr_tear_down(pcfg);
-  delete sub;
 }
 
 TEST_F(DiameterHandlersTest, PPRImsSub)
@@ -859,7 +854,10 @@ TEST_F(DiameterHandlersTest, PPRImsSub)
 
   ppr_check_ppa(DIAMETER_SUCCESS);
   ppr_tear_down(pcfg);
-  delete sub;
+
+  // The FakeImplicitRegistrationSet* is not actually owned by the
+  // MockImsSubscription so we have to delete it manually
+  delete irs;
 }
 
 TEST_F(DiameterHandlersTest, PPRIMSSubNoSIPURI)
@@ -899,7 +897,10 @@ TEST_F(DiameterHandlersTest, PPRIMSSubNoSIPURI)
 
   ppr_check_ppa(DIAMETER_SUCCESS);
   ppr_tear_down(pcfg);
-  delete sub;
+
+  // The FakeImplicitRegistrationSet* is not actually owned by the
+  // MockImsSubscription so we have to delete it manually
+  delete irs;
 }
 
 
@@ -936,7 +937,10 @@ TEST_F(DiameterHandlersTest, PPRCacheFailure)
 
   ppr_check_ppa(DIAMETER_UNABLE_TO_COMPLY);
   ppr_tear_down(pcfg);
-  delete sub;
+
+  // The FakeImplicitRegistrationSet* is not actually owned by the
+  // MockImsSubscription so we have to delete it manually
+  delete irs;
 }
 
 TEST_F(DiameterHandlersTest, PPRGetRegSetFailure)

@@ -48,11 +48,22 @@ public:
     Diameter::Task(dict, fd_msg, trail), _cfg(cfg), _rtr(_msg)
   {}
 
+  // We must delete all the ImplicitRegistrationSet*s in _reg_sets
+  virtual ~RegistrationTerminationTask()
+  {
+    for (ImplicitRegistrationSet* irs : _reg_sets)
+    {
+      delete irs;
+    }
+  }
+
   void run();
 
 private:
   const Config* _cfg;
   Cx::RegistrationTerminationRequest _rtr;
+
+  std::vector<ImplicitRegistrationSet*> _reg_sets;
 
   int32_t _deregistration_reason;
   std::vector<std::string> _impis;
@@ -88,11 +99,21 @@ public:
     Diameter::Task(dict, fd_msg, trail), _cfg(cfg), _ppr(_msg)
   {}
 
+  virtual ~PushProfileTask()
+  {
+    if (_ims_sub)
+    {
+      delete _ims_sub; _ims_sub = NULL;
+    }
+  }
+
   void run();
 
 private:
   const Config* _cfg;
   Cx::PushProfileRequest _ppr;
+
+  ImsSubscription* _ims_sub = NULL;
 
   bool _ims_sub_present;
   std::string _ims_subscription;

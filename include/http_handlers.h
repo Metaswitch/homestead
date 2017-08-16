@@ -213,7 +213,16 @@ public:
   ImpuRegDataTask(HttpStack::Request& req, const Config* cfg, SAS::TrailId trail) :
     HssCacheTask(req, trail), _cfg(cfg), _impi(), _impu(), _http_rc(HTTP_OK)
   {}
-  virtual ~ImpuRegDataTask() {};
+
+  // If we have an ImplicitRegistrationSet*, delete it
+  virtual ~ImpuRegDataTask()
+  {
+    if (_irs)
+    {
+      delete _irs; _irs = NULL;
+    }
+  }
+
   virtual void run();
   void get_reg_data();
   void on_get_reg_data_success(ImplicitRegistrationSet* irs);
@@ -262,8 +271,7 @@ protected:
   RegistrationState _new_state;
   ChargingAddresses _charging_addrs;
 
-  // TODO
-  ImplicitRegistrationSet* _irs;
+  ImplicitRegistrationSet* _irs = NULL;
 
   long _http_rc;
   std::string _provided_server_name;

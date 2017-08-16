@@ -55,8 +55,8 @@ public:
   // The result of a get request is provided as the argument to the success
   // callback. Ownership of pointer results is passed to the calling function.
   //
-  // All put/delete operations take ownership of pointers, and are responsible
-  // for deleting them when they're done.
+  // All put/delete operations do not take ownership of pointers, so the
+  // callback must delete them if appropriate.
   //
   // If the request fails, the Store::Status code is provided as an argument to
   // the failure callback.

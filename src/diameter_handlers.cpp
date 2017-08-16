@@ -109,9 +109,10 @@ void RegistrationTerminationTask::run()
 
 void RegistrationTerminationTask::get_registration_sets_success(std::vector<ImplicitRegistrationSet*> reg_sets)
 {
-  // Save the vector of reg_sets?
-  //TODO
-  if (reg_sets.empty())
+  // Save the vector of IRSs, which we are now responsible for deleting
+  _reg_sets = reg_sets;
+
+  if (_reg_sets.empty())
   {
     TRC_DEBUG("No registered IMPUs to deregister found");
     SAS::Event event(this->trail(), SASEvent::NO_IMPU_DEREG, 0);
@@ -127,7 +128,7 @@ void RegistrationTerminationTask::get_registration_sets_success(std::vector<Impl
     std::vector<std::string> default_public_identities;
 
     // Extract the default public identities from the registration sets.
-    for (ImplicitRegistrationSet* reg_set : reg_sets)
+    for (ImplicitRegistrationSet* reg_set : _reg_sets)
     {
       default_public_identities.push_back(reg_set->default_impu);
     }
@@ -209,7 +210,7 @@ void RegistrationTerminationTask::get_registration_sets_success(std::vector<Impl
     failure_callback failure_cb =
       std::bind(&RegistrationTerminationTask::delete_reg_sets_failure, this, std::placeholders::_1);
 
-    _cfg->cache->delete_implicit_registration_sets(success_cb, failure_cb, reg_sets, this->trail());
+    _cfg->cache->delete_implicit_registration_sets(success_cb, failure_cb, _reg_sets, this->trail());
   }
 }
 
@@ -306,6 +307,9 @@ void PushProfileTask::run()
 
 void PushProfileTask::on_get_ims_sub_success(ImsSubscription* ims_sub)
 {
+  // Take ownership of the ImsSubscription*
+  _ims_sub = ims_sub;
+
   // Build up a SAS log as we go, that we'll only send if we decide we can
   // process the PPR correctly
   SAS::Event put_cache_event(this->trail(), SASEvent::CACHE_PUT_REG_DATA_IMPI, 0);
@@ -319,7 +323,7 @@ void PushProfileTask::on_get_ims_sub_success(ImsSubscription* ims_sub)
   {
     XmlUtils::get_default_id(_ims_subscription, new_default_id);
 
-    ImplicitRegistrationSet* irs = ims_sub->get_irs_for_default_impu(new_default_id);
+    ImplicitRegistrationSet* irs = _ims_sub->get_irs_for_default_impu(new_default_id);
     if (!irs)
     {
       TRC_INFO("The default id of the PPR doesn't match a default id already "
@@ -329,9 +333,7 @@ void PushProfileTask::on_get_ims_sub_success(ImsSubscription* ims_sub)
       event.add_var_param(new_default_id);
       SAS::report_event(event);
       send_ppa(DIAMETER_REQ_FAILURE);
-      
-      // Need to delete the ImsSubscription* as we own it
-      delete ims_sub; ims_sub = NULL;
+
       delete this;
       return;
     }
@@ -382,7 +384,7 @@ void PushProfileTask::on_get_ims_sub_success(ImsSubscription* ims_sub)
   // We now may have to update the charging addresses
   if (_charging_addrs_present)
   {
-    ims_sub->set_charging_addrs(_charging_addrs);
+    _ims_sub->set_charging_addrs(_charging_addrs);
     put_cache_event.add_var_param(_charging_addrs.log_string());
   }
   else
@@ -399,7 +401,7 @@ void PushProfileTask::on_get_ims_sub_success(ImsSubscription* ims_sub)
   failure_callback failure_cb =
     std::bind(&PushProfileTask::on_save_ims_sub_failure, this, std::placeholders::_1);
 
-  _cfg->cache->put_ims_subscription(success_cb, failure_cb, ims_sub, this->trail());
+  _cfg->cache->put_ims_subscription(success_cb, failure_cb, _ims_sub, this->trail());
 }
 
 void PushProfileTask::on_get_ims_sub_failure(Store::Status rc)

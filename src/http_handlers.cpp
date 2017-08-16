@@ -818,7 +818,6 @@ void ImpuRegDataTask::on_get_reg_data_success(ImplicitRegistrationSet* irs)
   if (_req.method() == htp_method_GET)
   {
     send_reply();
-    delete _irs; _irs = NULL;
     delete this;
     return;
   }
@@ -880,7 +879,6 @@ void ImpuRegDataTask::on_get_reg_data_success(ImplicitRegistrationSet* irs)
         // No state changes are required for a re-register if we're not
         // notifying a HSS - just respond.
         send_reply();
-        delete _irs; _irs = NULL;
         delete this;
         return;
       }
@@ -913,7 +911,6 @@ void ImpuRegDataTask::on_get_reg_data_success(ImplicitRegistrationSet* irs)
       // We're already assigned to handle this subscriber - respond with the
       // iFCs and whether they're in registered state or not.
       send_reply();
-      delete _irs; _irs = NULL;
       delete this;
       return;
     }
@@ -939,7 +936,6 @@ void ImpuRegDataTask::on_get_reg_data_success(ImplicitRegistrationSet* irs)
       SAS::Event event(this->trail(), SASEvent::SUB_NOT_REG, 0);
       SAS::report_event(event);
       send_http_reply(HTTP_BAD_REQUEST);
-      delete _irs; _irs = NULL;
       delete this;
       return;
     }
@@ -959,7 +955,6 @@ void ImpuRegDataTask::on_get_reg_data_success(ImplicitRegistrationSet* irs)
   {
     // LCOV_EXCL_START - unreachable
     TRC_ERROR("Invalid type %d", _type);
-    delete _irs; _irs = NULL;
     delete this;
     return;
     // LCOV_EXCL_STOP - unreachable
@@ -1110,7 +1105,6 @@ void ImpuRegDataTask::put_in_cache()
   {
     // No need to wait for a cache write.  Just reply inline.
     send_reply();
-    delete _irs; _irs = NULL;
     delete this;
   }
 }
@@ -1191,7 +1185,7 @@ void ImpuRegDataTask::on_sar_response(const HssConnection::ServerAssignmentAnswe
       event.add_var_param(_hss_wildcard);
       SAS::report_event(event);
 
-      // We need to delete the old IRS
+      // We need to delete the old IRS before we ask the cache for a new one
       delete _irs; _irs = NULL;
 
       get_reg_data();
@@ -1264,7 +1258,6 @@ void ImpuRegDataTask::on_sar_response(const HssConnection::ServerAssignmentAnswe
   if (!pending_cache_op)
   {
     send_reply();
-    delete _irs; _irs = NULL;
     delete this;
   }
 
