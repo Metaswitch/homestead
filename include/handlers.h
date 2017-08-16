@@ -582,6 +582,7 @@ private:
   void dissociate_implicit_registration_sets();
   void delete_impi_mappings();
   void send_rta(const std::string result_code);
+  void log_sip_all_register_marker(const std::string uri);
 };
 
 class PushProfileTask : public Diameter::Task

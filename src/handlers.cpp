@@ -1981,6 +1981,11 @@ void RegistrationTerminationTask::run()
   TRC_INFO("Received Registration-Termination request with dereg reason %d",
            _deregistration_reason);
 
+  // Log start of trail and "RTR received" event. SIP_ALL_REGISTER markers will be added
+  // for each IMPU once we have determined the list of IMPUs to unregister.
+  SAS::Marker init_time(trail(), MARKER_ID_START, 1u);
+  SAS::report_marker(init_time);
+
   SAS::Event rtr_received(trail(), SASEvent::RTR_RECEIVED, 0);
   rtr_received.add_var_param(impi);
   rtr_received.add_static_param(associated_identities.size());
@@ -2167,7 +2172,9 @@ void RegistrationTerminationTask::delete_registrations()
   // Extract the default public identities from the registration sets.
   for (std::pair<std::string, std::vector<std::string>> reg_set : _registration_sets)
   {
-    default_public_identities.push_back(reg_set.first);
+    std::string default_impu = reg_set.first;
+    log_sip_all_register_marker(default_impu);
+    default_public_identities.push_back(default_impu);
   }
 
   // We need to notify sprout of the deregistrations. What we send to sprout depends
@@ -2317,6 +2324,60 @@ void RegistrationTerminationTask::send_rta(const std::string result_code)
   // Send the RTA back to the HSS.
   TRC_INFO("Ready to send RTA");
   rta.send(trail());
+}
+
+void RegistrationTerminationTask::log_sip_all_register_marker(const std::string uri)
+{
+  std::string stripped_uri(uri);
+  std::string user;
+  bool is_tel_uri = false;
+  bool user_is_numeric = true;
+
+  // Strip the scheme off the URI. We expect the scheme to be present, but
+  // cope with the case where it isn't.
+  size_t colon = stripped_uri.find(':');
+
+  if (colon != std::string::npos)
+  {
+    is_tel_uri = (stripped_uri.find("tel:") == 0);
+    stripped_uri.erase(0, colon + 1);
+  }
+
+  // Extract the user part of the URI and check if it is numeric, i.e. a DN.
+  for (size_t i = 0; (i < stripped_uri.length()) && (stripped_uri[i] != '@'); i++)
+  {
+    char c = stripped_uri[i];
+
+    // In case a tel: URI has still got the visual separators included (which it shouldn't),
+    // strip them off.
+    if (is_tel_uri &&
+        ((c == '(') || (c == ')') || (c == '-') || (c == '.')))
+    {
+      continue;
+    }
+
+    if (((c >= '0') && (c <= '9')) || (c == '+'))
+    {
+      user.push_back(c);
+    }
+    else
+    {
+      user_is_numeric = false;
+      break;
+    }
+  }
+
+  // Log the marker with the stripped URI as the first parameter, and the
+  // DN (if the URI can be interpreted as such) as the second parameter.
+  SAS::Marker sip_all_register(trail(), MARKER_ID_SIP_ALL_REGISTER, 1u);
+  sip_all_register.add_var_param(stripped_uri);
+
+  if (user_is_numeric)
+  {
+    sip_all_register.add_var_param(user);
+  }
+
+  SAS::report_marker(sip_all_register);
 }
 
 void PushProfileTask::run()
