@@ -110,6 +110,8 @@ COMMON_LDFLAGS := -L../usr/lib \
                   -lboost_filesystem \
                   $(shell net-snmp-config --netsnmp-agent-libs)
 
+homestead_LDFLAGS := ${COMMON_LDFLAGS}
+
 # Test build also uses libcurl (to verify HttpStack operation)
 homestead_test_LDFLAGS := ${COMMON_LDFLAGS} -lcurl -ldl
 
