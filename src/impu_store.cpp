@@ -23,6 +23,9 @@ int ImpuStore::Impu::_dict_v0_size = 0;
 thread_local LZ4_stream_t* ImpuStore::Impu::_thrd_lz4_stream;
 thread_local struct preserved_hash_table_entry_t* ImpuStore::Impu::_thrd_lz4_hash;
 
+// General
+static const char * const JSON_EXPIRY = "expiry";
+
 // Associated IMPU -> Default IMPU
 static const char * const JSON_DEFAULT_IMPU = "default_impu";
 
@@ -144,10 +147,12 @@ ImpuStore::Impu* ImpuStore::AssociatedImpu::from_json(std::string const& impu,
                                                       unsigned long cas)
 {
   std::string default_impu;
+  int64_t expiry = 0L;
 
   JSON_SAFE_GET_STRING_MEMBER(json, JSON_DEFAULT_IMPU, default_impu);
+  JSON_SAFE_GET_INT_64_MEMBER(json, JSON_EXPIRY, expiry);
 
-  return new AssociatedImpu(impu, default_impu, cas);
+  return new AssociatedImpu(impu, default_impu, cas, expiry);
 }
 
 ImpuStore::Impu* ImpuStore::DefaultImpu::from_json(std::string const& impu,
@@ -157,6 +162,7 @@ ImpuStore::Impu* ImpuStore::DefaultImpu::from_json(std::string const& impu,
   std::vector<std::string> assoc_impus;
   std::vector<std::string> impis;
   std::string service_profile;
+  int64_t expiry = 0L;
 
   bool state;
 
@@ -166,6 +172,7 @@ ImpuStore::Impu* ImpuStore::DefaultImpu::from_json(std::string const& impu,
     RegistrationState::REGISTERED :
     RegistrationState::UNREGISTERED;
 
+  JSON_SAFE_GET_INT_64_MEMBER(json, JSON_EXPIRY, expiry);
   JSON_SAFE_GET_STRING_MEMBER(json, JSON_SERVICE_PROFILE, service_profile);
 
   JSON_ASSERT_ARRAY(json[JSON_ASSOCIATED_IMPUS]);
@@ -197,7 +204,8 @@ ImpuStore::Impu* ImpuStore::DefaultImpu::from_json(std::string const& impu,
                          impis,
                          reg_state,
                          service_profile,
-                         cas);
+                         cas,
+                         expiry);
 }
 
 Store::Status ImpuStore::Impu::to_data(std::string& data)
@@ -357,6 +365,8 @@ void ImpuStore::DefaultImpu::write_json(rapidjson::Writer<rapidjson::StringBuffe
   writer.Bool(state);
   writer.String(JSON_SERVICE_PROFILE);
   writer.String(service_profile.c_str());
+  writer.String(JSON_EXPIRY);
+  writer.Int64(expiry);
   writer.String(JSON_ASSOCIATED_IMPUS);
   writer.StartArray();
 
@@ -382,6 +392,8 @@ void ImpuStore::AssociatedImpu::write_json(rapidjson::Writer<rapidjson::StringBu
 {
   writer.String(JSON_DEFAULT_IMPU);
   writer.String(default_impu.c_str());
+  writer.String(JSON_EXPIRY);
+  writer.Int64(expiry);
 }
 
 ImpuStore::ImpiMapping* ImpuStore::ImpiMapping::from_data(std::string const& impi,
@@ -518,11 +530,13 @@ Store::Status ImpuStore::set_impi_mapping(ImpiMapping* mapping,
 
   if (status == Store::Status::OK)
   {
+    int now = time(0);
+
     status = _store->set_data("impi_mapping",
                               mapping->impi,
                               data,
                               mapping->cas,
-                              mapping->expiry(),
+                              mapping->get_expiry() - now,
                               trail);
   }
 
@@ -541,8 +555,10 @@ ImpuStore::ImpiMapping* ImpuStore::ImpiMapping::from_json(std::string const& imp
                                                          unsigned long cas)
 {
   std::vector<std::string> impus;
+  int64_t expiry = 0L;
 
   JSON_ASSERT_ARRAY(json[JSON_DEFAULT_IMPUS]);
+  JSON_SAFE_GET_INT_64_MEMBER(json, JSON_EXPIRY, expiry);
 
   const rapidjson::Value& default_impus_arr = json[JSON_DEFAULT_IMPUS];
 
@@ -556,7 +572,8 @@ ImpuStore::ImpiMapping* ImpuStore::ImpiMapping::from_json(std::string const& imp
 
   return new ImpiMapping(impi,
                          impus,
-                         cas);
+                         cas,
+                         expiry);
 }
 
 void ImpuStore::ImpiMapping::write_json(rapidjson::Writer<rapidjson::StringBuffer>& writer)
@@ -570,4 +587,6 @@ void ImpuStore::ImpiMapping::write_json(rapidjson::Writer<rapidjson::StringBuffe
   }
 
   writer.EndArray();
+  writer.String(JSON_EXPIRY);
+  writer.Int64(_expiry);
 }

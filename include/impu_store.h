@@ -33,9 +33,10 @@ public:
     static int _dict_v0_size;
 
   protected:
-    Impu(const std::string impu, uint64_t cas) :
+    Impu(const std::string impu, uint64_t cas, int64_t expiry) :
       impu(impu),
-      cas(cas)
+      cas(cas),
+      expiry(expiry)
     {
     }
 
@@ -54,7 +55,7 @@ public:
     const ImpuStore* store;
     const std::string impu;
     const uint64_t cas;
-    int64_t expiry;
+    const int64_t expiry;
   };
 
   class DefaultImpu : public Impu
@@ -65,8 +66,9 @@ public:
                 const std::vector<std::string>& impis,
                 RegistrationState registration_state,
                 const std::string& service_profile,
-                uint64_t cas) :
-      Impu(impu, cas),
+                uint64_t cas,
+                int64_t expiry) :
+      Impu(impu, cas, expiry),
       associated_impus(associated_impus),
       impis(impis),
       service_profile(service_profile)
@@ -102,8 +104,9 @@ public:
   public:
     AssociatedImpu(std::string impu,
                    std::string default_impu,
-                   uint64_t cas) :
-      Impu(impu, cas),
+                   uint64_t cas,
+                   int64_t expiry) :
+      Impu(impu, cas, expiry),
       default_impu(default_impu)
     {
     }
@@ -126,16 +129,19 @@ public:
   public:
     ImpiMapping(std::string impi,
                 std::vector<std::string> default_impus,
-                uint64_t cas) :
+                uint64_t cas,
+                int64_t expiry) :
       impi(impi),
       cas(cas),
+      _expiry(expiry),
       _default_impus(default_impus)
     {
     }
 
-    ImpiMapping(std::string impi, std::string impu) :
+    ImpiMapping(std::string impi, std::string impu, int64_t expiry) :
       impi(impi),
       cas(0L),
+      _expiry(expiry),
       _default_impus({ impu })
     {
     }
@@ -179,22 +185,27 @@ public:
       return _default_impus.size() == 0;
     }
 
-    const std::string impi;
-    const uint64_t cas;
+    int64_t get_expiry()
+    {
+      return _expiry;
+    }
+
+    void set_expiry(int64_t expiry)
+    {
+      _expiry = expiry;
+    }
 
     const std::vector<std::string>& get_default_impus()
     {
       return _default_impus;
     }
 
-    int64_t expiry() const
-    {
-      return _expiry;
-    }
+    const std::string impi;
+    const uint64_t cas;
 
   private:
-    std::vector<std::string> _default_impus;
     int64_t _expiry;
+    std::vector<std::string> _default_impus;
   };
 
   ImpuStore(Store* store) : _store(store)

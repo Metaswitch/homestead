@@ -20,12 +20,15 @@ ImpuStore::DefaultImpu* MemcachedImplicitRegistrationSet::create_impu(uint64_t c
   std::vector<std::string> impis = get_associated_impis();
   std::vector<std::string> impus = get_associated_impus();
 
+  int now = time(0);
+
   return new ImpuStore::DefaultImpu(default_impu,
                                     impus,
                                     impis,
                                     _registration_state,
                                     get_ims_sub_xml(),
-                                    cas);
+                                    cas,
+                                    _ttl + now);
 }
 
 ImpuStore::DefaultImpu* MemcachedImplicitRegistrationSet::get_impu()
@@ -106,28 +109,41 @@ void MemcachedImplicitRegistrationSet::update_from_store(ImpuStore::DefaultImpu*
 {
   MemcachedImplicitRegistrationSet::State state;
 
-  // Update the IRS with the details in impu
-  if (_refreshed)
-  {
-    // If we are marked as refreshed, then the data from the store is *less* up
-    // to date than our data, so we should mark it as changed.
-
-    state = MemcachedImplicitRegistrationSet::State::DELETED;
-  }
-  else
-  {
-    // If we are marked as not refreshed, the data from the store should be
-    // considered valid, and we should mark it as unchanged, if we weren't
-    // previously aware of it.
-
-    state = MemcachedImplicitRegistrationSet::State::UNCHANGED;
-  }
-
   if (!_registration_state_set)
   {
     _registration_state = impu->registration_state;
   }
 
+  if (!_ims_sub_xml_set)
+  {
+    _ims_sub_xml = impu->service_profile;
+  }
+
+  if (!_charging_addresses_set)
+  {
+    _charging_addresses = impu->charging_addresses;
+  }
+
+  if (_refreshed)
+  {
+    // If we are marked as refreshed, then the data from the store is *less* up
+    // to date than our data, so we should mark it as changed.
+    state = MemcachedImplicitRegistrationSet::State::DELETED;
+  }
+  else
+  {
+    // If we aren't refreshed (i.e. TTL isn't set), then update our view of the
+    // TTL
+    int now = time(0);
+    _ttl = impu->expiry - now;
+
+    // If we are marked as not refreshed, the data from the store should be
+    // considered valid, and we should mark it as unchanged, if we weren't
+    // previously aware of it.
+    state = MemcachedImplicitRegistrationSet::State::UNCHANGED;
+  }
+
+  // Update the IRS with the details in IMPI and Associated IMPUs
   ::update_from_store(impu->impis,
                       _impis,
                       state);
@@ -351,10 +367,14 @@ Store::Status MemcachedCache::update_irs_impi_mappings(MemcachedImplicitRegistra
     {
       do
       {
-        ImpuStore::ImpiMapping* mapping = store->get_impi_mapping(impi, trail);
+        ImpuStore::ImpiMapping* mapping = store->get_impi_mapping(impi,
+                                                                  trail);
 
         if (mapping)
         {
+          int now = time(0);
+          mapping->set_expiry(irs->get_ttl() + now);
+
           if (!mapping->has_default_impu(irs->default_impu))
           {
             mapping->add_default_impu(irs->default_impu);
@@ -362,7 +382,8 @@ Store::Status MemcachedCache::update_irs_impi_mappings(MemcachedImplicitRegistra
         }
         else
         {
-          mapping = new ImpuStore::ImpiMapping(impi, irs->default_impu);
+          int now = time(0);
+          mapping = new ImpuStore::ImpiMapping(impi, irs->default_impu, irs->get_ttl() + now);
         }
 
         status = store->set_impi_mapping(mapping, trail);
@@ -375,7 +396,10 @@ Store::Status MemcachedCache::update_irs_impi_mappings(MemcachedImplicitRegistra
   // Add new IMPIs
   for (const std::string& impi : irs->impis(MemcachedImplicitRegistrationSet::State::ADDED))
   {
-    ImpuStore::ImpiMapping* mapping = new ImpuStore::ImpiMapping(impi, irs->default_impu);
+    int64_t expiry = time(0) + irs->get_ttl();
+    ImpuStore::ImpiMapping* mapping = new ImpuStore::ImpiMapping(impi,
+                                                                 irs->default_impu,
+                                                                 expiry);
 
     do
     {
@@ -383,6 +407,8 @@ Store::Status MemcachedCache::update_irs_impi_mappings(MemcachedImplicitRegistra
 
       if (status == Store::Status::DATA_CONTENTION)
       {
+        int now = time(0);
+        mapping->set_expiry(irs->get_ttl() + now);
         mapping = store->get_impi_mapping(impi, trail);
 
         if (!mapping->has_default_impu(irs->default_impu))
@@ -434,7 +460,11 @@ Store::Status MemcachedCache::update_irs_associated_impus(MemcachedImplicitRegis
   {
     for (const std::string& associated_impu : irs->impus(MemcachedImplicitRegistrationSet::State::UNCHANGED))
     {
-      ImpuStore::AssociatedImpu* impu = new ImpuStore::AssociatedImpu(associated_impu, irs->default_impu, 0L);
+      int64_t expiry = time(0) + irs->get_ttl();
+      ImpuStore::AssociatedImpu* impu = new ImpuStore::AssociatedImpu(associated_impu,
+                                                                      irs->default_impu,
+                                                                      0L,
+                                                                      expiry);
 
       store->set_impu_without_cas(impu, trail);
     }
@@ -443,7 +473,11 @@ Store::Status MemcachedCache::update_irs_associated_impus(MemcachedImplicitRegis
   // Add new associated IMPUs
   for (const std::string& associated_impu : irs->impus(MemcachedImplicitRegistrationSet::State::ADDED))
   {
-    ImpuStore::AssociatedImpu* impu = new ImpuStore::AssociatedImpu(associated_impu, irs->default_impu, 0L);
+    int64_t expiry = time(0) + irs->get_ttl();
+    ImpuStore::AssociatedImpu* impu = new ImpuStore::AssociatedImpu(associated_impu,
+                                                                    irs->default_impu,
+                                                                    0L,
+                                                                    expiry);
 
     store->set_impu_without_cas(impu, trail);
   }
@@ -586,14 +620,14 @@ Store::Status MemcachedCache::delete_implicit_registration_set(MemcachedImplicit
   {
     // Mark the Associated IMPUs as deleted, and update the store to match
     irs->delete_assoc_impus();
-    update_irs_associated_impus(irs, trail, store);
+    status = update_irs_associated_impus(irs, trail, store);
   }
 
   if (status == Store::Status::OK)
   {
     // And similar with the IMPIs
     irs->delete_impis();
-    update_irs_impi_mappings(irs, trail, store);
+    status = update_irs_impi_mappings(irs, trail, store);
   }
 
   return status;

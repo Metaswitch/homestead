@@ -46,7 +46,10 @@ public:
     _cas(default_impu->cas),
     _changed(false),
     _refreshed(false),
-    _existing(true)
+    _existing(true),
+    _ims_sub_xml_set(false),
+    _charging_addresses_set(false),
+    _registration_state_set(false)
   {
   }
 
@@ -56,7 +59,10 @@ public:
     _cas(0L),
     _changed(true),
     _refreshed(true),
-    _existing(false)
+    _existing(false),
+    _ims_sub_xml_set(false),
+    _charging_addresses_set(false),
+    _registration_state_set(false)
   {
   }
 
@@ -69,7 +75,7 @@ public:
 
   virtual RegistrationState get_reg_state() const
   {
-    return _reg_state;
+    return _registration_state;
   }
 
   virtual std::vector<std::string> get_associated_impis() const
@@ -114,12 +120,14 @@ public:
 
   virtual void set_ims_sub_xml(std::string xml)
   {
+    _ims_sub_xml_set = true;
     _ims_sub_xml = xml;
   }
 
   virtual void set_reg_state(RegistrationState state)
   {
-    _reg_state = state;
+    _registration_state_set = true;
+    _registration_state = state;
   }
 
   virtual void set_associated_impus(std::vector<std::string> impis);
@@ -127,11 +135,13 @@ public:
 
   virtual void set_charging_addresses(ChargingAddresses addresses)
   {
+    _charging_addresses_set = true;
     _charging_addresses = addresses;
   }
 
   virtual void set_ttl(int32_t ttl)
   {
+    _refreshed = true;
     _ttl = ttl;
   }
 
@@ -174,15 +184,6 @@ private:
   const ImpuStore* _store;
   const uint64_t _cas;
 
-  std::string _ims_sub_xml;
-  RegistrationState _reg_state;
-  ChargingAddresses _charging_addresses;
-  int32_t _ttl;
-
-  bool _changed;
-  bool _refreshed;
-  bool _existing;
-
   static std::vector<std::string> get(const Data& data, State status)
   {
     std::vector<std::string> v;
@@ -197,11 +198,23 @@ private:
     return v;
   }
 
+  int32_t _ttl;
+
+  bool _changed;
+  bool _refreshed;
+  bool _existing;
+
   Data _impis;
   Data _associated_impus;
 
+  std::string _ims_sub_xml;
+  bool _ims_sub_xml_set;
+
+  ChargingAddresses _charging_addresses;
+  bool _charging_addresses_set;
+
   RegistrationState _registration_state;
-  bool _registration_state_set = false;
+  bool _registration_state_set;
 
   ImpuStore::DefaultImpu* create_impu(uint64_t cas);
 
