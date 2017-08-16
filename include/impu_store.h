@@ -18,12 +18,20 @@
 #include <algorithm>
 #include <rapidjson/document.h>
 #include <rapidjson/writer.h>
+#include <lz4.h>
 
 class ImpuStore
 {
 public:
   class Impu
   {
+  private:
+    static thread_local LZ4_stream_t* _thrd_lz4_stream;
+    static thread_local struct preserved_hash_table_entry_t* _thrd_lz4_hash;
+
+    static const char* _dict_v0;
+    static int _dict_v0_size;
+
   protected:
     Impu(const std::string impu, uint64_t cas) :
       impu(impu),
@@ -37,11 +45,11 @@ public:
 
     virtual bool is_default_impu() = 0;
 
-    virtual void to_data(std::string& data);
+    virtual Store::Status to_data(std::string& data);
 
     static Impu* from_data(const std::string& impu, std::string& data, uint64_t& cas);
 
-    virtual void write_json(rapidjson::Writer<rapidjson::StringBuffer>* writer) = 0;
+    virtual void write_json(rapidjson::Writer<rapidjson::StringBuffer>& writer) = 0;
 
     const ImpuStore* store;
     const std::string impu;
@@ -65,7 +73,7 @@ public:
     {
     }
 
-    virtual void write_json(rapidjson::Writer<rapidjson::StringBuffer>* writer){}
+    virtual void write_json(rapidjson::Writer<rapidjson::StringBuffer>& writer);
 
     virtual ~DefaultImpu(){}
 
@@ -102,7 +110,8 @@ public:
 
     virtual ~AssociatedImpu(){}
 
-    virtual void write_json(rapidjson::Writer<rapidjson::StringBuffer>* writer){}
+    virtual void write_json(rapidjson::Writer<rapidjson::StringBuffer>& writer);
+
     virtual bool is_default_impu(){ return false; }
 
     const std::string default_impu;
@@ -139,9 +148,9 @@ public:
                                   rapidjson::Value& json,
                                   uint64_t cas);
 
-    virtual void write_json(rapidjson::Writer<rapidjson::StringBuffer>* writer){}
+    virtual void write_json(rapidjson::Writer<rapidjson::StringBuffer>& writer);
 
-    virtual void to_data(std::string& data);
+    virtual Store::Status to_data(std::string& data);
 
     virtual ~ImpiMapping(){
     }

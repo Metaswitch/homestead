@@ -12,11 +12,16 @@
 #include "impu_store.h"
 
 #include <climits>
-#include <lz4.h>
 
 #include "json_parse_utils.h"
 #include "log.h"
 #include "rapidjson/error/en.h"
+
+const char* ImpuStore::Impu::_dict_v0 = "";
+int ImpuStore::Impu::_dict_v0_size = 0;
+
+thread_local LZ4_stream_t* ImpuStore::Impu::_thrd_lz4_stream;
+thread_local struct preserved_hash_table_entry_t* ImpuStore::Impu::_thrd_lz4_hash;
 
 // Associated IMPU -> Default IMPU
 static const char * const JSON_DEFAULT_IMPU = "default_impu";
@@ -29,6 +34,13 @@ static const char * const JSON_IMPIS = "impis";
 
 // IMPI -> Default IMPU
 static const char * const JSON_DEFAULT_IMPUS = "default_impus";
+
+// The default acceleration (1) is sufficient for us and gives best
+// compression.
+static const int ACCELERATION = 1;
+
+// The maximum buffer size to use for IMPU compression
+static const int MAX_BUFFER_LEN = 131072;
 
 ImpuStore::Impu* ImpuStore::Impu::from_data(std::string const& impu,
                                             std::string& data,
@@ -188,9 +200,183 @@ ImpuStore::Impu* ImpuStore::DefaultImpu::from_json(std::string const& impu,
                          cas);
 }
 
-void ImpuStore::Impu::to_data(std::string& data)
+Store::Status ImpuStore::Impu::to_data(std::string& data)
 {
-  return nullptr;
+  // We get the JSON representing the IMPU, compress it using
+  // lz4, and then build a buffer to return.
+  // The buffer contains a version (0), the uncompressed size
+  // (an array of 7 bits, with bit 0x80 set if there is more
+  // to come), and the compressed data.
+
+  unsigned int uncomp_size;
+  int comp_size;
+  char* buffer; // Buffer for compressed data
+
+  // Scope the JSON string so we don't have to keep it in
+  // memory too long
+  {
+    std::string json;
+
+    {
+      // Gather the JSON
+      rapidjson::StringBuffer buffer;
+      rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+      writer.StartObject();
+      write_json(writer);
+      writer.EndObject();
+      json = buffer.GetString();
+    }
+
+    json.push_back('\0'); // Add a terminating null byte for safety
+
+    uncomp_size = json.size();
+
+    // Check we have a LZ4 stream with the V0 dict pre-prepared.
+    if (_thrd_lz4_stream == NULL)
+    {
+      LZ4_stream_t* _thrd_lz4_stream = LZ4_createStream();
+      LZ4_loadDict(_thrd_lz4_stream, _dict_v0, _dict_v0_size);
+      LZ4_stream_preserve(_thrd_lz4_stream, &_thrd_lz4_hash);
+    }
+
+    // Compress the data using LZ4
+    LZ4_stream_t* stream = LZ4_createStream();
+
+    size_t buffer_length = 2048; // 2KB
+    buffer = (char*) malloc(buffer_length);
+
+    do
+    {
+      LZ4_stream_restore_preserved(stream, _thrd_lz4_stream, _thrd_lz4_hash);
+      comp_size = LZ4_compress_fast_continue(stream,
+                                             json.c_str(),
+                                             buffer,
+                                             uncomp_size,
+                                             buffer_length,
+                                             ACCELERATION);
+
+      if (comp_size <= 0)
+      {
+        // Compression failed - retry with a bigger buffer.
+        // Buffer size is the only reason it can fail. We stop
+        // the buffer growing beyond reason.
+        if (buffer_length * 2 > MAX_BUFFER_LEN)
+        {
+          TRC_WARNING("Attempted to compress %u bytes - %u bytes was insufficient",
+                      uncomp_size, buffer_length);
+          break;
+        }
+
+        buffer_length *= 2;
+
+        buffer = (char*) realloc((void*)buffer, buffer_length);
+        LZ4_resetStream(stream);
+      }
+    } while(comp_size == 0);
+
+    LZ4_freeStream(stream);
+  }
+
+  if (comp_size == 0)
+  {
+    free(buffer);
+
+    return Store::Status::ERROR;
+  }
+
+  // Start creating the buffer to return
+
+  // Work out the number of bits set in json
+  unsigned int uncomp_size_bits = 0;
+  unsigned int v = uncomp_size;
+
+  while (v >>= 1) {
+        uncomp_size_bits++;
+  }
+
+  // Work out the number of bytes we need. 7 bits per byte.
+  // We add 6 to fix rounding errors as (7 + 6) / 7 => 1 and
+  // (8 + 6) / 7 => 2
+  int uncomp_size_len = (uncomp_size_bits + 6) / 7;
+
+  data.reserve(1 + uncomp_size_len + uncomp_size);
+
+  // Version
+  data.push_back((char) 0);
+
+  // Length of the uncompressed data
+  while (uncomp_size_len != 0)
+  {
+    // Get 7 bits into a byte
+    char size_byte = (uncomp_size >> (uncomp_size_len * 7)) & 0x7f;
+
+    if (uncomp_size_len > 1)
+    {
+      size_byte |= 0x80;
+    }
+
+    data.push_back(size_byte);
+    uncomp_size_len--;
+  }
+
+  // Add the compressed data to the buffer
+  data.append(buffer, comp_size);
+
+  // Finally, we can free the compressed data
+  free(buffer);
+
+  return Store::Status::OK;
+}
+
+void ImpuStore::DefaultImpu::write_json(rapidjson::Writer<rapidjson::StringBuffer>& writer)
+{
+  writer.String(JSON_REGISTRATION_STATE);
+
+  bool state;
+
+  if (registration_state == RegistrationState::REGISTERED)
+  {
+    state = true;
+  }
+  else if (registration_state == RegistrationState::UNREGISTERED)
+  {
+    state = false;
+  }
+  else
+  {
+    TRC_WARNING("Unexpected registration state: %u",
+                registration_state);
+    state = false;
+  }
+
+  writer.Bool(state);
+  writer.String(JSON_SERVICE_PROFILE);
+  writer.String(service_profile.c_str());
+  writer.String(JSON_ASSOCIATED_IMPUS);
+  writer.StartArray();
+
+  for (const std::string& assoc_impu : associated_impus)
+  {
+    writer.String(assoc_impu.c_str());
+  }
+
+  writer.EndArray();
+
+  writer.String(JSON_IMPIS);
+  writer.StartArray();
+
+  for (const std::string& impi : impis)
+  {
+    writer.String(impi.c_str());
+  }
+
+  writer.EndArray();
+}
+
+void ImpuStore::AssociatedImpu::write_json(rapidjson::Writer<rapidjson::StringBuffer>& writer)
+{
+  writer.String(JSON_DEFAULT_IMPU);
+  writer.String(default_impu.c_str());
 }
 
 ImpuStore::ImpiMapping* ImpuStore::ImpiMapping::from_data(std::string const& impi,
@@ -219,9 +405,18 @@ ImpuStore::ImpiMapping* ImpuStore::ImpiMapping::from_data(std::string const& imp
   }
 }
 
-void ImpuStore::ImpiMapping::to_data(std::string& data)
+Store::Status ImpuStore::ImpiMapping::to_data(std::string& data)
 {
+  // Gather the JSON
+  rapidjson::StringBuffer buffer;
+  rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+  writer.StartObject();
+  write_json(writer);
+  writer.EndObject();
+  data = buffer.GetString();
+  data.push_back('\0'); // Add a terminating null byte for safety
 
+  return Store::Status::OK;
 }
 
 ImpuStore::Impu* ImpuStore::get_impu(const std::string& impu,
@@ -247,13 +442,16 @@ Store::Status ImpuStore::set_impu_without_cas(ImpuStore::Impu* impu,
 {
   std::string data;
 
-  impu->to_data(data);
+  Store::Status status = impu->to_data(data);
 
-  Store::Status status = _store->set_data_without_cas("impu",
-                                                      impu->impu,
-                                                      data,
-                                                      impu->expiry,
-                                                      trail);
+  if (status == Store::Status::OK)
+  {
+    status = _store->set_data_without_cas("impu",
+                                          impu->impu,
+                                          data,
+                                          impu->expiry,
+                                          trail);
+  }
 
   return status;
 }
@@ -263,14 +461,17 @@ Store::Status ImpuStore::set_impu(ImpuStore::Impu* impu,
 {
   std::string data;
 
-  impu->to_data(data);
+  Store::Status status = impu->to_data(data);
 
-  Store::Status status = _store->set_data("impu",
-                                          impu->impu,
-                                          data,
-                                          impu->cas,
-                                          impu->expiry,
-                                          trail);
+  if (status == Store::Status::OK)
+  {
+    _store->set_data("impu",
+                     impu->impu,
+                     data,
+                     impu->cas,
+                     impu->expiry,
+                     trail);
+  }
 
   return status;
 }
@@ -308,14 +509,17 @@ Store::Status ImpuStore::set_impi_mapping(ImpiMapping* mapping,
 {
   std::string data;
 
-  mapping->to_data(data);
+  Store::Status status = mapping->to_data(data);
 
-  Store::Status status = _store->set_data("impi_mapping",
-                                          mapping->impi,
-                                          data,
-                                          mapping->cas,
-                                          mapping->expiry(),
-                                          trail);
+  if (status == Store::Status::OK)
+  {
+    status = _store->set_data("impi_mapping",
+                              mapping->impi,
+                              data,
+                              mapping->cas,
+                              mapping->expiry(),
+                              trail);
+  }
 
   return status;
 }
@@ -348,4 +552,17 @@ ImpuStore::ImpiMapping* ImpuStore::ImpiMapping::from_json(std::string const& imp
   return new ImpiMapping(impi,
                          impus,
                          cas);
+}
+
+void ImpuStore::ImpiMapping::write_json(rapidjson::Writer<rapidjson::StringBuffer>& writer)
+{
+  writer.String(JSON_DEFAULT_IMPUS);
+  writer.StartArray();
+
+  for (const std::string& default_impu : _default_impus)
+  {
+    writer.String(default_impu.c_str());
+  }
+
+  writer.EndArray();
 }
