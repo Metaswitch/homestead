@@ -78,6 +78,7 @@ struct options
   std::string log_directory;
   int log_level;
   int cache_threads;
+  int cassandra_threads;
   std::string sas_server;
   std::string sas_system_name;
   int diameter_timeout_ms;
@@ -122,7 +123,8 @@ enum OptionTypes
   REQUEST_SHARED_IFCS,
   PIDFILE,
   DAEMON,
-  REG_MAX_EXPIRES
+  REG_MAX_EXPIRES,
+  CASSANDRA_THREADS
 };
 
 const static struct option long_opt[] =
@@ -134,6 +136,7 @@ const static struct option long_opt[] =
   {"http",                        required_argument, NULL, 'H'},
   {"http-threads",                required_argument, NULL, 't'},
   {"cache-threads",               required_argument, NULL, 'u'},
+  {"cassandra-threads",           required_argument, NULL, CASSANDRA_THREADS},
   {"cassandra",                   required_argument, NULL, 'S'},
   {"local-site-name",             required_argument, NULL, LOCAL_SITE_NAME},
   {"impu-stores",                 required_argument, NULL, 'M'},
@@ -176,7 +179,7 @@ static std::string options_description = "l:r:c:H:t:u:S:D:d:p:s:i:I:a:F:L:h";
 
 static const std::string HTTP_MGMT_SOCKET_PATH = "/tmp/homestead-http-mgmt-socket";
 static const int NUM_HTTP_MGMT_THREADS = 5;
-
+// TODO default number of cache threads
 void usage(void)
 {
   puts("Options:\n"
@@ -322,6 +325,11 @@ int init_options(int argc, char**argv, struct options& options)
     case 'u':
       TRC_INFO("Cache threads: %s", optarg);
       options.cache_threads = atoi(optarg);
+      break;
+
+    case CASSANDRA_THREADS:
+      TRC_INFO("Cassandra threads: %s", optarg);
+      options.cassandra_threads = atoi(optarg);
       break;
 
     case 'S':
@@ -592,6 +600,7 @@ int main(int argc, char**argv)
   options.http_port = 8888;
   options.http_threads = 1;
   options.cache_threads = 10;
+  options.cassandra_threads = 10;
   options.cassandra = "";
   options.dest_realm = "";
   options.dest_host = "dest-host.unknown";
@@ -816,9 +825,17 @@ int main(int argc, char**argv)
 
   HssCacheProcessor* cache_processor = new HssCacheProcessor(memcached_cache);
   HssCacheTask::configure_cache(cache_processor);
-  cache_processor->start_threads(options.cache_threads,
-                                 exception_handler,
-                                 0);
+  bool started = cache_processor->start_threads(options.cache_threads,
+                                                exception_handler,
+                                                0);
+  if (!started)
+  {
+    CL_HOMESTEAD_CACHE_INIT_FAIL.log();
+    TRC_ERROR("Failed to initialize the cache");
+    TRC_STATUS("Homestead is shutting down");
+    exit(2);
+  }
+
   HssCacheTask::configure_health_checker(hc);
 
   HttpConnection* http = new HttpConnection(options.sprout_http_name,
@@ -926,9 +943,8 @@ int main(int argc, char**argv)
                                         9160,
                                         cassandra_comm_monitor,
                                         cassandra_resolver);
-    // TODO need an HsProvStore threads options that's not the cache_threads
     hs_prov_store->configure_workers(exception_handler,
-                                     options.cache_threads,
+                                     options.cassandra_threads,
                                      0);
 
     // Test the connection to Cassandra before starting the store.
@@ -942,8 +958,7 @@ int main(int argc, char**argv)
 
     if (rc != CassandraStore::OK)
     {
-      // TODO PD log better name and text
-      CL_HOMESTEAD_CASSANDRA_CACHE_INIT_FAIL.log(rc);
+      CL_HOMESTEAD_CASSANDRA_INIT_FAIL.log(rc);
       TRC_ERROR("Failed to initialize the Cassandra store with error code %d.", rc);
       TRC_STATUS("Homestead is shutting down");
       exit(2);

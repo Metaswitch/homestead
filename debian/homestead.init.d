@@ -147,6 +147,7 @@ get_daemon_args()
         [ -z "$cassandra_hostname" ] || cassandra_arg="--cassandra=$cassandra_hostname"
         [ -z "$local_site_name" ] || local_site_name_arg="--local-site-name=$local_site_name"
         [ -z "$homestead_impu_store" ] || impu_store_arg="--impu-store=$homestead_impu_store"
+        [ -z "$homestead_cache_threads" ] || cache_threads_arg="--cache-threads=$homestead_cache_threads"
 
         DAEMON_ARGS="--localhost=$local_ip
                      --home-domain=$home_domain
@@ -177,6 +178,7 @@ get_daemon_args()
                      $sas_signaling_if_arg
                      $request_shared_ifcs_arg
                      $impu_store_arg
+                     $cache_threads_arg
                      $local_site_name_arg
                      --access-log=$log_directory
                      --log-file=$log_directory

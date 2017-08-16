@@ -70,7 +70,7 @@ static const PDLog CL_HOMESTEAD_STARTED
   "None."
 );
 
-static const PDLog1<int> CL_HOMESTEAD_CASSANDRA_CACHE_INIT_FAIL
+static const PDLog1<int> CL_HOMESTEAD_CASSANDRA_INIT_FAIL
 (
   PDLogBase::CL_HOMESTEAD_ID + 6,
   LOG_ERR,
@@ -106,9 +106,19 @@ static const PDLog2<const char*, int> CL_HOMESTEAD_HTTP_INIT_FAIL
   "(2). Check the network status and configuration. "
 );
 
-static const PDLog CL_HOMESTEAD_ENDED
+static const PDLog CL_HOMESTEAD_CACHE_INIT_FAIL
 (
   PDLogBase::CL_HOMESTEAD_ID + 9,
+  LOG_ERR,
+  "Fatal - Failed to start the cache",
+  "The HSS cache could not be started.",
+  "The application will exit and restart until the problem is fixed.",
+  "(1). Check shared and local configuration are correct."
+);
+
+static const PDLog CL_HOMESTEAD_ENDED
+(
+  PDLogBase::CL_HOMESTEAD_ID + 10,
   LOG_ERR,
   "Fatal - Termination signal received - terminating.",
   "Homestead could have been stopped or Homestead could have been restarted "
@@ -120,7 +130,7 @@ static const PDLog CL_HOMESTEAD_ENDED
 
 static const PDLog2<const char*, int> CL_HOMESTEAD_HTTP_STOP_FAIL
 (
-  PDLogBase::CL_HOMESTEAD_ID + 10,
+  PDLogBase::CL_HOMESTEAD_ID + 11,
   LOG_ERR,
   "The HTTP interfaces encountered an error when stopping the HTTP stack "
   "in %s with error %d.",
@@ -132,7 +142,7 @@ static const PDLog2<const char*, int> CL_HOMESTEAD_HTTP_STOP_FAIL
 
 static const PDLog2<const char*, int> CL_HOMESTEAD_DIAMETER_STOP_FAIL
 (
-  PDLogBase::CL_HOMESTEAD_ID + 11,
+  PDLogBase::CL_HOMESTEAD_ID + 12,
   LOG_ERR,
   "Failed to stop Diameter stack in function %s with error %d.",
   "The Diameter interface encountered an error when shutting "
