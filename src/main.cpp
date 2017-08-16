@@ -822,6 +822,13 @@ int main(int argc, char**argv)
 
     memcached_cache = new MemcachedCache(local_impu_store, remote_impu_stores);
   }
+  else
+  {
+    CL_HOMESTEAD_NO_IMPU_STORE.log();
+    TRC_ERROR("No IMPU store specified");
+    TRC_STATUS("Homestead is shutting down");
+    exit(2);
+  }
 
   HssCacheProcessor* cache_processor = new HssCacheProcessor(memcached_cache);
   HssCacheTask::configure_cache(cache_processor);
