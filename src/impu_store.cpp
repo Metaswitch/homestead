@@ -260,14 +260,19 @@ Store::Status ImpuStore::Impu::to_data(std::string& data)
         // Compression failed - retry with a bigger buffer.
         // Buffer size is the only reason it can fail. We stop
         // the buffer growing beyond reason.
-        if (buffer_length * 2 > MAX_BUFFER_LEN)
+        int new_buffer_length = _buffer_len * 2;
+
+        if (new_buffer_length > MAX_BUFFER_LEN)
         {
-          TRC_WARNING("Attempted to compress %u bytes - %u bytes was insufficient",
-                      uncomp_size, buffer_length);
+          TRC_WARNING("Failed to attempt to compress %lu bytes of data - won't "
+                      "fit into %lu bytes, proposed new buffer of %lu bytes "
+                      "exceeds maximum of %lu bytes",
+                      uncomp_size, buffer_length,
+                      new_buffer_length, MAX_BUFFER_LEN);
           break;
         }
 
-        buffer_length *= 2;
+        buffer_length = new_buffer_len;
 
         buffer = (char*) realloc((void*)buffer, buffer_length);
         LZ4_resetStream(stream);
