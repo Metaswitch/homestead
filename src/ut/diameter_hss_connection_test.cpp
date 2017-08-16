@@ -169,7 +169,7 @@ public:
                                                _lir_results_table);
 
     HssConnection::HssConnection::configure_auth_schemes(SCHEME_DIGEST, SCHEME_AKA, SCHEME_AKAV2);
-  
+
     cwtest_completely_control_time();
   }
 
@@ -2025,6 +2025,72 @@ TEST_F(DiameterHssConnectionTest, SendSARWildcardImpu)
   EXPECT_CALL(*_answer_catcher, got_saa(
     AllOf(Field(&HssConnection::ServerAssignmentAnswer::_result_code, ::HssConnection::ResultCode::NEW_WILDCARD),
           Field(&HssConnection::ServerAssignmentAnswer::_wildcard_impu, "wildcard"))))
+    .Times(1).RetiresOnSaturation();
+
+  // Expect the stats to be updated
+  EXPECT_CALL(*_stats, update_H_hss_latency_us(12000));
+  EXPECT_CALL(*_stats, update_H_hss_subscription_latency_us(12000));
+  cwtest_advance_time_ms(12);
+
+  _caught_diam_tsx->on_response(saa);
+
+  _caught_fd_msg = NULL;
+  delete _caught_diam_tsx; _caught_diam_tsx = NULL;
+}
+
+TEST_F(DiameterHssConnectionTest, SendSARWildcardEmpty)
+{
+  // Create an SAR
+  HssConnection::ServerAssignmentRequest  request = {
+    IMPI,
+    IMPU,
+    SERVER_NAME,
+    Cx::ServerAssignmentType::REGISTRATION,
+    false,
+    ""
+  };
+
+  // Expect diameter message to be sent with the correct timeout, and store the
+  // sent message
+  EXPECT_CALL(*_mock_stack, send(_, _, TIMEOUT_MS))
+    .Times(1)
+    .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
+
+  // Send the SAR
+  _hss_connection->send_server_assignment_request(SAA_CB, request, FAKE_TRAIL_ID);
+
+  // Check that we've caught the message and it's not null
+  ASSERT_FALSE(_caught_diam_tsx == NULL);
+  _caught_diam_tsx->start_timer();
+
+  // Turn the caught Diameter msg structure into a UAR and check its contents.
+  Diameter::Message msg(_cx_dict, _caught_fd_msg, _mock_stack);
+  Cx::ServerAssignmentRequest sar(msg);
+  EXPECT_TRUE(sar.get_str_from_avp(_cx_dict->DESTINATION_REALM, test_str));
+  EXPECT_EQ(DEST_REALM, test_str);
+  EXPECT_TRUE(sar.get_str_from_avp(_cx_dict->DESTINATION_HOST, test_str));
+  EXPECT_EQ(DEST_HOST, test_str);
+  EXPECT_EQ(IMPI, sar.impi());
+  EXPECT_EQ(IMPU, sar.impu());
+  EXPECT_TRUE(sar.server_name(test_str));
+  EXPECT_EQ(SERVER_NAME, test_str);
+  EXPECT_TRUE(sar.server_assignment_type(test_i32));
+  EXPECT_EQ(Cx::ServerAssignmentType::REGISTRATION, test_i32);
+
+  // We're now going to inject a response
+  Cx::ServerAssignmentAnswer saa(_cx_dict,
+                                 _mock_stack,
+                                 0,
+                                 0,
+                                 DIAMETER_ERROR_IN_ASSIGNMENT_TYPE,
+                                 "",
+                                 NO_CHARGING_ADDRESSES,
+                                 "");
+
+  // Expect that we'll call the callback with the correct answer and the
+  // new wildcard impu
+  EXPECT_CALL(*_answer_catcher, got_saa(
+    Field(&HssConnection::ServerAssignmentAnswer::_result_code, ::HssConnection::ResultCode::UNKNOWN)))
     .Times(1).RetiresOnSaturation();
 
   // Expect the stats to be updated
