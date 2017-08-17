@@ -51,7 +51,9 @@ public:
 
     virtual Store::Status to_data(std::string& data);
 
-    static Impu* from_data(const std::string& impu, std::string& data, uint64_t& cas);
+    static Impu* from_data(const std::string& impu,
+                           std::string& data,
+                           uint64_t cas);
 
     virtual void write_json(rapidjson::Writer<rapidjson::StringBuffer>& writer) = 0;
 
@@ -154,7 +156,7 @@ public:
 
     static ImpiMapping* from_data(const std::string& impu,
                                   std::string& data,
-                                  uint64_t& cas);
+                                  uint64_t cas);
 
     static ImpiMapping* from_json(const std::string& impi,
                                   rapidjson::Value& json,

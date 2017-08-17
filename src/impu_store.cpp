@@ -88,9 +88,9 @@ uint64_t decode_varbyte(const std::string& data, size_t& offset)
   return length;
 }
 
-ImpuStore::Impu* ImpuStore::Impu::from_data(std::string const& impu,
+ImpuStore::Impu* ImpuStore::Impu::from_data(const std::string& impu,
                                             std::string& data,
-                                            unsigned long& cas)
+                                            unsigned long cas)
 {
   if (data.size() < 2)
   {
@@ -438,7 +438,7 @@ void ImpuStore::AssociatedImpu::write_json(rapidjson::Writer<rapidjson::StringBu
 
 ImpuStore::ImpiMapping* ImpuStore::ImpiMapping::from_data(std::string const& impi,
                                                           std::string& data,
-                                                          unsigned long& cas)
+                                                          unsigned long cas)
 {
   rapidjson::Document doc;
   doc.Parse<0>(data.c_str());
