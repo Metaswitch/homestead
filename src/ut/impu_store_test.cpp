@@ -17,8 +17,10 @@
 static const std::string IMPU = "sip:impu@example.com";
 static const std::string ASSOC_IMPU = "sip:assoc_impu@example.com";
 static const std::vector<std::string> NO_ASSOCIATED_IMPUS;
+static const std::vector<std::string> IMPUS = { IMPU };
 static const ChargingAddresses NO_CHARGING_ADDRESSES = ChargingAddresses({}, {});
-static const std::vector<std::string> IMPI = { "impi@example.com" };
+static const std::string IMPI = "impi@example.com";
+static const std::vector<std::string> IMPIS = { IMPI };
 
 // Not valid - just dummy data for testing.
 static const std::string SERVICE_PROFILE = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><ServiceProfile></ServiceProfile>";
@@ -67,7 +69,7 @@ TEST_F(ImpuStoreTest, SetDefaultImpu)
   ImpuStore::DefaultImpu* default_impu =
     new ImpuStore::DefaultImpu(IMPU,
                                NO_ASSOCIATED_IMPUS,
-                               IMPI,
+                               IMPIS,
                                RegistrationState::REGISTERED,
                                NO_CHARGING_ADDRESSES,
                                SERVICE_PROFILE,
@@ -142,7 +144,7 @@ TEST_F(ImpuStoreTest, GetDefaultImpu)
   ImpuStore::DefaultImpu* default_impu =
     new ImpuStore::DefaultImpu(IMPU,
                                NO_ASSOCIATED_IMPUS,
-                               IMPI,
+                               IMPIS,
                                RegistrationState::REGISTERED,
                                NO_CHARGING_ADDRESSES,
                                SERVICE_PROFILE,
@@ -164,7 +166,7 @@ TEST_F(ImpuStoreTest, GetDefaultImpu)
 
   ASSERT_NE(nullptr, got_default_impu);
 
-  ASSERT_EQ(IMPI, got_default_impu->impis);
+  ASSERT_EQ(IMPIS, got_default_impu->impis);
   ASSERT_EQ(NO_ASSOCIATED_IMPUS, got_default_impu->associated_impus);
   ASSERT_EQ(NO_CHARGING_ADDRESSES.ccfs, got_default_impu->charging_addresses.ccfs);
   ASSERT_EQ(NO_CHARGING_ADDRESSES.ecfs, got_default_impu->charging_addresses.ecfs);
@@ -227,6 +229,56 @@ TEST_F(ImpuStoreTest, GetAssociatedImpu)
 
   delete got_impu;
 
+  delete impu_store;
+  delete local_store;
+}
+
+TEST_F(ImpuStoreTest, SetAssociatedImpiMapping)
+{
+  LocalStore* local_store = new LocalStore();
+  ImpuStore* impu_store = new ImpuStore(local_store);
+
+  int expiry = time(0) + 1;
+
+  ImpuStore::ImpiMapping* mapping =
+    new ImpuStore::ImpiMapping(IMPI,
+                               IMPUS,
+                               0L,
+                               expiry);
+
+  impu_store->set_impi_mapping(mapping, 0);
+
+  delete mapping;
+  delete impu_store;
+  delete local_store;
+}
+
+TEST_F(ImpuStoreTest, GetAssociatedImpiMapping)
+{
+  LocalStore* local_store = new LocalStore();
+  ImpuStore* impu_store = new ImpuStore(local_store);
+
+  int expiry = time(0) + 1;
+
+  ImpuStore::ImpiMapping* mapping =
+    new ImpuStore::ImpiMapping(IMPI,
+                               IMPUS,
+                               0L,
+                               expiry);
+
+  impu_store->set_impi_mapping(mapping, 0);
+
+  delete mapping;
+
+  ImpuStore::ImpiMapping* got_mapping =
+    impu_store->get_impi_mapping(IMPI, 0);
+
+  ASSERT_NE(nullptr, got_mapping);
+  ASSERT_EQ(IMPI, got_mapping->impi);
+  ASSERT_TRUE(got_mapping->has_default_impu(IMPU));
+  ASSERT_EQ(expiry, got_mapping->get_expiry());
+
+  delete got_mapping;
   delete impu_store;
   delete local_store;
 }
