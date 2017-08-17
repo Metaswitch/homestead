@@ -82,6 +82,56 @@ TEST_F(ImpuStoreTest, SetDefaultImpu)
   delete local_store;
 }
 
+TEST_F(ImpuStoreTest, SetUnregisteredDefaultImpu)
+{
+  LocalStore* local_store = new LocalStore();
+  ImpuStore* impu_store = new ImpuStore(local_store);
+
+  int expiry = time(0) + 1;
+
+  ImpuStore::DefaultImpu* default_impu =
+    new ImpuStore::DefaultImpu(IMPU,
+                               NO_ASSOCIATED_IMPUS,
+                               IMPIS,
+                               RegistrationState::UNREGISTERED,
+                               NO_CHARGING_ADDRESSES,
+                               SERVICE_PROFILE,
+                               0L,
+                               expiry);
+
+  EXPECT_EQ(Store::Status::OK,
+            impu_store->set_impu(default_impu, 0));
+
+  delete default_impu;
+  delete impu_store;
+  delete local_store;
+}
+
+TEST_F(ImpuStoreTest, SetInvalidRegistrationStateDefaultImpu)
+{
+  LocalStore* local_store = new LocalStore();
+  ImpuStore* impu_store = new ImpuStore(local_store);
+
+  int expiry = time(0) + 1;
+
+  ImpuStore::DefaultImpu* default_impu =
+    new ImpuStore::DefaultImpu(IMPU,
+                               NO_ASSOCIATED_IMPUS,
+                               IMPIS,
+                               RegistrationState::UNCHANGED,
+                               NO_CHARGING_ADDRESSES,
+                               SERVICE_PROFILE,
+                               0L,
+                               expiry);
+
+  EXPECT_EQ(Store::Status::OK,
+            impu_store->set_impu(default_impu, 0));
+
+  delete default_impu;
+  delete impu_store;
+  delete local_store;
+}
+
 TEST_F(ImpuStoreTest, GetDefaultImpu)
 {
   LocalStore* local_store = new LocalStore();
