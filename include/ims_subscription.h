@@ -12,8 +12,6 @@
 #ifndef IMS_SUBSCRIPTION_H__
 #define IMS_SUBSCRIPTION_H__
 
-#include <set>
-
 #include "charging_addresses.h"
 #include "implicit_reg_set.h"
 
