@@ -68,10 +68,13 @@ public:
                 const std::vector<std::string>& associated_impus,
                 const std::vector<std::string>& impis,
                 RegistrationState registration_state,
+                const ChargingAddresses& charging_addresses,
                 const std::string& service_profile,
                 uint64_t cas,
                 int64_t expiry) :
       Impu(impu, cas, expiry),
+      registration_state(registration_state),
+      charging_addresses(charging_addresses),
       associated_impus(associated_impus),
       impis(impis),
       service_profile(service_profile)
