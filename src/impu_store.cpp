@@ -254,6 +254,63 @@ ImpuStore::Impu* ImpuStore::DefaultImpu::from_json(std::string const& impu,
                          expiry);
 }
 
+void ImpuStore::Impu::compress_data_v0(std::string& data,
+                                       char*& buffer,
+                                       int& comp_size)
+{
+  unsigned int uncomp_size = data.size();
+
+  // Check we have a LZ4 stream with the V0 dict pre-prepared.
+  if (_thrd_lz4_stream == NULL)
+  {
+    _thrd_lz4_stream = LZ4_createStream();
+    LZ4_loadDict(_thrd_lz4_stream, _dict_v0, _dict_v0_size);
+    LZ4_stream_preserve(_thrd_lz4_stream, &_thrd_lz4_hash);
+  }
+
+  // Compress the data using LZ4
+  LZ4_stream_t* stream = LZ4_createStream();
+
+  size_t buffer_length = 2048; // 2KB
+  buffer = (char*) malloc(buffer_length);
+
+  do
+  {
+    LZ4_stream_restore_preserved(stream, _thrd_lz4_stream, _thrd_lz4_hash);
+    comp_size = LZ4_compress_fast_continue(stream,
+                                           data.c_str(),
+                                           buffer,
+                                           uncomp_size,
+                                           buffer_length,
+                                           ACCELERATION);
+
+    if (comp_size <= 0)
+    {
+      // Compression failed - retry with a bigger buffer.
+      // Buffer size is the only reason it can fail. We stop
+      // the buffer growing beyond reason.
+      int new_buffer_length = buffer_length * 2;
+
+      if (new_buffer_length > MAX_BUFFER_LEN)
+      {
+        TRC_WARNING("Failed to attempt to compress %lu bytes of data - won't "
+                    "fit into %lu bytes, proposed new buffer of %lu bytes "
+                    "exceeds maximum of %lu bytes",
+                    uncomp_size, buffer_length,
+                    new_buffer_length, MAX_BUFFER_LEN);
+        break;
+      }
+
+      buffer_length = new_buffer_length;
+
+      buffer = (char*) realloc((void*)buffer, buffer_length);
+      LZ4_resetStream(stream);
+    }
+  } while(comp_size == 0);
+
+  LZ4_freeStream(stream);
+}
+
 Store::Status ImpuStore::Impu::to_data(std::string& data)
 {
   // We get the JSON representing the IMPU, compress it using
@@ -289,55 +346,7 @@ Store::Status ImpuStore::Impu::to_data(std::string& data)
 
     TRC_DEBUG("Wrote IMPU %s to JSON: %lu bytes", impu.c_str(), uncomp_size);
 
-    // Check we have a LZ4 stream with the V0 dict pre-prepared.
-    if (_thrd_lz4_stream == NULL)
-    {
-      _thrd_lz4_stream = LZ4_createStream();
-      LZ4_loadDict(_thrd_lz4_stream, _dict_v0, _dict_v0_size);
-      LZ4_stream_preserve(_thrd_lz4_stream, &_thrd_lz4_hash);
-    }
-
-    // Compress the data using LZ4
-    LZ4_stream_t* stream = LZ4_createStream();
-
-    size_t buffer_length = 2048; // 2KB
-    buffer = (char*) malloc(buffer_length);
-
-    do
-    {
-      LZ4_stream_restore_preserved(stream, _thrd_lz4_stream, _thrd_lz4_hash);
-      comp_size = LZ4_compress_fast_continue(stream,
-                                             json.c_str(),
-                                             buffer,
-                                             uncomp_size,
-                                             buffer_length,
-                                             ACCELERATION);
-
-      if (comp_size <= 0)
-      {
-        // Compression failed - retry with a bigger buffer.
-        // Buffer size is the only reason it can fail. We stop
-        // the buffer growing beyond reason.
-        int new_buffer_length = buffer_length * 2;
-
-        if (new_buffer_length > MAX_BUFFER_LEN)
-        {
-          TRC_WARNING("Failed to attempt to compress %lu bytes of data - won't "
-                      "fit into %lu bytes, proposed new buffer of %lu bytes "
-                      "exceeds maximum of %lu bytes",
-                      uncomp_size, buffer_length,
-                      new_buffer_length, MAX_BUFFER_LEN);
-          break;
-        }
-
-        buffer_length = new_buffer_length;
-
-        buffer = (char*) realloc((void*)buffer, buffer_length);
-        LZ4_resetStream(stream);
-      }
-    } while(comp_size == 0);
-
-    LZ4_freeStream(stream);
+    compress_data_v0(json, buffer, comp_size);
   }
 
   if (comp_size == 0)
