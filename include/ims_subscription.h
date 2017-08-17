@@ -1,7 +1,7 @@
 /**
- * @file subscriber_data.h structs to represent subscriber data.
+ * @file ims_subscription.h Abstract class that represents an entire IMS Subscription.
  *
- * Copyright (C) Metaswitch Networks 2015
+ * Copyright (C) Metaswitch Networks 2017
  * If license terms are provided to you in a COPYING file in the root directory
  * of the source code repository by which you are accessing this code, then
  * the license outlined in that COPYING file applies to your use.
@@ -23,27 +23,9 @@ public:
   ImsSubscription() {};
   virtual ~ImsSubscription() {};
 
-  // TODO shuold be pure virtual, but added implementation just to get code comiling
-  virtual void set_charging_addrs(ChargingAddresses new_addresses) {};
+  virtual void set_charging_addrs(ChargingAddresses new_addresses) = 0;
 
-  virtual ImplicitRegistrationSet* get_irs_for_default_impu(std::string impu) { return NULL; };
-
- /*
-  // Returns the IRS* if there is one, else NULL
-  ImplicitRegistrationSet* get_irs_for_default_impu(std::string impu)
-  {
-    ImplicitRegistrationSet* result = NULL;
-    for (ImplicitRegistrationSet* irs : _irs_set)
-    {
-      if (irs->get_default_impu() == impu)
-      {
-        result = irs;
-        break;
-      }
-    }
-
-    return result;
-  }*/
+  virtual ImplicitRegistrationSet* get_irs_for_default_impu(std::string impu) = 0;
 };
 
 #endif
