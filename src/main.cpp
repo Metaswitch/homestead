@@ -599,7 +599,7 @@ int main(int argc, char**argv)
   options.http_address = "0.0.0.0";
   options.http_port = 8888;
   options.http_threads = 1;
-  options.cache_threads = 10;
+  options.cache_threads = 50;
   options.cassandra_threads = 10;
   options.cassandra = "";
   options.dest_realm = "";
