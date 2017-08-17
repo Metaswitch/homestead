@@ -45,6 +45,47 @@ static const int ACCELERATION = 1;
 // The maximum buffer size to use for IMPU compression
 static const int MAX_BUFFER_LEN = 131072;
 
+void encode_varbyte(uint64_t uncomp_size, std::string& data)
+{
+  while (uncomp_size != 0)
+  {
+    // Get 7 bits into a byte
+    char size_byte = uncomp_size & 0x7f;
+    uncomp_size = uncomp_size >> 7;
+
+    TRC_DEBUG("Adding byte: %d - remaining: %llu",
+              size_byte, uncomp_size);
+
+    if (uncomp_size > 0)
+    {
+      TRC_DEBUG("Flagging extra byte required");
+      size_byte |= 0x80;
+    }
+
+    data.push_back(size_byte);
+  }
+}
+
+uint64_t decode_varbyte(const std::string& data, size_t& offset)
+{
+  uint64_t length = 0;
+  bool done;
+  size_t i = 0;
+
+  do
+  {
+    char bits = (data[offset] & 0x7f);
+    length |= (bits << (7*i));
+    TRC_DEBUG("Extracted: %d - total: %llu",
+              bits, length);
+    done = ((data[offset] & 0x80) == 0);
+    offset++;
+    i++;
+  } while(!done && length < INT_MAX);
+
+  return length;
+}
+
 ImpuStore::Impu* ImpuStore::Impu::from_data(std::string const& impu,
                                             std::string& data,
                                             unsigned long& cas)
@@ -63,17 +104,13 @@ ImpuStore::Impu* ImpuStore::Impu::from_data(std::string const& impu,
     size_t offset = 1;
 
     // Size
-    uint64_t length_long = 0;
-
-    do
-    {
-      length_long |= ((data[offset] & 0x7f) << (7*(offset - 1)));
-      offset++;
-    } while(((data[offset] & 0x80) != 0) && length_long < INT_MAX);
+    uint64_t length_long = decode_varbyte(data, offset);
 
     if (length_long > INT_MAX)
     {
       // Data exceeded allowed length
+      TRC_WARNING("Uncompressed data exceeded compressable length: %llu",
+                  length_long);
       return nullptr;
     }
 
@@ -82,12 +119,16 @@ ImpuStore::Impu* ImpuStore::Impu::from_data(std::string const& impu,
     int compressed_size = data.size() - offset;
     char* json = new char[length];
 
+    TRC_DEBUG("Decompressing %llu bytes of data into %llu bytes",
+              compressed_size,
+              length);
+
     int rc = LZ4_decompress_safe_usingDict(compressed,
-                                            json,
-                                            compressed_size,
-                                            length,
-                                            _dict_v0,
-                                            _dict_v0_size);
+                                           json,
+                                           compressed_size,
+                                           length,
+                                           _dict_v0,
+                                           _dict_v0_size);
 
 
     if (rc == 0 || rc != length)
@@ -224,6 +265,8 @@ Store::Status ImpuStore::Impu::to_data(std::string& data)
   // Scope the JSON string so we don't have to keep it in
   // memory too long
   {
+    TRC_DEBUG("Determining JSON for %s", impu.c_str());
+
     std::string json;
 
     {
@@ -239,6 +282,8 @@ Store::Status ImpuStore::Impu::to_data(std::string& data)
     json.push_back('\0'); // Add a terminating null byte for safety
 
     uncomp_size = json.size();
+
+    TRC_DEBUG("Wrote IMPU %s to JSON: %lu bytes", impu.c_str(), uncomp_size);
 
     // Check we have a LZ4 stream with the V0 dict pre-prepared.
     if (_thrd_lz4_stream == NULL)
@@ -319,20 +364,7 @@ Store::Status ImpuStore::Impu::to_data(std::string& data)
   data.push_back((char) 0);
 
   // Length of the uncompressed data
-  while (uncomp_size_len != 0)
-  {
-    // Get 7 bits into a byte
-    char size_byte = uncomp_size & 0x7f;
-    uncomp_size = uncomp_size >> 7;
-
-    if (uncomp_size_len > 1)
-    {
-      size_byte |= 0x80;
-    }
-
-    data.push_back(size_byte);
-    uncomp_size_len--;
-  }
+  encode_varbyte(uncomp_size, data);
 
   // Add the compressed data to the buffer
   data.append(buffer, comp_size);
@@ -478,6 +510,9 @@ Store::Status ImpuStore::set_impu_without_cas(ImpuStore::Impu* impu,
 Store::Status ImpuStore::set_impu(ImpuStore::Impu* impu,
                                   SAS::TrailId trail)
 {
+  TRC_DEBUG("Writing %s to store (SAS Trail: %lu)",
+            impu->impu.c_str(), trail);
+
   std::string data;
 
   Store::Status status = impu->to_data(data);
@@ -491,6 +526,9 @@ Store::Status ImpuStore::set_impu(ImpuStore::Impu* impu,
                      impu->expiry,
                      trail);
   }
+
+  TRC_DEBUG("Wrote %s to store (SAS Trail: %lu) with result: %u",
+            impu->impu.c_str(), trail, status);
 
   return status;
 }
