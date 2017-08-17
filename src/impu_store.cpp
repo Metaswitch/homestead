@@ -83,7 +83,26 @@ uint64_t decode_varbyte(const std::string& data, size_t& offset)
     done = ((data[offset] & 0x80) == 0);
     offset++;
     i++;
-  } while(!done && length < INT_MAX);
+  } while(!done && length < INT_MAX && offset < data.size());
+
+  if (!done || length >= INT_MAX)
+  {
+    if (length >= INT_MAX)
+    {
+      // Data exceeded allowed length
+      TRC_WARNING("Uncompressed data exceeded compressable length: %llu",
+                  length);
+
+    }
+    else if (offset >= data.size())
+    {
+      // We were about to run off the data buffer
+      TRC_WARNING("Length exceeded data buffer");
+    }
+
+    // Data is corrupt - return 0
+    length = 0;
+  }
 
   return length;
 }
@@ -92,7 +111,7 @@ ImpuStore::Impu* ImpuStore::Impu::from_data(const std::string& impu,
                                             std::string& data,
                                             unsigned long cas)
 {
-  if (data.size() < 2)
+  if (data.size() == 0)
   {
     // Invalid data
     return nullptr;
@@ -105,14 +124,12 @@ ImpuStore::Impu* ImpuStore::Impu::from_data(const std::string& impu,
     // Data is stored as [version][length][zlib4 compressed JSON]
     size_t offset = 1;
 
-    // Size
+    // Size of uncompressed data
     uint64_t length_long = decode_varbyte(data, offset);
 
-    if (length_long > INT_MAX)
+    if (length_long == 0)
     {
-      // Data exceeded allowed length
-      TRC_WARNING("Uncompressed data exceeded compressable length: %llu",
-                  length_long);
+      // Data is corrupt
       return nullptr;
     }
 
