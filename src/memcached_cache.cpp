@@ -62,22 +62,24 @@ ImpuStore::DefaultImpu* MemcachedImplicitRegistrationSet::get_impu_for_store(Imp
   }
 }
 
+// Check whether an element is in a vector
 bool in_vector(const std::string& element,
                const std::vector<std::string>& vec)
 {
   return std::find(vec.begin(), vec.end(), element) != vec.end();
 }
 
-void update_from_store(const std::vector<std::string>& store,
-                       MemcachedImplicitRegistrationSet::Data data,
-                       MemcachedImplicitRegistrationSet::State state)
-{
-  for (const std::string& member : store)
-  {
-    data.emplace(member, state);
-  }
-}
-
+// Update the given data store, based on an updated view of the world
+// provided by the user
+//
+// Elements which are not in the vector, but are in the provided data
+// store are marked as DELETED.
+//
+// Elements which are in the vector, but are either not in the provided
+// data store, or are in the provided data store as DELETED, are marked
+// as ADDED
+//
+// Any other element is left unchanged.
 void set_elements(const std::vector<std::string>& updated,
                   MemcachedImplicitRegistrationSet::Data& data)
 {
@@ -91,15 +93,15 @@ void set_elements(const std::vector<std::string>& updated,
 
   for (const std::string& entry : updated)
   {
-    MemcachedImplicitRegistrationSet::State& value = data[entry];
+    MemcachedImplicitRegistrationSet::Data::iterator it = data.find(entry);
 
-    switch (value)
+    if (it == data.end())
     {
-      case MemcachedImplicitRegistrationSet::State::ADDED:
-      case MemcachedImplicitRegistrationSet::State::UNCHANGED:
-        break;
-      case MemcachedImplicitRegistrationSet::State::DELETED:
-        value = MemcachedImplicitRegistrationSet::State::ADDED;
+      data[entry] = MemcachedImplicitRegistrationSet::State::ADDED;
+    }
+    else if (it->second == MemcachedImplicitRegistrationSet::State::DELETED)
+    {
+      it->second = MemcachedImplicitRegistrationSet::State::ADDED;
     }
   }
 }
@@ -114,10 +116,28 @@ void MemcachedImplicitRegistrationSet::set_associated_impus(std::vector<std::str
   set_elements(impus, _associated_impus);
 }
 
-void MemcachedImplicitRegistrationSet::update_from_store(ImpuStore::DefaultImpu* impu)
+// Update the given data from the store, placing any unseen data elements
+// in the given state. Any existing elements are unchanged.
+//
+// store_elements - Vector of elements in the store
+// data           - Current data which we shall update
+// state          - State to place any new elements in (e.g. UNCHANGED)
+void update_from_store(const std::vector<std::string>& store_elements,
+                       MemcachedImplicitRegistrationSet::Data data,
+                       MemcachedImplicitRegistrationSet::State state)
+{
+  for (const std::string& member : store_elements)
+  {
+    data.emplace(member, state);
+  }
+}
+
+void MemcachedImplicitRegistrationSet::update_from_impu_from_store(ImpuStore::DefaultImpu* impu)
 {
   MemcachedImplicitRegistrationSet::State state;
 
+  // We only update our data from the store if it's not been updated by
+  // the caller
   if (!_registration_state_set)
   {
     _registration_state = impu->registration_state;
@@ -236,17 +256,24 @@ Store::Status MemcachedCache::get_implicit_registration_set_for_impu(const std::
 
     TRC_INFO("IMPU: %s maps to IMPU: %s", impu.c_str(), assoc_impu->default_impu.c_str());
 
-    ImpuStore::Impu* data = get_impu_for_impu_gr(assoc_impu->default_impu, trail);
+    data = get_impu_for_impu_gr(assoc_impu->default_impu, trail);
 
     delete assoc_impu;
 
     if (data)
     {
+      // Is the target IMPU a default IMPU?
       bool is_default = data->is_default_impu();
-      bool is_associated = (is_default && ((ImpuStore::DefaultImpu*)data)->has_associated_impu(impu));
+
+      // Does the target IMPU have the source Associated IMPU as
+      // a default IMPU?
+      bool is_associated = (is_default &&
+                            ((ImpuStore::DefaultImpu*)data)->has_associated_impu(impu));
 
       if (!is_default || !is_associated)
       {
+        // Target IMPU is invalid - probably a window condition
+        // Log and treat as not found.
         if (!is_default)
         {
           TRC_INFO("None default IMPU pointed by associated IMPU record");
@@ -340,6 +367,9 @@ Store::Status MemcachedCache::update_irs_impi_mappings(MemcachedImplicitRegistra
 {
   Store::Status status = Store::Status::OK;
 
+  // Updating the mappings needs to be CASed, as each of the IMPIs maps
+  // to an array, which may be mutated by multiple Homesteads simultaneously
+
   // Remove old IMPI mappings
   for (const std::string& impi : irs->impis(MemcachedImplicitRegistrationSet::State::DELETED))
   {
@@ -384,6 +414,10 @@ Store::Status MemcachedCache::update_irs_impi_mappings(MemcachedImplicitRegistra
           int now = time(0);
           mapping->set_expiry(irs->get_ttl() + now);
 
+          // Although we believe the IMPI-IMPU mapping is unchanged,
+          // in the background it may have been deleted, and re-added,
+          // so we should check that the data is still consistent with
+          // the Default IMPU record
           if (!mapping->has_default_impu(irs->default_impu))
           {
             mapping->add_default_impu(irs->default_impu);
@@ -406,6 +440,11 @@ Store::Status MemcachedCache::update_irs_impi_mappings(MemcachedImplicitRegistra
   for (const std::string& impi : irs->impis(MemcachedImplicitRegistrationSet::State::ADDED))
   {
     int64_t expiry = time(0) + irs->get_ttl();
+
+    // Given we think this IMPI-IMPU mapping is new, and given
+    // multiple IMPI mapping to multiple IRS is rare, we assume
+    // that the IMPI-IMPU mapping does not exist. If it does, we'll
+    // perform a CAS contention resolution
     ImpuStore::ImpiMapping* mapping = new ImpuStore::ImpiMapping(impi,
                                                                  irs->default_impu,
                                                                  expiry);
@@ -530,18 +569,35 @@ Store::Status perform_irs_impu_action(irs_impu_action action,
     else
     {
       // The IRS was not originally created from this store, so we don't
-      // have any idea how to CAS this data into place. Start by fetching
-      // the stores view of the data. As we merge in remote stores, we'll get a
-      // fuller picture of the data, but we don't attempt to update local
-      // stores, and just assume they'll fall into place.
+      // have any idea how to CAS this data into place, or we hit a
+      // conflict. As such start by fetching the stores view of the data.
+      // As we merge in remote stores, we'll get a fuller picture of the
+      // data, but we don't attempt to update local stores, and just
+      // assume they'll fall into place.
       ImpuStore::Impu* mapped_impu = store->get_impu(irs->default_impu, trail);
 
-      if (mapped_impu->is_default_impu())
+      if (mapped_impu == nullptr)
+      {
+         if (action == &ImpuStore::delete_impu)
+         {
+           // Nothing in the store, but we are deleting, so just
+           // return OK
+           status = Store::Status::OK;
+         }
+         else
+         {
+           // Nothing in the store representing this IMPU - just create
+           // a new one
+           impu = irs->get_impu();
+           status = (store->*action)(impu, trail);
+         }
+      }
+      else if (mapped_impu->is_default_impu())
       {
         ImpuStore::DefaultImpu* default_impu = (ImpuStore::DefaultImpu*) mapped_impu;
 
         // Merge details from the store into our IRS.
-        irs->update_from_store(default_impu);
+        irs->update_from_impu_from_store(default_impu);
         impu = irs->get_impu_from_impu(default_impu);
         status = (store->*action)(impu, trail);
       }
@@ -595,6 +651,8 @@ Store::Status MemcachedCache::put_implicit_registration_set(MemcachedImplicitReg
                                                             SAS::TrailId trail,
                                                             ImpuStore* store)
 {
+  // We have three operations to perform here, and can't guarantee
+  // perfect consistency, but we should eventually get consistency
   Store::Status status;
 
   if (irs->is_existing())
@@ -694,7 +752,7 @@ Store::Status MemcachedCache::get_ims_subscription(const std::string& impi,
 
     if (status == Store::Status::OK)
     {
-       result = new MemcachedImsSubscription(mapping, irs);
+       result = new MemcachedImsSubscription(irs);
     }
 
     delete mapping;

@@ -21,8 +21,7 @@
 class MemcachedImsSubscription : public ImsSubscription
 {
 public:
-  MemcachedImsSubscription(ImpuStore::ImpiMapping*& mapping,
-                           std::vector<ImplicitRegistrationSet*>& irss) :
+  MemcachedImsSubscription(std::vector<ImplicitRegistrationSet*>& irss) :
     ImsSubscription()
   {
     for (ImplicitRegistrationSet*& irs : irss)
@@ -61,6 +60,12 @@ private:
 class MemcachedImplicitRegistrationSet : public ImplicitRegistrationSet
 {
 public:
+  /**
+   * Create a new IRS to represent the data stored under the Default IMPU
+   * in the store.
+   *
+   * Created by the MemcachedCache when retrieving an IRS from the store.
+   */
   MemcachedImplicitRegistrationSet(ImpuStore::DefaultImpu* default_impu) :
     ImplicitRegistrationSet(default_impu->impu),
     _store(default_impu->store),
@@ -68,12 +73,30 @@ public:
     _changed(false),
     _refreshed(false),
     _existing(true),
+    _ims_sub_xml(default_impu->service_profile),
     _ims_sub_xml_set(false),
+    _charging_addresses(default_impu->charging_addresses),
     _charging_addresses_set(false),
+    _registration_state(default_impu->registration_state),
     _registration_state_set(false)
   {
+    for (const std::string& impu : default_impu->associated_impus)
+    {
+      _associated_impus[impu] = State::UNCHANGED;
+    }
+
+    for (const std::string& impi : default_impu->impis)
+    {
+      _impis[impi] = State::UNCHANGED;
+    }
   }
 
+  /**
+   * Create a new IRS to represent a subscriber whose details
+   * are as yet unknown (e.g. not retrieved from the HSS).
+   *
+   * Created by the HssCacheProcessor for the handler to update.
+   */
   MemcachedImplicitRegistrationSet(const std::string& default_impu) :
     ImplicitRegistrationSet(default_impu),
     _store(nullptr),
@@ -105,7 +128,8 @@ public:
 
     for (const std::pair<std::string, State>& entry : _impis)
     {
-      if (entry.second == State::UNCHANGED || entry.second == State::DELETED)
+      if (entry.second == State::UNCHANGED ||
+          entry.second == State::ADDED)
       {
         impis.push_back(entry.first);
       }
@@ -120,7 +144,8 @@ public:
 
     for (const std::pair<std::string, State>& entry : _associated_impus)
     {
-      if (entry.second == State::UNCHANGED || entry.second == State::DELETED)
+      if (entry.second == State::UNCHANGED ||
+          entry.second == State::ADDED)
       {
         associated_impus.push_back(entry.first);
       }
@@ -180,11 +205,12 @@ public:
   // Get an IMPU representing this IRS based on the given IMPU's CAS value
   ImpuStore::DefaultImpu* get_impu_from_impu(ImpuStore::Impu* with_cas);
 
-  // Get an IMPU for this IRS representing the given store
+  // Get an IMPU for this IRS representing the given store, (i.e. where the
+  // cached CAS value stored as part of the IRS is valid for the store.
   ImpuStore::DefaultImpu* get_impu_for_store(ImpuStore* store);
 
   // Update the IRS with an IMPU with some details from the store
-  void update_from_store(ImpuStore::DefaultImpu* impu);
+  void update_from_impu_from_store(ImpuStore::DefaultImpu* impu);
 
   // Delete all of the associated IMPUs
   void delete_assoc_impus();
@@ -192,6 +218,8 @@ public:
   // Delete all of the IMPIs
   void delete_impis();
 
+  // Enumerate the different states a piece of data (an IMPU or IMPI)
+  // can be in.
   enum State
   {
     ADDED,
@@ -199,13 +227,18 @@ public:
     DELETED
   };
 
+  // This stores a map of all of the IMPUs and IMPIs we have seen while
+  // performing conflict resolution, and the state that they are in
   typedef std::map<std::string, State> Data;
 
 private:
   const ImpuStore* _store;
   const uint64_t _cas;
 
-  static std::vector<std::string> get(const Data& data, State status)
+  // Get all the elements in the given Data object in the given state,
+  // (e.g. all of the unchanged elements, or all of the deleted elements).
+  static std::vector<std::string> get_elements_in_state(const Data& data,
+                                                        State status)
   {
     std::vector<std::string> v;
     for (const std::pair<const std::string, State>& entry : data)
@@ -242,12 +275,12 @@ private:
 public:
   std::vector<std::string> impis(State status)
   {
-    return get(_impis, status);
+    return get_elements_in_state(_impis, status);
   }
 
   std::vector<std::string> impus(State status)
   {
-    return get(_associated_impus, status);
+    return get_elements_in_state(_associated_impus, status);
   }
 
 };
