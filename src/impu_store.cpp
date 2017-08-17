@@ -536,10 +536,12 @@ Store::Status ImpuStore::set_impu_without_cas(ImpuStore::Impu* impu,
 
   if (status == Store::Status::OK)
   {
+    int now = time(0);
+
     status = _store->set_data_without_cas("impu",
                                           impu->impu,
                                           data,
-                                          impu->expiry,
+                                          impu->expiry - now,
                                           trail);
   }
 
@@ -558,11 +560,13 @@ Store::Status ImpuStore::set_impu(ImpuStore::Impu* impu,
 
   if (status == Store::Status::OK)
   {
+    int now = time(0);
+
     _store->set_data("impu",
                      impu->impu,
                      data,
                      impu->cas,
-                     impu->expiry,
+                     impu->expiry - now,
                      trail);
   }
 

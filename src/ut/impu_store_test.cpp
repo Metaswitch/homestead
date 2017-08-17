@@ -62,7 +62,7 @@ TEST_F(ImpuStoreTest, SetDefaultImpu)
   LocalStore* local_store = new LocalStore();
   ImpuStore* impu_store = new ImpuStore(local_store);
 
-  int now = time(0);
+  int expiry = time(0) + 1;
 
   ImpuStore::DefaultImpu* default_impu =
     new ImpuStore::DefaultImpu(IMPU,
@@ -72,7 +72,7 @@ TEST_F(ImpuStoreTest, SetDefaultImpu)
                                NO_CHARGING_ADDRESSES,
                                SERVICE_PROFILE,
                                0L,
-                               now);
+                               expiry);
 
   EXPECT_EQ(Store::Status::OK,
             impu_store->set_impu(default_impu, 0));
@@ -87,7 +87,7 @@ TEST_F(ImpuStoreTest, GetDefaultImpu)
   LocalStore* local_store = new LocalStore();
   ImpuStore* impu_store = new ImpuStore(local_store);
 
-  int now = time(0);
+  int expiry = time(0) + 1;
 
   ImpuStore::DefaultImpu* default_impu =
     new ImpuStore::DefaultImpu(IMPU,
@@ -97,7 +97,7 @@ TEST_F(ImpuStoreTest, GetDefaultImpu)
                                NO_CHARGING_ADDRESSES,
                                SERVICE_PROFILE,
                                0L,
-                               now);
+                               expiry);
   impu_store->set_impu(default_impu, 0);
 
   delete default_impu;
@@ -107,7 +107,7 @@ TEST_F(ImpuStoreTest, GetDefaultImpu)
   ASSERT_NE(nullptr, got_impu);
   ASSERT_EQ(IMPU, got_impu->impu);
   ASSERT_TRUE(got_impu->is_default_impu());
-  ASSERT_EQ(now, got_impu->expiry);
+  ASSERT_EQ(expiry, got_impu->expiry);
 
   ImpuStore::DefaultImpu* got_default_impu =
     dynamic_cast<ImpuStore::DefaultImpu*>(got_impu);
@@ -130,13 +130,13 @@ TEST_F(ImpuStoreTest, SetAssociatedImpu)
   LocalStore* local_store = new LocalStore();
   ImpuStore* impu_store = new ImpuStore(local_store);
 
-  int now = time(0);
+  int expiry = time(0) + 1;
 
   ImpuStore::AssociatedImpu* assoc_impu =
     new ImpuStore::AssociatedImpu(ASSOC_IMPU,
                                   IMPU,
                                   0L,
-                                  now);
+                                  expiry);
 
   impu_store->set_impu(assoc_impu, 0);
 
@@ -150,13 +150,13 @@ TEST_F(ImpuStoreTest, GetAssociatedImpu)
   LocalStore* local_store = new LocalStore();
   ImpuStore* impu_store = new ImpuStore(local_store);
 
-  int now = time(0);
+  int expiry = time(0) + 1;
 
   ImpuStore::AssociatedImpu* assoc_impu =
     new ImpuStore::AssociatedImpu(ASSOC_IMPU,
                                   IMPU,
                                   0L,
-                                  now);
+                                  expiry);
 
   impu_store->set_impu(assoc_impu, 0);
 
@@ -167,7 +167,7 @@ TEST_F(ImpuStoreTest, GetAssociatedImpu)
   ASSERT_NE(nullptr, got_impu);
   ASSERT_EQ(ASSOC_IMPU, got_impu->impu);
   ASSERT_FALSE(got_impu->is_default_impu());
-  ASSERT_EQ(now, got_impu->expiry);
+  ASSERT_EQ(expiry, got_impu->expiry);
 
   ImpuStore::AssociatedImpu* got_associated_impu =
     dynamic_cast<ImpuStore::AssociatedImpu*>(got_impu);
