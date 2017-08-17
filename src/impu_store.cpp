@@ -136,7 +136,8 @@ ImpuStore::Impu* ImpuStore::Impu::from_data(const std::string& impu,
     int length = (int) length_long;
     const char* compressed = data.c_str() + offset;
     int compressed_size = data.size() - offset;
-    char* json = new char[length];
+    char* json = new char[length + 1];
+    json[length] = '\0';
 
     TRC_DEBUG("Decompressing %llu bytes of data into %llu bytes",
               compressed_size,
