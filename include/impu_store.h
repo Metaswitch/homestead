@@ -20,6 +20,9 @@
 #include <rapidjson/writer.h>
 #include <lz4.h>
 
+void encode_varbyte(uint64_t uncomp_size_len, std::string& data);
+uint64_t decode_varbyte(const std::string& data, size_t& offset);
+
 class ImpuStore
 {
 public:

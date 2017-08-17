@@ -66,12 +66,14 @@ homestead_test_SOURCES := ${COMMON_SOURCES} \
                           cx_test.cpp \
                           diameter_handlers_test.cpp \
                           diameter_hss_connection_test.cpp \
+                          fakelogger.cpp \
+                          fakesnmp.cpp \
                           http_handlers_test.cpp \
                           homestead_xml_utils_test.cpp \
                           hsprov_hss_connection_test.cpp \
                           hsprov_store_test.cpp \
-                          fakelogger.cpp \
-                          fakesnmp.cpp \
+                          impu_store_test.cpp \
+                          localstore.cpp \
                           mockfreediameter.cpp \
                           mock_sas.cpp \
                           chargingaddresses_test.cpp \
