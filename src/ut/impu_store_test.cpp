@@ -193,7 +193,8 @@ TEST_F(ImpuStoreTest, SetAssociatedImpu)
                                   0L,
                                   expiry);
 
-  impu_store->set_impu(assoc_impu, 0);
+  ASSERT_EQ(Store::Status::OK,
+            impu_store->set_impu(assoc_impu, 0));
 
   delete assoc_impu;
   delete impu_store;
@@ -249,7 +250,30 @@ TEST_F(ImpuStoreTest, SetAssociatedImpiMapping)
                                0L,
                                expiry);
 
+  ASSERT_EQ(Store::Status::OK,
+            impu_store->set_impi_mapping(mapping, 0));
+
+  delete mapping;
+  delete impu_store;
+  delete local_store;
+}
+
+TEST_F(ImpuStoreTest, DeleteAssociatedImpiMapping)
+{
+  LocalStore* local_store = new LocalStore();
+  ImpuStore* impu_store = new ImpuStore(local_store);
+
+  int expiry = time(0) + 1;
+
+  ImpuStore::ImpiMapping* mapping =
+    new ImpuStore::ImpiMapping(IMPI,
+                               IMPUS,
+                               0L,
+                               expiry);
+
   impu_store->set_impi_mapping(mapping, 0);
+  ASSERT_EQ(Store::Status::OK,
+            impu_store->delete_impi_mapping(mapping, 0));
 
   delete mapping;
   delete impu_store;
@@ -395,4 +419,68 @@ TEST_F(ImpuStoreTest, ImpiMappingNotJsonObject)
             ImpuStore::ImpiMapping::from_data(IMPI,
                                               JSON_ARRAY,
                                               0L));
+}
+
+TEST_F(ImpuStoreTest, ImpuNotFound)
+{
+  LocalStore* local_store = new LocalStore();
+  ImpuStore* impu_store = new ImpuStore(local_store);
+
+  ASSERT_EQ(nullptr, impu_store->get_impu(IMPU, 0L));
+
+  delete impu_store;
+  delete local_store;
+}
+
+TEST_F(ImpuStoreTest, ImpiMappingNotFound)
+{
+  LocalStore* local_store = new LocalStore();
+  ImpuStore* impu_store = new ImpuStore(local_store);
+
+  ASSERT_EQ(nullptr, impu_store->get_impi_mapping(IMPI, 0L));
+
+  delete impu_store;
+  delete local_store;
+}
+
+TEST_F(ImpuStoreTest, ImpuSetWithoutCas)
+{
+  LocalStore* local_store = new LocalStore();
+  ImpuStore* impu_store = new ImpuStore(local_store);
+
+  int expiry = time(0) + 1;
+
+  ImpuStore::AssociatedImpu* assoc_impu =
+    new ImpuStore::AssociatedImpu(ASSOC_IMPU,
+                                  IMPU,
+                                  0L,
+                                  expiry);
+
+  ASSERT_EQ(Store::Status::OK,
+            impu_store->set_impu_without_cas(assoc_impu, 0));
+
+  delete assoc_impu;
+  delete impu_store;
+  delete local_store;
+}
+
+TEST_F(ImpuStoreTest, DeleteImpu)
+{
+  LocalStore* local_store = new LocalStore();
+  ImpuStore* impu_store = new ImpuStore(local_store);
+
+  int expiry = time(0) + 1;
+
+  ImpuStore::AssociatedImpu* assoc_impu =
+    new ImpuStore::AssociatedImpu(ASSOC_IMPU,
+                                  IMPU,
+                                  0L,
+                                  expiry);
+
+  ASSERT_EQ(Store::Status::OK,
+            impu_store->delete_impu(assoc_impu, 0));
+
+  delete assoc_impu;
+  delete impu_store;
+  delete local_store;
 }
