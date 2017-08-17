@@ -21,9 +21,9 @@ public:
   ImsSubscription() {};
   virtual ~ImsSubscription() {};
 
-  virtual void set_charging_addrs(ChargingAddresses new_addresses) = 0;
+  virtual void set_charging_addrs(const ChargingAddresses& new_addresses) = 0;
 
-  virtual ImplicitRegistrationSet* get_irs_for_default_impu(std::string impu) = 0;
+  virtual ImplicitRegistrationSet* get_irs_for_default_impu(const std::string& impu) = 0;
 };
 
 #endif

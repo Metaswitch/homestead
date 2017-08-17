@@ -20,8 +20,8 @@ public:
   MockImsSubscription() : ImsSubscription(){};
   virtual ~MockImsSubscription() {};
 
-  MOCK_METHOD1(set_charging_addrs, void(ChargingAddresses new_addresses));
-  MOCK_METHOD1(get_irs_for_default_impu, ImplicitRegistrationSet*(std::string impu));
+  MOCK_METHOD1(set_charging_addrs, void(const ChargingAddresses& new_addresses));
+  MOCK_METHOD1(get_irs_for_default_impu, ImplicitRegistrationSet*(const std::string& impu));
 };
 
 #endif

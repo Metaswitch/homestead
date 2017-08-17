@@ -23,18 +23,39 @@ class MemcachedImsSubscription : public ImsSubscription
 public:
   MemcachedImsSubscription(ImpuStore::ImpiMapping*& mapping,
                            std::vector<ImplicitRegistrationSet*>& irss) :
-    ImsSubscription(),
-    _irss(irss)
+    ImsSubscription()
   {
+    for (ImplicitRegistrationSet*& irs : irss)
+    {
+      _irss[irs->default_impu] = irs;
+    }
   }
 
-  std::vector<ImplicitRegistrationSet*>& get_irs()
+  typedef std::map<std::string, ImplicitRegistrationSet*> Irs;
+
+  virtual ImplicitRegistrationSet* get_irs_for_default_impu(const std::string& impu)
+  {
+    Irs::const_iterator it =  _irss.find(impu);
+
+    if (it == _irss.end())
+    {
+      return nullptr;
+    }
+    else
+    {
+      return it->second;
+    }
+  }
+
+  virtual void set_charging_addrs(const ChargingAddresses& new_addresses);
+
+  Irs& get_irs()
   {
     return _irss;
   }
 
 private:
-  std::vector<ImplicitRegistrationSet*> _irss;
+  std::map<std::string, ImplicitRegistrationSet*> _irss;
 };
 
 class MemcachedImplicitRegistrationSet : public ImplicitRegistrationSet
