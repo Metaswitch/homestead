@@ -272,7 +272,7 @@ ImpuStore::Impu* ImpuStore::DefaultImpu::from_json(std::string const& impu,
                          expiry);
 }
 
-void ImpuStore::Impu::compress_data_v0(std::string& data,
+void ImpuStore::Impu::compress_data_v0(const std::string& data,
                                        char*& buffer,
                                        int& comp_size)
 {
@@ -469,8 +469,8 @@ void ImpuStore::AssociatedImpu::write_json(rapidjson::Writer<rapidjson::StringBu
   writer.Int64(expiry);
 }
 
-ImpuStore::ImpiMapping* ImpuStore::ImpiMapping::from_data(std::string const& impi,
-                                                          std::string& data,
+ImpuStore::ImpiMapping* ImpuStore::ImpiMapping::from_data(const std::string& impi,
+                                                          const std::string& data,
                                                           unsigned long cas)
 {
   rapidjson::Document doc;

@@ -51,7 +51,7 @@ public:
 
     virtual Store::Status to_data(std::string& data);
 
-    static void compress_data_v0(std::string& data,
+    static void compress_data_v0(const std::string& data,
                                  char*& buffer,
                                  int& comp_size);
 
@@ -159,7 +159,7 @@ public:
     }
 
     static ImpiMapping* from_data(const std::string& impu,
-                                  std::string& data,
+                                  const std::string&,
                                   uint64_t cas);
 
     static ImpiMapping* from_json(const std::string& impi,

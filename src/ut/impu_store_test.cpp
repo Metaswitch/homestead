@@ -25,6 +25,9 @@ static const std::vector<std::string> IMPIS = { IMPI };
 // Not valid - just dummy data for testing.
 static const std::string SERVICE_PROFILE = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><ServiceProfile></ServiceProfile>";
 
+static const std::string INVALID_JSON = "{";
+static const std::string JSON_ARRAY = "[]";
+
 class ImpuStoreTest : public testing::Test
 {
   static void SetUpTestCase()
@@ -340,11 +343,10 @@ TEST_F(ImpuStoreVersion0Test, InvalidCompressData)
 
 TEST_F(ImpuStoreVersion0Test, InvalidJson)
 {
-  std::string json = "{";
-  encode_varbyte(json.size(), data);
+  encode_varbyte(INVALID_JSON.size(), data);
   char* buffer = nullptr;
   int comp_size;
-  ImpuStore::Impu::compress_data_v0(json, buffer, comp_size);
+  ImpuStore::Impu::compress_data_v0(INVALID_JSON, buffer, comp_size);
   data.append(buffer, comp_size);
   free(buffer);
 
@@ -353,11 +355,10 @@ TEST_F(ImpuStoreVersion0Test, InvalidJson)
 
 TEST_F(ImpuStoreVersion0Test, NotJsonObject)
 {
-  std::string json = "[]";
-  encode_varbyte(json.size(), data);
+  encode_varbyte(JSON_ARRAY.size(), data);
   char* buffer;
   int comp_size;
-  ImpuStore::Impu::compress_data_v0(json, buffer, comp_size);
+  ImpuStore::Impu::compress_data_v0(JSON_ARRAY, buffer, comp_size);
   data.append(buffer, comp_size);
 
   ASSERT_EQ(nullptr, ImpuStore::Impu::from_data(IMPU, data, 0));
@@ -378,4 +379,20 @@ TEST_F(ImpuStoreVersion0Test, BufferResize)
   int comp_size;
   ImpuStore::Impu::compress_data_v0(data, buffer, comp_size);
   free(buffer);
+}
+
+TEST_F(ImpuStoreTest, ImpiMappingInvalidJson)
+{
+  ASSERT_EQ(nullptr,
+            ImpuStore::ImpiMapping::from_data(IMPI,
+                                              INVALID_JSON,
+                                              0L));
+}
+
+TEST_F(ImpuStoreTest, ImpiMappingNotJsonObject)
+{
+  ASSERT_EQ(nullptr,
+            ImpuStore::ImpiMapping::from_data(IMPI,
+                                              JSON_ARRAY,
+                                              0L));
 }
