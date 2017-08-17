@@ -793,11 +793,11 @@ void ImpuRegDataTask::on_get_reg_data_success(ImplicitRegistrationSet* irs)
   // We take ownership of the ImplicitRegistrationSet that the Cache has created
   _irs = irs;
 
-  int32_t ttl = irs->get_ttl();
-  std::string service_profile = irs->get_ims_sub_xml();
-  RegistrationState reg_state = irs->get_reg_state();
-  std::vector<std::string> associated_impis = irs->get_associated_impis();
-  ChargingAddresses charging_addrs = irs->get_charging_addresses();
+  int32_t ttl = _irs->get_ttl();
+  std::string service_profile = _irs->get_ims_sub_xml();
+  RegistrationState reg_state = _irs->get_reg_state();
+  std::vector<std::string> associated_impis = _irs->get_associated_impis();
+  ChargingAddresses charging_addrs = _irs->get_charging_addresses();
 
   SAS::Event event(this->trail(), SASEvent::CACHE_GET_REG_DATA_SUCCESS, 0);
   event.add_compressed_param(service_profile, &SASEvent::PROFILE_SERVICE_PROFILE);
@@ -885,9 +885,12 @@ void ImpuRegDataTask::on_get_reg_data_success(ImplicitRegistrationSet* irs)
     }
     else
     {
-      // Send a Server-Assignment-Request and cache the response.
+      // Set the registration state in the IRS to registered, add the new IMPI
+      // and send a Server-Assignment-Request
       TRC_DEBUG("Handling initial registration");
       _irs->set_reg_state(RegistrationState::REGISTERED);
+      associated_impis.push_back(_impi);
+      _irs->set_associated_impis(associated_impis);
       send_server_assignment_request(Cx::ServerAssignmentType::REGISTRATION);
     }
   }
@@ -922,9 +925,31 @@ void ImpuRegDataTask::on_get_reg_data_success(ImplicitRegistrationSet* irs)
     // app server, etc.).
     if (reg_state != RegistrationState::NOT_REGISTERED)
     {
-      // Forget about this subscriber entirely and send an appropriate SAR.
       TRC_DEBUG("Handling deregistration");
-      _irs->set_reg_state(RegistrationState::NOT_REGISTERED);
+      // TS 29.228 section 6.1.2.1 specifies that for an IRS registered with
+      // more than one IMPI, we must still send an SAR to the HSS for each IMPI
+      // deregistering, but that the registration state is only changed to be
+      // not registered once the final one has deregistered.
+      // So, before we de-register the ImplicitRegistrationSet, we must first
+      // check whether there are any other IMPIs used to register this IRS
+
+      // Erase _impi from the associated_impis
+      associated_impis.erase(std::remove(associated_impis.begin(),
+                                         associated_impis.end(),
+                                         _impi));
+
+      // Save the new vector of impis
+      _irs->set_associated_impis(associated_impis);
+
+      // Only set the registration state to NOT_REGISTERED if this is the last
+      // impi
+      if (associated_impis.size() == 0)
+      {
+        TRC_DEBUG("Deregister of last remaining IMPI in IRS");
+        _irs->set_reg_state(RegistrationState::NOT_REGISTERED);
+      }
+
+      // Now send the SAR
       send_server_assignment_request(sar_type_for_request(_type));
     }
     else
@@ -1097,9 +1122,6 @@ void ImpuRegDataTask::put_in_cache()
 
     // Cache the IRS
     _cache->put_implicit_registration_set(success_cb, failure_cb, _irs, this->trail());
-
-    // We've relinquished ownership of _irs to the cache
-    //TODO _irs = NULL;
   }
   else
   {
@@ -1138,12 +1160,8 @@ void ImpuRegDataTask::on_sar_response(const HssConnection::ServerAssignmentAnswe
 
   if (rc == HssConnection::ResultCode::SUCCESS)
   {
-    // Get the charging addresses and user data.
-    _irs->set_charging_addresses(saa.get_charging_addresses());
-    _irs->set_ims_sub_xml(saa.get_service_profile());
-
-    // We need to update the TTL on receiving an SAA
-    _irs->set_ttl(_cfg->record_ttl);
+    // The success case is handled below, this just exists so we can catch other
+    // errors with our final "else"
   }
   else if (rc == HssConnection::ResultCode::SERVER_UNAVAILABLE)
   {
@@ -1222,35 +1240,55 @@ void ImpuRegDataTask::on_sar_response(const HssConnection::ServerAssignmentAnswe
     // triggered by a deregistration or auth failure) so cache the User-Data.
     SAS::Event event(this->trail(), SASEvent::REG_DATA_HSS_SUCCESS, 0);
     SAS::report_event(event);
+
+    // Get the charging addresses and user data.
+    _irs->set_charging_addresses(saa.get_charging_addresses());
+    _irs->set_ims_sub_xml(saa.get_service_profile());
+
+    // We need to update the TTL on receiving an SAA
+    _irs->set_ttl(_cfg->record_ttl);
+
     put_in_cache();
     pending_cache_op = true;
   }
   else if ((is_deregistration_request(_type)) &&
            (rc != HssConnection::ResultCode::SERVER_UNAVAILABLE))
   {
-    // We're deregistering, so clear the cache.
-    //
     // Even if the HSS rejects our deregistration request, we should
-    // still delete our cached data - this reflects the fact that Sprout
+    // still update our cached data - this reflects the fact that Sprout
     // has no bindings for it. If we were unable to deliver the Diameter
     // message, we might retry to a new Homestead node, and in this case we
-    // don't want to delete the data (since the new Homestead node will receive
+    // don't want to update the data (since the new Homestead node will receive
     // the request, not find the subscriber registered in the cache and reject
     // the request without trying to notify the HSS).
-    SAS::Event event(this->trail(), SASEvent::CACHE_DELETE_REG_DATA, 0);
-    event.add_var_param(_irs->default_impu);
-    SAS::report_event(event);
 
-    void_success_cb success_cb =
-      std::bind(&ImpuRegDataTask::on_del_impu_success, this);
+    // We're deregistering, so check whether there are any remaining IMPUs that
+    // are still registered for this IRS (we have removed our IMPI already)
+    std::vector<std::string> assoc_impis = _irs->get_associated_impis();
+    if (assoc_impis.size() == 0)
+    {
+      // There are no more IMPIs that register this IRS, so clear the cache
+      SAS::Event event(this->trail(), SASEvent::CACHE_DELETE_REG_DATA, 0);
+      event.add_var_param(_irs->default_impu);
+      SAS::report_event(event);
 
-    failure_callback failure_cb =
-      std::bind(&ImpuRegDataTask::on_del_impu_failure, this, std::placeholders::_1);
+      void_success_cb success_cb =
+        std::bind(&ImpuRegDataTask::on_del_impu_success, this);
 
-    _cache->delete_implicit_registration_set(success_cb, failure_cb, _irs, this->trail());
+      failure_callback failure_cb =
+        std::bind(&ImpuRegDataTask::on_del_impu_failure, this, std::placeholders::_1);
 
-    // We've relinquished ownership of _irs to the cache
-    //TODO _irs = NULL;
+      _cache->delete_implicit_registration_set(success_cb, failure_cb, _irs, this->trail());
+    }
+    else
+    {
+      // There is at least one IMPI remaining, so we should just update the
+      // cache having removed this IMPI from the list, but we should not update
+      // the cached XML, charging addresses or TTL
+      put_in_cache();
+    }
+
+    // Either way, we have a cache op pending
     pending_cache_op = true;
   }
 

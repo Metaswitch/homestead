@@ -2443,6 +2443,60 @@ TEST_F(HTTPHandlersTest, ImpuRegDataDeregNoIMPI)
   EXPECT_EQ(REGDATA_RESULT_DEREG, req.content());
 }
 
+TEST_F(HTTPHandlersTest, ImpuRegDataDeregRemainingImpis)
+{
+  // Tests that a deregistration for one IMPI when there is another one
+  // currently registered for the IRS still sends a SAR but doesn't
+  // deregister the IRS
+  MockHttpStack::Request req = make_request("dereg-user", true, true, false);
+
+  ImpuRegDataTask::Config cfg(true, 3600, 7200);
+  ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
+
+  // Create IRS to be returned from the cache, with 2 IMPIs
+  FakeImplicitRegistrationSet* irs = new FakeImplicitRegistrationSet(IMPU);
+  irs->set_ims_sub_xml(IMPU_IMS_SUBSCRIPTION);
+  irs->set_reg_state(RegistrationState::REGISTERED);
+  irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
+  irs->set_associated_impis({IMPI, ASSOCIATED_IDENTITY1});
+  irs->set_ttl(100);
+
+  // Lookup in cache
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<0>(irs));
+
+  // Then send SAR, which gets SUCCESS back
+  HssConnection::ServerAssignmentAnswer answer =
+  HssConnection::ServerAssignmentAnswer(HssConnection::ResultCode::SUCCESS,
+                                        NO_CHARGING_ADDRESSES,
+                                        IMPU_IMS_SUBSCRIPTION,
+                                        "");
+  EXPECT_CALL(*_hss, send_server_assignment_request(_,
+    AllOf(Field(&HssConnection::ServerAssignmentRequest::impi, IMPI),
+          Field(&HssConnection::ServerAssignmentRequest::impu, IMPU),
+          Field(&HssConnection::ServerAssignmentRequest::server_name, SERVER_NAME),
+          Field(&HssConnection::ServerAssignmentRequest::type, Cx::ServerAssignmentType::USER_DEREGISTRATION)),
+    _))
+    .WillOnce(InvokeArgument<0>(ByRef(answer)));
+
+  // Now expect that rather than deleting the cached info, we'll put the IRS
+  // back in the cache but with our IMPI removed from the list of IMPIs, and
+  // the TTL unchanged
+  EXPECT_CALL(*_cache, put_implicit_registration_set(_, _,
+    AllOf(Property(&ImplicitRegistrationSet::get_reg_state, RegistrationState::REGISTERED),
+          Property(&ImplicitRegistrationSet::get_ttl, 100),
+          Property(&ImplicitRegistrationSet::get_associated_impis, ASSOCIATED_IDENTITY1_IN_VECTOR)),
+    FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<0>());
+
+  // Check the response
+  EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
+
+  task->run();
+
+  EXPECT_EQ(REGDATA_RESULT, req.content());
+}
+
 TEST_F(HTTPHandlersTest, ImpuRegDataDeregCacheError)
 {
   // Tests that if the cache delete operation fails, we send an appropriate error
