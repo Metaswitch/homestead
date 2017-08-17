@@ -51,9 +51,9 @@ public:
 
     virtual Store::Status to_data(std::string& data);
 
-    void compress_data_v0(std::string& data,
-                          char*& buffer,
-                          int& comp_size);
+    static void compress_data_v0(std::string& data,
+                                 char*& buffer,
+                                 int& comp_size);
 
     static Impu* from_data(const std::string& impu,
                            std::string& data,

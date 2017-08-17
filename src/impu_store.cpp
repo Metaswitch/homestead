@@ -309,6 +309,7 @@ void ImpuStore::Impu::compress_data_v0(std::string& data,
       // the buffer growing beyond reason.
       int new_buffer_length = buffer_length * 2;
 
+      // LCOV_EXCL_START
       if (new_buffer_length > MAX_BUFFER_LEN)
       {
         TRC_WARNING("Failed to attempt to compress %lu bytes of data - won't "
@@ -318,6 +319,7 @@ void ImpuStore::Impu::compress_data_v0(std::string& data,
                     new_buffer_length, MAX_BUFFER_LEN);
         break;
       }
+      // LCOV_EXCL_STOP
 
       buffer_length = new_buffer_length;
 
@@ -367,12 +369,16 @@ Store::Status ImpuStore::Impu::to_data(std::string& data)
     compress_data_v0(json, buffer, comp_size);
   }
 
+  // LCOV_EXCL_START
+  // This only happens when we fail to compress some data,
+  // which isn't hittable in the UTs
   if (comp_size == 0)
   {
     free(buffer);
 
     return Store::Status::ERROR;
   }
+  // LCOV_EXCL_STOP
 
   // Start creating the buffer to return
 

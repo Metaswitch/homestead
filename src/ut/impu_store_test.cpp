@@ -194,34 +194,86 @@ TEST_F(ImpuStoreTest, ImpuFromDataIncorrectVersion)
   ASSERT_EQ(nullptr, ImpuStore::Impu::from_data(IMPU, data, 0));
 }
 
-TEST_F(ImpuStoreTest, ImpuFromDataVersion0NoLengthOrData)
+class ImpuStoreVersion0Test : public ImpuStoreTest
 {
+  void SetUp()
+  {
+    data.push_back((char) 0);
+  }
+
+  void TearDown()
+  {
+    data.clear();
+  }
+
   std::string data;
-  data.push_back((char) 0);
+};
+
+TEST_F(ImpuStoreVersion0Test, NoLengthOrData)
+{
   ASSERT_EQ(nullptr, ImpuStore::Impu::from_data(IMPU, data, 0));
 }
 
-TEST_F(ImpuStoreTest, ImpuFromDataVersion0TooLong)
+TEST_F(ImpuStoreVersion0Test, TooLong)
 {
-  std::string data;
-  data.push_back((char) 0);
   encode_varbyte(INT_MAX + 1L, data);
+
   ASSERT_EQ(nullptr, ImpuStore::Impu::from_data(IMPU, data, 0));
 }
 
-TEST_F(ImpuStoreTest, ImpuFromDataVersion0RunOffEnd)
+TEST_F(ImpuStoreVersion0Test, RunOffEnd)
 {
-  std::string data;
-  data.push_back((char) 0);
   data.push_back((char) 0x80);
+
   ASSERT_EQ(nullptr, ImpuStore::Impu::from_data(IMPU, data, 0));
 }
 
-TEST_F(ImpuStoreTest, ImpuFromDataVersion0InvalidCompressData)
+TEST_F(ImpuStoreVersion0Test, InvalidCompressData)
 {
-  std::string data;
-  data.push_back((char) 0);
   data.push_back((char) 0x1);
   data.push_back((char) 0xFF);
+
   ASSERT_EQ(nullptr, ImpuStore::Impu::from_data(IMPU, data, 0));
+}
+
+TEST_F(ImpuStoreVersion0Test, InvalidJson)
+{
+  std::string json = "{";
+  encode_varbyte(json.size(), data);
+  char* buffer = nullptr;
+  int comp_size;
+  ImpuStore::Impu::compress_data_v0(json, buffer, comp_size);
+  data.append(buffer, comp_size);
+  free(buffer);
+
+  ASSERT_EQ(nullptr, ImpuStore::Impu::from_data(IMPU, data, 0));
+}
+
+TEST_F(ImpuStoreVersion0Test, NotJsonObject)
+{
+  std::string json = "[]";
+  encode_varbyte(json.size(), data);
+  char* buffer;
+  int comp_size;
+  ImpuStore::Impu::compress_data_v0(json, buffer, comp_size);
+  data.append(buffer, comp_size);
+
+  ASSERT_EQ(nullptr, ImpuStore::Impu::from_data(IMPU, data, 0));
+  free(buffer);
+}
+
+TEST_F(ImpuStoreVersion0Test, BufferResize)
+{
+  std::string data;
+  int length = 126 /* ~ */ - 34 /* # */;
+
+  for (int i = 0; i < 1000000; ++i)
+  {
+    data.push_back((i % length) + 34);
+  }
+
+  char* buffer = nullptr;
+  int comp_size;
+  ImpuStore::Impu::compress_data_v0(data, buffer, comp_size);
+  free(buffer);
 }
