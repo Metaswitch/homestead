@@ -26,6 +26,7 @@ ImpuStore::DefaultImpu* MemcachedImplicitRegistrationSet::create_impu(uint64_t c
                                     impus,
                                     impis,
                                     _registration_state,
+                                    _charging_addresses,
                                     get_ims_sub_xml(),
                                     cas,
                                     _ttl + now);

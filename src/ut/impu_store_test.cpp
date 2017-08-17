@@ -16,6 +16,7 @@
 
 static const std::string IMPU = "sip:impu@example.com";
 static const std::vector<std::string> NO_ASSOCIATED_IMPUS;
+static const ChargingAddresses NO_CHARGING_ADDRESSES = ChargingAddresses({}, {});
 static const std::vector<std::string> IMPI = { "impi@example.com" };
 
 // Not valid - just dummy data for testing.
@@ -67,6 +68,7 @@ TEST_F(ImpuStoreTest, SetDefaultImpu)
                                NO_ASSOCIATED_IMPUS,
                                IMPI,
                                RegistrationState::REGISTERED,
+                               NO_CHARGING_ADDRESSES,
                                SERVICE_PROFILE,
                                0L,
                                now);
@@ -91,6 +93,7 @@ TEST_F(ImpuStoreTest, GetDefaultImpu)
                                NO_ASSOCIATED_IMPUS,
                                IMPI,
                                RegistrationState::REGISTERED,
+                               NO_CHARGING_ADDRESSES,
                                SERVICE_PROFILE,
                                0L,
                                now);
@@ -112,6 +115,8 @@ TEST_F(ImpuStoreTest, GetDefaultImpu)
 
   ASSERT_EQ(IMPI, got_default_impu->impis);
   ASSERT_EQ(NO_ASSOCIATED_IMPUS, got_default_impu->associated_impus);
+  ASSERT_EQ(NO_CHARGING_ADDRESSES.ccfs, got_default_impu->charging_addresses.ccfs);
+  ASSERT_EQ(NO_CHARGING_ADDRESSES.ecfs, got_default_impu->charging_addresses.ecfs);
   ASSERT_EQ(SERVICE_PROFILE, got_default_impu->service_profile);
 
   delete got_default_impu;

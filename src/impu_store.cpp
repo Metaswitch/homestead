@@ -34,6 +34,8 @@ static const char * const JSON_ASSOCIATED_IMPUS = "assoc_impu";
 static const char * const JSON_SERVICE_PROFILE = "service_profile";
 static const char * const JSON_REGISTRATION_STATE = "registration_state";
 static const char * const JSON_IMPIS = "impis";
+static const char * const JSON_CCFS = "ccfs";
+static const char * const JSON_ECFS = "ecfs";
 
 // IMPI -> Default IMPU
 static const char * const JSON_DEFAULT_IMPUS = "default_impus";
@@ -197,12 +199,30 @@ ImpuStore::Impu* ImpuStore::AssociatedImpu::from_json(std::string const& impu,
   return new AssociatedImpu(impu, default_impu, cas, expiry);
 }
 
+template<typename T>
+void extract_array(rapidjson::Value& json, const char* key, T& array)
+{
+  JSON_ASSERT_ARRAY(json[key]);
+
+  const rapidjson::Value& arr = json[key];
+
+  for (rapidjson::Value::ConstValueIterator it = arr.Begin();
+       it != arr.End();
+       ++it)
+  {
+    JSON_ASSERT_STRING(*it);
+    array.push_back(it->GetString());
+  }
+}
+
 ImpuStore::Impu* ImpuStore::DefaultImpu::from_json(std::string const& impu,
                                                    rapidjson::Value& json,
                                                    unsigned long cas)
 {
   std::vector<std::string> assoc_impus;
   std::vector<std::string> impis;
+  std::deque<std::string> ccfs;
+  std::deque<std::string> ecfs;
   std::string service_profile;
   int64_t expiry = 0L;
 
@@ -217,34 +237,18 @@ ImpuStore::Impu* ImpuStore::DefaultImpu::from_json(std::string const& impu,
   JSON_SAFE_GET_INT_64_MEMBER(json, JSON_EXPIRY, expiry);
   JSON_SAFE_GET_STRING_MEMBER(json, JSON_SERVICE_PROFILE, service_profile);
 
-  JSON_ASSERT_ARRAY(json[JSON_ASSOCIATED_IMPUS]);
+  extract_array(json, JSON_ASSOCIATED_IMPUS, assoc_impus);
+  extract_array(json, JSON_IMPIS, impis);
+  extract_array(json, JSON_CCFS, ccfs);
+  extract_array(json, JSON_ECFS, ecfs);
 
-  const rapidjson::Value& assoc_impus_arr = json[JSON_ASSOCIATED_IMPUS];
-
-  for (rapidjson::Value::ConstValueIterator assoc_impus_it = assoc_impus_arr.Begin();
-       assoc_impus_it != assoc_impus_arr.End();
-       ++assoc_impus_it)
-  {
-    JSON_ASSERT_STRING(*assoc_impus_it);
-    assoc_impus.push_back(assoc_impus_it->GetString());
-  }
-
-  JSON_ASSERT_ARRAY(json[JSON_IMPIS]);
-
-  const rapidjson::Value& impis_arr = json[JSON_IMPIS];
-
-  for (rapidjson::Value::ConstValueIterator impis_it = impis_arr.Begin();
-       impis_it != impis_arr.End();
-       ++impis_it)
-  {
-    JSON_ASSERT_STRING(*impis_it);
-    impis.push_back(impis_it->GetString());
-  }
+  ChargingAddresses charging_addresses = ChargingAddresses(ccfs, ecfs);
 
   return new DefaultImpu(impu,
                          assoc_impus,
                          impis,
                          reg_state,
+                         charging_addresses,
                          service_profile,
                          cas,
                          expiry);
@@ -375,6 +379,22 @@ Store::Status ImpuStore::Impu::to_data(std::string& data)
   return Store::Status::OK;
 }
 
+template<typename T>
+void write_array(rapidjson::Writer<rapidjson::StringBuffer>& writer,
+                 const char* key,
+                 T& array)
+{
+  writer.String(key);
+  writer.StartArray();
+
+  for (const std::string& element : array)
+  {
+    writer.String(element.c_str());
+  }
+
+  writer.EndArray();
+}
+
 void ImpuStore::DefaultImpu::write_json(rapidjson::Writer<rapidjson::StringBuffer>& writer)
 {
   writer.String(JSON_REGISTRATION_STATE);
@@ -401,25 +421,11 @@ void ImpuStore::DefaultImpu::write_json(rapidjson::Writer<rapidjson::StringBuffe
   writer.String(service_profile.c_str());
   writer.String(JSON_EXPIRY);
   writer.Int64(expiry);
-  writer.String(JSON_ASSOCIATED_IMPUS);
-  writer.StartArray();
 
-  for (const std::string& assoc_impu : associated_impus)
-  {
-    writer.String(assoc_impu.c_str());
-  }
-
-  writer.EndArray();
-
-  writer.String(JSON_IMPIS);
-  writer.StartArray();
-
-  for (const std::string& impi : impis)
-  {
-    writer.String(impi.c_str());
-  }
-
-  writer.EndArray();
+  write_array(writer, JSON_ASSOCIATED_IMPUS, associated_impus);
+  write_array(writer, JSON_IMPIS, impis);
+  write_array(writer, JSON_ECFS, charging_addresses.ecfs);
+  write_array(writer, JSON_CCFS, charging_addresses.ccfs);
 }
 
 void ImpuStore::AssociatedImpu::write_json(rapidjson::Writer<rapidjson::StringBuffer>& writer)
