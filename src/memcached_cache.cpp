@@ -116,22 +116,6 @@ void MemcachedImplicitRegistrationSet::delete_associated_impi(const std::string&
   _impis[impi] = MemcachedImplicitRegistrationSet::State::DELETED;
 }
 
-// Update the given data from the store, placing any unseen data elements
-// in the given state. Any existing elements are unchanged.
-//
-// store_elements - Vector of elements in the store
-// data           - Current data which we shall update
-// state          - State to place any new elements in (e.g. UNCHANGED)
-void update_from_store(const std::vector<std::string>& store_elements,
-                       MemcachedImplicitRegistrationSet::Data data,
-                       MemcachedImplicitRegistrationSet::State state)
-{
-  for (const std::string& member : store_elements)
-  {
-    data.emplace(member, state);
-  }
-}
-
 void MemcachedImplicitRegistrationSet::update_from_impu_from_store(ImpuStore::DefaultImpu* impu)
 {
   MemcachedImplicitRegistrationSet::State state;
@@ -155,8 +139,9 @@ void MemcachedImplicitRegistrationSet::update_from_impu_from_store(ImpuStore::De
 
   if (_refreshed)
   {
-    // If we are marked as refreshed, then the data from the store is *less* up
-    // to date than our data, so we should mark it as changed.
+    // If we are marked as refreshed, then the IMPU data from the store is *less* up
+    // to date than our data, so we should mark it as deleted so we clear up any
+    // references
     state = MemcachedImplicitRegistrationSet::State::DELETED;
   }
   else
@@ -166,20 +151,42 @@ void MemcachedImplicitRegistrationSet::update_from_impu_from_store(ImpuStore::De
     int now = time(0);
     _ttl = impu->expiry - now;
 
-    // If we are marked as not refreshed, the data from the store should be
+    // If we are marked as not refreshed, the IMPU data from the store should be
     // considered valid, and we should mark it as unchanged, if we weren't
     // previously aware of it.
     state = MemcachedImplicitRegistrationSet::State::UNCHANGED;
   }
 
   // Update the IRS with the details in IMPI and Associated IMPUs
-  ::update_from_store(impu->impis,
-                      _impis,
-                      state);
 
-  ::update_from_store(impu->associated_impus,
-                      _associated_impus,
-                      state);
+  // For IMPIs, the store data is equivalent to ours. We mark unknown IMPIs as
+  // unchanged, and removed unchanged IMPIs as deleted.
+  for (const std::string &impi : impu->impis)
+  {
+    MemcachedImplicitRegistrationSet::Data::iterator it = _impis.find(impi);
+
+    if (it == _impis.end())
+    {
+      _impis[impi] = MemcachedImplicitRegistrationSet::State::UNCHANGED;
+    }
+  }
+
+  // Now mark missing ones as deleted.
+  for (MemcachedImplicitRegistrationSet::Data::value_type pair : _impis)
+  {
+    if (pair.second == MemcachedImplicitRegistrationSet::State::UNCHANGED &&
+        !in_vector(pair.first, impu->impis))
+    {
+      pair.second = MemcachedImplicitRegistrationSet::State::DELETED;
+    }
+  }
+
+  // For Associated IMPUs, we just mark any IMPUs in the store as the correct
+  // state, based on the logic above.
+  for (const std::string& assoc_impu : impu->associated_impus)
+  {
+    _associated_impus.emplace(assoc_impu, state);
+  }
 }
 
 void delete_tracked(MemcachedImplicitRegistrationSet::Data& data)
