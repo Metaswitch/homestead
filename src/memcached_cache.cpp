@@ -130,7 +130,7 @@ void MemcachedImplicitRegistrationSet::set_ims_sub_xml(const std::string& xml)
 
   if (_default_impu != default_impu)
   {
-    if (default_impu != "")
+    if (_default_impu != "")
     {
       TRC_WARNING("Unsupported change of default IMPU from %s to %s - HSS should perform RTR first",
                   _default_impu.c_str(),
