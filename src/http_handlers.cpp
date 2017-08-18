@@ -936,8 +936,7 @@ void ImpuRegDataTask::on_get_reg_data_success(ImplicitRegistrationSet* irs)
       // Erase _impi from the associated_impis
       associated_impis.erase(std::remove(associated_impis.begin(),
                                          associated_impis.end(),
-                                         _impi),
-                             associated_impis.end());
+                                         _impi));
 
       // Save the new vector of impis
       _irs->set_associated_impis(associated_impis);
