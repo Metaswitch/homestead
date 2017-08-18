@@ -16,8 +16,16 @@
 
 class FakeImplicitRegistrationSet : public ImplicitRegistrationSet
 {
-  FakeImplicitRegistrationSet(const std::string& default_impu) : ImplicitRegistrationSet(default_impu), _ttl(0)
+  FakeImplicitRegistrationSet(const std::string& default_impu) :
+    ImplicitRegistrationSet(),
+    _default_impu(default_impu),
+    _ttl(0)
   {
+  }
+
+  virtual const std::string& get_default_impu() const override
+  {
+    return _default_impu;
   }
 
   virtual const std::string& get_ims_sub_xml() const override
@@ -79,6 +87,7 @@ class FakeImplicitRegistrationSet : public ImplicitRegistrationSet
   }
 
 private:
+  std::string _default_impu;
   std::string _ims_sub_xml;
   RegistrationState _reg_state;
   std::vector<std::string> _associated_impis;

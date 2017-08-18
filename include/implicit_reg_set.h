@@ -21,10 +21,8 @@
 class ImplicitRegistrationSet
 {
 public:
-  ImplicitRegistrationSet(const std::string& default_impu) :
-    default_impu(default_impu)
+  ImplicitRegistrationSet()
   {
-
   }
 
   virtual ~ImplicitRegistrationSet()
@@ -32,6 +30,8 @@ public:
   }
 
 public:
+
+  virtual const std::string& get_default_impu() const = 0;
 
   virtual const std::string& get_ims_sub_xml() const = 0;
   virtual RegistrationState get_reg_state() const = 0;
@@ -45,8 +45,6 @@ public:
   virtual void delete_associated_impi(const std::string& impi) = 0;
   virtual void set_charging_addresses(const ChargingAddresses& addresses) = 0;
   virtual void set_ttl(int32_t ttl) = 0;
-
-  const std::string default_impu;
 };
 
 #endif

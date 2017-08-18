@@ -50,9 +50,9 @@ void HssCacheProcessor::wait_stopped()
   }
 }
 
-ImplicitRegistrationSet* HssCacheProcessor::create_implicit_registration_set(const std::string& impu)
+ImplicitRegistrationSet* HssCacheProcessor::create_implicit_registration_set()
 {
-  return _cache->create_implicit_registration_set(impu);
+  return _cache->create_implicit_registration_set();
 }
 
 void HssCacheProcessor::get_implicit_registration_set_for_impu(irs_success_callback success_cb,

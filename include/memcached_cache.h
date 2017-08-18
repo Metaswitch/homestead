@@ -26,7 +26,7 @@ public:
   {
     for (ImplicitRegistrationSet*& irs : irss)
     {
-      _irss[irs->default_impu] = irs;
+      _irss[irs->get_default_impu()] = irs;
     }
   }
 
@@ -67,7 +67,8 @@ public:
    * Created by the MemcachedCache when retrieving an IRS from the store.
    */
   MemcachedImplicitRegistrationSet(ImpuStore::DefaultImpu* default_impu) :
-    ImplicitRegistrationSet(default_impu->impu),
+    ImplicitRegistrationSet(),
+    _default_impu(default_impu->impu),
     _store(default_impu->store),
     _cas(default_impu->cas),
     _changed(false),
@@ -97,8 +98,8 @@ public:
    *
    * Created by the HssCacheProcessor for the handler to update.
    */
-  MemcachedImplicitRegistrationSet(const std::string& default_impu) :
-    ImplicitRegistrationSet(default_impu),
+  MemcachedImplicitRegistrationSet() :
+    ImplicitRegistrationSet(),
     _store(nullptr),
     _cas(0L),
     _changed(true),
@@ -111,6 +112,11 @@ public:
   }
 
   // Inherited functions
+
+  virtual const std::string& get_default_impu() const override
+  {
+    return _default_impu;
+  }
 
   virtual const std::string& get_ims_sub_xml() const override
   {
@@ -232,6 +238,8 @@ public:
   typedef std::map<std::string, State> Data;
 
 private:
+  std::string _default_impu;
+
   const ImpuStore* _store;
   const uint64_t _cas;
 
@@ -301,9 +309,9 @@ public:
   }
 
   // Create an IRS for the given IMPU
-  virtual ImplicitRegistrationSet* create_implicit_registration_set(const std::string& impu)
+  virtual ImplicitRegistrationSet* create_implicit_registration_set()
   {
-    return new MemcachedImplicitRegistrationSet(impu);
+    return new MemcachedImplicitRegistrationSet();
   }
 
   // Get the IRS for a given IMPU

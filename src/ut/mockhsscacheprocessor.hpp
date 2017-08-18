@@ -21,8 +21,8 @@ public:
   MockHssCacheProcessor() : HssCacheProcessor(NULL) {};
   virtual ~MockHssCacheProcessor() {};
 
-  MOCK_METHOD1(create_implicit_registration_set,
-               ImplicitRegistrationSet*(const std::string& impu));
+  MOCK_METHOD0(create_implicit_registration_set,
+               ImplicitRegistrationSet*());
 
   MOCK_METHOD4(get_implicit_registration_set_for_impu,
                void(irs_success_callback success_cb,

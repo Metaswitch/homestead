@@ -30,7 +30,7 @@ ImpuStore::DefaultImpu* MemcachedImplicitRegistrationSet::create_impu(uint64_t c
 
   int now = time(0);
 
-  return new ImpuStore::DefaultImpu(default_impu,
+  return new ImpuStore::DefaultImpu(_default_impu,
                                     impus,
                                     impis,
                                     _registration_state,
@@ -386,9 +386,9 @@ Store::Status MemcachedCache::update_irs_impi_mappings(MemcachedImplicitRegistra
 
       if (mapping)
       {
-        if (mapping->has_default_impu(irs->default_impu))
+        if (mapping->has_default_impu(irs->get_default_impu()))
         {
-          mapping->remove_default_impu(irs->default_impu);
+          mapping->remove_default_impu(irs->get_default_impu());
 
           if (mapping->is_empty())
           {
@@ -425,15 +425,15 @@ Store::Status MemcachedCache::update_irs_impi_mappings(MemcachedImplicitRegistra
           // in the background it may have been deleted, and re-added,
           // so we should check that the data is still consistent with
           // the Default IMPU record
-          if (!mapping->has_default_impu(irs->default_impu))
+          if (!mapping->has_default_impu(irs->get_default_impu()))
           {
-            mapping->add_default_impu(irs->default_impu);
+            mapping->add_default_impu(irs->get_default_impu());
           }
         }
         else
         {
           int now = time(0);
-          mapping = new ImpuStore::ImpiMapping(impi, irs->default_impu, irs->get_ttl() + now);
+          mapping = new ImpuStore::ImpiMapping(impi, irs->get_default_impu(), irs->get_ttl() + now);
         }
 
         status = store->set_impi_mapping(mapping, trail);
@@ -453,7 +453,7 @@ Store::Status MemcachedCache::update_irs_impi_mappings(MemcachedImplicitRegistra
     // that the IMPI-IMPU mapping does not exist. If it does, we'll
     // perform a CAS contention resolution
     ImpuStore::ImpiMapping* mapping = new ImpuStore::ImpiMapping(impi,
-                                                                 irs->default_impu,
+                                                                 irs->get_default_impu(),
                                                                  expiry);
 
     do
@@ -466,9 +466,9 @@ Store::Status MemcachedCache::update_irs_impi_mappings(MemcachedImplicitRegistra
         mapping->set_expiry(irs->get_ttl() + now);
         mapping = store->get_impi_mapping(impi, trail);
 
-        if (!mapping->has_default_impu(irs->default_impu))
+        if (!mapping->has_default_impu(irs->get_default_impu()))
         {
-          mapping->add_default_impu(irs->default_impu);
+          mapping->add_default_impu(irs->get_default_impu());
         }
         else if (!irs->is_refreshed())
         {
@@ -500,7 +500,7 @@ Store::Status MemcachedCache::update_irs_associated_impus(MemcachedImplicitRegis
       {
         ImpuStore::AssociatedImpu* assoc_mapping = (ImpuStore::AssociatedImpu*)mapping;
 
-        if (assoc_mapping->default_impu == irs->default_impu)
+        if (assoc_mapping->default_impu == irs->get_default_impu())
         {
           status = store->delete_impu(mapping, trail);
         }
@@ -517,7 +517,7 @@ Store::Status MemcachedCache::update_irs_associated_impus(MemcachedImplicitRegis
     {
       int64_t expiry = time(0) + irs->get_ttl();
       ImpuStore::AssociatedImpu* impu = new ImpuStore::AssociatedImpu(associated_impu,
-                                                                      irs->default_impu,
+                                                                      irs->get_default_impu(),
                                                                       0L,
                                                                       expiry);
 
@@ -530,7 +530,7 @@ Store::Status MemcachedCache::update_irs_associated_impus(MemcachedImplicitRegis
   {
     int64_t expiry = time(0) + irs->get_ttl();
     ImpuStore::AssociatedImpu* impu = new ImpuStore::AssociatedImpu(associated_impu,
-                                                                    irs->default_impu,
+                                                                    irs->get_default_impu(),
                                                                     0L,
                                                                     expiry);
 
@@ -581,7 +581,7 @@ Store::Status perform_irs_impu_action(irs_impu_action action,
       // As we merge in remote stores, we'll get a fuller picture of the
       // data, but we don't attempt to update local stores, and just
       // assume they'll fall into place.
-      ImpuStore::Impu* mapped_impu = store->get_impu(irs->default_impu, trail);
+      ImpuStore::Impu* mapped_impu = store->get_impu(irs->get_default_impu(), trail);
 
       if (mapped_impu == nullptr)
       {
@@ -720,7 +720,7 @@ Store::Status MemcachedCache::delete_implicit_registration_set(ImplicitRegistrat
   }
   else
   {
-    TRC_WARNING("Attempted to delete IRS which hadn't been created: %s", irs->default_impu.c_str());
+    TRC_WARNING("Attempted to delete IRS which hadn't been created: %s", irs->get_default_impu().c_str());
   }
 
   return status;

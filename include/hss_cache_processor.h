@@ -45,7 +45,7 @@ public:
   // Factory method for creating implicit registration sets.
   // Note, this doesn't follow the async API that the rest of the
   // HSS cache processor does.
-  virtual ImplicitRegistrationSet* create_implicit_registration_set(const std::string& impu);
+  virtual ImplicitRegistrationSet* create_implicit_registration_set();
 
   // ---------------------------------------------------------------------------
   // Funtions to get/set data in the cache.

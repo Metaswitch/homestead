@@ -29,7 +29,7 @@ public:
   // If they are getting/listing data, the data is put into the supplied datastructure
 
   // Create an IRS
-  virtual ImplicitRegistrationSet* create_implicit_registration_set(const std::string& impu) = 0;
+  virtual ImplicitRegistrationSet* create_implicit_registration_set() = 0;
 
   // Get the IRS for a given impu
   virtual Store::Status get_implicit_registration_set_for_impu(const std::string& impu,

@@ -1573,7 +1573,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataInitialRegCacheGetNotFound)
 
   // Create IRS to be returned from the cache whenthe above is not found
   FakeImplicitRegistrationSet* irs = new FakeImplicitRegistrationSet(IMPU);
-  EXPECT_CALL(*_cache, create_implicit_registration_set(IMPU))
+  EXPECT_CALL(*_cache, create_implicit_registration_set())
     .WillOnce(Return(irs));
 
   // Create an SAA with which the mock hss will respond to our SAR
@@ -2052,7 +2052,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataCallNewWildcardNotFound)
   // Create IRS to be returned from the cache when we fail to find the above
   // TODO should this be wildcard or default IMPU
   FakeImplicitRegistrationSet* irs2 = new FakeImplicitRegistrationSet(NEW_WILDCARD);
-  EXPECT_CALL(*_cache, create_implicit_registration_set(NEW_WILDCARD))
+  EXPECT_CALL(*_cache, create_implicit_registration_set())
     .WillOnce(Return(irs2));
 
   // Now, we check that we send a new SAR to the HSS with the new wildcard,
@@ -2214,7 +2214,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataCallNewUnregisteredService)
 
   // Create IRS to be returned from the cache when we fail to find the above
   FakeImplicitRegistrationSet* irs = new FakeImplicitRegistrationSet(IMPU);
-  EXPECT_CALL(*_cache, create_implicit_registration_set(IMPU))
+  EXPECT_CALL(*_cache, create_implicit_registration_set())
     .WillOnce(Return(irs));
 
 
@@ -2762,7 +2762,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataInvalidXML)
     .WillOnce(InvokeArgument<1>(Store::Status::NOT_FOUND));
 
   FakeImplicitRegistrationSet* irs = new FakeImplicitRegistrationSet(IMPU);
-  EXPECT_CALL(*_cache, create_implicit_registration_set(IMPU))
+  EXPECT_CALL(*_cache, create_implicit_registration_set())
     .WillOnce(Return(irs));
 
   // Then send a SAR, which gets SUCCESS back but with invalid XML

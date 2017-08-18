@@ -1004,7 +1004,7 @@ void ImpuRegDataTask::on_get_reg_data_failure(Store::Status rc)
     // We create an empty IRS and pretend we got it from the cache.
     if (_req.method() == htp_method_PUT)
     {
-      ImplicitRegistrationSet* irs = _cache->create_implicit_registration_set(public_id());
+      ImplicitRegistrationSet* irs = _cache->create_implicit_registration_set();
       irs->set_reg_state(RegistrationState::NOT_REGISTERED);
       on_get_reg_data_success(irs);
     }
@@ -1241,7 +1241,7 @@ void ImpuRegDataTask::on_sar_response(const HssConnection::ServerAssignmentAnswe
     // the request, not find the subscriber registered in the cache and reject
     // the request without trying to notify the HSS).
     SAS::Event event(this->trail(), SASEvent::CACHE_DELETE_REG_DATA, 0);
-    event.add_var_param(_irs->default_impu);
+    event.add_var_param(_irs->get_default_impu());
     SAS::report_event(event);
 
     void_success_cb success_cb =
