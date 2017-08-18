@@ -69,6 +69,11 @@ public:
 
     return log_str;
   }
+
+  bool operator==(const ChargingAddresses& addr) const
+  {
+    return ccfs == addr.ccfs && ecfs == addr.ecfs;
+  }
 };
 
 #endif
