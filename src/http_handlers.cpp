@@ -793,11 +793,11 @@ void ImpuRegDataTask::on_get_reg_data_success(ImplicitRegistrationSet* irs)
   // We take ownership of the ImplicitRegistrationSet that the Cache has created
   _irs = irs;
 
-  int32_t ttl = irs->get_ttl();
-  std::string service_profile = irs->get_ims_sub_xml();
-  RegistrationState reg_state = irs->get_reg_state();
-  std::vector<std::string> associated_impis = irs->get_associated_impis();
-  ChargingAddresses charging_addrs = irs->get_charging_addresses();
+  int32_t ttl = _irs->get_ttl();
+  std::string service_profile = _irs->get_ims_sub_xml();
+  RegistrationState reg_state = _irs->get_reg_state();
+  std::vector<std::string> associated_impis = _irs->get_associated_impis();
+  ChargingAddresses charging_addrs = _irs->get_charging_addresses();
 
   SAS::Event event(this->trail(), SASEvent::CACHE_GET_REG_DATA_SUCCESS, 0);
   event.add_compressed_param(service_profile, &SASEvent::PROFILE_SERVICE_PROFILE);
@@ -1097,9 +1097,6 @@ void ImpuRegDataTask::put_in_cache()
 
     // Cache the IRS
     _cache->put_implicit_registration_set(success_cb, failure_cb, _irs, this->trail());
-
-    // We've relinquished ownership of _irs to the cache
-    //TODO _irs = NULL;
   }
   else
   {
@@ -1138,12 +1135,8 @@ void ImpuRegDataTask::on_sar_response(const HssConnection::ServerAssignmentAnswe
 
   if (rc == HssConnection::ResultCode::SUCCESS)
   {
-    // Get the charging addresses and user data.
-    _irs->set_charging_addresses(saa.get_charging_addresses());
-    _irs->set_ims_sub_xml(saa.get_service_profile());
-
-    // We need to update the TTL on receiving an SAA
-    _irs->set_ttl(_cfg->record_ttl);
+    // The success case is handled below, this just exists so we can catch other
+    // errors with our final "else"
   }
   else if (rc == HssConnection::ResultCode::SERVER_UNAVAILABLE)
   {
@@ -1222,6 +1215,14 @@ void ImpuRegDataTask::on_sar_response(const HssConnection::ServerAssignmentAnswe
     // triggered by a deregistration or auth failure) so cache the User-Data.
     SAS::Event event(this->trail(), SASEvent::REG_DATA_HSS_SUCCESS, 0);
     SAS::report_event(event);
+
+    // Get the charging addresses and user data.
+    _irs->set_charging_addresses(saa.get_charging_addresses());
+    _irs->set_ims_sub_xml(saa.get_service_profile());
+
+    // We need to update the TTL on receiving an SAA
+    _irs->set_ttl(_cfg->record_ttl);
+
     put_in_cache();
     pending_cache_op = true;
   }
@@ -1248,9 +1249,6 @@ void ImpuRegDataTask::on_sar_response(const HssConnection::ServerAssignmentAnswe
       std::bind(&ImpuRegDataTask::on_del_impu_failure, this, std::placeholders::_1);
 
     _cache->delete_implicit_registration_set(success_cb, failure_cb, _irs, this->trail());
-
-    // We've relinquished ownership of _irs to the cache
-    //TODO _irs = NULL;
     pending_cache_op = true;
   }
 
