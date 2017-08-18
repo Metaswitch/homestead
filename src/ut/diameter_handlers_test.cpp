@@ -226,13 +226,13 @@ public:
       irs->set_ims_sub_xml(IMPU_IMS_SUBSCRIPTION);
       irs->set_reg_state(RegistrationState::NOT_REGISTERED);
       irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
-      irs->set_associated_impis(IMPI_IN_VECTOR);
+      irs->add_associated_impi(IMPI);
 
       FakeImplicitRegistrationSet* irs2 = new FakeImplicitRegistrationSet(IMPU3);
       irs->set_ims_sub_xml(IMPU3_IMS_SUBSCRIPTION);
       irs->set_reg_state(RegistrationState::NOT_REGISTERED);
       irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
-      irs->set_associated_impis(IMPI_IN_VECTOR);
+      irs->add_associated_impi(IMPI);
 
       std::vector<ImplicitRegistrationSet*> irss = { irs2, irs };
 
@@ -505,7 +505,7 @@ TEST_F(DiameterHandlersTest, RTRIncludesBarredImpus)
   irs->set_ims_sub_xml(IMPU_IMS_SUBSCRIPTION_WITH_BARRING);
   irs->set_reg_state(RegistrationState::NOT_REGISTERED);
   irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
-  irs->set_associated_impis(IMPI_IN_VECTOR);
+  irs->add_associated_impi(IMPI);
 
   std::vector<ImplicitRegistrationSet*> irss = { irs };
 
@@ -570,7 +570,7 @@ TEST_F(DiameterHandlersTest, RTRIncludesBarringIndication)
   irs->set_ims_sub_xml(IMPU_IMS_SUBSCRIPTION_BARRING_INDICATION);
   irs->set_reg_state(RegistrationState::NOT_REGISTERED);
   irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
-  irs->set_associated_impis(IMPI_IN_VECTOR);
+  irs->add_associated_impi(IMPI);
 
   std::vector<ImplicitRegistrationSet*> irss = { irs };
 

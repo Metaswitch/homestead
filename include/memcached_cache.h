@@ -32,7 +32,9 @@ public:
 
   typedef std::map<std::string, ImplicitRegistrationSet*> Irs;
 
-  virtual ImplicitRegistrationSet* get_irs_for_default_impu(const std::string& impu)
+  virtual void set_charging_addrs(const ChargingAddresses& new_addresses) override;
+
+  virtual ImplicitRegistrationSet* get_irs_for_default_impu(const std::string& impu) override
   {
     Irs::const_iterator it =  _irss.find(impu);
 
@@ -45,8 +47,6 @@ public:
       return it->second;
     }
   }
-
-  virtual void set_charging_addrs(const ChargingAddresses& new_addresses);
 
   Irs& get_irs()
   {
@@ -112,17 +112,17 @@ public:
 
   // Inherited functions
 
-  virtual const std::string& get_ims_sub_xml() const
+  virtual const std::string& get_ims_sub_xml() const override
   {
     return _ims_sub_xml;
   }
 
-  virtual RegistrationState get_reg_state() const
+  virtual RegistrationState get_reg_state() const override
   {
     return _registration_state;
   }
 
-  virtual std::vector<std::string> get_associated_impis() const
+  virtual std::vector<std::string> get_associated_impis() const override
   {
     std::vector<std::string> impis;
 
@@ -138,54 +138,38 @@ public:
     return impis;
   }
 
-  virtual std::vector<std::string> get_associated_impus() const
-  {
-    std::vector<std::string> associated_impus;
-
-    for (const std::pair<std::string, State>& entry : _associated_impus)
-    {
-      if (entry.second == State::UNCHANGED ||
-          entry.second == State::ADDED)
-      {
-        associated_impus.push_back(entry.first);
-      }
-    }
-
-    return associated_impus;
-  }
-
-  virtual const ChargingAddresses& get_charging_addresses() const
+  virtual const ChargingAddresses& get_charging_addresses() const override
   {
     return _charging_addresses;
   }
 
-  virtual int32_t get_ttl() const
+  virtual int32_t get_ttl() const override
   {
     return _ttl;
   }
 
-  virtual void set_ims_sub_xml(std::string xml)
+  virtual void set_ims_sub_xml(const std::string& xml) override
   {
     _ims_sub_xml_set = true;
     _ims_sub_xml = xml;
   }
 
-  virtual void set_reg_state(RegistrationState state)
+  virtual void set_reg_state(RegistrationState state) override
   {
     _registration_state_set = true;
     _registration_state = state;
   }
 
-  virtual void set_associated_impus(std::vector<std::string> impis);
-  virtual void set_associated_impis(std::vector<std::string> impis);
+  virtual void add_associated_impi(const std::string& impis) override;
+  virtual void delete_associated_impi(const std::string& impis) override;
 
-  virtual void set_charging_addresses(ChargingAddresses addresses)
+  virtual void set_charging_addresses(const ChargingAddresses& addresses) override
   {
     _charging_addresses_set = true;
     _charging_addresses = addresses;
   }
 
-  virtual void set_ttl(int32_t ttl)
+  virtual void set_ttl(int32_t ttl) override
   {
     _refreshed = true;
     _ttl = ttl;
@@ -198,6 +182,22 @@ public:
   bool is_refreshed(){ return _refreshed; }
 
   void mark_as_refreshed(){ _refreshed = true; }
+
+  std::vector<std::string> get_associated_impus() const
+  {
+    std::vector<std::string> impus;
+
+    for (const std::pair<std::string, State>& entry : _associated_impus)
+    {
+      if (entry.second == State::UNCHANGED ||
+          entry.second == State::ADDED)
+      {
+        impus.push_back(entry.first);
+      }
+    }
+
+    return impus;
+  }
 
   // Get an IMPU representing this IRS without any CAS
   ImpuStore::DefaultImpu* get_impu();

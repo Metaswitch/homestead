@@ -1396,7 +1396,7 @@ TEST_F(HTTPHandlersTest, ImpuReadRegDataMainline)
 
   // Create IRS to be returned from the cache
   FakeImplicitRegistrationSet* irs = new FakeImplicitRegistrationSet(IMPU);
-  irs->set_associated_impis({ IMPI });
+  irs->add_associated_impi(IMPI);
   irs->set_ims_sub_xml(IMPU_IMS_SUBSCRIPTION);
   irs->set_reg_state(RegistrationState::REGISTERED);
 
@@ -1691,7 +1691,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataReReg)
   irs->set_ims_sub_xml(IMPU_IMS_SUBSCRIPTION);
   irs->set_reg_state(RegistrationState::REGISTERED);
   irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
-  irs->set_associated_impis({ IMPI });
+  irs->add_associated_impi(IMPI);
 
   // Set up the cache to return our IRS
   EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
@@ -1742,7 +1742,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataReRegNoCache)
   irs->set_ims_sub_xml(IMPU_IMS_SUBSCRIPTION);
   irs->set_reg_state(RegistrationState::REGISTERED);
   irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
-  irs->set_associated_impis({ IMPI });
+  irs->add_associated_impi(IMPI);
   irs->set_ttl(7200);
 
   // Set up the cache to return our IRS
@@ -1795,7 +1795,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataReRegCached)
   irs->set_reg_state(RegistrationState::REGISTERED);
   irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
   irs->set_ttl(7200);
-  irs->set_associated_impis({ IMPI });
+  irs->add_associated_impi(IMPI);
 
   // Set up the cache to return our IRS
   EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
@@ -2130,7 +2130,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataCallMainline)
   irs->set_ims_sub_xml(IMPU_IMS_SUBSCRIPTION);
   irs->set_reg_state(RegistrationState::REGISTERED);
   irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
-  irs->set_associated_impis(IMPI_IN_VECTOR);
+  irs->add_associated_impi(IMPI);
 
   // Set up the cache to return our IRS
   EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
@@ -2157,7 +2157,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataCallWildcard)
   irs->set_ims_sub_xml(IMPU_IMS_SUBSCRIPTION);
   irs->set_reg_state(RegistrationState::REGISTERED);
   irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
-  irs->set_associated_impis(IMPI_IN_VECTOR);
+  irs->add_associated_impi(IMPI);
 
   // Set up the cache to return our IRS
   EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, WILDCARD, FAKE_TRAIL_ID))
@@ -2184,7 +2184,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataCallUnregisteredService)
   irs->set_ims_sub_xml(IMPU_IMS_SUBSCRIPTION);
   irs->set_reg_state(RegistrationState::UNREGISTERED);
   irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
-  irs->set_associated_impis(IMPI_IN_VECTOR);
+  irs->add_associated_impi(IMPI);
 
   // Set up the cache to return our IRS
   EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
@@ -2259,7 +2259,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataDeregUser)
   irs->set_ims_sub_xml(IMPU_IMS_SUBSCRIPTION);
   irs->set_reg_state(RegistrationState::REGISTERED);
   irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
-  irs->set_associated_impis(IMPI_IN_VECTOR);
+  irs->add_associated_impi(IMPI);
 
   // Lookup use in cache
   EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
@@ -2308,7 +2308,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataDeregTimeout)
   irs->set_ims_sub_xml(IMPU_IMS_SUBSCRIPTION);
   irs->set_reg_state(RegistrationState::REGISTERED);
   irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
-  irs->set_associated_impis(IMPI_IN_VECTOR);
+  irs->add_associated_impi(IMPI);
 
   // Lookup use in cache
   EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
@@ -2357,7 +2357,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataDeregAdmin)
   irs->set_ims_sub_xml(IMPU_IMS_SUBSCRIPTION);
   irs->set_reg_state(RegistrationState::REGISTERED);
   irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
-  irs->set_associated_impis(IMPI_IN_VECTOR);
+  irs->add_associated_impi(IMPI);
 
   // Lookup use in cache
   EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
@@ -2407,7 +2407,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataDeregNoIMPI)
   irs->set_ims_sub_xml(IMPU_IMS_SUBSCRIPTION);
   irs->set_reg_state(RegistrationState::REGISTERED);
   irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
-  irs->set_associated_impis(IMPI_IN_VECTOR);
+  irs->add_associated_impi(IMPI);
 
   // Lookup use in cache
   EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
@@ -2456,7 +2456,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataDeregCacheError)
   irs->set_ims_sub_xml(IMPU_IMS_SUBSCRIPTION);
   irs->set_reg_state(RegistrationState::REGISTERED);
   irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
-  irs->set_associated_impis(IMPI_IN_VECTOR);
+  irs->add_associated_impi(IMPI);
 
   // Lookup use in cache
   EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
@@ -2506,7 +2506,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataDeregCacheNotFound)
   irs->set_ims_sub_xml(IMPU_IMS_SUBSCRIPTION);
   irs->set_reg_state(RegistrationState::REGISTERED);
   irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
-  irs->set_associated_impis(IMPI_IN_VECTOR);
+  irs->add_associated_impi(IMPI);
 
   // Lookup use in cache
   EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
@@ -2555,7 +2555,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataDeregUnregSub)
   irs->set_ims_sub_xml(IMPU_IMS_SUBSCRIPTION);
   irs->set_reg_state(RegistrationState::UNREGISTERED);
   irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
-  irs->set_associated_impis(IMPI_IN_VECTOR);
+  irs->add_associated_impi(IMPI);
 
   // Lookup irs in cache
   EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
@@ -2606,7 +2606,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataDeregAuthFailedRegistered)
   irs->set_ims_sub_xml(IMPU_IMS_SUBSCRIPTION);
   irs->set_reg_state(RegistrationState::REGISTERED);
   irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
-  irs->set_associated_impis(IMPI_IN_VECTOR);
+  irs->add_associated_impi(IMPI);
 
   // Expect a cache lookup will return IRS in state REGISTERED
   EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
@@ -2649,7 +2649,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataDeregAuthFailedNotRegistered)
   irs->set_ims_sub_xml(IMPU_IMS_SUBSCRIPTION);
   irs->set_reg_state(RegistrationState::NOT_REGISTERED);
   irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
-  irs->set_associated_impis(IMPI_IN_VECTOR);
+  irs->add_associated_impi(IMPI);
 
   // Expect a cache lookup will return IRS in state NOT_REGISTERED
   EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
@@ -2692,7 +2692,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataDeregAuthTimeout)
   irs->set_ims_sub_xml(IMPU_IMS_SUBSCRIPTION);
   irs->set_reg_state(RegistrationState::NOT_REGISTERED);
   irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
-  irs->set_associated_impis(IMPI_IN_VECTOR);
+  irs->add_associated_impi(IMPI);
 
   // Expect a cache lookup will return IRS in state NOT_REGISTERED
   EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
@@ -2734,7 +2734,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataDeregInvalid)
   irs->set_ims_sub_xml(IMPU_IMS_SUBSCRIPTION);
   irs->set_reg_state(RegistrationState::NOT_REGISTERED);
   irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
-  irs->set_associated_impis(IMPI_IN_VECTOR);
+  irs->add_associated_impi(IMPI);
 
   // Expect a cache lookup will return IRS in state NOT_REGISTERED
   EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
@@ -2841,7 +2841,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataHssNotFound)
   irs->set_ims_sub_xml(IMPU_IMS_SUBSCRIPTION);
   irs->set_reg_state(RegistrationState::NOT_REGISTERED);
   irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
-  irs->set_associated_impis(IMPI_IN_VECTOR);
+  irs->add_associated_impi(IMPI);
 
   // Expect a cache lookup will return IRS in state NOT_REGISTERED
   EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
@@ -2879,7 +2879,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataHssUnavailable)
   irs->set_ims_sub_xml(IMPU_IMS_SUBSCRIPTION);
   irs->set_reg_state(RegistrationState::NOT_REGISTERED);
   irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
-  irs->set_associated_impis(IMPI_IN_VECTOR);
+  irs->add_associated_impi(IMPI);
 
   // Expect a cache lookup will return IRS in state NOT_REGISTERED
   EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
@@ -2917,7 +2917,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataHssUnknownError)
   irs->set_ims_sub_xml(IMPU_IMS_SUBSCRIPTION);
   irs->set_reg_state(RegistrationState::NOT_REGISTERED);
   irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
-  irs->set_associated_impis(IMPI_IN_VECTOR);
+  irs->add_associated_impi(IMPI);
 
   // Expect a cache lookup will return IRS in state NOT_REGISTERED
   EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))

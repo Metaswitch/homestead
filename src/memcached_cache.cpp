@@ -106,14 +106,14 @@ void set_elements(const std::vector<std::string>& updated,
   }
 }
 
-void MemcachedImplicitRegistrationSet::set_associated_impis(std::vector<std::string> impis)
+void MemcachedImplicitRegistrationSet::add_associated_impi(const std::string& impi)
 {
-  set_elements(impis, _impis);
+  _impis[impi] = MemcachedImplicitRegistrationSet::State::ADDED;
 }
 
-void MemcachedImplicitRegistrationSet::set_associated_impus(std::vector<std::string> impus)
+void MemcachedImplicitRegistrationSet::delete_associated_impi(const std::string& impi)
 {
-  set_elements(impus, _associated_impus);
+  _impis[impi] = MemcachedImplicitRegistrationSet::State::DELETED;
 }
 
 // Update the given data from the store, placing any unseen data elements

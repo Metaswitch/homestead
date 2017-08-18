@@ -39,10 +39,11 @@ public:
   virtual const ChargingAddresses& get_charging_addresses() const = 0;
   virtual int32_t get_ttl() const = 0;
 
-  virtual void set_ims_sub_xml(std::string xml) = 0;
+  virtual void set_ims_sub_xml(const std::string& xml) = 0;
   virtual void set_reg_state(RegistrationState state) = 0;
-  virtual void set_associated_impis (std::vector<std::string> impis) = 0;
-  virtual void set_charging_addresses(ChargingAddresses addresses) = 0;
+  virtual void add_associated_impi(const std::string& impi) = 0;
+  virtual void delete_associated_impi(const std::string& impi) = 0;
+  virtual void set_charging_addresses(const ChargingAddresses& addresses) = 0;
   virtual void set_ttl(int32_t ttl) = 0;
 
   const std::string default_impu;

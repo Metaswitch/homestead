@@ -20,52 +20,60 @@ class FakeImplicitRegistrationSet : public ImplicitRegistrationSet
   {
   }
 
-  virtual const std::string& get_ims_sub_xml() const
+  virtual const std::string& get_ims_sub_xml() const override
   {
     return _ims_sub_xml;
   }
 
-  virtual RegistrationState get_reg_state() const
+  virtual RegistrationState get_reg_state() const override
   {
     return _reg_state;
   }
 
-  virtual std::vector<std::string> get_associated_impis() const
+  virtual std::vector<std::string> get_associated_impis() const override
   {
     return _associated_impis;
   }
 
-  virtual const ChargingAddresses& get_charging_addresses() const
+  virtual const ChargingAddresses& get_charging_addresses() const override
   {
     return _charging_addresses;
   }
 
-  virtual int32_t get_ttl() const
+  virtual int32_t get_ttl() const override
   {
     return _ttl;
   }
 
-  virtual void set_ims_sub_xml(std::string xml)
+  virtual void set_ims_sub_xml(const std::string& xml) override
   {
     _ims_sub_xml = xml;
   }
 
-  virtual void set_reg_state(RegistrationState state)
+  virtual void set_reg_state(RegistrationState state) override
   {
     _reg_state = state;
   }
 
-  virtual void set_associated_impis (std::vector<std::string> impis)
+  virtual void add_associated_impi (const std::string& impi) override
   {
-    _associated_impis = impis;
+    _associated_impis.push_back(impi);
   }
 
-  virtual void set_charging_addresses(ChargingAddresses addresses)
+  virtual void delete_associated_impi (const std::string& impi) override
+  {
+    _associated_impis.erase(std::remove(_associated_impis.begin(),
+                                        _associated_impis.end(),
+                                        impi),
+                            _associated_impis.end());
+  }
+
+  virtual void set_charging_addresses(const ChargingAddresses& addresses) override
   {
     _charging_addresses = addresses;
   }
 
-  virtual void set_ttl(int32_t ttl)
+  virtual void set_ttl(int32_t ttl) override
   {
     _ttl = ttl;
   }
