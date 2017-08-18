@@ -11,6 +11,7 @@
 
 #include <string>
 
+#include "homestead_xml_utils.h"
 #include "memcached_cache.h"
 
 #include "log.h"
@@ -72,6 +73,9 @@ bool in_vector(const std::string& element,
 // Update the given data store, based on an updated view of the world
 // provided by the user
 //
+// An element may be passed in to ignore (e.g. the default IMPU shouldn't
+// be treated as an associated IMPU)
+//
 // Elements which are not in the vector, but are in the provided data
 // store are marked as DELETED.
 //
@@ -81,7 +85,8 @@ bool in_vector(const std::string& element,
 //
 // Any other element is left unchanged.
 void set_elements(const std::vector<std::string>& updated,
-                  MemcachedImplicitRegistrationSet::Data& data)
+                  MemcachedImplicitRegistrationSet::Data& data,
+                  const std::string ignore)
 {
   for (std::pair<const std::string, MemcachedImplicitRegistrationSet::State>& entry : data)
   {
@@ -93,17 +98,49 @@ void set_elements(const std::vector<std::string>& updated,
 
   for (const std::string& entry : updated)
   {
-    MemcachedImplicitRegistrationSet::Data::iterator it = data.find(entry);
+    if (entry != ignore)
+    {
+      MemcachedImplicitRegistrationSet::Data::iterator it = data.find(entry);
 
-    if (it == data.end())
-    {
-      data[entry] = MemcachedImplicitRegistrationSet::State::ADDED;
-    }
-    else if (it->second == MemcachedImplicitRegistrationSet::State::DELETED)
-    {
-      it->second = MemcachedImplicitRegistrationSet::State::ADDED;
+      if (it == data.end())
+      {
+        data[entry] = MemcachedImplicitRegistrationSet::State::ADDED;
+      }
+      else if (it->second == MemcachedImplicitRegistrationSet::State::DELETED)
+      {
+        it->second = MemcachedImplicitRegistrationSet::State::ADDED;
+      }
     }
   }
+}
+
+void MemcachedImplicitRegistrationSet::set_ims_sub_xml(const std::string& xml)
+{
+  TRC_DEBUG("Setting XML for IMPU: %s to %s",
+            _default_impu.c_str(),
+            xml.c_str());
+  _ims_sub_xml_set = true;
+  _ims_sub_xml = xml;
+
+  std::string default_impu;
+
+  std::vector<std::string> assoc_impus =
+    XmlUtils::get_public_and_default_ids(xml,
+                                         default_impu);
+
+  if (_default_impu != default_impu)
+  {
+    if (default_impu != "")
+    {
+      TRC_WARNING("Unsupported change of default IMPU from %s to %s - HSS should perform RTR first",
+                  _default_impu.c_str(),
+                  default_impu.c_str());
+    }
+
+    _default_impu = default_impu;
+  }
+
+  set_elements(assoc_impus, _associated_impus, default_impu);
 }
 
 void MemcachedImplicitRegistrationSet::add_associated_impi(const std::string& impi)

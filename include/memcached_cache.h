@@ -152,11 +152,7 @@ public:
     return _ttl;
   }
 
-  virtual void set_ims_sub_xml(const std::string& xml) override
-  {
-    _ims_sub_xml_set = true;
-    _ims_sub_xml = xml;
-  }
+  virtual void set_ims_sub_xml(const std::string& xml) override;
 
   virtual void set_reg_state(RegistrationState state) override
   {
