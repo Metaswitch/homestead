@@ -20,7 +20,24 @@
 #include <rapidjson/writer.h>
 #include <lz4.h>
 
+/**
+ * Encode a number in a variable number of bytes and append
+ *
+ * This minimizes the length that it takes to store the length
+ * uncompressed data.
+ *
+ * The length is stored with seven bits in each byte (0x7f), and then
+ * the top bit (0x80) set if there are more bits to go.
+ */
 void encode_varbyte(uint64_t uncomp_size_len, std::string& data);
+
+/**
+ * Decode a variable length from the supplied buffer.
+ *
+ * An offset into the buffer can be provided.
+ *
+ * Returns a length, or zero on failure.
+ */
 uint64_t decode_varbyte(const std::string& data, size_t& offset);
 
 class ImpuStore

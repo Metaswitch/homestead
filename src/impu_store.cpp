@@ -45,6 +45,7 @@ static const char * const JSON_DEFAULT_IMPUS = "default_impus";
 static const int ACCELERATION = 1;
 
 // The maximum buffer size to use for IMPU compression
+// 128 KB
 static const int MAX_BUFFER_LEN = 131072;
 
 void encode_varbyte(uint64_t uncomp_size, std::string& data)
@@ -220,16 +221,17 @@ ImpuStore::Impu* ImpuStore::AssociatedImpu::from_json(std::string const& impu,
 template<typename T>
 void extract_array(rapidjson::Value& json, const char* key, T& array)
 {
-  JSON_ASSERT_ARRAY(json[key]);
-
-  const rapidjson::Value& arr = json[key];
-
-  for (rapidjson::Value::ConstValueIterator it = arr.Begin();
-       it != arr.End();
-       ++it)
+  if (json.HasMember(key) && json[key].IsArray())
   {
-    JSON_ASSERT_STRING(*it);
-    array.push_back(it->GetString());
+    const rapidjson::Value& arr = json[key];
+
+    for (rapidjson::Value::ConstValueIterator it = arr.Begin();
+         it != arr.End();
+         ++it)
+    {
+      JSON_ASSERT_STRING(*it);
+      array.push_back(it->GetString());
+    }
   }
 }
 
@@ -395,7 +397,7 @@ Store::Status ImpuStore::Impu::to_data(std::string& data)
   // (8 + 6) / 7 => 2
   int uncomp_size_len = (uncomp_size_bits + 6) / 7;
 
-  data.reserve(1 + uncomp_size_len + uncomp_size);
+  data.reserve(1 + uncomp_size_len + comp_size);
 
   // Version
   data.push_back((char) 0);
@@ -473,6 +475,10 @@ ImpuStore::ImpiMapping* ImpuStore::ImpiMapping::from_data(const std::string& imp
                                                           const std::string& data,
                                                           unsigned long cas)
 {
+  // Unlike IMPUs, we don't compress IMPI mappings, we just store a JSON
+  // dictionary, as the overhead of compression is likely to be worse than
+  // the size of the data
+
   rapidjson::Document doc;
   doc.Parse<0>(data.c_str());
 
@@ -497,7 +503,7 @@ ImpuStore::ImpiMapping* ImpuStore::ImpiMapping::from_data(const std::string& imp
 
 Store::Status ImpuStore::ImpiMapping::to_data(std::string& data)
 {
-  // Gather the JSON
+  // Gather the JSON - as per from_data we don't compress IMPI Mappings
   rapidjson::StringBuffer buffer;
   rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
   writer.StartObject();
@@ -640,18 +646,9 @@ ImpuStore::ImpiMapping* ImpuStore::ImpiMapping::from_json(std::string const& imp
   std::vector<std::string> impus;
   int64_t expiry = 0L;
 
-  JSON_ASSERT_ARRAY(json[JSON_DEFAULT_IMPUS]);
+  extract_array(json, JSON_DEFAULT_IMPUS, impus);
+
   JSON_SAFE_GET_INT_64_MEMBER(json, JSON_EXPIRY, expiry);
-
-  const rapidjson::Value& default_impus_arr = json[JSON_DEFAULT_IMPUS];
-
-  for (rapidjson::Value::ConstValueIterator default_impus_it = default_impus_arr.Begin();
-       default_impus_it != default_impus_arr.End();
-       ++default_impus_it)
-  {
-    JSON_ASSERT_STRING(*default_impus_it);
-    impus.push_back(default_impus_it->GetString());
-  }
 
   return new ImpiMapping(impi,
                          impus,
@@ -661,15 +658,7 @@ ImpuStore::ImpiMapping* ImpuStore::ImpiMapping::from_json(std::string const& imp
 
 void ImpuStore::ImpiMapping::write_json(rapidjson::Writer<rapidjson::StringBuffer>& writer)
 {
-  writer.String(JSON_DEFAULT_IMPUS);
-  writer.StartArray();
-
-  for (const std::string& default_impu : _default_impus)
-  {
-    writer.String(default_impu.c_str());
-  }
-
-  writer.EndArray();
+  write_array(writer, JSON_DEFAULT_IMPUS, _default_impus);
   writer.String(JSON_EXPIRY);
   writer.Int64(_expiry);
 }
