@@ -33,8 +33,6 @@ using ::testing::Field;
 using ::testing::AllOf;
 using ::testing::IsNull;
 
-//TODO commonalize this with HsProvHssConnectionTest's versions
-
 const SAS::TrailId FAKE_TRAIL_ID = 0x12345678;
 
 // Allows us to catch an MAA, UAA, LIA or SAA and check their contents
@@ -113,7 +111,7 @@ public:
     _hss_connection = new HssConnection::HsProvHssConnection(_stats, _mock_store, SERVER_NAME);
 
     HssConnection::HssConnection::configure_auth_schemes(SCHEME_DIGEST, SCHEME_AKA, SCHEME_AKAV2);
-  
+
     cwtest_completely_control_time();
   }
 

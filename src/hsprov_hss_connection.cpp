@@ -10,7 +10,7 @@
  */
 
 #include "hsprov_hss_connection.h"
-#include "cx.h" //TODO this is sad, but we need to fake up the DIAMETER_SUCCESS on UAR
+#include "cx.h"
 
 namespace HssConnection {
 

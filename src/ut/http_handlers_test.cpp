@@ -1671,7 +1671,6 @@ TEST_F(HTTPHandlersTest, ImpuRegDataInitialRegCachePutError)
     .WillOnce(InvokeArgument<1>(Store::Status::ERROR));
 
   // Expect 503 response
-  // sr2sr2 TODO - why is this 503?
   EXPECT_CALL(*_httpstack, send_reply(_, 503, _));
 
   task->run();
@@ -1863,8 +1862,6 @@ TEST_F(HTTPHandlersTest, ImpuRegDataReRegNewBinding)
   EXPECT_EQ(REGDATA_RESULT, req.content());
 }
 
-// TODO does this test get us anything?
-// It's up to the cache to decide how to store the default impu
 TEST_F(HTTPHandlersTest, ImpuRegDataRegIncludesBarring)
 {
   // Tests that the first unbarred public id is used when putting data into the
@@ -2050,8 +2047,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataCallNewWildcardNotFound)
     .WillOnce(InvokeArgument<1>(Store::Status::NOT_FOUND));
 
   // Create IRS to be returned from the cache when we fail to find the above
-  // TODO should this be wildcard or default IMPU
-  FakeImplicitRegistrationSet* irs2 = new FakeImplicitRegistrationSet(NEW_WILDCARD);
+  FakeImplicitRegistrationSet* irs2 = new FakeImplicitRegistrationSet("");
   EXPECT_CALL(*_cache, create_implicit_registration_set())
     .WillOnce(Return(irs2));
 
@@ -2115,8 +2111,6 @@ TEST_F(HTTPHandlersTest, ImpuRegDataCallWildcardLoop)
 
   task->run();
 }
-
-//TODO inappropriate wildcard request should be tested by diameter stuff
 
 TEST_F(HTTPHandlersTest, ImpuRegDataCallMainline)
 {
@@ -2486,7 +2480,6 @@ TEST_F(HTTPHandlersTest, ImpuRegDataDeregCacheError)
     .WillOnce(InvokeArgument<1>(Store::Status::ERROR));
 
   // Check the response
-  // TODO - 503 seems pretty odd here
   EXPECT_CALL(*_httpstack, send_reply(_, 503, _));
 
   task->run();

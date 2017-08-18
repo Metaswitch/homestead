@@ -225,18 +225,17 @@ void RegistrationTerminationTask::get_registration_sets_failure(Store::Status rc
   delete this;
 }
 
-// LCOV_EXCL_START - nothing interesting to UT.
 // These two callbacks are used so that we don't delete the task until we're
 // completely done with Cache operations.
 // This allows us to delete each of the ImplicitRegistrationSets in the
 // _reg_sets vector in the task's destructor.
-// TODO the above may not be true
 void RegistrationTerminationTask::delete_reg_sets_success()
 {
   // We have already sent the reponse, so we do nothing here
   delete this;
 }
 
+// LCOV_EXCL_START - nothing interesting to UT.
 void RegistrationTerminationTask::delete_reg_sets_failure(Store::Status rc)
 {
   // We have already sent the reponse, so we do nothing here
@@ -364,7 +363,9 @@ void PushProfileTask::on_get_ims_sub_success(ImsSubscription* ims_sub)
     }
 
     // We can now update the IRS with the new XML. We will handle updating
-    // charging addresses later
+    // charging addresses later.
+    // Note - we don't update the TTL for the data, since we only do that on
+    // (re)-registration
     irs->set_ims_sub_xml(_ims_subscription);
   }
 
@@ -394,7 +395,9 @@ void PushProfileTask::on_get_ims_sub_success(ImsSubscription* ims_sub)
 
   SAS::report_event(put_cache_event);
 
-  // Now, save the updated ImsSubscription in the cache
+  // Now, save the updated ImsSubscription in the cache.
+  // The cache is smart enough to not write any IRSs which haven't been touched
+  // by this PPR
   void_success_cb success_cb =
     std::bind(&PushProfileTask::on_save_ims_sub_success, this);
 

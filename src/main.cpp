@@ -179,7 +179,7 @@ static std::string options_description = "l:r:c:H:t:u:S:D:d:p:s:i:I:a:F:L:h";
 
 static const std::string HTTP_MGMT_SOCKET_PATH = "/tmp/homestead-http-mgmt-socket";
 static const int NUM_HTTP_MGMT_THREADS = 5;
-// TODO default number of cache threads
+
 void usage(void)
 {
   puts("Options:\n"
@@ -189,7 +189,8 @@ void usage(void)
        " -c, --diameter-conf <file> File name for Diameter configuration\n"
        " -H, --http <address>       Set HTTP bind address (default: 0.0.0.0)\n"
        " -t, --http-threads N       Number of HTTP threads (default: 1)\n"
-       " -u, --cache-threads N      Number of cache threads (default: 10)\n"
+       " -u, --cache-threads N      Number of cache threads (default: 50)\n"
+       "     --cassandra-threads N  Number of cassandra threads (default: 10)\n"
        " -S, --cassandra <address>  Set the IP address or FQDN of the Cassandra database (default: 127.0.0.1 or [::1])"
        " -M  --impu-stores <site_name>=domain[:<port>][,<site_name>=<domain>:<port>,...]\n"
        "                            Enables memcached store for IMPU cache data\n"

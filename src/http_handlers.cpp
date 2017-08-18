@@ -1051,8 +1051,6 @@ void ImpuRegDataTask::send_server_assignment_request(Cx::ServerAssignmentType ty
 
 void ImpuRegDataTask::put_in_cache()
 {
-  // TODO - if all the impus are barred, there will be no default id
-  //        Old code would just cache it anyway. Still do that?
   std::string default_public_id = "";
   std::vector<std::string> public_ids =
     XmlUtils::get_public_and_default_ids(_irs->get_ims_sub_xml(), default_public_id);

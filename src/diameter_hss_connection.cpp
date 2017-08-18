@@ -138,7 +138,6 @@ MultimediaAuthAnswer DiameterHssConnection::MARDiameterTransaction::create_answe
     }
     else
     {
-      // TODO SAS log here, or maybe just in the handler?
       rc = UNKNOWN_AUTH_SCHEME;
     }
   }
