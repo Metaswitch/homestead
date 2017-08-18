@@ -206,7 +206,8 @@ public:
     {
       _default_impus.erase(std::remove(_default_impus.begin(),
                                        _default_impus.end(),
-                                       impu));
+                                       impu),
+                           _default_impus.end());
     }
 
     bool is_empty()
