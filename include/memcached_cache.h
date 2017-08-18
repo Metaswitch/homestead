@@ -71,7 +71,6 @@ public:
     _default_impu(default_impu->impu),
     _store(default_impu->store),
     _cas(default_impu->cas),
-    _changed(false),
     _refreshed(false),
     _existing(true),
     _ims_sub_xml(default_impu->service_profile),
@@ -102,7 +101,6 @@ public:
     ImplicitRegistrationSet(),
     _store(nullptr),
     _cas(0L),
-    _changed(true),
     _refreshed(true),
     _existing(false),
     _ims_sub_xml_set(false),
@@ -183,9 +181,29 @@ public:
 
   // Functions for MemcachedCache
 
-  bool is_existing(){ return _existing; }
-  bool has_changed(){ return _changed; }
-  bool is_refreshed(){ return _refreshed; }
+  bool is_existing() const { return _existing; }
+
+  bool has_changed() const {
+    return !_existing ||
+            _refreshed ||
+            _ims_sub_xml_set ||
+            _charging_addresses_set ||
+            _registration_state_set ||
+            has_changed_impus() ||
+            has_changed_impis();
+  }
+
+  bool has_changed_impis() const
+  {
+    return has_changed_data(_impis);
+  }
+
+  bool has_changed_impus() const
+  {
+    return has_changed_data(_associated_impus);
+  }
+
+  bool is_refreshed() const { return _refreshed; }
 
   void mark_as_refreshed(){ _refreshed = true; }
 
@@ -279,6 +297,20 @@ private:
   bool _registration_state_set;
 
   ImpuStore::DefaultImpu* create_impu(uint64_t cas);
+
+  static bool has_changed_data(const Data& data)
+  {
+    for (Data::value_type pair : data)
+    {
+      if (pair.second == State::ADDED ||
+          pair.second == State::DELETED)
+      {
+        return true;
+      }
+    }
+
+    return false;
+  }
 
 public:
   std::vector<std::string> impis(State status)
