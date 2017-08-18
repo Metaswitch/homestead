@@ -885,9 +885,11 @@ void ImpuRegDataTask::on_get_reg_data_success(ImplicitRegistrationSet* irs)
     }
     else
     {
-      // Send a Server-Assignment-Request and cache the response.
+      // Set the registration state in the IRS to registered, add the new IMPI
+      // and send a Server-Assignment-Request
       TRC_DEBUG("Handling initial registration");
       _irs->set_reg_state(RegistrationState::REGISTERED);
+      _irs->add_associated_impi(_impi);
       send_server_assignment_request(Cx::ServerAssignmentType::REGISTRATION);
     }
   }

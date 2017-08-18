@@ -1495,7 +1495,8 @@ TEST_F(HTTPHandlersTest, ImpuRegDataInitialReg)
   // We now expect it to be put in the cache with an updated TTL and state REGISTERED
   EXPECT_CALL(*_cache, put_implicit_registration_set(_, _,
     AllOf(Property(&ImplicitRegistrationSet::get_reg_state, RegistrationState::REGISTERED),
-          Property(&ImplicitRegistrationSet::get_ttl, 7200)),
+          Property(&ImplicitRegistrationSet::get_ttl, 7200),
+          Property(&ImplicitRegistrationSet::get_associated_impis, IMPI_IN_VECTOR)),
     FAKE_TRAIL_ID))
     .WillOnce(InvokeArgument<0>());
 
