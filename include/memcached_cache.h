@@ -162,8 +162,8 @@ public:
     _registration_state = state;
   }
 
-  virtual void add_associated_impi(const std::string& impis) override;
-  virtual void delete_associated_impi(const std::string& impis) override;
+  virtual void add_associated_impi(const std::string& impi) override;
+  virtual void delete_associated_impi(const std::string& impi) override;
 
   virtual void set_charging_addresses(const ChargingAddresses& addresses) override
   {
