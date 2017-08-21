@@ -41,6 +41,7 @@ public:
   // Operations
   //
 
+  // These Operations have virtual methods to allow them to be mocked out in UTs
   class GetRegData : public CassandraStore::HAOperation
   {
   public:

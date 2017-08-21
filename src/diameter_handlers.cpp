@@ -14,9 +14,7 @@
 #include "servercapabilities.h"
 #include "homesteadsasevent.h"
 #include "snmp_cx_counter_table.h"
-
 #include "log.h"
-
 #include "boost/algorithm/string/join.hpp"
 
 static SNMP::CxCounterTable* ppr_results_tbl;
@@ -213,8 +211,6 @@ void RegistrationTerminationTask::get_registration_sets_success(std::vector<Impl
     _cfg->cache->delete_implicit_registration_sets(success_cb, failure_cb, _reg_sets, this->trail());
   }
 }
-
-
 
 void RegistrationTerminationTask::get_registration_sets_failure(Store::Status rc)
 {
