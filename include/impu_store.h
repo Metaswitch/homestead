@@ -53,10 +53,14 @@ public:
     static int _dict_v0_size;
 
   protected:
-    Impu(const std::string impu, uint64_t cas, int64_t expiry) :
+    Impu(const std::string impu,
+         uint64_t cas,
+         int64_t expiry,
+         const ImpuStore* store) :
       impu(impu),
       cas(cas),
-      expiry(expiry)
+      expiry(expiry),
+      store(store)
     {
     }
 
@@ -74,14 +78,15 @@ public:
 
     static Impu* from_data(const std::string& impu,
                            std::string& data,
-                           uint64_t cas);
+                           uint64_t cas,
+                           ImpuStore* store);
 
     virtual void write_json(rapidjson::Writer<rapidjson::StringBuffer>& writer) = 0;
 
-    const ImpuStore* store;
     const std::string impu;
     const uint64_t cas;
     const int64_t expiry;
+    const ImpuStore * const store;
   };
 
   class DefaultImpu : public Impu
@@ -94,8 +99,9 @@ public:
                 const ChargingAddresses& charging_addresses,
                 const std::string& service_profile,
                 uint64_t cas,
-                int64_t expiry) :
-      Impu(impu, cas, expiry),
+                int64_t expiry,
+                const ImpuStore* store) :
+      Impu(impu, cas, expiry, store),
       registration_state(registration_state),
       charging_addresses(charging_addresses),
       associated_impus(associated_impus),
@@ -110,7 +116,8 @@ public:
 
     static Impu* from_json(const std::string& impu,
                            rapidjson::Value& json,
-                           uint64_t cas);
+                           uint64_t cas,
+                           ImpuStore* store);
 
     bool has_associated_impu(const std::string& impu)
     {
@@ -134,8 +141,9 @@ public:
     AssociatedImpu(std::string impu,
                    std::string default_impu,
                    uint64_t cas,
-                   int64_t expiry) :
-      Impu(impu, cas, expiry),
+                   int64_t expiry,
+                   const ImpuStore* store) :
+      Impu(impu, cas, expiry, store),
       default_impu(default_impu)
     {
     }
@@ -150,7 +158,8 @@ public:
 
     static Impu* from_json(const std::string& impu,
                            rapidjson::Value& json,
-                           uint64_t cas);
+                           uint64_t cas,
+                           ImpuStore* store);
   };
 
   class ImpiMapping

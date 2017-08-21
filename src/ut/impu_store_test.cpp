@@ -77,7 +77,8 @@ TEST_F(ImpuStoreTest, SetDefaultImpu)
                                NO_CHARGING_ADDRESSES,
                                SERVICE_PROFILE,
                                0L,
-                               expiry);
+                               expiry,
+                               impu_store);
 
   EXPECT_EQ(Store::Status::OK,
             impu_store->set_impu(default_impu, 0));
@@ -102,7 +103,8 @@ TEST_F(ImpuStoreTest, SetUnregisteredDefaultImpu)
                                NO_CHARGING_ADDRESSES,
                                SERVICE_PROFILE,
                                0L,
-                               expiry);
+                               expiry,
+                               impu_store);
 
   EXPECT_EQ(Store::Status::OK,
             impu_store->set_impu(default_impu, 0));
@@ -127,7 +129,8 @@ TEST_F(ImpuStoreTest, SetInvalidRegistrationStateDefaultImpu)
                                NO_CHARGING_ADDRESSES,
                                SERVICE_PROFILE,
                                0L,
-                               expiry);
+                               expiry,
+                               impu_store);
 
   EXPECT_EQ(Store::Status::OK,
             impu_store->set_impu(default_impu, 0));
@@ -152,7 +155,8 @@ TEST_F(ImpuStoreTest, GetDefaultImpu)
                                NO_CHARGING_ADDRESSES,
                                SERVICE_PROFILE,
                                0L,
-                               expiry);
+                               expiry,
+                               impu_store);
   impu_store->set_impu(default_impu, 0);
 
   delete default_impu;
@@ -191,7 +195,8 @@ TEST_F(ImpuStoreTest, SetAssociatedImpu)
     new ImpuStore::AssociatedImpu(ASSOC_IMPU,
                                   IMPU,
                                   0L,
-                                  expiry);
+                                  expiry,
+                                  impu_store);
 
   ASSERT_EQ(Store::Status::OK,
             impu_store->set_impu(assoc_impu, 0));
@@ -212,7 +217,8 @@ TEST_F(ImpuStoreTest, GetAssociatedImpu)
     new ImpuStore::AssociatedImpu(ASSOC_IMPU,
                                   IMPU,
                                   0L,
-                                  expiry);
+                                  expiry,
+                                  impu_store);
 
   impu_store->set_impu(assoc_impu, 0);
 
@@ -313,14 +319,14 @@ TEST_F(ImpuStoreTest, GetAssociatedImpiMapping)
 TEST_F(ImpuStoreTest, ImpuFromDataEmpty)
 {
   std::string data;
-  ASSERT_EQ(nullptr, ImpuStore::Impu::from_data(IMPU, data, 0));
+  ASSERT_EQ(nullptr, ImpuStore::Impu::from_data(IMPU, data, 0, nullptr));
 }
 
 TEST_F(ImpuStoreTest, ImpuFromDataIncorrectVersion)
 {
   std::string data;
   data.push_back((char) -1);
-  ASSERT_EQ(nullptr, ImpuStore::Impu::from_data(IMPU, data, 0));
+  ASSERT_EQ(nullptr, ImpuStore::Impu::from_data(IMPU, data, 0, nullptr));
 }
 
 class ImpuStoreVersion0Test : public ImpuStoreTest
@@ -340,21 +346,21 @@ class ImpuStoreVersion0Test : public ImpuStoreTest
 
 TEST_F(ImpuStoreVersion0Test, NoLengthOrData)
 {
-  ASSERT_EQ(nullptr, ImpuStore::Impu::from_data(IMPU, data, 0));
+  ASSERT_EQ(nullptr, ImpuStore::Impu::from_data(IMPU, data, 0, nullptr));
 }
 
 TEST_F(ImpuStoreVersion0Test, TooLong)
 {
   encode_varbyte(INT_MAX + 1L, data);
 
-  ASSERT_EQ(nullptr, ImpuStore::Impu::from_data(IMPU, data, 0));
+  ASSERT_EQ(nullptr, ImpuStore::Impu::from_data(IMPU, data, 0, nullptr));
 }
 
 TEST_F(ImpuStoreVersion0Test, RunOffEnd)
 {
   data.push_back((char) 0x80);
 
-  ASSERT_EQ(nullptr, ImpuStore::Impu::from_data(IMPU, data, 0));
+  ASSERT_EQ(nullptr, ImpuStore::Impu::from_data(IMPU, data, 0, nullptr));
 }
 
 TEST_F(ImpuStoreVersion0Test, InvalidCompressData)
@@ -362,7 +368,7 @@ TEST_F(ImpuStoreVersion0Test, InvalidCompressData)
   data.push_back((char) 0x1);
   data.push_back((char) 0xFF);
 
-  ASSERT_EQ(nullptr, ImpuStore::Impu::from_data(IMPU, data, 0));
+  ASSERT_EQ(nullptr, ImpuStore::Impu::from_data(IMPU, data, 0, nullptr));
 }
 
 TEST_F(ImpuStoreVersion0Test, InvalidJson)
@@ -374,7 +380,7 @@ TEST_F(ImpuStoreVersion0Test, InvalidJson)
   data.append(buffer, comp_size);
   free(buffer);
 
-  ASSERT_EQ(nullptr, ImpuStore::Impu::from_data(IMPU, data, 0));
+  ASSERT_EQ(nullptr, ImpuStore::Impu::from_data(IMPU, data, 0, nullptr));
 }
 
 TEST_F(ImpuStoreVersion0Test, NotJsonObject)
@@ -385,7 +391,7 @@ TEST_F(ImpuStoreVersion0Test, NotJsonObject)
   ImpuStore::Impu::compress_data_v0(JSON_ARRAY, buffer, comp_size);
   data.append(buffer, comp_size);
 
-  ASSERT_EQ(nullptr, ImpuStore::Impu::from_data(IMPU, data, 0));
+  ASSERT_EQ(nullptr, ImpuStore::Impu::from_data(IMPU, data, 0, nullptr));
   free(buffer);
 }
 
@@ -454,7 +460,8 @@ TEST_F(ImpuStoreTest, ImpuSetWithoutCas)
     new ImpuStore::AssociatedImpu(ASSOC_IMPU,
                                   IMPU,
                                   0L,
-                                  expiry);
+                                  expiry,
+                                  impu_store);
 
   ASSERT_EQ(Store::Status::OK,
             impu_store->set_impu_without_cas(assoc_impu, 0));
@@ -475,7 +482,8 @@ TEST_F(ImpuStoreTest, DeleteImpu)
     new ImpuStore::AssociatedImpu(ASSOC_IMPU,
                                   IMPU,
                                   0L,
-                                  expiry);
+                                  expiry,
+                                  impu_store);
 
   ASSERT_EQ(Store::Status::OK,
             impu_store->delete_impu(assoc_impu, 0));

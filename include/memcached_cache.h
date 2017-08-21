@@ -292,7 +292,8 @@ private:
   RegistrationState _registration_state;
   bool _registration_state_set;
 
-  ImpuStore::DefaultImpu* create_impu(uint64_t cas);
+  ImpuStore::DefaultImpu* create_impu(uint64_t cas,
+                                      const ImpuStore* store);
 
   static bool has_changed_data(const Data& data)
   {
