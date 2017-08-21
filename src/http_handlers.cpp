@@ -813,6 +813,57 @@ void ImpuRegDataTask::on_get_reg_data_success(ImplicitRegistrationSet* irs)
             regstate_to_str(reg_state).c_str(),
             charging_addrs.empty() ? "empty" : charging_addrs.log_string().c_str());
 
+  process_received_reg_data();
+}
+
+void ImpuRegDataTask::on_get_reg_data_failure(Store::Status rc)
+{
+  TRC_DEBUG("IMS subscription cache query failed: %d", rc);
+
+  if (rc == Store::Status::NOT_FOUND)
+  {
+    // If this is a PUT request, then not finding the data in the cache yet is
+    // expected if the subscriber isn't already registered.
+    // We create an empty IRS and pretend we got it from the cache.
+    if (_req.method() == htp_method_PUT)
+    {
+      TRC_DEBUG("No reg data found - creating empty IRS");
+      SAS::Event event(this->trail(), SASEvent::CACHE_GET_REG_DATA_NOT_FOUND, 0);
+      SAS::report_event(event);
+      _irs = _cache->create_implicit_registration_set();
+      _irs->set_reg_state(RegistrationState::NOT_REGISTERED);
+      process_received_reg_data();
+    }
+    else
+    {
+      TRC_DEBUG("No IMS subscription found for public ID %s - reject", _impu.c_str());
+      SAS::Event event(this->trail(), SASEvent::CACHE_GET_REG_DATA_FAIL, 0);
+      SAS::report_event(event);
+      send_http_reply(HTTP_NOT_FOUND);
+      delete this;
+    }
+  }
+  else
+  {
+    // Send a 504 in all other cases (the request won't be retried)
+    TRC_DEBUG("Cache query failed with rc %d", rc);
+    SAS::Event event(this->trail(), SASEvent::CACHE_GET_REG_DATA_FAIL, 0);
+    SAS::report_event(event);
+    send_http_reply(HTTP_GATEWAY_TIMEOUT);
+    delete this;
+  }
+}
+
+void ImpuRegDataTask::process_received_reg_data()
+{
+  // Common processing for when we either got an IRS from the cache or created a
+  // blank one
+  int32_t ttl = _irs->get_ttl();
+  std::string service_profile = _irs->get_ims_sub_xml();
+  RegistrationState reg_state = _irs->get_reg_state();
+  std::vector<std::string> associated_impis = _irs->get_associated_impis();
+  ChargingAddresses charging_addrs = _irs->get_charging_addresses();
+
   // GET requests shouldn't change the state - just respond with what we have in
   // the cache
   if (_req.method() == htp_method_GET)
@@ -991,41 +1042,6 @@ void ImpuRegDataTask::send_reply()
 
   TRC_DEBUG("Sending %d response (body was %s)", rc, _req.get_rx_body().c_str());
   send_http_reply(rc);
-}
-
-void ImpuRegDataTask::on_get_reg_data_failure(Store::Status rc)
-{
-  TRC_DEBUG("IMS subscription cache query failed: %d", rc);
-
-  if (rc == Store::Status::NOT_FOUND)
-  {
-    // If this is a PUT request, then not finding the data in the cache yet is
-    // expected.
-    // We create an empty IRS and pretend we got it from the cache.
-    if (_req.method() == htp_method_PUT)
-    {
-      ImplicitRegistrationSet* irs = _cache->create_implicit_registration_set();
-      irs->set_reg_state(RegistrationState::NOT_REGISTERED);
-      on_get_reg_data_success(irs);
-    }
-    else
-    {
-      TRC_DEBUG("No IMS subscription found for public ID %s - reject", _impu.c_str());
-      SAS::Event event(this->trail(), SASEvent::CACHE_GET_REG_DATA_FAIL, 0);
-      SAS::report_event(event);
-      send_http_reply(HTTP_NOT_FOUND);
-      delete this;
-    }
-  }
-  else
-  {
-    // Send a 504 in all other cases (the request won't be retried)
-    TRC_DEBUG("Cache query failed with rc %d", rc);
-    SAS::Event event(this->trail(), SASEvent::CACHE_GET_REG_DATA_FAIL, 0);
-    SAS::report_event(event);
-    send_http_reply(HTTP_GATEWAY_TIMEOUT);
-    delete this;
-  }
 }
 
 void ImpuRegDataTask::send_server_assignment_request(Cx::ServerAssignmentType type)
