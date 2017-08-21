@@ -17,6 +17,8 @@
 #include "log.h"
 #include "boost/algorithm/string/join.hpp"
 
+using std::placeholders::_1;
+
 static SNMP::CxCounterTable* ppr_results_tbl;
 static SNMP::CxCounterTable* rtr_results_tbl;
 
@@ -42,10 +44,10 @@ void RegistrationTerminationTask::run()
 
   // Create the cache success and failure callbacks
   irs_vector_success_callback success_cb =
-    std::bind(&RegistrationTerminationTask::get_registration_sets_success, this, std::placeholders::_1);
+    std::bind(&RegistrationTerminationTask::get_registration_sets_success, this, _1);
 
   failure_callback failure_cb =
-    std::bind(&RegistrationTerminationTask::get_registration_sets_failure, this, std::placeholders::_1);
+    std::bind(&RegistrationTerminationTask::get_registration_sets_failure, this, _1);
 
   // Figure out which registration sets we're de-registering
   if ((_deregistration_reason != SERVER_CHANGE) &&
@@ -96,8 +98,8 @@ void RegistrationTerminationTask::run()
   else
   {
     // This is an invalid deregistration reason.
-    TRC_ERROR("Registration-Termination request received with invalid deregistration reason %d",
-              _deregistration_reason);
+    TRC_WARNING("Registration-Termination request received with invalid deregistration reason %d",
+                _deregistration_reason);
     SAS::Event event(this->trail(), SASEvent::INVALID_DEREG_REASON, 0);
     SAS::report_event(event);
     send_rta(DIAMETER_REQ_FAILURE);
@@ -206,7 +208,7 @@ void RegistrationTerminationTask::get_registration_sets_success(std::vector<Impl
       std::bind(&RegistrationTerminationTask::delete_reg_sets_success, this);
 
     failure_callback failure_cb =
-      std::bind(&RegistrationTerminationTask::delete_reg_sets_failure, this, std::placeholders::_1);
+      std::bind(&RegistrationTerminationTask::delete_reg_sets_failure, this, _1);
 
     _cfg->cache->delete_implicit_registration_sets(success_cb, failure_cb, _reg_sets, this->trail());
   }
@@ -291,10 +293,10 @@ void PushProfileTask::run()
     SAS::report_event(event);
 
     ims_sub_success_cb success_cb =
-      std::bind(&PushProfileTask::on_get_ims_sub_success, this, std::placeholders::_1);
+      std::bind(&PushProfileTask::on_get_ims_sub_success, this, _1);
 
     failure_callback failure_cb =
-      std::bind(&PushProfileTask::on_get_ims_sub_failure, this, std::placeholders::_1);
+      std::bind(&PushProfileTask::on_get_ims_sub_failure, this, _1);
 
     _cfg->cache->get_ims_subscription(success_cb, failure_cb, _impi, this->trail());
   }
@@ -398,7 +400,7 @@ void PushProfileTask::on_get_ims_sub_success(ImsSubscription* ims_sub)
     std::bind(&PushProfileTask::on_save_ims_sub_success, this);
 
   failure_callback failure_cb =
-    std::bind(&PushProfileTask::on_save_ims_sub_failure, this, std::placeholders::_1);
+    std::bind(&PushProfileTask::on_save_ims_sub_failure, this, _1);
 
   _cfg->cache->put_ims_subscription(success_cb, failure_cb, _ims_sub, this->trail());
 }

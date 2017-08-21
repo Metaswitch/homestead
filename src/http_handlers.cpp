@@ -22,6 +22,8 @@
 #include "boost/algorithm/string/join.hpp"
 #include "base64.h"
 
+using std::placeholders::_1;
+
 const std::string SIP_URI_PRE = "sip:";
 
 std::string HssCacheTask::_configured_server_name;
@@ -94,7 +96,7 @@ void ImpiTask::send_mar()
   TRC_DEBUG("Requesting HSS Connection sends MAR");
   // Create the callback that will be invoked on a response
   HssConnection::maa_cb callback =
-    std::bind(&ImpiTask::on_mar_response, this, std::placeholders::_1);
+    std::bind(&ImpiTask::on_mar_response, this, _1);
 
   // Send the request
   _hss->send_multimedia_auth_request(callback, request, this->trail());
@@ -340,7 +342,7 @@ void ImpiRegistrationStatusTask::run()
 
   // Create the callback that will be invoked on a response
   HssConnection::uaa_cb callback =
-    std::bind(&ImpiRegistrationStatusTask::on_uar_response, this, std::placeholders::_1);
+    std::bind(&ImpiRegistrationStatusTask::on_uar_response, this, _1);
 
   // Send the request
   _hss->send_user_auth_request(callback, request, this->trail());
@@ -460,7 +462,7 @@ void ImpuLocationInfoTask::run()
 
   // Create the callback that will be invoked on a response
   HssConnection::lia_cb callback =
-    std::bind(&ImpuLocationInfoTask::on_lir_response, this, std::placeholders::_1);
+    std::bind(&ImpuLocationInfoTask::on_lir_response, this, _1);
 
   // Send the request
   _hss->send_location_info_request(callback, request, this->trail());
@@ -759,10 +761,10 @@ void ImpuRegDataTask::get_reg_data()
 
   // Create the success and failure callbacks
   irs_success_callback success_cb =
-    std::bind(&ImpuRegDataTask::on_get_reg_data_success, this, std::placeholders::_1);
+    std::bind(&ImpuRegDataTask::on_get_reg_data_success, this, _1);
 
   failure_callback failure_cb =
-    std::bind(&ImpuRegDataTask::on_get_reg_data_failure, this, std::placeholders::_1);
+    std::bind(&ImpuRegDataTask::on_get_reg_data_failure, this, _1);
 
   // Request the IRS from the cache
   _cache->get_implicit_registration_set_for_impu(success_cb,
@@ -1059,7 +1061,7 @@ void ImpuRegDataTask::send_server_assignment_request(Cx::ServerAssignmentType ty
 
   // Create the callback
   HssConnection::saa_cb callback =
-    std::bind(&ImpuRegDataTask::on_sar_response, this, std::placeholders::_1);
+    std::bind(&ImpuRegDataTask::on_sar_response, this, _1);
 
   // Send the request
   _hss->send_server_assignment_request(callback, request, this->trail());
@@ -1109,7 +1111,7 @@ void ImpuRegDataTask::put_in_cache()
       std::bind(&ImpuRegDataTask::on_put_reg_data_success, this);
 
     failure_callback failure_cb =
-      std::bind(&ImpuRegDataTask::on_put_reg_data_failure, this, std::placeholders::_1);
+      std::bind(&ImpuRegDataTask::on_put_reg_data_failure, this, _1);
 
     // Cache the IRS
     _cache->put_implicit_registration_set(success_cb, failure_cb, _irs, this->trail());
@@ -1262,7 +1264,7 @@ void ImpuRegDataTask::on_sar_response(const HssConnection::ServerAssignmentAnswe
       std::bind(&ImpuRegDataTask::on_del_impu_success, this);
 
     failure_callback failure_cb =
-      std::bind(&ImpuRegDataTask::on_del_impu_failure, this, std::placeholders::_1);
+      std::bind(&ImpuRegDataTask::on_del_impu_failure, this, _1);
 
     _cache->delete_implicit_registration_set(success_cb, failure_cb, _irs, this->trail());
     pending_cache_op = true;
