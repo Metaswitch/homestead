@@ -89,6 +89,8 @@ public:
     {
       _impis[impi] = State::UNCHANGED;
     }
+
+    _ttl = default_impu->expiry - time(0);
   }
 
   /**
