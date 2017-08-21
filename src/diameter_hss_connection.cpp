@@ -97,7 +97,7 @@ void DiameterHssConnection::DiameterTransaction<T>::sas_log_hss_failure(int even
   SAS::report_event(event);
 }
 
-MultimediaAuthAnswer DiameterHssConnection::MARDiameterTransaction::create_answer(Diameter::Message& rsp)
+MultimediaAuthAnswer DiameterHssConnection::MarDiameterTransaction::create_answer(Diameter::Message& rsp)
 {
   // First, create the Diameter MAA from the response
   Cx::MultimediaAuthAnswer diameter_maa = Cx::MultimediaAuthAnswer(rsp);
@@ -168,7 +168,7 @@ MultimediaAuthAnswer DiameterHssConnection::MARDiameterTransaction::create_answe
   return maa;
 }
 
-UserAuthAnswer DiameterHssConnection::UARDiameterTransaction::create_answer(Diameter::Message& rsp)
+UserAuthAnswer DiameterHssConnection::UarDiameterTransaction::create_answer(Diameter::Message& rsp)
 {
   // First, create the Diameter UAA from the response
   Cx::UserAuthorizationAnswer diameter_uaa = Cx::UserAuthorizationAnswer(rsp);
@@ -233,7 +233,7 @@ UserAuthAnswer DiameterHssConnection::UARDiameterTransaction::create_answer(Diam
   return uaa;
 }
 
-LocationInfoAnswer DiameterHssConnection::LIRDiameterTransaction::create_answer(Diameter::Message& rsp)
+LocationInfoAnswer DiameterHssConnection::LirDiameterTransaction::create_answer(Diameter::Message& rsp)
 {
   // First, create the Diameter SAA from the response
   Cx::LocationInfoAnswer diameter_lia = Cx::LocationInfoAnswer(rsp);
@@ -303,7 +303,7 @@ LocationInfoAnswer DiameterHssConnection::LIRDiameterTransaction::create_answer(
   return lia;
 }
 
-ServerAssignmentAnswer DiameterHssConnection::SARDiameterTransaction::create_answer(Diameter::Message& rsp)
+ServerAssignmentAnswer DiameterHssConnection::SarDiameterTransaction::create_answer(Diameter::Message& rsp)
 {
   // First, create the Diameter SAA from the response
   Cx::ServerAssignmentAnswer diameter_saa = Cx::ServerAssignmentAnswer(rsp);
@@ -408,8 +408,8 @@ void DiameterHssConnection::send_multimedia_auth_request(maa_cb callback,
 {
   // Transactions are deleted in the DiameterStack's on_response or or_timeout,
   // so we don't have to delete this after sending
-  MARDiameterTransaction* tsx =
-    new MARDiameterTransaction(_dict, trail, DIGEST_STATS, callback, mar_results_tbl, _stats_manager);
+  MarDiameterTransaction* tsx =
+    new MarDiameterTransaction(_dict, trail, DIGEST_STATS, callback, mar_results_tbl, _stats_manager);
 
   Cx::MultimediaAuthRequest mar(_dict,
                                 _diameter_stack,
@@ -431,8 +431,8 @@ void DiameterHssConnection::send_user_auth_request(uaa_cb callback,
 {
   // Transactions are deleted in the DiameterStack's on_response or or_timeout,
   // so we don't have to delete this after sending
-  UARDiameterTransaction* tsx =
-    new UARDiameterTransaction(_dict, trail, SUBSCRIPTION_STATS, callback, uar_results_tbl, _stats_manager);
+  UarDiameterTransaction* tsx =
+    new UarDiameterTransaction(_dict, trail, SUBSCRIPTION_STATS, callback, uar_results_tbl, _stats_manager);
 
   Cx::UserAuthorizationRequest uar(_dict,
                                    _diameter_stack,
@@ -452,8 +452,8 @@ void DiameterHssConnection::send_location_info_request(lia_cb callback,
                                                        LocationInfoRequest request,
                                                        SAS::TrailId trail)
 {
-  LIRDiameterTransaction* tsx =
-    new LIRDiameterTransaction(_dict, trail, SUBSCRIPTION_STATS, callback, lir_results_tbl, _stats_manager);
+  LirDiameterTransaction* tsx =
+    new LirDiameterTransaction(_dict, trail, SUBSCRIPTION_STATS, callback, lir_results_tbl, _stats_manager);
 
   Cx::LocationInfoRequest lir(_dict,
                               _diameter_stack,
@@ -473,8 +473,8 @@ void DiameterHssConnection::send_server_assignment_request(saa_cb callback,
 {
   // Transactions are deleted in the DiameterStack's on_response or or_timeout,
   // so we don't have to delete this after sending
-  SARDiameterTransaction* tsx =
-    new SARDiameterTransaction(_dict, trail, SUBSCRIPTION_STATS, callback, sar_results_tbl, _stats_manager);
+  SarDiameterTransaction* tsx =
+    new SarDiameterTransaction(_dict, trail, SUBSCRIPTION_STATS, callback, sar_results_tbl, _stats_manager);
 
   Cx::ServerAssignmentRequest sar(_dict,
                                   _diameter_stack,

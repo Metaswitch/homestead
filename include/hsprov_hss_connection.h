@@ -81,7 +81,7 @@ public:
     void update_latency_stats();
   };
 
-  class MARHsProvTransaction : public HsProvTransaction<MultimediaAuthAnswer>
+  class MarHsProvTransaction : public HsProvTransaction<MultimediaAuthAnswer>
   {
   public:
     // Inherit the superclass' constructor
@@ -90,7 +90,7 @@ public:
     virtual MultimediaAuthAnswer create_answer(CassandraStore::Operation* op) override;
   };
 
-  class LIRHsProvTransaction : public HsProvTransaction<LocationInfoAnswer>
+  class LirHsProvTransaction : public HsProvTransaction<LocationInfoAnswer>
   {
   public:
     // Inherit the superclass' constructor
@@ -99,7 +99,7 @@ public:
     virtual LocationInfoAnswer create_answer(CassandraStore::Operation* op) override;
   };
 
-  class SARHsProvTransaction : public HsProvTransaction<ServerAssignmentAnswer>
+  class SarHsProvTransaction : public HsProvTransaction<ServerAssignmentAnswer>
   {
   public:
     // Inherit the superclass' constructor

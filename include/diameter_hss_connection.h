@@ -115,7 +115,7 @@ private:
     void update_latency_stats();
   };
 
-  class MARDiameterTransaction : public DiameterTransaction<MultimediaAuthAnswer>
+  class MarDiameterTransaction : public DiameterTransaction<MultimediaAuthAnswer>
   {
   public:
     // Inherit the superclass' constructor
@@ -124,7 +124,7 @@ private:
     virtual MultimediaAuthAnswer create_answer(Diameter::Message& rsp) override;
   };
 
-  class UARDiameterTransaction : public DiameterTransaction<UserAuthAnswer>
+  class UarDiameterTransaction : public DiameterTransaction<UserAuthAnswer>
   {
   public:
     // Inherit the superclass' constructor
@@ -133,7 +133,7 @@ private:
     virtual UserAuthAnswer create_answer(Diameter::Message& rsp) override;
   };
 
-  class LIRDiameterTransaction : public DiameterTransaction<LocationInfoAnswer>
+  class LirDiameterTransaction : public DiameterTransaction<LocationInfoAnswer>
   {
   public:
     // Inherit the superclass' constructor
@@ -142,7 +142,7 @@ private:
     virtual LocationInfoAnswer create_answer(Diameter::Message& rsp) override;
   };
 
-  class SARDiameterTransaction : public DiameterTransaction<ServerAssignmentAnswer>
+  class SarDiameterTransaction : public DiameterTransaction<ServerAssignmentAnswer>
   {
   public:
     // Inherit the superclass' constructor

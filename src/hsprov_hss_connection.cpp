@@ -61,7 +61,7 @@ void HsProvHssConnection::HsProvTransaction<T>::update_latency_stats()
   }
 }
 
-MultimediaAuthAnswer HsProvHssConnection::MARHsProvTransaction::create_answer(CassandraStore::Operation* op)
+MultimediaAuthAnswer HsProvHssConnection::MarHsProvTransaction::create_answer(CassandraStore::Operation* op)
 {
   HsProvStore::GetAuthVector* get_av = (HsProvStore::GetAuthVector*)op;
   CassandraStore::ResultCode cass_result = op->get_result_code();
@@ -95,7 +95,7 @@ MultimediaAuthAnswer HsProvHssConnection::MARHsProvTransaction::create_answer(Ca
   return maa;
 }
 
-LocationInfoAnswer HsProvHssConnection::LIRHsProvTransaction::create_answer(CassandraStore::Operation* op)
+LocationInfoAnswer HsProvHssConnection::LirHsProvTransaction::create_answer(CassandraStore::Operation* op)
 {
   HsProvStore::GetRegData* get_reg_data = (HsProvStore::GetRegData*)op;
   CassandraStore::ResultCode cass_result = op->get_result_code();
@@ -133,7 +133,7 @@ LocationInfoAnswer HsProvHssConnection::LIRHsProvTransaction::create_answer(Cass
   return lia;
 }
 
-ServerAssignmentAnswer HsProvHssConnection::SARHsProvTransaction::create_answer(CassandraStore::Operation* op)
+ServerAssignmentAnswer HsProvHssConnection::SarHsProvTransaction::create_answer(CassandraStore::Operation* op)
 {
   HsProvStore::GetRegData* get_reg_data = (HsProvStore::GetRegData*)op;
   CassandraStore::ResultCode cass_result = op->get_result_code();
@@ -183,7 +183,7 @@ void HsProvHssConnection::send_multimedia_auth_request(maa_cb callback,
                                                        SAS::TrailId trail)
 {
   // Create the CassandraTransaction that we'll use to send the request
-  CassandraStore::Transaction* tsx = new MARHsProvTransaction(trail, callback, _stats_manager);
+  CassandraStore::Transaction* tsx = new MarHsProvTransaction(trail, callback, _stats_manager);
 
   // Create the CassandraStore::Operation that will actually get the info.
   CassandraStore::Operation* op = _store->create_GetAuthVector(request.impi, request.impu);
@@ -214,7 +214,7 @@ void HsProvHssConnection::send_location_info_request(lia_cb callback,
                                                      SAS::TrailId trail)
 {
   // Create the CassandraTransaction that we'll use to send the request
-  CassandraStore::Transaction* tsx = new LIRHsProvTransaction(trail, callback, _stats_manager);
+  CassandraStore::Transaction* tsx = new LirHsProvTransaction(trail, callback, _stats_manager);
 
   // Create the CassandraStore::Operation that will actually get the info.
   CassandraStore::Operation* op = _store->create_GetRegData(request.impu);
@@ -237,7 +237,7 @@ void HsProvHssConnection::send_server_assignment_request(saa_cb callback,
     // to get the data from Cassandra
 
     // Create the CassandraTransaction that we'll use to send the request
-    CassandraStore::Transaction* tsx = new SARHsProvTransaction(trail, callback, _stats_manager);
+    CassandraStore::Transaction* tsx = new SarHsProvTransaction(trail, callback, _stats_manager);
 
     // Create the CassandraStore::Operation that will actually get the info.
     CassandraStore::Operation* op = _store->create_GetRegData(request.impu);
