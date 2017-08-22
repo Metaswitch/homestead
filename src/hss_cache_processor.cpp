@@ -56,9 +56,9 @@ ImplicitRegistrationSet* HssCacheProcessor::create_implicit_registration_set()
 }
 
 void HssCacheProcessor::get_implicit_registration_set_for_impu(irs_success_callback success_cb,
-                                                               failure_callback failure_cb,
-                                                               std::string impu,
-                                                               SAS::TrailId trail)
+                                                                failure_callback failure_cb,
+                                                                std::string impu,
+                                                                SAS::TrailId trail)
 {
   // Create a work item that can run on the thread pool, capturing required
   // variables to complete the work
@@ -110,9 +110,9 @@ void HssCacheProcessor::get_implicit_registration_sets_for_impis(irs_vector_succ
 }
 
 void HssCacheProcessor::get_implicit_registration_sets_for_impus(irs_vector_success_callback success_cb,
-                                              failure_callback failure_cb,
-                                              std::vector<std::string> impus,
-                                              SAS::TrailId trail)
+                                                                 failure_callback failure_cb,
+                                                                 std::vector<std::string> impus,
+                                                                 SAS::TrailId trail)
 {
   // Create a work item that can run on the thread pool, capturing required
   // variables to complete the work
@@ -137,9 +137,9 @@ void HssCacheProcessor::get_implicit_registration_sets_for_impus(irs_vector_succ
 }
 
 void HssCacheProcessor::put_implicit_registration_set(void_success_cb success_cb,
-                                   failure_callback failure_cb,
-                                   ImplicitRegistrationSet* irs,
-                                   SAS::TrailId trail)
+                                                      failure_callback failure_cb,
+                                                      ImplicitRegistrationSet* irs,
+                                                      SAS::TrailId trail)
 {
   // Create a work item that can run on the thread pool, capturing required
   // variables to complete the work
@@ -161,9 +161,9 @@ void HssCacheProcessor::put_implicit_registration_set(void_success_cb success_cb
 }
 
 void HssCacheProcessor::delete_implicit_registration_set(void_success_cb success_cb,
-                                      failure_callback failure_cb,
-                                      ImplicitRegistrationSet* irs,
-                                      SAS::TrailId trail)
+                                                         failure_callback failure_cb,
+                                                         ImplicitRegistrationSet* irs,
+                                                         SAS::TrailId trail)
 {
   // Create a work item that can run on the thread pool, capturing required
   // variables to complete the work
@@ -185,9 +185,9 @@ void HssCacheProcessor::delete_implicit_registration_set(void_success_cb success
 }
 
 void HssCacheProcessor::delete_implicit_registration_sets(void_success_cb success_cb,
-                                       failure_callback failure_cb,
-                                       std::vector<ImplicitRegistrationSet*> irss,
-                                       SAS::TrailId trail)
+                                                          failure_callback failure_cb,
+                                                          std::vector<ImplicitRegistrationSet*> irss,
+                                                          SAS::TrailId trail)
 {
   // Create a work item that can run on the thread pool, capturing required
   // variables to complete the work
