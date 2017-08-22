@@ -24,7 +24,8 @@ void MemcachedImsSubscription::set_charging_addrs(const ChargingAddresses& new_a
   }
 }
 
-ImpuStore::DefaultImpu* MemcachedImplicitRegistrationSet::create_impu(uint64_t cas)
+ImpuStore::DefaultImpu* MemcachedImplicitRegistrationSet::create_impu(uint64_t cas,
+                                                                      const ImpuStore* store)
 {
   std::vector<std::string> impis = get_associated_impis();
   std::vector<std::string> impus = get_associated_impus();
@@ -38,24 +39,25 @@ ImpuStore::DefaultImpu* MemcachedImplicitRegistrationSet::create_impu(uint64_t c
                                     _charging_addresses,
                                     get_ims_sub_xml(),
                                     cas,
-                                    _ttl + now);
+                                    _ttl + now,
+                                    store);
 }
 
 ImpuStore::DefaultImpu* MemcachedImplicitRegistrationSet::get_impu()
 {
-  return create_impu(0L);
+  return create_impu(0L, nullptr);
 }
 
 ImpuStore::DefaultImpu* MemcachedImplicitRegistrationSet::get_impu_from_impu(ImpuStore::Impu* with_cas)
 {
-  return create_impu(with_cas->cas);
+  return create_impu(with_cas->cas, with_cas->store);
 }
 
 ImpuStore::DefaultImpu* MemcachedImplicitRegistrationSet::get_impu_for_store(ImpuStore* store)
 {
   if (_store == store)
   {
-    return create_impu(_cas);
+    return create_impu(_cas, _store);
   }
   else
   {
@@ -556,7 +558,8 @@ Store::Status MemcachedCache::update_irs_associated_impus(MemcachedImplicitRegis
       ImpuStore::AssociatedImpu* impu = new ImpuStore::AssociatedImpu(associated_impu,
                                                                       irs->get_default_impu(),
                                                                       0L,
-                                                                      expiry);
+                                                                      expiry,
+                                                                      store);
 
       store->set_impu_without_cas(impu, trail);
     }
@@ -569,7 +572,8 @@ Store::Status MemcachedCache::update_irs_associated_impus(MemcachedImplicitRegis
     ImpuStore::AssociatedImpu* impu = new ImpuStore::AssociatedImpu(associated_impu,
                                                                     irs->get_default_impu(),
                                                                     0L,
-                                                                    expiry);
+                                                                    expiry,
+                                                                    store);
 
     store->set_impu_without_cas(impu, trail);
   }

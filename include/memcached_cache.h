@@ -89,6 +89,8 @@ public:
     {
       _impis[impi] = State::UNCHANGED;
     }
+
+    _ttl = default_impu->expiry - time(0);
   }
 
   /**
@@ -160,8 +162,8 @@ public:
     _registration_state = state;
   }
 
-  virtual void add_associated_impi(const std::string& impis) override;
-  virtual void delete_associated_impi(const std::string& impis) override;
+  virtual void add_associated_impi(const std::string& impi) override;
+  virtual void delete_associated_impi(const std::string& impi) override;
 
   virtual void set_charging_addresses(const ChargingAddresses& addresses) override
   {
@@ -292,7 +294,8 @@ private:
   RegistrationState _registration_state;
   bool _registration_state_set;
 
-  ImpuStore::DefaultImpu* create_impu(uint64_t cas);
+  ImpuStore::DefaultImpu* create_impu(uint64_t cas,
+                                      const ImpuStore* store);
 
   static bool has_changed_data(const Data& data)
   {

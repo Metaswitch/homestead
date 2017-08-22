@@ -110,7 +110,8 @@ uint64_t decode_varbyte(const std::string& data, size_t& offset)
 
 ImpuStore::Impu* ImpuStore::Impu::from_data(const std::string& impu,
                                             std::string& data,
-                                            unsigned long cas)
+                                            unsigned long cas,
+                                            ImpuStore* store)
 {
   if (data.size() == 0)
   {
@@ -188,11 +189,11 @@ ImpuStore::Impu* ImpuStore::Impu::from_data(const std::string& impu,
 
         if (doc.HasMember(JSON_DEFAULT_IMPU))
         {
-          return ImpuStore::AssociatedImpu::from_json(impu, doc, cas);
+          return ImpuStore::AssociatedImpu::from_json(impu, doc, cas, store);
         }
         else
         {
-          return ImpuStore::DefaultImpu::from_json(impu, doc, cas);
+          return ImpuStore::DefaultImpu::from_json(impu, doc, cas, store);
         }
       }
     }
@@ -207,7 +208,8 @@ ImpuStore::Impu* ImpuStore::Impu::from_data(const std::string& impu,
 
 ImpuStore::Impu* ImpuStore::AssociatedImpu::from_json(std::string const& impu,
                                                       rapidjson::Value& json,
-                                                      unsigned long cas)
+                                                      unsigned long cas,
+                                                      ImpuStore* store)
 {
   std::string default_impu;
   int64_t expiry = 0L;
@@ -215,7 +217,7 @@ ImpuStore::Impu* ImpuStore::AssociatedImpu::from_json(std::string const& impu,
   JSON_SAFE_GET_STRING_MEMBER(json, JSON_DEFAULT_IMPU, default_impu);
   JSON_SAFE_GET_INT_64_MEMBER(json, JSON_EXPIRY, expiry);
 
-  return new AssociatedImpu(impu, default_impu, cas, expiry);
+  return new AssociatedImpu(impu, default_impu, cas, expiry, store);
 }
 
 template<typename T>
@@ -237,7 +239,8 @@ void extract_array(rapidjson::Value& json, const char* key, T& array)
 
 ImpuStore::Impu* ImpuStore::DefaultImpu::from_json(std::string const& impu,
                                                    rapidjson::Value& json,
-                                                   unsigned long cas)
+                                                   unsigned long cas,
+                                                   ImpuStore* store)
 {
   std::vector<std::string> assoc_impus;
   std::vector<std::string> impis;
@@ -271,7 +274,8 @@ ImpuStore::Impu* ImpuStore::DefaultImpu::from_json(std::string const& impu,
                          charging_addresses,
                          service_profile,
                          cas,
-                         expiry);
+                         expiry,
+                         store);
 }
 
 void ImpuStore::Impu::compress_data_v0(const std::string& data,
@@ -525,7 +529,7 @@ ImpuStore::Impu* ImpuStore::get_impu(const std::string& impu,
 
   if (status == Store::Status::OK)
   {
-    return ImpuStore::Impu::from_data(impu, data, cas);
+    return ImpuStore::Impu::from_data(impu, data, cas, this);
   }
   else
   {
