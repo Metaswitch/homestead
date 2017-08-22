@@ -20,21 +20,21 @@ using namespace org::apache::cassandra;
 
 // Keyspace and column family names.
 const static std::string KEYSPACE = "homestead_cache";
-const static std::string IMPI = "impi";
-const static std::string IMPU = "impu";
+const static std::string IMPI     = "impi";
+const static std::string IMPU     = "impu";
 
 // Column names in the IMPU column family.
-const static std::string IMS_SUB_XML_COLUMN_NAME = "ims_subscription_xml";
-const static std::string PRIMARY_CCF_COLUMN_NAME = "primary_ccf";
+const static std::string IMS_SUB_XML_COLUMN_NAME   = "ims_subscription_xml";
+const static std::string PRIMARY_CCF_COLUMN_NAME   = "primary_ccf";
 const static std::string SECONDARY_CCF_COLUMN_NAME = "secondary_ccf";
-const static std::string PRIMARY_ECF_COLUMN_NAME = "primary_ecf";
+const static std::string PRIMARY_ECF_COLUMN_NAME   = "primary_ecf";
 const static std::string SECONDARY_ECF_COLUMN_NAME = "secondary_ecf";
 
 // Column names in the IMPI column family.
 const static std::string ASSOC_PUBLIC_ID_COLUMN_PREFIX = "public_id_";
-const static std::string DIGEST_HA1_COLUMN_NAME      ="digest_ha1";
-const static std::string DIGEST_REALM_COLUMN_NAME    = "digest_realm";
-const static std::string DIGEST_QOP_COLUMN_NAME      = "digest_qop";
+const static std::string DIGEST_HA1_COLUMN_NAME        = "digest_ha1";
+const static std::string DIGEST_REALM_COLUMN_NAME      = "digest_realm";
+const static std::string DIGEST_QOP_COLUMN_NAME        = "digest_qop";
 
 // Column name marking rows created by homestead-prov
 const static std::string EXISTS_COLUMN_NAME = "_exists";
@@ -73,7 +73,7 @@ HsProvStore::GetRegData::
 
 
 bool HsProvStore::GetRegData::perform(CassandraStore::Client* client,
-                                SAS::TrailId trail)
+                                      SAS::TrailId trail)
 {
   TRC_DEBUG("Issuing get for key %s", _public_id.c_str());
 
@@ -173,7 +173,7 @@ HsProvStore::GetAuthVector::
 
 
 bool HsProvStore::GetAuthVector::perform(CassandraStore::Client* client,
-                                   SAS::TrailId trail)
+                                         SAS::TrailId trail)
 {
   TRC_DEBUG("Looking for authentication vector for %s", _private_id.c_str());
   std::vector<std::string> requested_columns;
