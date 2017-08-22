@@ -1231,8 +1231,6 @@ void ImpuRegDataTask::on_sar_response(const HssConnection::ServerAssignmentAnswe
   {
     // This request assigned the user to us (i.e. it was successful and wasn't
     // triggered by a deregistration or auth failure) so cache the User-Data.
-    SAS::Event event(this->trail(), SASEvent::REG_DATA_HSS_SUCCESS, 0);
-    SAS::report_event(event);
 
     // Get the charging addresses and user data.
     _irs->set_charging_addresses(saa.get_charging_addresses());

@@ -325,6 +325,8 @@ ServerAssignmentAnswer DiameterHssConnection::SarDiameterTransaction::create_ans
 
   if (result_code == DIAMETER_SUCCESS)
   {
+    SAS::Event event(this->trail(), SASEvent::REG_DATA_HSS_SUCCESS, 0);
+    SAS::report_event(event);
     diameter_saa.charging_addrs(charging_addresses);
     diameter_saa.user_data(service_profile);
   }
