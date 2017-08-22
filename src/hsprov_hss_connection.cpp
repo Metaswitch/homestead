@@ -9,6 +9,7 @@
  * Metaswitch Networks in a separate written agreement.
  */
 
+#include "homesteadsasevent.h"
 #include "hsprov_hss_connection.h"
 #include "cx.h"
 
@@ -71,22 +72,31 @@ MultimediaAuthAnswer HsProvHssConnection::MarHsProvTransaction::create_answer(Ca
 
   if (cass_result == CassandraStore::OK)
   {
+    SAS::Event event(this->trail, SASEvent::HSPROV_GET_AV_SUCCESS, 0);
+    SAS::report_event(event);
+
     // HsProv uses DigestAuthVectors only
     DigestAuthVector temp_av;
     get_av->get_result(temp_av);
     av = new DigestAuthVector(temp_av);
   }
-  else if (cass_result == CassandraStore::NOT_FOUND)
-  {
-    rc = ResultCode::NOT_FOUND;
-  }
   else
   {
-    TRC_DEBUG("HsProv query failed with rc %d", cass_result);
+    SAS::Event event(this->trail, SASEvent::NO_AV_HSPROV, 0);
+    SAS::report_event(event);
 
-    // For any other error, we want Homestead to return a 504 so pretend there
-    // was an upstream timeout
-    rc = ResultCode::TIMEOUT;
+    if (cass_result == CassandraStore::NOT_FOUND)
+    {
+      rc = ResultCode::NOT_FOUND;
+    }
+    else
+    {
+      TRC_DEBUG("HsProv query failed with rc %d", cass_result);
+
+      // For any other error, we want Homestead to return a 504 so pretend there
+      // was an upstream timeout
+      rc = ResultCode::TIMEOUT;
+    }
   }
 
   return MultimediaAuthAnswer(rc,
@@ -106,23 +116,32 @@ LocationInfoAnswer HsProvHssConnection::LirHsProvTransaction::create_answer(Cass
 
   if (cass_result == CassandraStore::OK)
   {
+    SAS::Event event(this->trail, SASEvent::ICSCF_NO_HSS_CASSANDRA_SUCCESS, 0);
+    SAS::report_event(event);
     std::string xml;
     get_reg_data->get_xml(xml);
     json_result = DIAMETER_SUCCESS;
     server_name = _configured_server_name;
   }
-  else if (cass_result == CassandraStore::NOT_FOUND)
-  {
-    rc = ResultCode::NOT_FOUND;
-  }
   else
   {
-    TRC_DEBUG("HsProv query failed with rc %d", cass_result);
+    SAS::Event event(this->trail, SASEvent::ICSCF_NO_HSS_CASSANDRA_NO_SUBSCRIBER, 0);
+    SAS::report_event(event);
 
-    // For any other error, we want Homestead to return a 504 so pretend there
-    // was an upstream timeout
-    rc = ResultCode::TIMEOUT;
+    if (cass_result == CassandraStore::NOT_FOUND)
+    {
+      rc = ResultCode::NOT_FOUND;
+    }
+    else
+    {
+      TRC_DEBUG("HsProv query failed with rc %d", cass_result);
+
+      // For any other error, we want Homestead to return a 504 so pretend there
+      // was an upstream timeout
+      rc = ResultCode::TIMEOUT;
+    }
   }
+
 
   return LocationInfoAnswer(rc,
                             json_result,
@@ -143,21 +162,30 @@ ServerAssignmentAnswer HsProvHssConnection::SarHsProvTransaction::create_answer(
 
   if (cass_result == CassandraStore::OK)
   {
+    SAS::Event event(trail, SASEvent::HSPROV_GET_REG_DATA_SUCCESS, 0);
+    SAS::report_event(event);
     get_reg_data->get_xml(service_profile);
     get_reg_data->get_charging_addrs(charging_addresses);
   }
-  else if (cass_result == CassandraStore::NOT_FOUND)
-  {
-    rc = ResultCode::NOT_FOUND;
-  }
   else
   {
-    TRC_DEBUG("HsProv query failed with rc %d", cass_result);
+    SAS::Event event(trail, SASEvent::HSPROV_GET_REG_DATA_FAIL, 0);
+    SAS::report_event(event);
 
-    // For any other error, we want Homestead to return a 504 so pretend there
-    // was an upstream timeout
-    rc = ResultCode::TIMEOUT;
+    if (cass_result == CassandraStore::NOT_FOUND)
+    {
+      rc = ResultCode::NOT_FOUND;
+    }
+    else
+    {
+      TRC_DEBUG("HsProv query failed with rc %d", cass_result);
+
+      // For any other error, we want Homestead to return a 504 so pretend there
+      // was an upstream timeout
+      rc = ResultCode::TIMEOUT;
+    }
   }
+
 
   return ServerAssignmentAnswer(rc,
                                 charging_addresses,
@@ -179,6 +207,11 @@ void HsProvHssConnection::send_multimedia_auth_request(maa_cb callback,
                                                        MultimediaAuthRequest request,
                                                        SAS::TrailId trail)
 {
+  SAS::Event event(trail, SASEvent::HSPROV_GET_AV, 0);
+  event.add_var_param(request.impi);
+  event.add_var_param(request.impu);
+  SAS::report_event(event);
+
   // Create the CassandraTransaction that we'll use to send the request
   CassandraStore::Transaction* tsx = new MarHsProvTransaction(trail, callback, _stats_manager);
 
@@ -195,6 +228,9 @@ void HsProvHssConnection::send_user_auth_request(uaa_cb callback,
                                                  UserAuthRequest request,
                                                  SAS::TrailId trail)
 {
+  SAS::Event event(trail, SASEvent::ICSCF_NO_HSS, 0);
+  SAS::report_event(event);
+
   // We don't actually talk to Cassandra for a UAR, we just create and return
   // a faked response
   ServerCapabilities capabilities;
@@ -210,6 +246,9 @@ void HsProvHssConnection::send_location_info_request(lia_cb callback,
                                                      LocationInfoRequest request,
                                                      SAS::TrailId trail)
 {
+  SAS::Event event(trail, SASEvent::ICSCF_NO_HSS_CHECK_CASSANDRA, 0);
+  SAS::report_event(event);
+
   // Create the CassandraTransaction that we'll use to send the request
   CassandraStore::Transaction* tsx = new LirHsProvTransaction(trail, callback, _stats_manager);
 
@@ -232,6 +271,8 @@ void HsProvHssConnection::send_server_assignment_request(saa_cb callback,
   {
     // If this is a (re-)registration or a call to an unregistered user, we have
     // to get the data from Cassandra
+    SAS::Event event(trail, SASEvent::HSPROV_GET_REG_DATA, 0);
+    SAS::report_event(event);
 
     // Create the CassandraTransaction that we'll use to send the request
     CassandraStore::Transaction* tsx = new SarHsProvTransaction(trail, callback, _stats_manager);
