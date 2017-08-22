@@ -155,6 +155,33 @@ void MemcachedImplicitRegistrationSet::delete_associated_impi(const std::string&
   _impis[impi] = MemcachedImplicitRegistrationSet::State::DELETED;
 }
 
+// Merge two data sets
+// All new elements in the data set will be marked as unchanged, any missing
+// from the data set will be makred as deleted if they are unchanged currently.
+void merge_data_sets(MemcachedImplicitRegistrationSet::Data& data, std::vector<std::string> added)
+{
+  for (const std::string &key : added)
+  {
+    MemcachedImplicitRegistrationSet::Data::iterator it = data.find(key);
+
+    if (it == data.end())
+    {
+      data[key] = MemcachedImplicitRegistrationSet::State::UNCHANGED;
+    }
+  }
+
+  // Now mark missing ones as deleted.
+  for (MemcachedImplicitRegistrationSet::Data::value_type& pair : data)
+  {
+    bool unchanged = pair.second == MemcachedImplicitRegistrationSet::State::UNCHANGED;
+    bool not_in_vector = !in_vector(pair.first, added);
+    if (unchanged && not_in_vector)
+    {
+      pair.second = MemcachedImplicitRegistrationSet::State::DELETED;
+    }
+  }
+}
+
 void MemcachedImplicitRegistrationSet::update_from_impu_from_store(ImpuStore::DefaultImpu* impu)
 {
   MemcachedImplicitRegistrationSet::State state;
@@ -176,12 +203,23 @@ void MemcachedImplicitRegistrationSet::update_from_impu_from_store(ImpuStore::De
     _charging_addresses = impu->charging_addresses;
   }
 
+  // Update the IRS with the details in IMPI and Associated IMPUs
+
+  // For IMPIs, the store data is equivalent to ours. We mark unknown IMPIs as
+  // unchanged, and removed unchanged IMPIs as deleted.
+  merge_data_sets(_impis, impu->impis);
+
   if (_refreshed)
   {
     // If we are marked as refreshed, then the IMPU data from the store is *less* up
     // to date than our data, so we should mark it as deleted so we clear up any
     // references
     state = MemcachedImplicitRegistrationSet::State::DELETED;
+
+    for (const std::string& assoc_impu : impu->associated_impus)
+    {
+      _associated_impus.emplace(assoc_impu, state);
+    }
   }
   else
   {
@@ -193,38 +231,7 @@ void MemcachedImplicitRegistrationSet::update_from_impu_from_store(ImpuStore::De
     // If we are marked as not refreshed, the IMPU data from the store should be
     // considered valid, and we should mark it as unchanged, if we weren't
     // previously aware of it.
-    state = MemcachedImplicitRegistrationSet::State::UNCHANGED;
-  }
-
-  // Update the IRS with the details in IMPI and Associated IMPUs
-
-  // For IMPIs, the store data is equivalent to ours. We mark unknown IMPIs as
-  // unchanged, and removed unchanged IMPIs as deleted.
-  for (const std::string &impi : impu->impis)
-  {
-    MemcachedImplicitRegistrationSet::Data::iterator it = _impis.find(impi);
-
-    if (it == _impis.end())
-    {
-      _impis[impi] = MemcachedImplicitRegistrationSet::State::UNCHANGED;
-    }
-  }
-
-  // Now mark missing ones as deleted.
-  for (MemcachedImplicitRegistrationSet::Data::value_type pair : _impis)
-  {
-    if (pair.second == MemcachedImplicitRegistrationSet::State::UNCHANGED &&
-        !in_vector(pair.first, impu->impis))
-    {
-      pair.second = MemcachedImplicitRegistrationSet::State::DELETED;
-    }
-  }
-
-  // For Associated IMPUs, we just mark any IMPUs in the store as the correct
-  // state, based on the logic above.
-  for (const std::string& assoc_impu : impu->associated_impus)
-  {
-    _associated_impus.emplace(assoc_impu, state);
+    merge_data_sets(_associated_impus, impu->associated_impus);
   }
 }
 
