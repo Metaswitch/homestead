@@ -50,7 +50,7 @@ void DiameterHssConnection::DiameterTransaction<T>::increment_results(int32_t re
 template <class AnswerType>
 void DiameterHssConnection::DiameterTransaction<AnswerType>::on_timeout()
 {
-  TRC_ERROR("Diameter timeout");
+  TRC_WARNING("Diameter timeout");
 
   update_latency_stats();
 
