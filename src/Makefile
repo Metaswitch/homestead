@@ -74,6 +74,7 @@ homestead_test_SOURCES := ${COMMON_SOURCES} \
                           hsprov_store_test.cpp \
                           impu_store_test.cpp \
                           localstore.cpp \
+                          memcachedcache_test.cpp \
                           mockfreediameter.cpp \
                           mock_sas.cpp \
                           chargingaddresses_test.cpp \
