@@ -151,8 +151,8 @@ class MemcachedImsSubscriptionTest : public testing::Test
 
 TEST_F(MemcachedImsSubscriptionTest, BasicIrsHandling)
 {
-  FakeImplicitRegistrationSet irs(IMPU);
-  std::vector<ImplicitRegistrationSet*> irss = { &irs };
+  FakeImplicitRegistrationSet* irs = new FakeImplicitRegistrationSet(IMPU);
+  std::vector<ImplicitRegistrationSet*> irss = { irs };
 
   MemcachedImsSubscription* mis = new MemcachedImsSubscription(irss);
 
@@ -164,14 +164,14 @@ TEST_F(MemcachedImsSubscriptionTest, BasicIrsHandling)
 
 TEST_F(MemcachedImsSubscriptionTest, SetChargingAddresses)
 {
-  FakeImplicitRegistrationSet irs(IMPU);
-  std::vector<ImplicitRegistrationSet*> irss = { &irs };
+  FakeImplicitRegistrationSet* irs = new FakeImplicitRegistrationSet(IMPU);
+  std::vector<ImplicitRegistrationSet*> irss = { irs };
 
   MemcachedImsSubscription* mis = new MemcachedImsSubscription(irss);
 
   mis->set_charging_addrs(CHARGING_ADDRESSES);
 
-  EXPECT_EQ(CHARGING_ADDRESSES, irs.get_charging_addresses());
+  EXPECT_EQ(CHARGING_ADDRESSES, irs->get_charging_addresses());
 
   delete mis;
 }
@@ -728,6 +728,8 @@ TEST_F(MemcachedCacheTest, GetIrsForImpuLocalStore)
 
   ASSERT_EQ(Store::Status::OK, status);
   ASSERT_NE(nullptr, irs);
+
+  delete irs;
 }
 
 TEST_F(MemcachedCacheTest, GetIrsForImpuRemoteStore)
@@ -756,6 +758,8 @@ TEST_F(MemcachedCacheTest, GetIrsForImpuRemoteStore)
 
   ASSERT_EQ(Store::Status::OK, status);
   ASSERT_NE(nullptr, irs);
+
+  delete irs;
 }
 
 TEST_F(MemcachedCacheTest, PutIrs)
@@ -765,9 +769,12 @@ TEST_F(MemcachedCacheTest, PutIrs)
 
   irs->set_ttl(1);
   irs->set_ims_sub_xml(SERVICE_PROFILE);
+  irs->set_reg_state(RegistrationState::REGISTERED);
 
   EXPECT_EQ(Store::Status::OK,
             _memcached_cache->put_implicit_registration_set(irs, 0L));
+
+  delete irs;
 }
 
 TEST_F(MemcachedCacheTest, GetIrsForImpus)
@@ -796,6 +803,11 @@ TEST_F(MemcachedCacheTest, GetIrsForImpus)
 
   EXPECT_EQ(Store::Status::OK, status);
   EXPECT_EQ(1, irss.size());
+
+  for (ImplicitRegistrationSet* irs : irss)
+  {
+    delete irs;
+  }
 }
 
 TEST_F(MemcachedCacheTest, GetImsSubscription)
@@ -831,6 +843,8 @@ TEST_F(MemcachedCacheTest, GetImsSubscription)
 
   EXPECT_EQ(Store::Status::OK, status);
   EXPECT_NE(nullptr, subscription);
+
+  delete subscription;
 }
 
 TEST_F(MemcachedCacheTest, PutImsSubscription)
@@ -870,4 +884,6 @@ TEST_F(MemcachedCacheTest, PutImsSubscription)
                                            0L);
 
   EXPECT_EQ(Store::Status::OK, status);
+
+  delete subscription;
 }

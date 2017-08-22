@@ -30,6 +30,14 @@ public:
     }
   }
 
+  virtual ~MemcachedImsSubscription()
+  {
+    for (std::pair<const std::string, ImplicitRegistrationSet*>& irs : _irss)
+    {
+      delete irs.second;
+    }
+  }
+
   typedef std::map<std::string, ImplicitRegistrationSet*> Irs;
 
   virtual void set_charging_addrs(const ChargingAddresses& new_addresses) override;

@@ -569,6 +569,7 @@ Store::Status MemcachedCache::update_irs_associated_impus(MemcachedImplicitRegis
                                                                       store);
 
       store->set_impu_without_cas(impu, trail);
+      delete impu;
     }
   }
 
@@ -583,6 +584,7 @@ Store::Status MemcachedCache::update_irs_associated_impus(MemcachedImplicitRegis
                                                                     store);
 
     store->set_impu_without_cas(impu, trail);
+    delete impu;
   }
 
   return status;
@@ -595,6 +597,8 @@ Store::Status MemcachedCache::create_irs_impu(MemcachedImplicitRegistrationSet* 
   ImpuStore::DefaultImpu* impu = irs->get_impu();
 
   Store::Status status = store->set_impu_without_cas(impu, trail);
+
+  delete impu;
 
   return status;
 }
