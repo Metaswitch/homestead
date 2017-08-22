@@ -162,10 +162,9 @@ MultimediaAuthAnswer DiameterHssConnection::MarDiameterTransaction::create_answe
     rc = UNKNOWN;
   }
 
-  MultimediaAuthAnswer maa = MultimediaAuthAnswer(rc,
-                                                  av,
-                                                  auth_scheme);
-  return maa;
+  return MultimediaAuthAnswer(rc,
+                              av,
+                              auth_scheme);
 }
 
 UserAuthAnswer DiameterHssConnection::UarDiameterTransaction::create_answer(Diameter::Message& rsp)
@@ -229,8 +228,7 @@ UserAuthAnswer DiameterHssConnection::UarDiameterTransaction::create_answer(Diam
     rc = ResultCode::UNKNOWN;
   }
 
-  UserAuthAnswer uaa = UserAuthAnswer(rc, json_result, server_name, server_capabilities);
-  return uaa;
+  return UserAuthAnswer(rc, json_result, server_name, server_capabilities);
 }
 
 LocationInfoAnswer DiameterHssConnection::LirDiameterTransaction::create_answer(Diameter::Message& rsp)
@@ -295,12 +293,11 @@ LocationInfoAnswer DiameterHssConnection::LirDiameterTransaction::create_answer(
     rc = ResultCode::UNKNOWN;
   }
 
-  LocationInfoAnswer lia = LocationInfoAnswer(rc,
-                                              json_result,
-                                              server_name,
-                                              server_capabilities,
-                                              wildcard_impu);
-  return lia;
+  return LocationInfoAnswer(rc,
+                            json_result,
+                            server_name,
+                            server_capabilities,
+                            wildcard_impu);
 }
 
 ServerAssignmentAnswer DiameterHssConnection::SarDiameterTransaction::create_answer(Diameter::Message& rsp)
@@ -379,11 +376,10 @@ ServerAssignmentAnswer DiameterHssConnection::SarDiameterTransaction::create_ans
     rc = ResultCode::UNKNOWN;
   }
 
-  ServerAssignmentAnswer saa = ServerAssignmentAnswer(rc,
-                                                      charging_addresses,
-                                                      service_profile,
-                                                      wildcard_impu);
-  return saa;
+  return ServerAssignmentAnswer(rc,
+                                charging_addresses,
+                                service_profile,
+                                wildcard_impu);
 }
 
 DiameterHssConnection::DiameterHssConnection(StatisticsManager* stats_manager,

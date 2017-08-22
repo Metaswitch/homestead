@@ -89,10 +89,9 @@ MultimediaAuthAnswer HsProvHssConnection::MarHsProvTransaction::create_answer(Ca
     rc = ResultCode::TIMEOUT;
   }
 
-  MultimediaAuthAnswer maa = MultimediaAuthAnswer(rc,
-                                                  av,
-                                                  HssConnection::_scheme_digest);
-  return maa;
+  return MultimediaAuthAnswer(rc,
+                              av,
+                              HssConnection::_scheme_digest);
 }
 
 LocationInfoAnswer HsProvHssConnection::LirHsProvTransaction::create_answer(CassandraStore::Operation* op)
@@ -125,12 +124,11 @@ LocationInfoAnswer HsProvHssConnection::LirHsProvTransaction::create_answer(Cass
     rc = ResultCode::TIMEOUT;
   }
 
-  LocationInfoAnswer lia = LocationInfoAnswer(rc,
-                                              json_result,
-                                              server_name,
-                                              capabilities,
-                                              "");
-  return lia;
+  return LocationInfoAnswer(rc,
+                            json_result,
+                            server_name,
+                            capabilities,
+                            "");
 }
 
 ServerAssignmentAnswer HsProvHssConnection::SarHsProvTransaction::create_answer(CassandraStore::Operation* op)
@@ -161,11 +159,10 @@ ServerAssignmentAnswer HsProvHssConnection::SarHsProvTransaction::create_answer(
     rc = ResultCode::TIMEOUT;
   }
 
-  ServerAssignmentAnswer saa = ServerAssignmentAnswer(rc,
-                                                      charging_addresses,
-                                                      service_profile,
-                                                      "");
-  return saa;
+  return ServerAssignmentAnswer(rc,
+                                charging_addresses,
+                                service_profile,
+                                "");
 }
 
 HsProvHssConnection::HsProvHssConnection(StatisticsManager* stats_manager,
