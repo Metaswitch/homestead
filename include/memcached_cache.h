@@ -225,11 +225,11 @@ public:
   ImpuStore::DefaultImpu* get_impu();
 
   // Get an IMPU representing this IRS based on the given IMPU's CAS value
-  ImpuStore::DefaultImpu* get_impu_from_impu(ImpuStore::Impu* with_cas);
+  ImpuStore::DefaultImpu* get_impu_from_impu(const ImpuStore::Impu* with_cas);
 
   // Get an IMPU for this IRS representing the given store, (i.e. where the
   // cached CAS value stored as part of the IRS is valid for the store.
-  ImpuStore::DefaultImpu* get_impu_for_store(ImpuStore* store);
+  ImpuStore::DefaultImpu* get_impu_for_store(const ImpuStore* store);
 
   // Update the IRS with an IMPU with some details from the store
   void update_from_impu_from_store(ImpuStore::DefaultImpu* impu);
@@ -328,7 +328,7 @@ class MemcachedCache : public HssCache
 {
 public:
   MemcachedCache(ImpuStore* local_store,
-                 std::vector<ImpuStore*> remote_stores) :
+                 const std::vector<ImpuStore*>& remote_stores) :
     HssCache(),
     _local_store(local_store),
     _remote_stores(remote_stores)

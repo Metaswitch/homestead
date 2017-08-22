@@ -48,12 +48,12 @@ ImpuStore::DefaultImpu* MemcachedImplicitRegistrationSet::get_impu()
   return create_impu(0L, nullptr);
 }
 
-ImpuStore::DefaultImpu* MemcachedImplicitRegistrationSet::get_impu_from_impu(ImpuStore::Impu* with_cas)
+ImpuStore::DefaultImpu* MemcachedImplicitRegistrationSet::get_impu_from_impu(const ImpuStore::Impu* with_cas)
 {
   return create_impu(with_cas->cas, with_cas->store);
 }
 
-ImpuStore::DefaultImpu* MemcachedImplicitRegistrationSet::get_impu_for_store(ImpuStore* store)
+ImpuStore::DefaultImpu* MemcachedImplicitRegistrationSet::get_impu_for_store(const ImpuStore* store)
 {
   if (_store == store)
   {
