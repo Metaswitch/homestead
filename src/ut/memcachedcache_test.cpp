@@ -33,6 +33,9 @@ static const std::string ASSOC_IMPU_6 = "sip:assoc_impu_6@example.com";
 
 static const std::string IMPI = "impi@example.com";
 static const std::string IMPI_2 = "impi2@example.com";
+static const std::string IMPI_3 = "impi3@example.com";
+static const std::string IMPI_4 = "impi4@example.com";
+static const std::string IMPI_5 = "impi5@example.com";
 
 static const std::vector<std::string> NO_ASSOC_IMPUS = {};
 static const std::vector<std::string> ASSOC_IMPUS = { ASSOC_IMPU, ASSOC_IMPU_2 };
@@ -66,7 +69,7 @@ static const std::string EMPTY_SERVICE_PROFILE =
     "</IMSSubscription>";
 
 
-static const std::string SERVICE_PROFILE = 
+static const std::string SERVICE_PROFILE =
   "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
   "<IMSSubscription>"
     "<PrivateID>" + IMPI + "</PrivateID>"
@@ -97,7 +100,7 @@ static const std::string SERVICE_PROFILE =
       "</ServiceProfile>"
     "</IMSSubscription>";
 
-static const std::string SERVICE_PROFILE_2 = 
+static const std::string SERVICE_PROFILE_2 =
   "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
   "<IMSSubscription>"
     "<PrivateID>" + IMPI + "</PrivateID>"
@@ -112,6 +115,41 @@ static const std::string SERVICE_PROFILE_2 =
         "</PublicIdentity>"
       "<PublicIdentity>"
         "<Identity>" + ASSOC_IMPU_4 + "</Identity>"
+        "<Extension><IdentityType>0</IdentityType></Extension>"
+        "</PublicIdentity>"
+      "<InitialFilterCriteria>"
+        "<Priority>0</Priority>"
+        "<TriggerPoint>"
+          "<ConditionTypeCNF>0</ConditionTypeCNF>"
+          "<SPT><ConditionNegated>0</ConditionNegated><Group>3</Group><SessionCase>2</SessionCase><Extension></Extension></SPT>"
+          "</TriggerPoint>"
+        "<ApplicationServer>"
+         "<ServerName>sip:127.0.0.1:5065</ServerName>"
+          "<DefaultHandling>0</DefaultHandling>"
+          "</ApplicationServer>"
+        "</InitialFilterCriteria>"
+      "</ServiceProfile>"
+    "</IMSSubscription>";
+
+static const std::string SERVICE_PROFILE_3 =
+  "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+  "<IMSSubscription>"
+    "<PrivateID>" + IMPI + "</PrivateID>"
+    "<ServiceProfile>"
+      "<PublicIdentity>"
+        "<Identity>" + IMPU + "</Identity>"
+        "<Extension><IdentityType>0</IdentityType></Extension>"
+        "</PublicIdentity>"
+      "<PublicIdentity>"
+        "<Identity>" + ASSOC_IMPU_3 + "</Identity>"
+        "<Extension><IdentityType>0</IdentityType></Extension>"
+        "</PublicIdentity>"
+      "<PublicIdentity>"
+        "<Identity>" + ASSOC_IMPU_4 + "</Identity>"
+        "<Extension><IdentityType>0</IdentityType></Extension>"
+        "</PublicIdentity>"
+      "<PublicIdentity>"
+        "<Identity>" + ASSOC_IMPU_5 + "</Identity>"
         "<Extension><IdentityType>0</IdentityType></Extension>"
         "</PublicIdentity>"
       "<InitialFilterCriteria>"
@@ -689,17 +727,45 @@ TEST_F(MemcachedCacheTest, CreateIrs)
  delete irs;
 }
 
-TEST_F(MemcachedCacheTest, GetIrsForImpuNotFound)
+TEST_F(MemcachedCacheTest, GetIrsForImpis)
 {
-  ImplicitRegistrationSet* irs = nullptr;
+  ImpuStore::DefaultImpu* di =
+    new ImpuStore::DefaultImpu(IMPU,
+                               ASSOC_IMPUS,
+                               IMPIS,
+                               RegistrationState::REGISTERED,
+                               CHARGING_ADDRESSES,
+                               SERVICE_PROFILE,
+                               0L,
+                               time(0) + 1,
+                               _local_store);
+
+  _local_store->set_impu(di, 0L);
+
+  delete di;
+
+  ImpuStore::ImpiMapping* mapping =
+    new ImpuStore::ImpiMapping(IMPI, {IMPU}, time(0) + 1);
+
+  _local_store->set_impi_mapping(mapping, 0L);
+
+  delete mapping;
+
+  std::vector<ImplicitRegistrationSet*> irss;
 
   Store::Status status =
-    _memcached_cache->get_implicit_registration_set_for_impu(IMPU,
-                                                             0L,
-                                                             irs);
+    _memcached_cache->get_implicit_registration_sets_for_impis({IMPI},
+                                                               0L,
+                                                               irss);
 
-  ASSERT_EQ(Store::Status::NOT_FOUND, status);
-  ASSERT_EQ(nullptr, irs);
+
+  EXPECT_EQ(Store::Status::OK, status);
+  EXPECT_EQ(1, irss.size());
+
+  for (ImplicitRegistrationSet* irs : irss)
+  {
+    delete irs;
+  }
 }
 
 TEST_F(MemcachedCacheTest, GetIrsForImpuLocalStore)
@@ -728,6 +794,160 @@ TEST_F(MemcachedCacheTest, GetIrsForImpuLocalStore)
 
   ASSERT_EQ(Store::Status::OK, status);
   ASSERT_NE(nullptr, irs);
+
+  delete irs;
+}
+
+TEST_F(MemcachedCacheTest, GetIrsForImpuNotFound)
+{
+  ImplicitRegistrationSet* irs = nullptr;
+
+  Store::Status status =
+    _memcached_cache->get_implicit_registration_set_for_impu(IMPU,
+                                                             0L,
+                                                             irs);
+
+  ASSERT_EQ(Store::Status::NOT_FOUND, status);
+  ASSERT_EQ(nullptr, irs);
+}
+
+TEST_F(MemcachedCacheTest, GetIrsForImpuLocalStoreViaAssocImpu)
+{
+  int expiry = time(0) + 1;
+
+  ImpuStore::AssociatedImpu* ai =
+    new ImpuStore::AssociatedImpu(ASSOC_IMPU, IMPU, 0L, expiry, _local_store);
+
+  _local_store->set_impu(ai, 0L);
+
+  delete ai;
+
+  ImpuStore::DefaultImpu* di =
+    new ImpuStore::DefaultImpu(IMPU,
+                               ASSOC_IMPUS,
+                               IMPIS,
+                               RegistrationState::REGISTERED,
+                               CHARGING_ADDRESSES,
+                               SERVICE_PROFILE,
+                               0L,
+                               expiry,
+                               _local_store);
+
+  _local_store->set_impu(di, 0L);
+
+  delete di;
+
+  ImplicitRegistrationSet* irs = nullptr;
+
+  Store::Status status =
+    _memcached_cache->get_implicit_registration_set_for_impu(ASSOC_IMPU,
+                                                             0L,
+                                                             irs);
+
+  ASSERT_EQ(Store::Status::OK, status);
+  ASSERT_NE(nullptr, irs);
+
+  delete irs;
+}
+
+TEST_F(MemcachedCacheTest, GetIrsForImpuLocalStoreViaAssocImpuWithoutImpu)
+{
+  int expiry = time(0) + 1;
+
+  ImpuStore::AssociatedImpu* ai =
+    new ImpuStore::AssociatedImpu(ASSOC_IMPU, IMPU, 0L, expiry, _local_store);
+
+  _local_store->set_impu(ai, 0L);
+
+  delete ai;
+
+  ImpuStore::DefaultImpu* di =
+    new ImpuStore::DefaultImpu(IMPU,
+                               NO_ASSOC_IMPUS,
+                               IMPIS,
+                               RegistrationState::REGISTERED,
+                               CHARGING_ADDRESSES,
+                               SERVICE_PROFILE,
+                               0L,
+                               expiry,
+                               _local_store);
+
+  _local_store->set_impu(di, 0L);
+
+  delete di;
+
+  ImplicitRegistrationSet* irs = nullptr;
+
+  Store::Status status =
+    _memcached_cache->get_implicit_registration_set_for_impu(ASSOC_IMPU,
+                                                             0L,
+                                                             irs);
+
+  ASSERT_EQ(Store::Status::NOT_FOUND, status);
+  ASSERT_EQ(nullptr, irs);
+
+  delete irs;
+}
+
+TEST_F(MemcachedCacheTest, GetIrsForImpuLocalStoreViaAssocImpuMissingDefault)
+{
+  int expiry = time(0) + 1;
+
+  ImpuStore::AssociatedImpu* ai =
+    new ImpuStore::AssociatedImpu(ASSOC_IMPU, IMPU, 0L, expiry, _local_store);
+
+  _local_store->set_impu(ai, 0L);
+
+  delete ai;
+
+  ImplicitRegistrationSet* irs = nullptr;
+
+  Store::Status status =
+    _memcached_cache->get_implicit_registration_set_for_impu(ASSOC_IMPU,
+                                                             0L,
+                                                             irs);
+
+  ASSERT_EQ(Store::Status::NOT_FOUND, status);
+  ASSERT_EQ(nullptr, irs);
+
+  delete irs;
+}
+
+TEST_F(MemcachedCacheTest, GetIrsForImpuLocalStoreViaAssocImpuToAssocImpu)
+{
+  int expiry = time(0) + 1;
+
+  ImpuStore::AssociatedImpu* ai =
+    new ImpuStore::AssociatedImpu(ASSOC_IMPU,
+                                  ASSOC_IMPU_2,
+                                  0L,
+                                  expiry,
+                                  _local_store);
+
+  _local_store->set_impu(ai, 0L);
+
+  delete ai;
+
+  ImpuStore::AssociatedImpu* ai_2 =
+    new ImpuStore::AssociatedImpu(ASSOC_IMPU_2,
+                                  IMPU,
+                                  0L,
+                                  expiry,
+                                  _local_store);
+
+  _local_store->set_impu(ai_2, 0L);
+
+  delete ai_2;
+
+  ImplicitRegistrationSet* irs = nullptr;
+
+  Store::Status status =
+    _memcached_cache->get_implicit_registration_set_for_impu(ASSOC_IMPU,
+                                                             0L,
+                                                             irs);
+
+  ASSERT_EQ(Store::Status::NOT_FOUND, status);
+  ASSERT_EQ(nullptr, irs);
 
   delete irs;
 }
@@ -777,6 +997,340 @@ TEST_F(MemcachedCacheTest, PutIrs)
   delete irs;
 }
 
+TEST_F(MemcachedCacheTest, PutIrsWithExistingUnrefreshed)
+{
+  int expiry = time(0) + 1;
+
+  ImpuStore::DefaultImpu* di =
+    new ImpuStore::DefaultImpu(IMPU,
+                               ASSOC_IMPUS,
+                               NO_IMPIS,
+                               RegistrationState::REGISTERED,
+                               CHARGING_ADDRESSES,
+                               SERVICE_PROFILE,
+                               0L,
+                               expiry,
+                               _local_store);
+
+  _local_store->set_impu(di, 0L);
+
+  delete di;
+
+  // IMPI is added, but already has an entry, with the IMPU
+  {
+    ImpuStore::ImpiMapping* mapping =
+      new ImpuStore::ImpiMapping(IMPI, { IMPU }, 0L, expiry);
+
+    _local_store->set_impi_mapping(mapping, 0L);
+
+    delete mapping;
+  }
+
+  ImplicitRegistrationSet* irs;
+
+  _memcached_cache->get_implicit_registration_set_for_impu(IMPU, 0L, irs);
+
+  irs->add_associated_impi(IMPI);
+
+  EXPECT_EQ(Store::Status::OK,
+            _memcached_cache->put_implicit_registration_set(irs, 0L));
+
+  delete irs;
+}
+
+TEST_F(MemcachedCacheTest, PutIrsWithExistingNotRefreshedConflictAssociated)
+{
+  int expiry = time(0) + 1;
+
+  ImpuStore::DefaultImpu* di =
+    new ImpuStore::DefaultImpu(IMPU,
+                               ASSOC_IMPUS,
+                               IMPIS,
+                               RegistrationState::REGISTERED,
+                               CHARGING_ADDRESSES,
+                               SERVICE_PROFILE,
+                               0L,
+                               expiry,
+                               _local_store);
+
+  _local_store->set_impu(di, 0L);
+
+  delete di;
+
+  ImplicitRegistrationSet* irs;
+
+  _memcached_cache->get_implicit_registration_set_for_impu(IMPU, 0L, irs);
+
+  irs->set_ims_sub_xml(SERVICE_PROFILE_3);
+
+  // Overwrite the IMPU with a conflicting Assoc IMPU. This will block our
+  // request as our data might be out of date.
+  {
+    ImpuStore::AssociatedImpu* ai =
+      new ImpuStore::AssociatedImpu(IMPU, IMPU_2, 1L, expiry, _local_store);
+
+    _local_store->set_impu(ai, 0L);
+    delete ai;
+  }
+
+  EXPECT_EQ(Store::Status::ERROR,
+            _memcached_cache->put_implicit_registration_set(irs, 0L));
+
+  delete irs;
+}
+
+TEST_F(MemcachedCacheTest, PutIrsWithExistingRefreshedConflictAssociated)
+{
+  int expiry = time(0) + 1;
+
+  ImpuStore::DefaultImpu* di =
+    new ImpuStore::DefaultImpu(IMPU,
+                               ASSOC_IMPUS,
+                               IMPIS,
+                               RegistrationState::REGISTERED,
+                               CHARGING_ADDRESSES,
+                               SERVICE_PROFILE,
+                               0L,
+                               expiry,
+                               _local_store);
+
+  _local_store->set_impu(di, 0L);
+
+  delete di;
+
+  ImplicitRegistrationSet* irs;
+
+  _memcached_cache->get_implicit_registration_set_for_impu(IMPU, 0L, irs);
+
+  irs->set_ttl(2);
+  irs->set_ims_sub_xml(SERVICE_PROFILE_3);
+  irs->set_reg_state(RegistrationState::REGISTERED);
+  irs->delete_associated_impi(IMPI);
+  irs->delete_associated_impi(IMPI_2);
+  irs->add_associated_impi(IMPI_3);
+
+  // Overwrite the IMPU with a conflicting Assoc IMPU. We'll nuke this,
+  // as our data is refreshed, and thus more likely to be right
+  {
+    ImpuStore::AssociatedImpu* ai =
+      new ImpuStore::AssociatedImpu(IMPU, IMPU_2, 1L, expiry, _local_store);
+
+    _local_store->set_impu(ai, 0L);
+    delete ai;
+  }
+
+  EXPECT_EQ(Store::Status::OK,
+            _memcached_cache->put_implicit_registration_set(irs, 0L));
+
+  delete irs;
+}
+
+TEST_F(MemcachedCacheTest, PutIrsWithExistingRefreshed)
+{
+  int expiry = time(0) + 1;
+
+  for (ImpuStore* store : { _local_store, _remote_store })
+  {
+    ImpuStore::DefaultImpu* di =
+      new ImpuStore::DefaultImpu(IMPU,
+                                 {ASSOC_IMPU, ASSOC_IMPU_2, ASSOC_IMPU_5},
+                                 {IMPI, IMPI_2, IMPI_4},
+                                 RegistrationState::REGISTERED,
+                                 CHARGING_ADDRESSES,
+                                 SERVICE_PROFILE,
+                                 0L,
+                                 expiry,
+                                 store);
+
+    store->set_impu(di, 0L);
+
+    delete di;
+  }
+
+  // IMPI is deleted entirely
+  // IMPI 2 we remove a single mapping from
+  // IMPI 3 is added, but already has an entry
+  // IMPI 4 is unchanged, but missing the mapping
+  // IMPI 5 is added, but already has an entry, with the IMPU
+
+  {
+    ImpuStore::ImpiMapping* mapping =
+      new ImpuStore::ImpiMapping(IMPI, {IMPU}, 0L, expiry);
+
+    _local_store->set_impi_mapping(mapping, 0L);
+
+    delete mapping;
+  }
+
+  {
+    ImpuStore::ImpiMapping* mapping =
+      new ImpuStore::ImpiMapping(IMPI_2, { IMPU, IMPU_2 }, 0L, expiry);
+
+    _local_store->set_impi_mapping(mapping, 0L);
+
+    delete mapping;
+  }
+
+  {
+    ImpuStore::ImpiMapping* mapping =
+      new ImpuStore::ImpiMapping(IMPI_3, { }, 0L, expiry);
+
+    _local_store->set_impi_mapping(mapping, 0L);
+
+    delete mapping;
+  }
+
+  {
+    ImpuStore::ImpiMapping* mapping =
+      new ImpuStore::ImpiMapping(IMPI_4, { }, 0L, expiry);
+
+    _local_store->set_impi_mapping(mapping, 0L);
+
+    delete mapping;
+  }
+
+  {
+    ImpuStore::ImpiMapping* mapping =
+      new ImpuStore::ImpiMapping(IMPI_5, { IMPU }, 0L, expiry);
+
+    _local_store->set_impi_mapping(mapping, 0L);
+
+    delete mapping;
+  }
+
+  // IMPU is deleted and present
+  // IMPU 2 is deleted but not present
+  // IMPU 3 is added and not present
+  // IMPU 4 is added and not present
+  // IMPU 5 is unchanged and not present
+
+  {
+    ImpuStore::AssociatedImpu* ai =
+      new ImpuStore::AssociatedImpu(ASSOC_IMPU_2, IMPU, 0L, expiry, _local_store);
+
+    _local_store->set_impu(ai, 0L);
+    delete ai;
+  }
+
+  ImplicitRegistrationSet* irs;
+
+  _memcached_cache->get_implicit_registration_set_for_impu(IMPU, 0L, irs);
+
+  irs->set_ttl(2);
+  irs->set_ims_sub_xml(SERVICE_PROFILE_3);
+  irs->set_reg_state(RegistrationState::REGISTERED);
+  irs->delete_associated_impi(IMPI);
+  irs->delete_associated_impi(IMPI_2);
+  irs->add_associated_impi(IMPI_3);
+
+  EXPECT_EQ(Store::Status::OK,
+            _memcached_cache->put_implicit_registration_set(irs, 0L));
+
+  delete irs;
+}
+
+TEST_F(MemcachedCacheTest, DeleteIrsNotAdded)
+{
+  ImplicitRegistrationSet* irs =
+    _memcached_cache->create_implicit_registration_set();
+
+  irs->set_ttl(1);
+  irs->set_ims_sub_xml(SERVICE_PROFILE);
+  irs->set_reg_state(RegistrationState::REGISTERED);
+
+  EXPECT_EQ(Store::Status::OK,
+            _memcached_cache->delete_implicit_registration_set(irs, 0L));
+
+  delete irs;
+}
+
+TEST_F(MemcachedCacheTest, DeleteIrsAddedRemote)
+{
+  ImpuStore::DefaultImpu* di =
+    new ImpuStore::DefaultImpu(IMPU,
+                               {ASSOC_IMPU, ASSOC_IMPU_2, ASSOC_IMPU_5},
+                               {IMPI, IMPI_2, IMPI_4},
+                               RegistrationState::REGISTERED,
+                               CHARGING_ADDRESSES,
+                               SERVICE_PROFILE,
+                               0L,
+                               time(0) + 1,
+                               _remote_store);
+
+  _remote_store->set_impu(di, 0L);
+
+  delete di;
+
+  ImplicitRegistrationSet* irs;
+
+  _memcached_cache->get_implicit_registration_set_for_impu(IMPU, 0L, irs);
+
+  std::vector<ImplicitRegistrationSet*> irss = {irs};
+
+  EXPECT_EQ(Store::Status::OK,
+            _memcached_cache->delete_implicit_registration_sets(irss, 0L));
+
+  delete irs;
+}
+
+TEST_F(MemcachedCacheTest, DeleteIrsAddedLocalStoreFail)
+{
+  ImpuStore::DefaultImpu* di =
+    new ImpuStore::DefaultImpu(IMPU,
+                               {ASSOC_IMPU, ASSOC_IMPU_2, ASSOC_IMPU_5},
+                               {IMPI, IMPI_2, IMPI_4},
+                               RegistrationState::REGISTERED,
+                               CHARGING_ADDRESSES,
+                               SERVICE_PROFILE,
+                               0L,
+                               time(0) + 1,
+                               _local_store);
+
+  _local_store->set_impu(di, 0L);
+
+  delete di;
+
+  ImplicitRegistrationSet* irs;
+
+  _memcached_cache->get_implicit_registration_set_for_impu(IMPU, 0L, irs);
+
+  std::vector<ImplicitRegistrationSet*> irss = {irs};
+
+  _lls->force_delete_error();
+
+  EXPECT_EQ(Store::Status::OK,
+            _memcached_cache->delete_implicit_registration_sets(irss, 0L));
+
+  delete irs;
+}
+
+TEST_F(MemcachedCacheTest, DeleteIrss)
+{
+  ImpuStore::DefaultImpu* di =
+    new ImpuStore::DefaultImpu(IMPU,
+                               {ASSOC_IMPU, ASSOC_IMPU_2, ASSOC_IMPU_5},
+                               {IMPI, IMPI_2, IMPI_4},
+                               RegistrationState::REGISTERED,
+                               CHARGING_ADDRESSES,
+                               SERVICE_PROFILE,
+                               0L,
+                               time(0) + 1,
+                               _remote_store);
+
+  _remote_store->set_impu(di, 0L);
+
+  delete di;
+
+  ImplicitRegistrationSet* irs;
+
+  _memcached_cache->get_implicit_registration_set_for_impu(IMPU, 0L, irs);
+
+  EXPECT_EQ(Store::Status::OK,
+            _memcached_cache->delete_implicit_registration_set(irs, 0L));
+
+  delete irs;
+}
+
 TEST_F(MemcachedCacheTest, GetIrsForImpus)
 {
   ImpuStore::DefaultImpu* di =
@@ -810,7 +1364,20 @@ TEST_F(MemcachedCacheTest, GetIrsForImpus)
   }
 }
 
-TEST_F(MemcachedCacheTest, GetImsSubscription)
+TEST_F(MemcachedCacheTest, GetImsSubscriptionNotFound)
+{
+  ImsSubscription* subscription = nullptr;
+
+  Store::Status status =
+    _memcached_cache->get_ims_subscription(IMPI,
+                                           0L,
+                                           subscription);
+
+  EXPECT_EQ(Store::Status::NOT_FOUND, status);
+  EXPECT_EQ(nullptr, subscription);
+}
+
+TEST_F(MemcachedCacheTest, GetImsSubscriptionLocal)
 {
   ImpuStore::DefaultImpu* di =
     new ImpuStore::DefaultImpu(IMPU,
@@ -831,7 +1398,44 @@ TEST_F(MemcachedCacheTest, GetImsSubscription)
     new ImpuStore::ImpiMapping(IMPI, {IMPU}, time(0) + 1);
 
   _local_store->set_impi_mapping(mapping, 0L);
-  
+
+  delete mapping;
+
+  ImsSubscription* subscription;
+
+  Store::Status status =
+    _memcached_cache->get_ims_subscription(IMPI,
+                                           0L,
+                                           subscription);
+
+  EXPECT_EQ(Store::Status::OK, status);
+  EXPECT_NE(nullptr, subscription);
+
+  delete subscription;
+}
+
+TEST_F(MemcachedCacheTest, GetImsSubscriptionRemote)
+{
+  ImpuStore::DefaultImpu* di =
+    new ImpuStore::DefaultImpu(IMPU,
+                               ASSOC_IMPUS,
+                               IMPIS,
+                               RegistrationState::REGISTERED,
+                               CHARGING_ADDRESSES,
+                               SERVICE_PROFILE,
+                               0L,
+                               time(0) + 1,
+                               _remote_store);
+
+  _remote_store->set_impu(di, 0L);
+
+  delete di;
+
+  ImpuStore::ImpiMapping* mapping =
+    new ImpuStore::ImpiMapping(IMPI, {IMPU}, time(0) + 1);
+
+  _remote_store->set_impi_mapping(mapping, 0L);
+
   delete mapping;
 
   ImsSubscription* subscription;
@@ -868,7 +1472,7 @@ TEST_F(MemcachedCacheTest, PutImsSubscription)
     new ImpuStore::ImpiMapping(IMPI, {IMPU}, time(0) + 1);
 
   _local_store->set_impi_mapping(mapping, 0L);
-  
+
   delete mapping;
 
   ImsSubscription* subscription;
