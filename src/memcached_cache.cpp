@@ -362,6 +362,7 @@ Store::Status MemcachedCache::get_implicit_registration_sets_for_impis(const std
   {
     ImpuStore::ImpiMapping* mapping = get_impi_mapping_gr(impi, trail);
     get_implicit_registration_sets_for_impus(mapping->get_default_impus(), trail, result);
+    delete mapping;
   }
 
   return Store::Status::OK;
@@ -508,9 +509,12 @@ Store::Status MemcachedCache::update_irs_impi_mappings(MemcachedImplicitRegistra
 
       if (status == Store::Status::DATA_CONTENTION)
       {
+        delete mapping;
+
+        mapping = store->get_impi_mapping(impi, trail);
+
         int now = time(0);
         mapping->set_expiry(irs->get_ttl() + now);
-        mapping = store->get_impi_mapping(impi, trail);
 
         if (!mapping->has_default_impu(irs->get_default_impu()))
         {
@@ -524,8 +528,9 @@ Store::Status MemcachedCache::update_irs_impi_mappings(MemcachedImplicitRegistra
         }
       }
     } while(status == Store::Status::DATA_CONTENTION);
-  }
 
+    delete mapping;
+  }
   return status;
 }
 
@@ -675,8 +680,9 @@ Store::Status perform_irs_impu_action(irs_impu_action action,
         // certainly more up to date. Just fail the transaction.
         status = Store::Status::ERROR;
       }
-    }
 
+      delete mapped_impu;
+    }
     delete impu; impu = nullptr;
 
   } while(status == Store::Status::DATA_CONTENTION);
