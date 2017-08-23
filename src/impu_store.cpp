@@ -572,12 +572,12 @@ Store::Status ImpuStore::set_impu(ImpuStore::Impu* impu,
   {
     int now = time(0);
 
-    _store->set_data("impu",
-                     impu->impu,
-                     data,
-                     impu->cas,
-                     impu->expiry - now,
-                     trail);
+    status = _store->set_data("impu",
+                              impu->impu,
+                              data,
+                              impu->cas,
+                              impu->expiry - now,
+                              trail);
   }
 
   TRC_DEBUG("Wrote %s to store (SAS Trail: %lu) with result: %u",
