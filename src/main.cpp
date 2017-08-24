@@ -583,7 +583,8 @@ void signal_handler(int sig)
   abort();
 }
 
-void create_memcached_cache(options& options,
+void create_memcached_cache(HssCacheProcessor*& cache_processor,
+                            options& options,
                             DnsCachedResolver* dns_resolver,
                             AstaireResolver*& astaire_resolver,
                             Store*& local_impu_data_store,
@@ -640,6 +641,7 @@ void create_memcached_cache(options& options,
       }
 
     memcached_cache = new MemcachedCache(local_impu_store, remote_impu_stores);
+    cache_processor = new HssCacheProcessor(memcached_cache);
   }
   else
   {
@@ -848,8 +850,10 @@ int main(int argc, char**argv)
   MemcachedCache* memcached_cache = nullptr;
   CommunicationMonitor* astaire_comm_monitor = nullptr;
   CommunicationMonitor* remote_astaire_comm_monitor = nullptr;
+  HssCacheProcessor* cache_processor;
 
-  create_memcached_cache(options,
+  create_memcached_cache(cache_processor,
+                         options,
                          dns_resolver,
                          astaire_resolver,
                          local_impu_data_store,
@@ -864,7 +868,6 @@ int main(int argc, char**argv)
                          impu_store_location,
                          af);
 
-  HssCacheProcessor* cache_processor = new HssCacheProcessor(memcached_cache);
   HssCacheTask::configure_cache(cache_processor);
   bool started = cache_processor->start_threads(options.cache_threads,
                                                 exception_handler,
