@@ -583,6 +583,73 @@ void signal_handler(int sig)
   abort();
 }
 
+void create_memcached_cache(options& options,
+                            DnsCachedResolver* dns_resolver,
+                            AstaireResolver*& astaire_resolver,
+                            Store*& local_impu_data_store,
+                            ImpuStore*& local_impu_store,
+                            std::vector<Store*>& remote_impu_data_stores,
+                            std::vector<ImpuStore*>& remote_impu_stores,
+                            MemcachedCache*& memcached_cache,
+                            CommunicationMonitor*& astaire_comm_monitor,
+                            CommunicationMonitor*& remote_astaire_comm_monitor,
+                            AlarmManager* alarm_manager,
+                            std::vector<std::string>& remote_impu_stores_locations,
+                            std::string& impu_store_location,
+                            int af)
+{
+  astaire_comm_monitor = new CommunicationMonitor(new Alarm(alarm_manager,
+                                                            "homestead",
+                                                            AlarmDef::HOMESTEAD_ASTAIRE_COMM_ERROR,
+                                                            AlarmDef::CRITICAL),
+                                                  "Homestead",
+                                                  "Astaire");
+
+ remote_astaire_comm_monitor = new CommunicationMonitor(new Alarm(alarm_manager,
+                                                                  "homestead",
+                                                                  AlarmDef::HOMESTEAD_REMOTE_ASTAIRE_COMM_ERROR,
+                                                                  AlarmDef::CRITICAL),
+                                                       "Homestead",
+                                                       "remote Astaire");
+
+  // Create an exception handler. The exception handler doesn't need
+  astaire_resolver = new AstaireResolver(dns_resolver,
+                                         af,
+                                         options.astaire_blacklist_duration);
+
+  if (impu_store_location != "")
+  {
+    TRC_STATUS("Using local impu store: %s", impu_store_location.c_str());
+    local_impu_data_store = (Store*)new TopologyNeutralMemcachedStore(impu_store_location,
+                                                                      astaire_resolver,
+                                                                      false,
+                                                                      astaire_comm_monitor);
+    local_impu_store = new ImpuStore(local_impu_data_store);
+
+    for (std::vector<std::string>::iterator it = remote_impu_stores_locations.begin();
+           it != remote_impu_stores_locations.end();
+           ++it)
+      {
+        TRC_STATUS("Using remote impu store: %s", (*it).c_str());
+        Store* remote_data_store = (Store*)new TopologyNeutralMemcachedStore(*it,
+                                                                             astaire_resolver,
+                                                                             true,
+                                                                             remote_astaire_comm_monitor);
+        remote_impu_data_stores.push_back(remote_data_store);
+        remote_impu_stores.push_back(new ImpuStore(remote_data_store));
+      }
+
+    memcached_cache = new MemcachedCache(local_impu_store, remote_impu_stores);
+  }
+  else
+  {
+    CL_HOMESTEAD_NO_IMPU_STORE.log();
+    TRC_ERROR("No IMPU store specified");
+    TRC_STATUS("Homestead is shutting down");
+    exit(2);
+  }
+}
+
 int main(int argc, char**argv)
 {
   // Set up our exception signal handler for asserts and segfaults.
@@ -756,21 +823,6 @@ int main(int argc, char**argv)
                                                                           "Homestead",
                                                                           "Cassandra");
 
-  CommunicationMonitor* astaire_comm_monitor = new CommunicationMonitor(new Alarm(alarm_manager,
-                                                                                  "homestead",
-                                                                                  AlarmDef::HOMESTEAD_ASTAIRE_COMM_ERROR,
-                                                                                  AlarmDef::CRITICAL),
-                                                                        "Homestead",
-                                                                        "Astaire");
-
-  CommunicationMonitor* remote_astaire_comm_monitor = new CommunicationMonitor(new Alarm(alarm_manager,
-                                                                                         "homestead",
-                                                                                         AlarmDef::HOMESTEAD_REMOTE_ASTAIRE_COMM_ERROR,
-                                                                                         AlarmDef::CRITICAL),
-                                                                               "Homestead",
-                                                                               "remote Astaire");
-
-  // Create an exception handler. The exception handler doesn't need
   // to quiesce the process before killing it.
   HealthChecker* hc = new HealthChecker();
   hc->start_thread();
@@ -794,42 +846,23 @@ int main(int argc, char**argv)
   std::vector<Store*> remote_impu_data_stores;
   std::vector<ImpuStore*> remote_impu_stores;
   MemcachedCache* memcached_cache = nullptr;
+  CommunicationMonitor* astaire_comm_monitor = nullptr;
+  CommunicationMonitor* remote_astaire_comm_monitor = nullptr;
 
-  astaire_resolver = new AstaireResolver(dns_resolver,
-                                         af,
-                                         options.astaire_blacklist_duration);
-
-  if (impu_store_location != "")
-  {
-    TRC_STATUS("Using local impu store: %s", impu_store_location.c_str());
-    local_impu_data_store = (Store*)new TopologyNeutralMemcachedStore(impu_store_location,
-                                                                      astaire_resolver,
-                                                                      false,
-                                                                      astaire_comm_monitor);
-    local_impu_store = new ImpuStore(local_impu_data_store);
-
-    for (std::vector<std::string>::iterator it = remote_impu_stores_locations.begin();
-           it != remote_impu_stores_locations.end();
-           ++it)
-      {
-        TRC_STATUS("Using remote impu store: %s", (*it).c_str());
-        Store* remote_data_store = (Store*)new TopologyNeutralMemcachedStore(*it,
-                                                                             astaire_resolver,
-                                                                             true,
-                                                                             remote_astaire_comm_monitor);
-        remote_impu_data_stores.push_back(remote_data_store);
-        remote_impu_stores.push_back(new ImpuStore(remote_data_store));
-      }
-
-    memcached_cache = new MemcachedCache(local_impu_store, remote_impu_stores);
-  }
-  else
-  {
-    CL_HOMESTEAD_NO_IMPU_STORE.log();
-    TRC_ERROR("No IMPU store specified");
-    TRC_STATUS("Homestead is shutting down");
-    exit(2);
-  }
+  create_memcached_cache(options,
+                         dns_resolver,
+                         astaire_resolver,
+                         local_impu_data_store,
+                         local_impu_store,
+                         remote_impu_data_stores,
+                         remote_impu_stores,
+                         memcached_cache,
+                         astaire_comm_monitor,
+                         remote_astaire_comm_monitor,
+                         alarm_manager,
+                         remote_impu_stores_locations,
+                         impu_store_location,
+                         af);
 
   HssCacheProcessor* cache_processor = new HssCacheProcessor(memcached_cache);
   HssCacheTask::configure_cache(cache_processor);
