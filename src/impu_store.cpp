@@ -15,7 +15,6 @@
 
 #include "json_parse_utils.h"
 #include "log.h"
-#include "rapidjson/error/en.h"
 
 const char* ImpuStore::Impu::_dict_v0 = "";
 int ImpuStore::Impu::_dict_v0_size = 0;
@@ -220,23 +219,6 @@ ImpuStore::Impu* ImpuStore::AssociatedImpu::from_json(std::string const& impu,
   return new AssociatedImpu(impu, default_impu, cas, expiry, store);
 }
 
-template<typename T>
-void extract_array(rapidjson::Value& json, const char* key, T& array)
-{
-  if (json.HasMember(key) && json[key].IsArray())
-  {
-    const rapidjson::Value& arr = json[key];
-
-    for (rapidjson::Value::ConstValueIterator it = arr.Begin();
-         it != arr.End();
-         ++it)
-    {
-      JSON_ASSERT_STRING(*it);
-      array.push_back(it->GetString());
-    }
-  }
-}
-
 ImpuStore::Impu* ImpuStore::DefaultImpu::from_json(std::string const& impu,
                                                    rapidjson::Value& json,
                                                    unsigned long cas,
@@ -260,10 +242,10 @@ ImpuStore::Impu* ImpuStore::DefaultImpu::from_json(std::string const& impu,
   JSON_SAFE_GET_INT_64_MEMBER(json, JSON_EXPIRY, expiry);
   JSON_SAFE_GET_STRING_MEMBER(json, JSON_SERVICE_PROFILE, service_profile);
 
-  extract_array(json, JSON_ASSOCIATED_IMPUS, assoc_impus);
-  extract_array(json, JSON_IMPIS, impis);
-  extract_array(json, JSON_CCFS, ccfs);
-  extract_array(json, JSON_ECFS, ecfs);
+  extract_json_string_array(json, JSON_ASSOCIATED_IMPUS, assoc_impus);
+  extract_json_string_array(json, JSON_IMPIS, impis);
+  extract_json_string_array(json, JSON_CCFS, ccfs);
+  extract_json_string_array(json, JSON_ECFS, ecfs);
 
   ChargingAddresses charging_addresses = ChargingAddresses(ccfs, ecfs);
 
@@ -418,22 +400,6 @@ Store::Status ImpuStore::Impu::to_data(std::string& data)
   return Store::Status::OK;
 }
 
-template<typename T>
-void write_array(rapidjson::Writer<rapidjson::StringBuffer>& writer,
-                 const char* key,
-                 T& array)
-{
-  writer.String(key);
-  writer.StartArray();
-
-  for (const std::string& element : array)
-  {
-    writer.String(element.c_str());
-  }
-
-  writer.EndArray();
-}
-
 void ImpuStore::DefaultImpu::write_json(rapidjson::Writer<rapidjson::StringBuffer>& writer)
 {
   writer.String(JSON_REGISTRATION_STATE);
@@ -461,10 +427,10 @@ void ImpuStore::DefaultImpu::write_json(rapidjson::Writer<rapidjson::StringBuffe
   writer.String(JSON_EXPIRY);
   writer.Int64(expiry);
 
-  write_array(writer, JSON_ASSOCIATED_IMPUS, associated_impus);
-  write_array(writer, JSON_IMPIS, impis);
-  write_array(writer, JSON_ECFS, charging_addresses.ecfs);
-  write_array(writer, JSON_CCFS, charging_addresses.ccfs);
+  write_json_string_array(writer, JSON_ASSOCIATED_IMPUS, associated_impus);
+  write_json_string_array(writer, JSON_IMPIS, impis);
+  write_json_string_array(writer, JSON_ECFS, charging_addresses.ecfs);
+  write_json_string_array(writer, JSON_CCFS, charging_addresses.ccfs);
 }
 
 void ImpuStore::AssociatedImpu::write_json(rapidjson::Writer<rapidjson::StringBuffer>& writer)
@@ -650,7 +616,7 @@ ImpuStore::ImpiMapping* ImpuStore::ImpiMapping::from_json(std::string const& imp
   std::vector<std::string> impus;
   int64_t expiry = 0L;
 
-  extract_array(json, JSON_DEFAULT_IMPUS, impus);
+  extract_json_string_array(json, JSON_DEFAULT_IMPUS, impus);
 
   JSON_SAFE_GET_INT_64_MEMBER(json, JSON_EXPIRY, expiry);
 
@@ -662,7 +628,7 @@ ImpuStore::ImpiMapping* ImpuStore::ImpiMapping::from_json(std::string const& imp
 
 void ImpuStore::ImpiMapping::write_json(rapidjson::Writer<rapidjson::StringBuffer>& writer)
 {
-  write_array(writer, JSON_DEFAULT_IMPUS, _default_impus);
+  write_json_string_array(writer, JSON_DEFAULT_IMPUS, _default_impus);
   writer.String(JSON_EXPIRY);
   writer.Int64(_expiry);
 }

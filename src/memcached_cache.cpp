@@ -9,12 +9,13 @@
  * Metaswitch Networks in a separate written agreement.
  */
 
+#include "memcached_cache.h"
+
 #include <string>
 
 #include "homestead_xml_utils.h"
-#include "memcached_cache.h"
-
 #include "log.h"
+#include "utils.h"
 
 void MemcachedImsSubscription::set_charging_addrs(const ChargingAddresses& new_addresses)
 {
@@ -65,13 +66,6 @@ ImpuStore::DefaultImpu* MemcachedImplicitRegistrationSet::get_impu_for_store(con
   }
 }
 
-// Check whether an element is in a vector
-bool in_vector(const std::string& element,
-               const std::vector<std::string>& vec)
-{
-  return std::find(vec.begin(), vec.end(), element) != vec.end();
-}
-
 // Update the given data store, based on an updated view of the world
 // provided by the user
 //
@@ -92,7 +86,7 @@ void set_elements(const std::vector<std::string>& updated,
 {
   for (std::pair<const std::string, MemcachedImplicitRegistrationSet::State>& entry : data)
   {
-    if (!in_vector(entry.first, updated))
+    if (!Utils::in_vector(entry.first, updated))
     {
       entry.second = MemcachedImplicitRegistrationSet::State::DELETED;
     }
@@ -174,7 +168,7 @@ void merge_data_sets(MemcachedImplicitRegistrationSet::Data& data, std::vector<s
   for (MemcachedImplicitRegistrationSet::Data::value_type& pair : data)
   {
     bool unchanged = pair.second == MemcachedImplicitRegistrationSet::State::UNCHANGED;
-    bool not_in_vector = !in_vector(pair.first, added);
+    bool not_in_vector = !Utils::in_vector(pair.first, added);
     if (unchanged && not_in_vector)
     {
       pair.second = MemcachedImplicitRegistrationSet::State::DELETED;
