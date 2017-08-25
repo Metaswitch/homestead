@@ -292,7 +292,8 @@ void ImpiTask::send_mar()
                                 _dest_host,
                                 _impi,
                                 _impu,
-                                _configured_server_name,
+                               (_provided_server_name == "" ? _configured_server_name :
+                                _provided_server_name),
                                 _scheme,
                                 _authorization);
   DiameterTransaction* tsx =
@@ -443,6 +444,7 @@ bool ImpiDigestTask::parse_request()
   _impu = _req.param("public_id");
   _scheme = _cfg->scheme_digest;
   _authorization = "";
+  _provided_server_name = _req.param(SERVER_NAME_FIELD);
 
   return true;
 }
@@ -503,6 +505,7 @@ bool ImpiAvTask::parse_request()
   }
   _impu = _req.param("impu");
   _authorization = base64_decode(_req.param(AUTH_FIELD_NAME));
+  _provided_server_name = _req.param(SERVER_NAME_FIELD);
 
   return true;
 }

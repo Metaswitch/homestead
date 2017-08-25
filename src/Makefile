@@ -47,6 +47,7 @@ homestead_SOURCES := ${COMMON_SOURCES} \
                      main.cpp \
                      snmp_counter_table.cpp \
                      snmp_event_accumulator_table.cpp \
+		     event_statistic_accumulator.cpp \
                      snmp_cx_counter_table.cpp
 
 homestead_test_SOURCES := ${COMMON_SOURCES} \
