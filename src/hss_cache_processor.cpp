@@ -11,6 +11,11 @@
 
 #include "hss_cache_processor.h"
 
+// HSS Cache Processor is just plumbing - placing things on a FunctorThreadPool,
+// calling the callbacks when they complete. All of the interesting business
+// logic is delegated to the underlying HSS Cache, which is separately tested.
+//
+// LCOV_EXCL_START
 
 HssCacheProcessor::HssCacheProcessor(HssCache* cache) :
   _cache(cache),
@@ -256,3 +261,5 @@ void HssCacheProcessor::put_ims_subscription(void_success_cb success_cb,
   // Add the work to the pool
   _thread_pool->add_work(work);
 }
+
+// LCOV_EXCL_STOP
