@@ -25,6 +25,8 @@ public:
 
   MOCK_METHOD3(send_delete, long(const std::string& path, SAS::TrailId trail, const std::string& body));
   MOCK_METHOD3(send_post, long(const std::string& path, const std::string& body, SAS::TrailId trail));
+  MOCK_METHOD3(send_put, long(const std::string& path, const std::string& body, SAS::TrailId trail));
+
 };
 
 #endif

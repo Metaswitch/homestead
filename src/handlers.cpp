@@ -2552,41 +2552,40 @@ void PushProfileTask::update_reg_data()
   if (_ims_sub_present && is_first_irs())
   {
     find_impus_to_delete();
-    if (!_impus_to_delete.empty() || any_new_impus())
+
+    TRC_DEBUG("Going to inform sprout of user data");
+
+    ret_code = _cfg->sprout_conn->change_associated_identities(_default_public_id,
+	       			 	   	               _ims_subscription,
+							       this->trail());
+    TRC_DEBUG("Informed Sprout");
+    switch (ret_code)
     {
-      TRC_DEBUG("Identities have changed, going to inform sprout");
-      ret_code = _cfg->sprout_conn->change_associated_identities(_default_public_id,
-    							         _impus,
-								 this->trail());
-      TRC_DEBUG("Informed Sprout");
-      switch (ret_code)
-      {
-      case HTTP_OK:
-      {
-        TRC_DEBUG("NOTIFY sent from Sprout");
-      }
-      break;
+    case HTTP_OK:
+    {
+      TRC_DEBUG("NOTIFY sent from Sprout");
+    }
+    break;
 
-      case HTTP_BADMETHOD:
-      case HTTP_BAD_REQUEST:
-      case HTTP_SERVER_ERROR:
-      {
-        TRC_DEBUG("Send Push Profile answer indicating failure");
-        send_ppa(DIAMETER_REQ_FAILURE);
-	delete this;
-	return;
-      }
-      break;
+    case HTTP_BADMETHOD:
+    case HTTP_BAD_REQUEST:
+    case HTTP_SERVER_ERROR:
+    {
+      TRC_DEBUG("Sprout return Code %d, Send Push Profile answer indicating failure", ret_code);
+      send_ppa(DIAMETER_REQ_FAILURE);
+      delete this;
+      return;
+    }
+    break;
 
-      default:
-      {
-        TRC_ERROR("Unexpected HTTP return code, send Push Profile answer indicating failure");
-	send_ppa(DIAMETER_REQ_FAILURE);
-        delete this;
-        return;
-      }
-      break;
-      }
+    default:
+    {
+      TRC_ERROR("Unexpected HTTP return code, send Push Profile answer indicating failure");
+      send_ppa(DIAMETER_REQ_FAILURE);
+      delete this;
+      return;
+    }
+    break;
     }
   }
 

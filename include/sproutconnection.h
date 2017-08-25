@@ -25,7 +25,7 @@ public:
                                        const std::vector<std::string>& impis,
                                        SAS::TrailId trail);
   virtual HTTPCode change_associated_identities(const std::string& default_id,
-						const std::vector<std::string>& impus,
+						const std::string& user_data_xml,
 						SAS::TrailId trail);
 
 
@@ -38,7 +38,7 @@ public:
 private:
   std::string create_body(const std::vector<std::string>& default_public_ids,
                           const std::vector<std::string>& impis);
-  std::string change_ids_create_body(const std::vector<std::string>& impus);
+//  std::string change_ids_create_body(const std::vector<std::string>& impus);
 
   HttpConnection* _http;
 };

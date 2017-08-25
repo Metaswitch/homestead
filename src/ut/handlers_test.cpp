@@ -1581,7 +1581,7 @@ public:
   {
     // Expect a post to be sent to Sprout.
     std::string http_path = "/registrations/" + impu;
-    EXPECT_CALL(*_mock_http_conn, send_post(http_path, body, _))
+    EXPECT_CALL(*_mock_http_conn, send_put(http_path, body, _))
       .Times(1)
       .WillOnce(Return(http_ret_code));
   }
@@ -4611,6 +4611,8 @@ TEST_F(HandlersTest, PushProfile)
 
   t->on_success(&mock_op);
 
+  ppr_sprout_connection(IMPU, IMS_SUBSCRIPTION, HTTP_OK);
+
   t = mock_op2.get_trx();
   ASSERT_FALSE(t == NULL);
 
@@ -4657,7 +4659,7 @@ TEST_F(HandlersTest, PushProfileChangeIDs)
   CassandraStore::Transaction* t = mock_op.get_trx();
   ASSERT_FALSE(t == NULL);
   ppr_get_default_ids(&mock_op, IMPU_IN_VECTOR);
-  ppr_sprout_connection(IMPU, PUSH_PROFILE_BODY, HTTP_OK);
+  ppr_sprout_connection(IMPU, IMPU_IMS_SUBSCRIPTION, HTTP_OK);
 
   MockCache::MockGetRegData mock_op2;
   ppr_expect_get_reg_data(&mock_op2, IMPU);
@@ -4697,6 +4699,83 @@ TEST_F(HandlersTest, PushProfileChangeIDs)
   ppr_send_ppa(DIAMETER_SUCCESS);
   ppr_tear_down(pcfg);
 }
+
+// There is a change of IDs and Sprout returns a Server Error, so a failed
+// PPA is sent and the cache is not updated.
+TEST_F(HandlersTest, PushProfileChangeIDsServerError)
+{
+  PushProfileTask* task = NULL;
+  PushProfileTask::Config* pcfg = NULL;
+  ppr_setup(&task, &pcfg, IMPI, IMPU_IMS_SUBSCRIPTION, FULL_CHARGING_ADDRESSES);
+
+  MockCache::MockGetAssociatedPrimaryPublicIDs mock_op;
+  ppr_expect_get_default_ids(&mock_op, IMPI);
+
+  task->run();
+
+  CassandraStore::Transaction* t = mock_op.get_trx();
+  ASSERT_FALSE(t == NULL);
+  ppr_get_default_ids(&mock_op, IMPU_IN_VECTOR);
+  ppr_sprout_connection(IMPU, IMPU_IMS_SUBSCRIPTION, HTTP_SERVER_ERROR);
+
+  MockCache::MockGetRegData mock_op2;
+  ppr_expect_get_reg_data(&mock_op2, IMPU);
+
+  t->on_success(&mock_op);
+  t = mock_op2.get_trx();
+  ASSERT_FALSE(t == NULL);
+
+  ppr_get_reg_data(&mock_op2,
+                   IMPU_IMS_SUBSCRIPTION2,
+                   RegistrationState::REGISTERED,
+                   FULL_CHARGING_ADDRESSES,
+                   IMPI_IN_VECTOR);
+
+  ppr_expect_ppa();
+
+  t->on_success(&mock_op2);
+
+  ppr_send_ppa(DIAMETER_UNABLE_TO_COMPLY);
+  ppr_tear_down(pcfg);
+}
+
+TEST_F(HandlersTest, PushProfileUnexpectedReturnCode)
+{
+  PushProfileTask* task = NULL;
+  PushProfileTask::Config* pcfg = NULL;
+  ppr_setup(&task, &pcfg, IMPI, IMPU_IMS_SUBSCRIPTION, FULL_CHARGING_ADDRESSES);
+
+  MockCache::MockGetAssociatedPrimaryPublicIDs mock_op;
+  ppr_expect_get_default_ids(&mock_op, IMPI);
+
+  task->run();
+
+  CassandraStore::Transaction* t = mock_op.get_trx();
+  ASSERT_FALSE(t == NULL);
+  ppr_get_default_ids(&mock_op, IMPU_IN_VECTOR);
+  ppr_sprout_connection(IMPU, IMPU_IMS_SUBSCRIPTION, 300);
+
+  MockCache::MockGetRegData mock_op2;
+  ppr_expect_get_reg_data(&mock_op2, IMPU);
+
+  t->on_success(&mock_op);
+  t = mock_op2.get_trx();
+  ASSERT_FALSE(t == NULL);
+
+  ppr_get_reg_data(&mock_op2,
+                   IMPU_IMS_SUBSCRIPTION2,
+                   RegistrationState::REGISTERED,
+                   FULL_CHARGING_ADDRESSES,
+                   IMPI_IN_VECTOR);
+
+  ppr_expect_ppa();
+
+  t->on_success(&mock_op2);
+
+  ppr_send_ppa(DIAMETER_UNABLE_TO_COMPLY);
+  ppr_tear_down(pcfg);
+}
+
 
 // This PPR has a charging address but no IMS Sub. There is one IRS.
 // The update is successful.
@@ -4763,6 +4842,8 @@ TEST_F(HandlersTest, PushProfileIMSSub)
 
   t->on_success(&mock_op);
 
+  ppr_sprout_connection(IMPU, IMS_SUBSCRIPTION, HTTP_OK);
+
   t = mock_op2.get_trx();
   ASSERT_FALSE(t == NULL);
 
@@ -4810,7 +4891,7 @@ TEST_F(HandlersTest, PushProfileIMSSubChangeIDs)
   ASSERT_FALSE(t == NULL);
   ppr_get_default_ids(&mock_op, IMPU_IN_VECTOR);
 
-  ppr_sprout_connection(IMPU, PUSH_PROFILE_BODY, HTTP_OK);
+  ppr_sprout_connection(IMPU, IMPU_IMS_SUBSCRIPTION, HTTP_OK);
 
   MockCache::MockGetRegData mock_op2;
   ppr_expect_get_reg_data(&mock_op2, IMPU);
@@ -4872,6 +4953,8 @@ TEST_F(HandlersTest, PushProfileIMSSubNoSIPURI)
   MockCache::MockGetRegData mock_op2;
   ppr_expect_get_reg_data(&mock_op2, TEL_URI);
 
+  ppr_sprout_connection(TEL_URI, TEL_URIS_IMS_SUBSCRIPTION, HTTP_OK);
+
   t->on_success(&mock_op);
   t = mock_op2.get_trx();
   ASSERT_FALSE(t == NULL);
@@ -4925,6 +5008,8 @@ TEST_F(HandlersTest, PushProfileCacheFailure)
   ppr_expect_get_reg_data(&mock_op2, IMPU);
 
   t->on_success(&mock_op);
+
+  ppr_sprout_connection(IMPU, IMS_SUBSCRIPTION, HTTP_OK);
 
   t = mock_op2.get_trx();
   ASSERT_FALSE(t == NULL);
@@ -5023,6 +5108,8 @@ TEST_F(HandlersTest, PushProfileMultipleIRS)
   ppr_expect_get_reg_data(&mock_op2, IMPU3);
 
   t->on_success(&mock_op);
+
+  ppr_sprout_connection(IMPU3, IMPU3_IMS_SUBSCRIPTION, HTTP_OK);
 
   t = mock_op2.get_trx();
   ASSERT_FALSE(t == NULL);
@@ -5206,6 +5293,8 @@ TEST_F(HandlersTest, PushProfileMultipleIRSSecondGetRegFailure)
 
   t->on_success(&mock_op);
 
+  ppr_sprout_connection(IMPU, IMPU_IMS_SUBSCRIPTION, HTTP_OK);
+
   t = mock_op2.get_trx();
   ASSERT_FALSE(t == NULL);
 
@@ -5291,6 +5380,8 @@ TEST_F(HandlersTest, PushProfileMultipleIRSSecondCacheFailure)
   ppr_expect_get_reg_data(&mock_op2, IMPU);
 
   t->on_success(&mock_op);
+
+  ppr_sprout_connection(IMPU, IMPU_IMS_SUBSCRIPTION, HTTP_OK);
 
   t = mock_op2.get_trx();
   ASSERT_FALSE(t == NULL);
@@ -5492,6 +5583,8 @@ TEST_F(HandlersTest, PushProfileTelUrisAndBarring)
 
   MockCache::MockGetRegData mock_op2;
   ppr_expect_get_reg_data(&mock_op2, TEL_URI2);
+
+  ppr_sprout_connection(TEL_URI2, TEL_URIS_IMS_SUBSCRIPTION_WITH_BARRING, HTTP_OK);
 
   t->on_success(&mock_op);
   t = mock_op2.get_trx();
