@@ -2019,7 +2019,7 @@ void RegistrationTerminationTask::run()
   }
   else
   {
-    // This is either an invalid deregistration reason.
+    // This is an invalid deregistration reason.
     TRC_ERROR("Registration-Termination request received with invalid deregistration reason %d",
               _deregistration_reason);
     SAS::Event event(this->trail(), SASEvent::INVALID_DEREG_REASON, 0);
@@ -2328,43 +2328,19 @@ void RegistrationTerminationTask::send_rta(const std::string result_code)
 
 void RegistrationTerminationTask::log_sip_all_register_marker(const std::string uri)
 {
-  std::string stripped_uri(uri);
-  std::string user;
-  bool is_tel_uri = false;
-  bool user_is_numeric = true;
+  std::string stripped_uri;
 
   // Strip the scheme off the URI. We expect the scheme to be present, but
   // cope with the case where it isn't.
-  size_t colon = stripped_uri.find(':');
+  stripped_uri = Utils::strip_uri_scheme(uri);
 
-  if (colon != std::string::npos)
+  // Extract the user part from the remaining URI.
+  std::string user(stripped_uri);
+  size_t at = user.find('@');
+
+  if (at != std::string::npos)
   {
-    is_tel_uri = (stripped_uri.find("tel:") == 0);
-    stripped_uri.erase(0, colon + 1);
-  }
-
-  // Extract the user part of the URI and check if it is numeric, i.e. a DN.
-  for (size_t i = 0; (i < stripped_uri.length()) && (stripped_uri[i] != '@'); i++)
-  {
-    char c = stripped_uri[i];
-
-    // In case a tel: URI has still got the visual separators included (which it shouldn't),
-    // strip them off.
-    if (is_tel_uri &&
-        ((c == '(') || (c == ')') || (c == '-') || (c == '.')))
-    {
-      continue;
-    }
-
-    if (((c >= '0') && (c <= '9')) || (c == '+'))
-    {
-      user.push_back(c);
-    }
-    else
-    {
-      user_is_numeric = false;
-      break;
-    }
+    user.erase(at, std::string::npos);
   }
 
   // Log the marker with the stripped URI as the first parameter, and the
@@ -2372,9 +2348,9 @@ void RegistrationTerminationTask::log_sip_all_register_marker(const std::string 
   SAS::Marker sip_all_register(trail(), MARKER_ID_SIP_ALL_REGISTER, 1u);
   sip_all_register.add_var_param(stripped_uri);
 
-  if (user_is_numeric)
+  if (Utils::is_user_numeric(user))
   {
-    sip_all_register.add_var_param(user);
+    sip_all_register.add_var_param(Utils::remove_visual_separators(user));
   }
 
   SAS::report_marker(sip_all_register);
