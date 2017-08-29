@@ -135,7 +135,6 @@ public:
   static const std::string DEREG_BODY_LIST;
   static const std::string DEREG_BODY_LIST2;
   static const std::string DEREG_BODY_LIST3;
-  static const std::string PUSH_PROFILE_BODY;
   static const std::deque<std::string> NO_CFS;
   static const std::deque<std::string> CCFS;
   static const std::deque<std::string> ECFS;
@@ -1580,7 +1579,7 @@ public:
 
   void ppr_sprout_connection(std::string impu, std::string body, HTTPCode http_ret_code)
   {
-    // Expect a post to be sent to Sprout.
+    // Expect a PUT to be sent to Sprout.
     std::string http_path = "/registrations/" + impu;
     EXPECT_CALL(*_mock_http_conn, send_put(http_path, body, _))
       .Times(1)
@@ -1912,7 +1911,6 @@ const std::string HandlersTest::DEREG_BODY_PAIRINGS5 = "{\"registrations\":[{\"p
                                                                        "\"},{\"primary-impu\":\"" + IMPU3 + "\",\"impi\":\"" + IMPI +
                                                                        "\"},{\"primary-impu\":\"" + IMPU3 + "\",\"impi\":\"" + ASSOCIATED_IDENTITY1 +
                                                                        "\"},{\"primary-impu\":\"" + IMPU3 + "\",\"impi\":\"" + ASSOCIATED_IDENTITY2 + "\"}]}";
-const std::string HandlersTest::PUSH_PROFILE_BODY = "{\"associated-identities\":[\"" + IMPU + "\",\"" + IMPU4 + "\"]}";
 const std::string HandlersTest::SCHEME_DIGEST = "SIP Digest";
 const std::string HandlersTest::SCHEME_AKA = "Digest-AKAv1-MD5";
 const std::string HandlersTest::SCHEME_AKAV2 = "Digest-AKAv2-SHA-256";

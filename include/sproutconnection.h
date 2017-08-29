@@ -38,7 +38,6 @@ public:
 private:
   std::string create_body(const std::vector<std::string>& default_public_ids,
                           const std::vector<std::string>& impis);
-//  std::string change_ids_create_body(const std::vector<std::string>& impus);
 
   HttpConnection* _http;
 };

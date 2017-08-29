@@ -2561,12 +2561,11 @@ void PushProfileTask::update_reg_data()
     ret_code = _cfg->sprout_conn->change_associated_identities(_default_public_id,
 	       			 	   	               _ims_subscription,
 							       this->trail());
-    TRC_DEBUG("Informed Sprout");
     switch (ret_code)
     {
     case HTTP_OK:
     {
-      TRC_DEBUG("NOTIFY sent from Sprout");
+      TRC_DEBUG("Informed Sprout, return code %d", ret_code);
     }
     break;
 
@@ -2583,7 +2582,7 @@ void PushProfileTask::update_reg_data()
 
     default:
     {
-      TRC_ERROR("Unexpected HTTP return code, send Push Profile answer indicating failure");
+      TRC_ERROR("Unexpected HTTP return code from Sprout, send Push Profile answer indicating failure");
       send_ppa(DIAMETER_REQ_FAILURE);
       delete this;
       return;
