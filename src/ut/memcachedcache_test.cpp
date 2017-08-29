@@ -10,7 +10,6 @@
  */
 
 #include "memcached_cache.h"
-#include "fake_implicit_reg_set.h"
 #include "test_interposer.hpp"
 #include "test_utils.hpp"
 #include "localstore.h"
@@ -169,50 +168,6 @@ static const std::string SERVICE_PROFILE_3 =
 static const uint64_t CAS = 1L;
 static const uint64_t CAS_2 = 2L;
 
-
-class ControlTimeTest : public testing::Test
-{
-  static void SetUpTestCase()
-  {
-    cwtest_completely_control_time();
-  }
-
-  static void TearDownTestCase()
-  {
-    cwtest_reset_time();
-  }
-};
-
-class MemcachedImsSubscriptionTest : public testing::Test
-{
-};
-
-TEST_F(MemcachedImsSubscriptionTest, BasicIrsHandling)
-{
-  FakeImplicitRegistrationSet* irs = new FakeImplicitRegistrationSet(IMPU);
-  std::vector<ImplicitRegistrationSet*> irss = { irs };
-
-  MemcachedImsSubscription* mis = new MemcachedImsSubscription(irss);
-
-  EXPECT_NE(nullptr, mis->get_irs_for_default_impu(IMPU));
-  EXPECT_EQ(1, mis->get_irs().size());
-
-  delete mis;
-}
-
-TEST_F(MemcachedImsSubscriptionTest, SetChargingAddresses)
-{
-  FakeImplicitRegistrationSet* irs = new FakeImplicitRegistrationSet(IMPU);
-  std::vector<ImplicitRegistrationSet*> irss = { irs };
-
-  MemcachedImsSubscription* mis = new MemcachedImsSubscription(irss);
-
-  mis->set_charging_addrs(CHARGING_ADDRESSES);
-
-  EXPECT_EQ(CHARGING_ADDRESSES, irs->get_charging_addresses());
-
-  delete mis;
-}
 
 class MemcachedImplicitRegistrationSetTest : public ControlTimeTest
 {

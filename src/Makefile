@@ -63,6 +63,7 @@ homestead_SOURCES := ${COMMON_SOURCES} \
 homestead_test_SOURCES := ${COMMON_SOURCES} \
                           test_main.cpp \
                           test_interposer.cpp \
+                          base_ims_subscription_test.cpp \
                           cx_test.cpp \
                           diameter_handlers_test.cpp \
                           diameter_hss_connection_test.cpp \

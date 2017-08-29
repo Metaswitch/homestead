@@ -11,59 +11,13 @@
 #ifndef MEMCACHED_CACHE_H_
 #define MEMCACHED_CACHE_H_
 
+#include "base_ims_subscription.h"
 #include "hss_cache.h"
 #include "impu_store.h"
 
 #include <map>
 #include <string>
 #include <vector>
-
-class MemcachedImsSubscription : public ImsSubscription
-{
-public:
-  MemcachedImsSubscription(std::vector<ImplicitRegistrationSet*>& irss) :
-    ImsSubscription()
-  {
-    for (ImplicitRegistrationSet*& irs : irss)
-    {
-      _irss[irs->get_default_impu()] = irs;
-    }
-  }
-
-  virtual ~MemcachedImsSubscription()
-  {
-    for (std::pair<const std::string, ImplicitRegistrationSet*>& irs : _irss)
-    {
-      delete irs.second;
-    }
-  }
-
-  typedef std::map<std::string, ImplicitRegistrationSet*> Irs;
-
-  virtual void set_charging_addrs(const ChargingAddresses& new_addresses) override;
-
-  virtual ImplicitRegistrationSet* get_irs_for_default_impu(const std::string& impu) override
-  {
-    Irs::const_iterator it =  _irss.find(impu);
-
-    if (it == _irss.end())
-    {
-      return nullptr;
-    }
-    else
-    {
-      return it->second;
-    }
-  }
-
-  Irs& get_irs()
-  {
-    return _irss;
-  }
-
-private:
-  std::map<std::string, ImplicitRegistrationSet*> _irss;
-};
 
 class MemcachedImplicitRegistrationSet : public ImplicitRegistrationSet
 {

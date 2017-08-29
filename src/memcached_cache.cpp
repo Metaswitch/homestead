@@ -17,14 +17,6 @@
 #include "log.h"
 #include "utils.h"
 
-void MemcachedImsSubscription::set_charging_addrs(const ChargingAddresses& new_addresses)
-{
-  for (Irs::value_type& pair : _irss)
-  {
-    pair.second->set_charging_addresses(new_addresses);
-  }
-}
-
 ImpuStore::DefaultImpu* MemcachedImplicitRegistrationSet::create_impu(uint64_t cas,
                                                                       const ImpuStore* store)
 {
@@ -811,7 +803,7 @@ Store::Status MemcachedCache::get_ims_subscription(const std::string& impi,
 
     if (status == Store::Status::OK)
     {
-       result = new MemcachedImsSubscription(irs);
+       result = new BaseImsSubscription(irs);
     }
 
     delete mapping;
@@ -829,9 +821,9 @@ Store::Status MemcachedCache::put_ims_subscription(ImsSubscription* subscription
 {
   Store::Status status = Store::Status::OK;
 
-  MemcachedImsSubscription* mis = (MemcachedImsSubscription*)subscription;
+  BaseImsSubscription* mis = (BaseImsSubscription*)subscription;
 
-  for (MemcachedImsSubscription::Irs::value_type& irs : mis->get_irs())
+  for (BaseImsSubscription::Irs::value_type& irs : mis->get_irs())
   {
     put_implicit_registration_set(irs.second, trail);
   }

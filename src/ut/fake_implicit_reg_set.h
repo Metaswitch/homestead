@@ -12,6 +12,10 @@
 #ifndef FAKE_IMPLICIT_REG_SET_H__
 #define FAKE_IMPLICIT_REG_SET_H__
 
+#include <algorithm>
+#include <string>
+
+#include "charging_addresses.h"
 #include "implicit_reg_set.h"
 
 class FakeImplicitRegistrationSet : public ImplicitRegistrationSet
