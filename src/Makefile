@@ -7,6 +7,7 @@ COMMON_SOURCES := a_record_resolver.cpp \
                   alarm.cpp \
                   astaire_resolver.cpp \
                   base_communication_monitor.cpp \
+                  base_hss_cache.cpp \
                   baseresolver.cpp \
                   base64.cpp \
                   cassandra_connection_pool.cpp \

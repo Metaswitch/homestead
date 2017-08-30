@@ -262,6 +262,25 @@ ImpuStore::Impu* MemcachedCache::get_impu_for_impu_gr(const std::string& impu,
   return data;
 }
 
+Store::Status MemcachedCache::get_impus_for_impi(const std::string& impi,
+                                                 SAS::TrailId trail,
+                                                 std::vector<std::string>& impus)
+{
+  ImpuStore::ImpiMapping* mapping = get_impi_mapping_gr(impi, trail);
+
+  if (mapping != nullptr)
+  {
+    impus = mapping->get_default_impus();
+    delete mapping;
+
+    return Store::Status::OK;
+  }
+  else
+  {
+    return Store::Status::NOT_FOUND;
+  }
+}
+
 ImpuStore::ImpiMapping* MemcachedCache::get_impi_mapping_gr(const std::string& impi,
                                                            SAS::TrailId trail)
 {
@@ -339,35 +358,6 @@ Store::Status MemcachedCache::get_implicit_registration_set_for_impu(const std::
 
   return Store::Status::OK;
 }
-
-Store::Status MemcachedCache::get_implicit_registration_sets_for_impis(const std::vector<std::string>& impis,
-                                                                       SAS::TrailId trail,
-                                                                       std::vector<ImplicitRegistrationSet*>& result)
-{
-  for (const std::string& impi : impis)
-  {
-    ImpuStore::ImpiMapping* mapping = get_impi_mapping_gr(impi, trail);
-    get_implicit_registration_sets_for_impus(mapping->get_default_impus(), trail, result);
-    delete mapping;
-  }
-
-  return Store::Status::OK;
-}
-
-Store::Status MemcachedCache::get_implicit_registration_sets_for_impus(const std::vector<std::string>& impus,
-                                                                       SAS::TrailId trail,
-                                                                       std::vector<ImplicitRegistrationSet*>& result)
-{
-  for (const std::string& impu : impus)
-  {
-    ImplicitRegistrationSet* irs;
-    get_implicit_registration_set_for_impu(impu, trail, irs);
-    result.push_back(irs);
-  }
-
-  return Store::Status::OK;
-}
-
 
 Store::Status MemcachedCache::perform(MemcachedCache::irs_store_action action,
                                       MemcachedImplicitRegistrationSet* mirs,
@@ -768,24 +758,6 @@ Store::Status MemcachedCache::delete_implicit_registration_set(ImplicitRegistrat
   }
 
   return status;
-}
-
-Store::Status MemcachedCache::delete_implicit_registration_sets(const std::vector<ImplicitRegistrationSet*>& irss,
-                                                                SAS::TrailId trail)
-{
-  Store::Status status = Store::Status::OK;
-
-  for (ImplicitRegistrationSet* irs : irss)
-  {
-    status = delete_implicit_registration_set(irs, trail);
-
-    if (status != Store::Status::OK)
-    {
-      break;
-    }
-  }
-
-  return Store::Status::OK;
 }
 
 Store::Status MemcachedCache::get_ims_subscription(const std::string& impi,

@@ -11,6 +11,7 @@
 #ifndef MEMCACHED_CACHE_H_
 #define MEMCACHED_CACHE_H_
 
+#include "base_hss_cache.h"
 #include "base_ims_subscription.h"
 #include "hss_cache.h"
 #include "impu_store.h"
@@ -286,12 +287,12 @@ public:
 
 };
 
-class MemcachedCache : public HssCache
+class MemcachedCache : public BaseHssCache
 {
 public:
   MemcachedCache(ImpuStore* local_store,
                  const std::vector<ImpuStore*>& remote_stores) :
-    HssCache(),
+    BaseHssCache(),
     _local_store(local_store),
     _remote_stores(remote_stores)
   {
@@ -312,18 +313,6 @@ public:
                                                                SAS::TrailId trail,
                                                                ImplicitRegistrationSet*& result);
 
-  // Get the list of IRSs for the given list of impus
-  // Used for RTR when we have a list of impus
-  virtual Store::Status get_implicit_registration_sets_for_impis(const std::vector<std::string>& impis,
-                                                                 SAS::TrailId trail,
-                                                                 std::vector<ImplicitRegistrationSet*>& result);
-
-  // Get the list of IRSs for the given list of imps
-  // Used for RTR when we have a list of impis
-  virtual Store::Status get_implicit_registration_sets_for_impus(const std::vector<std::string>& impus,
-                                                                 SAS::TrailId trail,
-                                                                 std::vector<ImplicitRegistrationSet*>& result);
-
   // Save the IRS in the cache
   // Must include updating the impi mapping table if impis have been added
   virtual Store::Status put_implicit_registration_set(ImplicitRegistrationSet* irs,
@@ -332,11 +321,6 @@ public:
   // Used for de-registration
   virtual Store::Status delete_implicit_registration_set(ImplicitRegistrationSet* irs,
                                                          SAS::TrailId trail);
-
-  // Deletes several registration sets
-  // Used for an RTR when we have several registration sets to delete
-  virtual Store::Status delete_implicit_registration_sets(const std::vector<ImplicitRegistrationSet*>& irss,
-                                                          SAS::TrailId trail);
 
   // Gets the whole IMS subscription for this impi
   // This is used when we get a PPR, and we have to update charging functions
@@ -348,6 +332,13 @@ public:
   // This is used to save the state that we changed in the PPR
   virtual Store::Status put_ims_subscription(ImsSubscription* subscription,
                                              SAS::TrailId trail);
+
+protected:
+  // Base HSS Cache methods
+  virtual Store::Status get_impus_for_impi(const std::string& impi,
+                                           SAS::TrailId trail,
+                                           std::vector<std::string>& impus);
+
 private:
   ImpuStore* _local_store;
   std::vector<ImpuStore*> _remote_stores;

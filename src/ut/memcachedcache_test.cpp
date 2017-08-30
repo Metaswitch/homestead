@@ -723,6 +723,22 @@ TEST_F(MemcachedCacheTest, GetIrsForImpis)
   }
 }
 
+TEST_F(MemcachedCacheTest, GetIrsForImpisNotFound)
+{
+  std::vector<ImplicitRegistrationSet*> irss;
+
+  Store::Status status =
+    _memcached_cache->get_implicit_registration_sets_for_impis({IMPI},
+                                                               0L,
+                                                               irss);
+
+
+  // We asked for IMPIs, rather than a singular IMPI, so we expect
+  // to get back OK, with a zero size, rather than NOT_FOUND.
+  EXPECT_EQ(Store::Status::OK, status);
+  EXPECT_EQ(0, irss.size());
+}
+
 TEST_F(MemcachedCacheTest, GetIrsForImpuLocalStore)
 {
   ImpuStore::DefaultImpu* di =
@@ -1253,7 +1269,7 @@ TEST_F(MemcachedCacheTest, DeleteIrsAddedLocalStoreFail)
 
   _lls->force_delete_error();
 
-  EXPECT_EQ(Store::Status::OK,
+  EXPECT_EQ(Store::Status::ERROR,
             _memcached_cache->delete_implicit_registration_sets(irss, 0L));
 
   delete irs;
