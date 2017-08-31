@@ -98,8 +98,8 @@ std::string SproutConnection::rtr_create_body(const std::vector<std::string>& de
 }
 
 HTTPCode SproutConnection::change_associated_identities(const std::string& default_id,
-							const std::string& user_data,
-							SAS::TrailId trail)
+                                                        const std::string& user_data,
+                                                        SAS::TrailId trail)
 {
   std::string path = "/registrations/" + default_id;
   std::string body = ppr_create_body(user_data);

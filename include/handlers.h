@@ -591,7 +591,7 @@ public:
   {
     Config(Cache* _cache,
            Cx::Dictionary* _dict,
-	   SproutConnection* _sprout_conn,
+           SproutConnection* _sprout_conn,
            int _impu_cache_ttl = 0,
            int _hss_reregistration_time = 3600,
            int _record_ttl = 7200) :

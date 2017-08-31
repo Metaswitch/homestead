@@ -2556,8 +2556,8 @@ void PushProfileTask::update_reg_data()
     find_impus_to_delete();
 
     rc = _cfg->sprout_conn->change_associated_identities(_default_public_id,
-	       			 	   	               _ims_subscription,
-							       this->trail());
+                                                         _ims_subscription,
+                                                         this->trail());
 
     if (rc == HTTP_OK)
     {
@@ -2701,7 +2701,7 @@ void PushProfileTask::delete_impus()
 {
   CassandraStore::Operation* delete_IMPU =
     _cfg->cache->create_DeleteIMPUs(_impus_to_delete,
-			       Cache::generate_timestamp());
+                                    Cache::generate_timestamp());
   CassandraStore::Transaction* tsx = new CacheTransaction;
   _cfg->cache->do_async(delete_IMPU, tsx);
 }

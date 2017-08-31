@@ -1470,17 +1470,17 @@ public:
 
   // PPR function templates
   void ppr_setup(PushProfileTask** ptask,
-		 PushProfileTask::Config** pcfg,
+                 PushProfileTask::Config** pcfg,
                  std::string impi,
                  std::string ims_subscription,
                  ChargingAddresses charging_addresses)
   {
     Cx::PushProfileRequest ppr(_cx_dict,
                                 _mock_stack,
-		                impi,
+                                impi,
                                 ims_subscription,
-              			charging_addresses,
-                   		AUTH_SESSION_STATE);
+                                charging_addresses,
+                                AUTH_SESSION_STATE);
 
     // The free_on_delete flag controls whether we want to free the underlying
     // fd_msg structure when we delete this PPR. We don't, since this will be
@@ -1520,8 +1520,8 @@ public:
   }
 
   void ppr_get_reg_data(MockCache::MockGetRegData* mock_op,
-			std::string ims_subscription,
-			RegistrationState reg_state,
+                        std::string ims_subscription,
+                        RegistrationState reg_state,
                         ChargingAddresses charging_addresses,
                         std::vector<std::string> impis)
   {
@@ -1538,11 +1538,11 @@ public:
   }
 
   void ppr_put_reg_data(std::vector<std::string> impus,
-			std::string default_impu,
+                        std::string default_impu,
                         MockCache::MockPutRegData* mock_op,
-			std::string ims_subscription,
-		        ChargingAddresses charging_addresses,
-			RegistrationState reg_state = RegistrationState::UNCHANGED)
+                        std::string ims_subscription,
+                        ChargingAddresses charging_addresses,
+                        RegistrationState reg_state = RegistrationState::UNCHANGED)
   {
     // Put reg data against list of impus in reg set impus, with default
     // identity default_impu. Put ims_subscription, charging_addresses and
@@ -4742,44 +4742,6 @@ TEST_F(HandlersTest, PushProfileChangeIDsServerError)
   ppr_send_ppa(DIAMETER_UNABLE_TO_COMPLY);
   ppr_tear_down(pcfg);
 }
-
-TEST_F(HandlersTest, PushProfileUnexpectedReturnCode)
-{
-  PushProfileTask* task = NULL;
-  PushProfileTask::Config* pcfg = NULL;
-  ppr_setup(&task, &pcfg, IMPI, IMPU_IMS_SUBSCRIPTION, FULL_CHARGING_ADDRESSES);
-
-  MockCache::MockGetAssociatedPrimaryPublicIDs mock_op;
-  ppr_expect_get_default_ids(&mock_op, IMPI);
-
-  task->run();
-
-  CassandraStore::Transaction* t = mock_op.get_trx();
-  ASSERT_FALSE(t == NULL);
-  ppr_get_default_ids(&mock_op, IMPU_IN_VECTOR);
-  ppr_sprout_connection(IMPU, IMPU_IMS_SUBSCRIPTION, 300);
-
-  MockCache::MockGetRegData mock_op2;
-  ppr_expect_get_reg_data(&mock_op2, IMPU);
-
-  t->on_success(&mock_op);
-  t = mock_op2.get_trx();
-  ASSERT_FALSE(t == NULL);
-
-  ppr_get_reg_data(&mock_op2,
-                   IMPU_IMS_SUBSCRIPTION2,
-                   RegistrationState::REGISTERED,
-                   FULL_CHARGING_ADDRESSES,
-                   IMPI_IN_VECTOR);
-
-  ppr_expect_ppa();
-
-  t->on_success(&mock_op2);
-
-  ppr_send_ppa(DIAMETER_UNABLE_TO_COMPLY);
-  ppr_tear_down(pcfg);
-}
-
 
 // This PPR has a charging address but no IMS Sub. There is one IRS.
 // The update is successful.

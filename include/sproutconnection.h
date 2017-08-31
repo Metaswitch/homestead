@@ -25,8 +25,8 @@ public:
                                        const std::vector<std::string>& impis,
                                        SAS::TrailId trail);
   virtual HTTPCode change_associated_identities(const std::string& default_id,
-						const std::string& user_data_xml,
-						SAS::TrailId trail);
+                                                const std::string& user_data_xml,
+                                                SAS::TrailId trail);
 
 
   // JSON string constants
