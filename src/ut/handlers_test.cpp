@@ -1577,10 +1577,12 @@ public:
     EXPECT_DO_ASYNC(*_cache, *mock_op);
   }
 
-  void ppr_sprout_connection(std::string impu, std::string body, HTTPCode http_ret_code)
+  void ppr_sprout_connection(std::string impu, std::string user_data, HTTPCode http_ret_code)
   {
     // Expect a PUT to be sent to Sprout.
     std::string http_path = "/registrations/" + impu;
+    std::string body =_sprout_conn->ppr_create_body(user_data);
+
     EXPECT_CALL(*_mock_http_conn, send_put(http_path, body, _))
       .Times(1)
       .WillOnce(Return(http_ret_code));

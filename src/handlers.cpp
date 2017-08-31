@@ -2545,8 +2545,6 @@ void PushProfileTask::on_get_irs_failure(CassandraStore::Operation* op,
 
 void PushProfileTask::update_reg_data()
 {
-  TRC_DEBUG("PPR is valid");
-  HTTPCode ret_code = 0;
   if (!_ims_sub_present || !is_first_irs())
   {
     _impus = _irs_impus;
@@ -2554,40 +2552,23 @@ void PushProfileTask::update_reg_data()
 
   if (_ims_sub_present && is_first_irs())
   {
+    HTTPCode rc = HTTP_OK;
     find_impus_to_delete();
 
-    TRC_DEBUG("Going to inform sprout of user data");
-
-    ret_code = _cfg->sprout_conn->change_associated_identities(_default_public_id,
+    rc = _cfg->sprout_conn->change_associated_identities(_default_public_id,
 	       			 	   	               _ims_subscription,
 							       this->trail());
-    switch (ret_code)
-    {
-    case HTTP_OK:
-    {
-      TRC_DEBUG("Informed Sprout, return code %d", ret_code);
-    }
-    break;
 
-    case HTTP_BADMETHOD:
-    case HTTP_BAD_REQUEST:
-    case HTTP_SERVER_ERROR:
+    if (rc == HTTP_OK)
     {
-      TRC_DEBUG("Sprout return Code %d, Send Push Profile answer indicating failure", ret_code);
+      TRC_DEBUG("Informed Sprout, return code %d", rc);
+    }
+    else
+    {
+      TRC_DEBUG("Sprout return Code %d, Send Push Profile answer indicating failure", rc);
       send_ppa(DIAMETER_REQ_FAILURE);
       delete this;
       return;
-    }
-    break;
-
-    default:
-    {
-      TRC_ERROR("Unexpected HTTP return code from Sprout, send Push Profile answer indicating failure");
-      send_ppa(DIAMETER_REQ_FAILURE);
-      delete this;
-      return;
-    }
-    break;
     }
   }
 

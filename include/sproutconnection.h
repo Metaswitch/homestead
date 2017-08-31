@@ -33,12 +33,12 @@ public:
   static const std::string JSON_REGISTRATIONS;
   static const std::string JSON_PRIMARY_IMPU;
   static const std::string JSON_IMPI;
-  static const std::string JSON_ASSOCIATED_IDENTITIES;
+  static const std::string JSON_USER_DATA_XML;
 
 private:
-  std::string create_body(const std::vector<std::string>& default_public_ids,
-                          const std::vector<std::string>& impis);
-
+  std::string rtr_create_body(const std::vector<std::string>& default_public_ids,
+                              const std::vector<std::string>& impis);
+  std::string ppr_create_body(const std::string& user_data);
   HttpConnection* _http;
 };
 #endif
