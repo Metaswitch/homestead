@@ -1,5 +1,5 @@
 /**
- * @file sproutconnection.h 
+ * @file sproutconnection.h
  *
  * Copyright (C) Metaswitch Networks 2014
  * If license terms are provided to you in a COPYING file in the root directory
@@ -24,16 +24,21 @@ public:
                                        const std::vector<std::string>& default_public_ids,
                                        const std::vector<std::string>& impis,
                                        SAS::TrailId trail);
+  virtual HTTPCode change_associated_identities(const std::string& default_id,
+                                                const std::string& user_data_xml,
+                                                SAS::TrailId trail);
+
 
   // JSON string constants
   static const std::string JSON_REGISTRATIONS;
   static const std::string JSON_PRIMARY_IMPU;
   static const std::string JSON_IMPI;
- 
-private:
-  std::string create_body(const std::vector<std::string>& default_public_ids,
-                          const std::vector<std::string>& impis);
+  static const std::string JSON_USER_DATA_XML;
 
+private:
+  std::string rtr_create_body(const std::vector<std::string>& default_public_ids,
+                              const std::vector<std::string>& impis);
+  std::string ppr_create_body(const std::string& user_data);
   HttpConnection* _http;
 };
 #endif
