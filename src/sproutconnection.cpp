@@ -104,7 +104,6 @@ HTTPCode SproutConnection::change_associated_identities(const std::string& defau
   std::string path = "/registrations/" + default_id;
   std::string body = ppr_create_body(user_data);
   HTTPCode ret_code = _http->send_put(path, body, trail);
-  TRC_DEBUG("HTTP return code from Sprout: %d", ret_code);
   return ret_code;
 }
 
@@ -121,5 +120,6 @@ std::string SproutConnection::ppr_create_body(const std::string& user_data)
     writer.String(user_data.c_str());
   }
   writer.EndObject();
+
   return sb.GetString();
 }

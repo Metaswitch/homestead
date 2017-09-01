@@ -2559,13 +2559,9 @@ void PushProfileTask::update_reg_data()
                                                          _ims_subscription,
                                                          this->trail());
 
-    if (rc == HTTP_OK)
+    if (rc != HTTP_OK)
     {
-      TRC_DEBUG("Informed Sprout, return code %d", rc);
-    }
-    else
-    {
-      TRC_DEBUG("Sprout return Code %d, Send Push Profile answer indicating failure", rc);
+      TRC_DEBUG("Failed to update Sprout (return code: %d), sending negative PPA", rc);
       send_ppa(DIAMETER_REQ_FAILURE);
       delete this;
       return;
