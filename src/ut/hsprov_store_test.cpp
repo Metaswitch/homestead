@@ -142,7 +142,7 @@ public:
   AddrInfo create_target(std::string address)
   {
     AddrInfo ai;
-    BaseResolver::parse_ip_target(address, ai.address);
+    Utils::parse_ip_target(address, ai.address);
     ai.port = 1;
     ai.transport = IPPROTO_TCP;
     return ai;
