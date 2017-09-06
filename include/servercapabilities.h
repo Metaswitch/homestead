@@ -25,6 +25,7 @@ const std::string JSON_OPT_CAP = "optional-capabilities";
 
 struct ServerCapabilities
 {
+  inline ServerCapabilities() {}
   inline ServerCapabilities(std::vector<int32_t> man_caps,
                             std::vector<int32_t> opt_caps,
                             std::string server_name)

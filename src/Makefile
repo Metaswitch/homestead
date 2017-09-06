@@ -1,35 +1,46 @@
 TARGETS := homestead
 TEST_TARGETS := homestead_test
 
-COMMON_SOURCES := accesslogger.cpp \
+COMMON_SOURCES := a_record_resolver.cpp \
+                  accesslogger.cpp \
                   accumulator.cpp \
                   alarm.cpp \
+                  astaire_resolver.cpp \
                   base_communication_monitor.cpp \
+                  base_hss_cache.cpp \
                   baseresolver.cpp \
                   base64.cpp \
-                  cache.cpp \
                   cassandra_connection_pool.cpp \
                   cassandra_store.cpp \
                   communicationmonitor.cpp \
                   counter.cpp \
                   cx.cpp \
+                  diameter_handlers.cpp \
+                  diameter_hss_connection.cpp \
                   diameterstack.cpp \
                   diameterresolver.cpp \
                   dnscachedresolver.cpp \
                   dnsparser.cpp \
                   exception_handler.cpp \
-                  handlers.cpp \
+                  http_handlers.cpp \
                   health_checker.cpp \
                   homestead_xml_utils.cpp \
+                  hsprov_hss_connection.cpp \
+                  hsprov_store.cpp \
+                  hss_cache_processor.cpp \
+                  hss_connection.cpp \
                   http_connection_pool.cpp \
                   httpclient.cpp \
                   httpconnection.cpp \
-                  a_record_resolver.cpp \
                   httpstack.cpp \
                   httpstack_utils.cpp \
+                  impu_store.cpp \
                   load_monitor.cpp \
                   logger.cpp \
                   log.cpp \
+                  memcachedstore.cpp \
+                  memcached_cache.cpp \
+                  memcached_connection_pool.cpp \
                   namespace_hop.cpp \
                   realmmanager.cpp \
                   saslogger.cpp \
@@ -47,18 +58,25 @@ homestead_SOURCES := ${COMMON_SOURCES} \
                      main.cpp \
                      snmp_counter_table.cpp \
                      snmp_event_accumulator_table.cpp \
-		     event_statistic_accumulator.cpp \
+                     event_statistic_accumulator.cpp \
                      snmp_cx_counter_table.cpp
 
 homestead_test_SOURCES := ${COMMON_SOURCES} \
                           test_main.cpp \
                           test_interposer.cpp \
+                          base_ims_subscription_test.cpp \
                           cx_test.cpp \
-                          cache_test.cpp \
-                          handlers_test.cpp \
-                          homestead_xml_utils_test.cpp \
+                          diameter_handlers_test.cpp \
+                          diameter_hss_connection_test.cpp \
                           fakelogger.cpp \
                           fakesnmp.cpp \
+                          http_handlers_test.cpp \
+                          homestead_xml_utils_test.cpp \
+                          hsprov_hss_connection_test.cpp \
+                          hsprov_store_test.cpp \
+                          impu_store_test.cpp \
+                          localstore.cpp \
+                          memcachedcache_test.cpp \
                           mockfreediameter.cpp \
                           mock_sas.cpp \
                           chargingaddresses_test.cpp \
@@ -74,7 +92,10 @@ COMMON_CPPFLAGS := -I../include \
 homestead_CPPFLAGS := ${COMMON_CPPFLAGS}
 homestead_test_CPPFLAGS := ${COMMON_CPPFLAGS} -DGTEST_USE_OWN_TR1_TUPLE=0
 
+# We need SAS in the test build as we use it's implementation of lz4
 COMMON_LDFLAGS := -L../usr/lib \
+                  -lmemcached \
+                  -lmemcachedutil \
                   -lthrift \
                   -lcassandra \
                   -lzmq \
@@ -89,11 +110,12 @@ COMMON_LDFLAGS := -L../usr/lib \
                   -lpthread \
                   -lcurl \
                   -lc \
+                  -lsas \
+                  -lz \
                   -lboost_filesystem \
                   $(shell net-snmp-config --netsnmp-agent-libs)
 
-# Only use the real SAS library in the production build.
-homestead_LDFLAGS := ${COMMON_LDFLAGS} -lsas -lz
+homestead_LDFLAGS := ${COMMON_LDFLAGS}
 
 # Test build also uses libcurl (to verify HttpStack operation)
 homestead_test_LDFLAGS := ${COMMON_LDFLAGS} -lcurl -ldl

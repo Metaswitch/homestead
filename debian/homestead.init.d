@@ -78,7 +78,8 @@ get_settings()
         hss_reregistration_time=1800
         reg_max_expires=300
         log_level=2
-        num_http_threads=$(($(grep processor /proc/cpuinfo | wc -l) * 50))
+        num_http_threads=$(($(grep processor /proc/cpuinfo | wc -l) * 4))
+        homestead_cache_threads=$(($(grep processor /proc/cpuinfo | wc -l) * 50))
 
         hss_mar_scheme_unknown="Unknown"
         hss_mar_scheme_digest="SIP Digest"
@@ -135,6 +136,8 @@ get_daemon_args()
         [ -z "$min_token_rate" ] || min_token_rate_arg="--min-token-rate=$min_token_rate"
         [ -z "$exception_max_ttl" ] || exception_max_ttl_arg="--exception-max-ttl=$exception_max_ttl"
         [ -z "$cassandra_hostname" ] || cassandra_arg="--cassandra=$cassandra_hostname"
+        [ -z "$local_site_name" ] || local_site_name_arg="--local-site-name=$local_site_name"
+        [ -z "$homestead_impu_store" ] || impu_store_arg="--impu-store=$homestead_impu_store"
 
         DAEMON_ARGS="--localhost=$local_ip
                      --home-domain=$home_domain
@@ -142,6 +145,7 @@ get_daemon_args()
                      --dns-server=$signaling_dns_server
                      --http=$local_ip
                      --http-threads=$num_http_threads
+                     --cache-threads=$homestead_cache_threads
                      $cassandra_arg
                      $dest_realm
                      --dest-host=$hss_hostname
@@ -164,6 +168,8 @@ get_daemon_args()
                      $exception_max_ttl_arg
                      $sas_signaling_if_arg
                      $request_shared_ifcs_arg
+                     $impu_store_arg
+                     $local_site_name_arg
                      --access-log=$log_directory
                      --log-file=$log_directory
                      --log-level=$log_level
@@ -172,6 +178,7 @@ get_daemon_args()
         [ "$http_blacklist_duration" = "" ]     || DAEMON_ARGS="$DAEMON_ARGS --http-blacklist-duration=$http_blacklist_duration"
         [ "$diameter_blacklist_duration" = "" ] || DAEMON_ARGS="$DAEMON_ARGS --diameter-blacklist-duration=$diameter_blacklist_duration"
         [ "$dns_timeout" = "" ]                 || DAEMON_ARGS="$DAEMON_ARGS --dns-timeout=$dns_timeout"
+        [ "$astaire_blacklist_duration" = "" ]  || DAEMON_ARGS="$DAEMON_ARGS --astaire-blacklist-duration=$astaire_blacklist_duration"
 }
 
 #

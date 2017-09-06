@@ -17,8 +17,8 @@ StatisticsManager::StatisticsManager()
                                                 ".1.2.826.0.1.1578918.9.5.1");
   H_hss_latency_us = SNMP::EventAccumulatorTable::create("H_hss_latency_us",
                                                     ".1.2.826.0.1.1578918.9.5.2");
-  H_cache_latency_us = SNMP::EventAccumulatorTable::create("H_cache_latency_us",
-                                                      ".1.2.826.0.1.1578918.9.5.3");
+  H_hsprov_latency_us = SNMP::EventAccumulatorTable::create("H_hsprov_latency_us",
+                                                       ".1.2.826.0.1.1578918.9.5.3");
   H_hss_digest_latency_us = SNMP::EventAccumulatorTable::create("H_hss_digest_latency_us",
                                                            ".1.2.826.0.1.1578918.9.5.4");
   H_hss_subscription_latency_us = SNMP::EventAccumulatorTable::create("H_hss_subscription_latency_us",
@@ -33,7 +33,7 @@ StatisticsManager::~StatisticsManager()
 {
   delete H_latency_us; H_latency_us = NULL;
   delete H_hss_latency_us; H_hss_latency_us = NULL;
-  delete H_cache_latency_us; H_cache_latency_us = NULL;
+  delete H_hsprov_latency_us; H_hsprov_latency_us = NULL;
   delete H_hss_digest_latency_us; H_hss_digest_latency_us = NULL;
   delete H_hss_subscription_latency_us; H_hss_subscription_latency_us = NULL;
   delete H_incoming_requests; H_incoming_requests = NULL;

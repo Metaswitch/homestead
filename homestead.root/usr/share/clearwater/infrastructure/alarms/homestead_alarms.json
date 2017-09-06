@@ -68,6 +68,52 @@
                   "action": "Investigate the issue that is preventing the local Homestead process from contacting the HSS. The Homestead process will periodically attempt to reconnect and this alarm will clear once connectivity has been restored. If you cannot determine the issue or the alarm fails to clear then contact your support representative."
                 }
             ]
+        },
+        {
+            "index": 1503,
+            "cause": "UNDERLYING_RESOURCE_UNAVAILABLE",
+            "name": "HOMESTEAD_ASTAIRE_COMM_ERROR",
+            "levels": [
+                {
+                    "severity": "CLEARED",
+                    "details": "Communication between the local Homestead process and the Astaire service has been restored.",
+                    "description": "Homestead: Astaire communication error cleared.",
+                    "cause": "Communication between the local Homestead process and the Astaire service has been restored.",
+                    "effect": "The local Homestead process can successfully contact the Astaire service.",
+                    "action": "No action."
+                },
+                {
+                    "severity": "CRITICAL",
+                    "details": "The local Homestead process is unable to contact the Astaire service.",
+                    "description": "Homestead: Astaire communication error.",
+                    "cause": "The local Homestead process is unable to contact any Astaire processes. The likely cause depends on whether this is affecting all Homestead instances or just a subset. If the issue impacts just a subset of Homestead instances then it is likely to be due to a partial network outage or configuration issues on just those nodes. If it impacts all Homestead instances then it is likely to be due to a misconfiguration of the Homestead registration store in shared configuration, misconfiguration of the Astaire cluster DNS record, a significant network outage, or because all Astaire instances are currently failed.",
+                    "effect": "This is broadly equivalent to the local Homestead having failed. If only a small percentage of Homestead processes are failed simultaneously then in a typical deployment there will be no significant impact. However multiple simultaneous failures will result in an increasingly significant reduction in SIP processing capacity and will eventually result in service impacts. If all Homestead instances are failed then all future SIP registrations and call attemps will fail until such time as one or more Homestead instances recover.",
+                    "action": "Investigate the issue that is preventing the local Homestead process from contacting the Astaire service. The Homestead process will periodically attempt to reconnect and this alarm will clear once connectivity has been restored. If you cannot determine the issue or the alarm fails to clear then contact your support representative."
+                }
+            ]
+        },
+        {
+            "index": 1504,
+            "cause": "UNDERLYING_RESOURCE_UNAVAILABLE",
+            "name": "HOMESTEAD_REMOTE_ASTAIRE_COMM_ERROR",
+            "levels": [
+                {
+                    "severity": "CLEARED",
+                    "details": "The local Homestead process is able to successfully communicate with one or more Astaire processes in remote sites.",
+                    "description": "Homestead: Remote Astaire communication error cleared.",
+                    "cause": "The local Homestead process is able to successfully communicate with one or more remote Astaire instances.",
+                    "effect": "The local Homestead process can successfully contact the remote Astaire service.",
+                    "action": "No action."
+                },
+                {
+                    "severity": "CRITICAL",
+                    "details": "The local Homestead process is unable to contact any Astaire instances in remote sites.",
+                    "description": "Homestead: Remote Astaire communication error.",
+                    "cause": "The local Homestead process is unable to contact any Astaire processes in remote sites. The likely cause depends on whether this is affecting all Homestead instances or just a subset. If the issue impacts just a subset of Homestead instances then it is likely to be due to a partial network outage or configuration issues on just those nodes. If it impacts all Homestead instances then it is likely to be due to a misconfiguration of the remote Homestead registration store in shared configuration, misconfiguration of the Astaire cluster DNS record, a significant network outage, or because all remote Astaire instances are currently failed.",
+                    "effect": "The deployment is no longer geographically redundant because the S-CSCF cannot synchronize registration data to remote sites. If subscribers switch to other geographic sites they may have to re-register before becoming operational.",
+                    "action": "Investigate the issue that is preventing the local Homestead process from contacting Astaire processes in remote sites. The Homestead process will periodically attempt to reconnect and this alarm will clear once connectivity has been restored. If you cannot determine the issue or the alarm fails to clear then contact your support representative."
+                }
+            ]
         }
     ]
 }
