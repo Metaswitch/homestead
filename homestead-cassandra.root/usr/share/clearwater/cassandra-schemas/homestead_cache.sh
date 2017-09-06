@@ -28,37 +28,33 @@ done
 
 CQLSH="/usr/share/clearwater/bin/run-in-signaling-namespace cqlsh"
 
+rc=0
+
 if [[ ! -e /var/lib/cassandra/data/homestead_cache ]] || \
    [[ $cassandra_hostname != "127.0.0.1" ]];
 then
-  # replication_str is set up by
-  # /usr/share/clearwater/cassandra-schemas/replication_string.sh
-  echo "CREATE KEYSPACE IF NOT EXISTS homestead_cache WITH REPLICATION =  $replication_str;
-        USE homestead_cache;
-        CREATE TABLE IF NOT EXISTS impi (
-          private_id text PRIMARY KEY,
-          digest_ha1 text,
-          digest_realm text,
-          digest_qop text)
-        WITH COMPACT STORAGE AND read_repair_chance = 1.0;
-        CREATE TABLE IF NOT EXISTS impu (
-          public_id text PRIMARY KEY,
-          ims_subscription_xml text,
-          is_registered boolean,
-          primary_ccf text,
-          secondary_ccf text,
-          primary_ecf text,
-          secondary_ecf text)
-          WITH COMPACT STORAGE AND read_repair_chance = 1.0;
-        CREATE TABLE IF NOT EXISTS impi_mapping (
-          private_id text PRIMARY KEY,
-          unused text)
-          WITH COMPACT STORAGE AND read_repair_chance = 1.0;" | $CQLSH
+  $CQLSH -e "CREATE KEYSPACE IF NOT EXISTS homestead_cache WITH REPLICATION =  $replication_str;
+             USE homestead_cache;
+             CREATE TABLE IF NOT EXISTS impi (
+               private_id text PRIMARY KEY,
+               digest_ha1 text,
+               digest_realm text,
+               digest_qop text)
+             WITH COMPACT STORAGE AND read_repair_chance = 1.0;
+             CREATE TABLE IF NOT EXISTS impu (
+               public_id text PRIMARY KEY,
+               ims_subscription_xml text,
+               is_registered boolean,
+               primary_ccf text,
+               secondary_ccf text,
+               primary_ecf text,
+               secondary_ecf text)
+               WITH COMPACT STORAGE AND read_repair_chance = 1.0;
+             CREATE TABLE IF NOT EXISTS impi_mapping (
+               private_id text PRIMARY KEY,
+               unused text)
+               WITH COMPACT STORAGE AND read_repair_chance = 1.0;"
+  rc=$?
 fi
 
-# Temporarily (while using 2.1.15) disable retrying at a configurable level
-# for the cache.
-echo "USE homestead_cache;
-      ALTER TABLE impu WITH speculative_retry = '99.0PERCENTILE';
-      ALTER TABLE impi_mapping WITH speculative_retry = '99.0PERCENTILE';
-      ALTER TABLE impi WITH speculative_retry = '99.0PERCENTILE';" | $CQLSH
+exit $rc

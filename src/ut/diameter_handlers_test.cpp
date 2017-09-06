@@ -288,7 +288,7 @@ public:
 
   // PPR function templates
   void ppr_setup(PushProfileTask** ptask,
-		 PushProfileTask::Config** pcfg,
+                 PushProfileTask::Config** pcfg,
                  std::string impi,
                  std::string ims_subscription,
                  ChargingAddresses charging_addresses)
@@ -306,12 +306,23 @@ public:
     // then the request will be freed twice.
     ppr._free_on_delete = false;
 
-    *pcfg = new PushProfileTask::Config(_cache, _cx_dict);
+    *pcfg = new PushProfileTask::Config(_cache, _cx_dict, _sprout_conn);
     *ptask = new PushProfileTask(_cx_dict, &ppr._fd_msg, *pcfg, FAKE_TRAIL_ID);
 
     // We have to make sure the message is pointing at the mock stack.
     (*ptask)->_msg._stack = _mock_stack;
     (*ptask)->_ppr._stack = _mock_stack;
+  }
+
+  void ppr_sprout_connection(std::string impu, std::string user_data, HTTPCode http_ret_code)
+  {
+    // Expect a PUT to be sent to Sprout.
+    std::string http_path = "/registrations/" + impu;
+    std::string body =_sprout_conn->ppr_create_body(user_data);
+
+    EXPECT_CALL(*_mock_http_conn, send_put(http_path, body, _))
+      .Times(1)
+      .WillOnce(Return(http_ret_code));
   }
 
   void ppr_expect_ppa()
@@ -724,6 +735,9 @@ TEST_F(DiameterHandlersTest, PPRMainline)
   EXPECT_CALL(*_cache, put_ims_subscription(_, _, sub, FAKE_TRAIL_ID))
     .WillOnce(InvokeArgument<0>());
 
+  // And notify Sprout
+  ppr_sprout_connection(IMPU, IMS_SUBSCRIPTION, HTTP_OK);
+
   ppr_expect_ppa();
 
   task->run();
@@ -766,6 +780,9 @@ TEST_F(DiameterHandlersTest, PPRChangeIDs)
   EXPECT_CALL(*sub, set_charging_addrs(AllOf(Field(&ChargingAddresses::ecfs, FULL_CHARGING_ADDRESSES.ecfs),
                                              Field(&ChargingAddresses::ccfs, FULL_CHARGING_ADDRESSES.ccfs))))
     .Times(1);
+
+  // And notify Sprout
+  ppr_sprout_connection(IMPU, IMPU_IMS_SUBSCRIPTION, HTTP_OK);
 
   // We'll then save the ImsSubscription in the cache
   EXPECT_CALL(*_cache, put_ims_subscription(_, _, sub, FAKE_TRAIL_ID))
@@ -841,6 +858,9 @@ TEST_F(DiameterHandlersTest, PPRImsSub)
   // Expect that we'll request the IRS for the default IMPU from the ImsSubscription
   EXPECT_CALL(*sub, get_irs_for_default_impu(IMPU)).WillOnce(Return(irs));
 
+  // And notify Sprout
+  ppr_sprout_connection(IMPU, IMS_SUBSCRIPTION, HTTP_OK);
+
   // We'll then save the ImsSubscription in the cache
   EXPECT_CALL(*_cache, put_ims_subscription(_, _, sub, FAKE_TRAIL_ID))
     .WillOnce(InvokeArgument<0>());
@@ -884,6 +904,9 @@ TEST_F(DiameterHandlersTest, PPRIMSSubNoSIPURI)
   // Expect that we'll request the IRS for the default IMPU from the ImsSubscription
   EXPECT_CALL(*sub, get_irs_for_default_impu(TEL_URI)).WillOnce(Return(irs));
 
+  // And notify Sprout
+  ppr_sprout_connection(TEL_URI, TEL_URIS_IMS_SUBSCRIPTION, HTTP_OK);
+
   // We'll then save the ImsSubscription in the cache
   EXPECT_CALL(*_cache, put_ims_subscription(_, _, sub, FAKE_TRAIL_ID))
     .WillOnce(InvokeArgument<0>());
@@ -926,6 +949,9 @@ TEST_F(DiameterHandlersTest, PPRCacheFailure)
 
   // Expect that we'll request the IRS for the default IMPU from the ImsSubscription
   EXPECT_CALL(*sub, get_irs_for_default_impu(IMPU)).WillOnce(Return(irs));
+
+  // Expect we'll tell Sprout that the IRS has changed
+  ppr_sprout_connection(IMPU, IMS_SUBSCRIPTION, HTTP_OK);
 
   // We'll then save the ImsSubscription in the cache, which will give an error
   EXPECT_CALL(*_cache, put_ims_subscription(_, _, sub, FAKE_TRAIL_ID))

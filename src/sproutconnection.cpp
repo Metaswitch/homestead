@@ -19,6 +19,7 @@
 const std::string SproutConnection::JSON_REGISTRATIONS = "registrations";
 const std::string SproutConnection::JSON_PRIMARY_IMPU = "primary-impu";
 const std::string SproutConnection::JSON_IMPI = "impi";
+const std::string SproutConnection::JSON_USER_DATA_XML = "user-data-xml";
 
 SproutConnection::SproutConnection(HttpConnection* http) : _http(http)
 {
@@ -38,15 +39,15 @@ HTTPCode SproutConnection::deregister_bindings(const bool& send_notifications,
   std::string path = "/registrations?send-notifications=";
   path += send_notifications ? "true" : "false";
 
-  std::string body = create_body(default_public_ids, impis);
+  std::string body = rtr_create_body(default_public_ids, impis);
 
   HTTPCode ret_code = _http->send_delete(path, trail, body);
   TRC_DEBUG("HTTP return code from Sprout: %d", ret_code);
   return ret_code;
 }
 
-std::string SproutConnection::create_body(const std::vector<std::string>& default_public_ids,
-                                          const std::vector<std::string>& impis)
+std::string SproutConnection::rtr_create_body(const std::vector<std::string>& default_public_ids,
+                                              const std::vector<std::string>& impis)
 {
   // Utility function to create HTTP body to send to Sprout when the HSS has
   // sent a Registration-Termination request.
@@ -93,5 +94,32 @@ std::string SproutConnection::create_body(const std::vector<std::string>& defaul
     writer.EndArray();
   }
   writer.EndObject();
+  return sb.GetString();
+}
+
+HTTPCode SproutConnection::change_associated_identities(const std::string& default_id,
+                                                        const std::string& user_data,
+                                                        SAS::TrailId trail)
+{
+  std::string path = "/registrations/" + default_id;
+  std::string body = ppr_create_body(user_data);
+  HTTPCode ret_code = _http->send_put(path, body, trail);
+  return ret_code;
+}
+
+std::string SproutConnection::ppr_create_body(const std::string& user_data)
+{
+  // Utility function to create HTTP body to send to Sprout when the HSS has
+  // sent a Push Profile Request.
+  rapidjson::StringBuffer sb;
+  rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
+
+  writer.StartObject();
+  {
+    writer.String(JSON_USER_DATA_XML.c_str());
+    writer.String(user_data.c_str());
+  }
+  writer.EndObject();
+
   return sb.GetString();
 }

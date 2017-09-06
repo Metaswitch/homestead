@@ -84,12 +84,15 @@ public:
   struct Config
   {
     Config(HssCacheProcessor* _cache,
-           Cx::Dictionary* _dict) :
+           Cx::Dictionary* _dict,
+           SproutConnection* _sprout_conn) :
       cache(_cache),
-      dict(_dict) {}
+      dict(_dict),
+      sprout_conn(_sprout_conn) {}
 
     HssCacheProcessor* cache;
     Cx::Dictionary* dict;
+    SproutConnection* sprout_conn;
   };
 
   PushProfileTask(const Diameter::Dictionary* dict,
@@ -121,7 +124,8 @@ private:
   ChargingAddresses _charging_addrs;
   std::string _impi;
   std::string _default_public_id;
-  std::string _first_default_id;
+  std::string _first_default_impu;
+  std::string _new_default_impu;
   std::vector<std::string> _impus;
   std::vector<std::string> _default_impus;
   std::vector<std::string> _irs_impus;

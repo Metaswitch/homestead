@@ -365,6 +365,19 @@ void PushProfileTask::on_get_ims_sub_success(ImsSubscription* ims_sub)
     // Note - we don't update the TTL for the data, since we only do that on
     // (re)-registration
     irs->set_ims_sub_xml(_ims_subscription);
+
+    // Notify Sprout of the change
+    HTTPCode rc = _cfg->sprout_conn->change_associated_identities(new_default_id,
+                                                                  _ims_subscription,
+                                                                  trail());
+
+    if (rc != HTTP_OK)
+    {
+      TRC_DEBUG("Failed to update Sprout (return code: %d), sending negative PPA", rc);
+      send_ppa(DIAMETER_REQ_FAILURE);
+      delete this;
+      return;
+    }
   }
 
   if (_ims_sub_present)

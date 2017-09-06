@@ -292,6 +292,7 @@ int init_options(int argc, char**argv, struct options& options)
 {
   int opt;
   int long_opt_ind;
+  bool diameter_timeout_set = false;
 
   optind = 0;
   while ((opt = getopt_long(argc, argv, options_description.c_str(), long_opt, &long_opt_ind)) != -1)
@@ -446,6 +447,7 @@ int init_options(int argc, char**argv, struct options& options)
 
     case DIAMETER_TIMEOUT_MS:
       TRC_INFO("Diameter timeout: %s", optarg);
+      diameter_timeout_set = true;
       options.diameter_timeout_ms = atoi(optarg);
       break;
 
@@ -546,6 +548,12 @@ int init_options(int argc, char**argv, struct options& options)
       TRC_ERROR("Unknown option. Run with --help for options.\n");
       return -1;
     }
+  }
+
+  if (!diameter_timeout_set)
+  {
+    Utils::calculate_diameter_timeout(options.target_latency_us,
+                                      options.diameter_timeout_ms);
   }
 
   return 0;
@@ -909,6 +917,7 @@ int main(int argc, char**argv)
   // Split processing depending on whether we're using an HSS or Homestead-Prov
   if (hss_configured)
   {
+<<<<<<< HEAD
     TRC_STATUS("HSS configured - using diameter connection");
     diameter_stack = Diameter::Stack::get_instance();
 
@@ -925,7 +934,9 @@ int main(int argc, char**argv)
       rtr_config = new RegistrationTerminationTask::Config(cache_processor,
                                                            dict,
                                                            sprout_conn);
-      ppr_config = new PushProfileTask::Config(cache_processor, dict);
+      ppr_config = new PushProfileTask::Config(cache_processor,
+                                               dict,
+                                               sprout_conn);
 
       rtr_task = new Diameter::SpawningHandler<RegistrationTerminationTask, RegistrationTerminationTask::Config>(dict, rtr_config);
       ppr_task = new Diameter::SpawningHandler<PushProfileTask, PushProfileTask::Config>(dict, ppr_config);
