@@ -750,7 +750,6 @@ TEST_F(DiameterHandlersTest, PPRMainline)
   delete irs;
 }
 
-
 TEST_F(DiameterHandlersTest, PPRChangeIDs)
 {
   // This PPR contains an IMS subscription and charging addresses. One IMPU
@@ -796,6 +795,51 @@ TEST_F(DiameterHandlersTest, PPRChangeIDs)
   EXPECT_EQ(irs->get_ims_sub_xml(), IMPU_IMS_SUBSCRIPTION);
 
   ppr_check_ppa(DIAMETER_SUCCESS);
+  ppr_tear_down(pcfg);
+
+  // The FakeImplicitRegistrationSet* is not actually owned by the
+  // MockImsSubscription so we have to delete it manually
+  delete irs;
+}
+
+// There is a change of IDs and Sprout returns a Server Error, so a failed
+// PPA is sent and the cache is not updated.
+TEST_F(DiameterHandlersTest, PPRChangeIDsServerError)
+{
+  // This PPR contains an IMS subscription and charging addresses. One IMPU
+  // is being deleted from the IRS and one is being added. There is only one IRS
+  // The update is successful
+  PushProfileTask* task = NULL;
+  PushProfileTask::Config* pcfg = NULL;
+  ppr_setup(&task, &pcfg, IMPI, IMPU_IMS_SUBSCRIPTION, FULL_CHARGING_ADDRESSES);
+
+  // Create the ImsSubscription that will be returned
+  // The IRS has different XML to that on the PPR
+  FakeImplicitRegistrationSet* irs = new FakeImplicitRegistrationSet(IMPU);
+  irs->set_ims_sub_xml(IMPU_IMS_SUBSCRIPTION2);
+  irs->set_reg_state(RegistrationState::REGISTERED);
+  irs->set_charging_addresses(FULL_CHARGING_ADDRESSES);
+
+  MockImsSubscription* sub = new MockImsSubscription();
+
+  // Expect that we'll look up the ImsSubscription for the provided IMPI
+  EXPECT_CALL(*_cache, get_ims_subscription(_, _, IMPI, FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<0>(sub));
+
+  // Expect that we'll request the IRS for the default IMPU from the ImsSubscription
+  EXPECT_CALL(*sub, get_irs_for_default_impu(IMPU)).WillOnce(Return(irs));
+
+  // And notify Sprout. This fails, so we won't do anything else
+  ppr_sprout_connection(IMPU, IMPU_IMS_SUBSCRIPTION, HTTP_SERVER_ERROR);
+
+  ppr_expect_ppa();
+
+  task->run();
+
+  // Check that the IRS was updated with the new XML
+  EXPECT_EQ(irs->get_ims_sub_xml(), IMPU_IMS_SUBSCRIPTION);
+
+  ppr_check_ppa(DIAMETER_UNABLE_TO_COMPLY);
   ppr_tear_down(pcfg);
 
   // The FakeImplicitRegistrationSet* is not actually owned by the
