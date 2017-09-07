@@ -917,7 +917,6 @@ int main(int argc, char**argv)
   // Split processing depending on whether we're using an HSS or Homestead-Prov
   if (hss_configured)
   {
-<<<<<<< HEAD
     TRC_STATUS("HSS configured - using diameter connection");
     diameter_stack = Diameter::Stack::get_instance();
 
