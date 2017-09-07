@@ -19,10 +19,16 @@
 #include "statisticsmanager.h"
 #include "load_monitor.h"
 #include "diameterstack.h"
+#include "diameter_handlers.h"
+#include "diameter_hss_connection.h"
 #include "httpstack.h"
-#include "handlers.h"
+#include "http_handlers.h"
 #include "logger.h"
-#include "cache.h"
+#include "memcached_cache.h"
+#include "memcachedstore.h"
+#include "hsprov_hss_connection.h"
+#include "hsprov_store.h"
+#include "hss_cache_processor.h"
 #include "saslogger.h"
 #include "sas.h"
 #include "sasevent.h"
@@ -51,6 +57,8 @@ struct options
   unsigned short http_port;
   int http_threads;
   std::string cassandra;
+  std::vector<std::string> impu_stores;
+  std::string local_site_name;
   std::string dest_realm;
   std::string dest_host;
   std::string force_hss_peer;
@@ -70,6 +78,7 @@ struct options
   std::string log_directory;
   int log_level;
   int cache_threads;
+  int cassandra_threads;
   std::string sas_server;
   std::string sas_system_name;
   int diameter_timeout_ms;
@@ -78,6 +87,7 @@ struct options
   float init_token_rate;
   float min_token_rate;
   int exception_max_ttl;
+  int astaire_blacklist_duration;
   int http_blacklist_duration;
   int diameter_blacklist_duration;
   int dns_timeout;
@@ -103,15 +113,18 @@ enum OptionTypes
   INIT_TOKEN_RATE,
   MIN_TOKEN_RATE,
   EXCEPTION_MAX_TTL,
+  ASTAIRE_BLACKLIST_DURATION,
   HTTP_BLACKLIST_DURATION,
   DIAMETER_BLACKLIST_DURATION,
   DNS_TIMEOUT,
   FORCE_HSS_PEER,
+  LOCAL_SITE_NAME,
   SAS_USE_SIGNALING_IF,
   REQUEST_SHARED_IFCS,
   PIDFILE,
   DAEMON,
-  REG_MAX_EXPIRES
+  REG_MAX_EXPIRES,
+  CASSANDRA_THREADS
 };
 
 const static struct option long_opt[] =
@@ -123,7 +136,10 @@ const static struct option long_opt[] =
   {"http",                        required_argument, NULL, 'H'},
   {"http-threads",                required_argument, NULL, 't'},
   {"cache-threads",               required_argument, NULL, 'u'},
+  {"cassandra-threads",           required_argument, NULL, CASSANDRA_THREADS},
   {"cassandra",                   required_argument, NULL, 'S'},
+  {"local-site-name",             required_argument, NULL, LOCAL_SITE_NAME},
+  {"impu-stores",                 required_argument, NULL, 'M'},
   {"dest-realm",                  required_argument, NULL, 'D'},
   {"dest-host",                   required_argument, NULL, 'd'},
   {"hss-peer",                    required_argument, NULL, FORCE_HSS_PEER},
@@ -148,6 +164,7 @@ const static struct option long_opt[] =
   {"init-token-rate",             required_argument, NULL, INIT_TOKEN_RATE},
   {"min-token-rate",              required_argument, NULL, MIN_TOKEN_RATE},
   {"exception-max-ttl",           required_argument, NULL, EXCEPTION_MAX_TTL},
+  {"astaire-blacklist-duration",  required_argument, NULL, ASTAIRE_BLACKLIST_DURATION},
   {"http-blacklist-duration",     required_argument, NULL, HTTP_BLACKLIST_DURATION},
   {"diameter-blacklist-duration", required_argument, NULL, DIAMETER_BLACKLIST_DURATION},
   {"dns-timeout",                 required_argument, NULL, DNS_TIMEOUT},
@@ -172,8 +189,16 @@ void usage(void)
        " -c, --diameter-conf <file> File name for Diameter configuration\n"
        " -H, --http <address>       Set HTTP bind address (default: 0.0.0.0)\n"
        " -t, --http-threads N       Number of HTTP threads (default: 1)\n"
-       " -u, --cache-threads N      Number of cache threads (default: 10)\n"
+       " -u, --cache-threads N      Number of cache threads (default: 50)\n"
+       "     --cassandra-threads N  Number of cassandra threads (default: 10)\n"
        " -S, --cassandra <address>  Set the IP address or FQDN of the Cassandra database (default: 127.0.0.1 or [::1])"
+       " -M  --impu-stores <site_name>=domain[:<port>][,<site_name>=<domain>:<port>,...]\n"
+       "                            Enables memcached store for IMPU cache data\n"
+       "                            and specifies the location of the memcached\n"
+       "                            store in each site. One of the sites must\n"
+       "                            be the local site. Remote sites for\n"
+       "                            geo-redundant storage are optional.\n "
+       "                            (If not provided, localhost is used.)\n"
        " -D, --dest-realm <name>    Set Destination-Realm on Cx messages\n"
        " -d, --dest-host <name>     Set Destination-Host on Cx messages\n"
        "     --hss-peer <name>      IP address of HSS to connect to (rather than resolving Destination-Realm/Destination-Host)\n"
@@ -185,6 +210,8 @@ void usage(void)
        "                            How often a RE_REGISTRATION SAR should be sent to the HSS in seconds (default: 1800)\n"
        " -j, --http-sprout-name <name>\n"
        "                            Set HTTP address to send deregistration information from RTRs\n"
+       "     --local-site-name <name>\n"
+       "                            The name of the local site (used in a geo-redundant deployment)\n"
        "     --scheme-unknown <string>\n"
        "                            String to use to specify unknown SIP-Auth-Scheme (default: Unknown)\n"
        "     --scheme-digest <string>\n"
@@ -302,9 +329,29 @@ int init_options(int argc, char**argv, struct options& options)
       options.cache_threads = atoi(optarg);
       break;
 
+    case CASSANDRA_THREADS:
+      TRC_INFO("Cassandra threads: %s", optarg);
+      options.cassandra_threads = atoi(optarg);
+      break;
+
     case 'S':
       TRC_INFO("Cassandra host: %s", optarg);
       options.cassandra = std::string(optarg);
+      break;
+
+    case 'M':
+      {
+        // This option has the format
+        // <site_name>=<domain>,[<site_name>=<domain>,<site_name=<domain>,...].
+        // For now, just split into a vector of <site_name>=<domain> strings. We
+        // need to know the local site name to parse this properly, so we'll do
+        // that later.
+        TRC_INFO("IMPU Stores: %s", optarg);
+        std::string stores_arg = std::string(optarg);
+        boost::split(options.impu_stores,
+                     stores_arg,
+                     boost::is_any_of(","));
+      }
       break;
 
     case 'D':
@@ -371,6 +418,17 @@ int init_options(int argc, char**argv, struct options& options)
       TRC_INFO("Access log: %s", optarg);
       options.access_log_enabled = true;
       options.access_log_directory = std::string(optarg);
+      break;
+
+    case LOCAL_SITE_NAME:
+      options.local_site_name = std::string(optarg);
+      TRC_INFO("Local site name = %s", optarg);
+      break;
+
+    case ASTAIRE_BLACKLIST_DURATION:
+      options.astaire_blacklist_duration = atoi(optarg);
+      TRC_INFO("Astaire blacklist duration set to %d",
+               options.astaire_blacklist_duration);
       break;
 
     case SAS_CONFIG:
@@ -533,6 +591,75 @@ void signal_handler(int sig)
   abort();
 }
 
+void create_memcached_cache(HssCacheProcessor*& cache_processor,
+                            options& options,
+                            DnsCachedResolver* dns_resolver,
+                            AstaireResolver*& astaire_resolver,
+                            Store*& local_impu_data_store,
+                            ImpuStore*& local_impu_store,
+                            std::vector<Store*>& remote_impu_data_stores,
+                            std::vector<ImpuStore*>& remote_impu_stores,
+                            MemcachedCache*& memcached_cache,
+                            CommunicationMonitor*& astaire_comm_monitor,
+                            CommunicationMonitor*& remote_astaire_comm_monitor,
+                            AlarmManager* alarm_manager,
+                            std::vector<std::string>& remote_impu_stores_locations,
+                            std::string& impu_store_location,
+                            int af)
+{
+  astaire_comm_monitor = new CommunicationMonitor(new Alarm(alarm_manager,
+                                                            "homestead",
+                                                            AlarmDef::HOMESTEAD_ASTAIRE_COMM_ERROR,
+                                                            AlarmDef::CRITICAL),
+                                                  "Homestead",
+                                                  "Astaire");
+
+ remote_astaire_comm_monitor = new CommunicationMonitor(new Alarm(alarm_manager,
+                                                                  "homestead",
+                                                                  AlarmDef::HOMESTEAD_REMOTE_ASTAIRE_COMM_ERROR,
+                                                                  AlarmDef::CRITICAL),
+                                                       "Homestead",
+                                                       "remote Astaire");
+
+  // Create an exception handler. The exception handler doesn't need
+  astaire_resolver = new AstaireResolver(dns_resolver,
+                                         af,
+                                         options.astaire_blacklist_duration);
+
+  if (impu_store_location != "")
+  {
+    TRC_STATUS("Using local impu store: %s", impu_store_location.c_str());
+    local_impu_data_store = (Store*)new TopologyNeutralMemcachedStore(impu_store_location,
+                                                                      astaire_resolver,
+                                                                      false,
+                                                                      astaire_comm_monitor);
+    local_impu_store = new ImpuStore(local_impu_data_store);
+
+    for (std::vector<std::string>::iterator it = remote_impu_stores_locations.begin();
+           it != remote_impu_stores_locations.end();
+           ++it)
+      {
+        TRC_STATUS("Using remote impu store: %s", (*it).c_str());
+        Store* remote_data_store = (Store*)new TopologyNeutralMemcachedStore(*it,
+                                                                             astaire_resolver,
+                                                                             true,
+                                                                             remote_astaire_comm_monitor);
+        remote_impu_data_stores.push_back(remote_data_store);
+        remote_impu_stores.push_back(new ImpuStore(remote_data_store));
+      }
+
+    memcached_cache = new MemcachedCache(local_impu_store, remote_impu_stores);
+    cache_processor = new HssCacheProcessor(memcached_cache);
+  }
+  else
+  {
+    CL_HOMESTEAD_NO_IMPU_STORE.log();
+    TRC_ERROR("No IMPU store specified");
+    TRC_STATUS("Homestead is shutting down");
+    exit(2);
+  }
+}
+
 int main(int argc, char**argv)
 {
   // Set up our exception signal handler for asserts and segfaults.
@@ -550,7 +677,8 @@ int main(int argc, char**argv)
   options.http_address = "0.0.0.0";
   options.http_port = 8888;
   options.http_threads = 1;
-  options.cache_threads = 10;
+  options.cache_threads = 50;
+  options.cassandra_threads = 10;
   options.cassandra = "";
   options.dest_realm = "";
   options.dest_host = "dest-host.unknown";
@@ -607,6 +735,19 @@ int main(int argc, char**argv)
   TRC_INFO(options_str.c_str());
 
   if (init_options(argc, argv, options) != 0)
+  {
+    return 1;
+  }
+
+  // Parse the impu-stores argument.
+  std::string impu_store_location;
+  std::vector<std::string> remote_impu_stores_locations;
+
+  if (!Utils::parse_multi_site_stores_arg(options.impu_stores,
+                                          options.local_site_name,
+                                          "impu-store",
+                                          impu_store_location,
+                                          remote_impu_stores_locations))
   {
     return 1;
   }
@@ -674,13 +815,6 @@ int main(int argc, char**argv)
   // Must happen after all SNMP tables have been registered.
   init_snmp_handler_threads("homestead");
 
-  configure_cx_results_tables(mar_results_table,
-                              sar_results_table,
-                              uar_results_table,
-                              lir_results_table,
-                              ppr_results_table,
-                              rtr_results_table);
-
   // Create Homesteads's alarm objects. Note that the alarm identifier strings must match those
   // in the alarm definition JSON file exactly.
   AlarmManager* alarm_manager = new AlarmManager();
@@ -699,7 +833,6 @@ int main(int argc, char**argv)
                                                                           "Homestead",
                                                                           "Cassandra");
 
-  // Create an exception handler. The exception handler doesn't need
   // to quiesce the process before killing it.
   HealthChecker* hc = new HealthChecker();
   hc->start_thread();
@@ -717,50 +850,45 @@ int main(int argc, char**argv)
                                                  af,
                                                  options.http_blacklist_duration);
 
-  // Use a 30s black- and gray- list duration
-  CassandraResolver* cassandra_resolver = new CassandraResolver(dns_resolver,
-                                                                af,
-                                                                30,
-                                                                30,
-                                                                9160);
-  // Default the cassandra hostname to the loopback IP
-  if (options.cassandra == "")
+  AstaireResolver* astaire_resolver = nullptr;
+  Store* local_impu_data_store = nullptr;
+  ImpuStore* local_impu_store = nullptr;
+  std::vector<Store*> remote_impu_data_stores;
+  std::vector<ImpuStore*> remote_impu_stores;
+  MemcachedCache* memcached_cache = nullptr;
+  CommunicationMonitor* astaire_comm_monitor = nullptr;
+  CommunicationMonitor* remote_astaire_comm_monitor = nullptr;
+  HssCacheProcessor* cache_processor;
+
+  create_memcached_cache(cache_processor,
+                         options,
+                         dns_resolver,
+                         astaire_resolver,
+                         local_impu_data_store,
+                         local_impu_store,
+                         remote_impu_data_stores,
+                         remote_impu_stores,
+                         memcached_cache,
+                         astaire_comm_monitor,
+                         remote_astaire_comm_monitor,
+                         alarm_manager,
+                         remote_impu_stores_locations,
+                         impu_store_location,
+                         af);
+
+  HssCacheTask::configure_cache(cache_processor);
+  bool started = cache_processor->start_threads(options.cache_threads,
+                                                exception_handler,
+                                                0);
+  if (!started)
   {
-    if (af == AF_INET6)
-    {
-      options.cassandra = "[::1]";
-    }
-    else
-    {
-      options.cassandra = "127.0.0.1";
-    }
-  }
-
-  Cache* cache = Cache::get_instance();
-  cache->configure_connection(options.cassandra,
-                              9160,
-                              cassandra_comm_monitor,
-                              cassandra_resolver);
-  cache->configure_workers(exception_handler,
-                           options.cache_threads,
-                           0);
-
-  // Test the connection to Cassandra before starting the store.
-  CassandraStore::ResultCode rc = cache->connection_test();
-
-  if (rc == CassandraStore::OK)
-  {
-    // Cassandra connection is good, so start the store.
-    rc = cache->start();
-  }
-
-  if (rc != CassandraStore::OK)
-  {
-    CL_HOMESTEAD_CASSANDRA_CACHE_INIT_FAIL.log(rc);
-    TRC_ERROR("Failed to initialize the Cassandra cache with error code %d.", rc);
+    CL_HOMESTEAD_CACHE_INIT_FAIL.log();
+    TRC_ERROR("Failed to initialize the cache");
     TRC_STATUS("Homestead is shutting down");
     exit(2);
   }
+
+  HssCacheTask::configure_health_checker(hc);
 
   HttpConnection* http = new HttpConnection(options.sprout_http_name,
                                             false,
@@ -768,12 +896,15 @@ int main(int argc, char**argv)
                                             SASEvent::HttpLogLevel::PROTOCOL,
                                             NULL);
   SproutConnection* sprout_conn = new SproutConnection(http);
-
-  RegistrationTerminationTask::Config* rtr_config = NULL;
-  PushProfileTask::Config* ppr_config = NULL;
-  Diameter::SpawningHandler<RegistrationTerminationTask, RegistrationTerminationTask::Config>* rtr_task = NULL;
-  Diameter::SpawningHandler<PushProfileTask, PushProfileTask::Config>* ppr_task = NULL;
-  Cx::Dictionary* dict = NULL;
+  HssConnection::HssConnection* hss_conn = nullptr;
+  RegistrationTerminationTask::Config* rtr_config = nullptr;
+  PushProfileTask::Config* ppr_config = nullptr;
+  Diameter::SpawningHandler<RegistrationTerminationTask, RegistrationTerminationTask::Config>* rtr_task = nullptr;
+  Diameter::SpawningHandler<PushProfileTask, PushProfileTask::Config>* ppr_task = nullptr;
+  Cx::Dictionary* dict = nullptr;
+  Diameter::Stack* diameter_stack = nullptr;
+  HsProvStore* hs_prov_store = nullptr;
+  CassandraResolver* cassandra_resolver = nullptr;
 
   // We need the record to last twice the HSS Re-registration
   // time, or the max expiry of the registration, whichever one
@@ -781,78 +912,136 @@ int main(int argc, char**argv)
   int record_ttl = std::max(2 * options.hss_reregistration_time,
                             options.reg_max_expires + 10);
 
-  Diameter::Stack* diameter_stack = Diameter::Stack::get_instance();
-
-  try
-  {
-    diameter_stack->initialize();
-    diameter_stack->configure(options.diameter_conf,
-                              exception_handler,
-                              hss_comm_monitor,
-                              realm_counter,
-                              host_counter);
-    dict = new Cx::Dictionary();
-
-    rtr_config = new RegistrationTerminationTask::Config(cache,
-                                                         dict,
-                                                         sprout_conn,
-                                                         options.hss_reregistration_time);
-    ppr_config = new PushProfileTask::Config(cache,
-                                             dict,
-                                             sprout_conn,
-                                             options.impu_cache_ttl,
-                                             options.hss_reregistration_time,
-                                             record_ttl);
-
-    rtr_task = new Diameter::SpawningHandler<RegistrationTerminationTask, RegistrationTerminationTask::Config>(dict, rtr_config);
-    ppr_task = new Diameter::SpawningHandler<PushProfileTask, PushProfileTask::Config>(dict, ppr_config);
-
-    diameter_stack->advertize_application(Diameter::Dictionary::Application::AUTH,
-                                          dict->TGPP, dict->CX);
-    diameter_stack->register_handler(dict->CX, dict->REGISTRATION_TERMINATION_REQUEST, rtr_task);
-    diameter_stack->register_handler(dict->CX, dict->PUSH_PROFILE_REQUEST, ppr_task);
-    diameter_stack->register_fallback_handler(dict->CX);
-    diameter_stack->start();
-  }
-  catch (Diameter::Stack::Exception& e)
-  {
-    CL_HOMESTEAD_DIAMETER_INIT_FAIL.log(e._func, e._rc);
-    TRC_ERROR("Failed to initialize Diameter stack - function %s, rc %d", e._func, e._rc);
-    TRC_STATUS("Homestead is shutting down");
-    exit(2);
-  }
-
-  HssCacheTask::configure_diameter(diameter_stack,
-                                   options.dest_realm.empty() ? options.home_domain : options.dest_realm,
-                                   options.dest_host == "0.0.0.0" ? "" : options.dest_host,
-                                   options.server_name,
-                                   dict);
-  HssCacheTask::configure_cache(cache);
-  HssCacheTask::configure_health_checker(hc);
-  HssCacheTask::configure_stats(stats_manager);
-
-  // We should only query the cache for AV information if there is no HSS.  If there is an HSS, we
-  // should always hit it.  If there is not, the AV information must have been provisioned in the
-  // "cache" (which becomes persistent).
   bool hss_configured = !(options.dest_realm.empty() && (options.dest_host.empty() || options.dest_host == "0.0.0.0"));
 
-  ImpiTask::Config impi_handler_config(hss_configured,
-                                       options.impu_cache_ttl,
-                                       options.scheme_unknown,
+  // Split processing depending on whether we're using an HSS or Homestead-Prov
+  if (hss_configured)
+  {
+    TRC_STATUS("HSS configured - using diameter connection");
+    diameter_stack = Diameter::Stack::get_instance();
+
+    try
+    {
+      diameter_stack->initialize();
+      diameter_stack->configure(options.diameter_conf,
+                                exception_handler,
+                                hss_comm_monitor,
+                                realm_counter,
+                                host_counter);
+      dict = new Cx::Dictionary();
+
+      rtr_config = new RegistrationTerminationTask::Config(cache_processor,
+                                                           dict,
+                                                           sprout_conn);
+      ppr_config = new PushProfileTask::Config(cache_processor,
+                                               dict,
+                                               sprout_conn);
+
+      rtr_task = new Diameter::SpawningHandler<RegistrationTerminationTask, RegistrationTerminationTask::Config>(dict, rtr_config);
+      ppr_task = new Diameter::SpawningHandler<PushProfileTask, PushProfileTask::Config>(dict, ppr_config);
+
+      diameter_stack->advertize_application(Diameter::Dictionary::Application::AUTH,
+                                            dict->TGPP, dict->CX);
+      diameter_stack->register_handler(dict->CX, dict->REGISTRATION_TERMINATION_REQUEST, rtr_task);
+      diameter_stack->register_handler(dict->CX, dict->PUSH_PROFILE_REQUEST, ppr_task);
+      diameter_stack->register_fallback_handler(dict->CX);
+      diameter_stack->start();
+    }
+    catch (Diameter::Stack::Exception& e)
+    {
+      CL_HOMESTEAD_DIAMETER_INIT_FAIL.log(e._func, e._rc);
+      TRC_ERROR("Failed to initialize Diameter stack - function %s, rc %d", e._func, e._rc);
+      TRC_STATUS("Homestead is shutting down");
+      exit(2);
+    }
+
+    hss_conn = new HssConnection::DiameterHssConnection(stats_manager,
+                                                        dict,
+                                                        diameter_stack,
+                                                        options.dest_realm.empty() ? options.home_domain : options.dest_realm,
+                                                        options.dest_host == "0.0.0.0" ? "" : options.dest_host,
+                                                        options.diameter_timeout_ms);
+
+    HssConnection::configure_cx_results_tables(mar_results_table,
+                                               sar_results_table,
+                                               uar_results_table,
+                                               lir_results_table);
+    configure_handler_cx_results_tables(ppr_results_table, rtr_results_table);
+  }
+  else
+  {
+    TRC_STATUS("No HSS configured - using Homestead-prov");
+
+    // Use a 30s black- and gray- list duration
+    cassandra_resolver = new CassandraResolver(dns_resolver,
+                                               af,
+                                               30,
+                                               30,
+                                               9160);
+
+    // Default the cassandra hostname to the loopback IP
+    if (options.cassandra == "")
+    {
+      if (af == AF_INET6)
+      {
+        options.cassandra = "[::1]";
+      }
+      else
+      {
+        options.cassandra = "127.0.0.1";
+      }
+    }
+
+    hs_prov_store = HsProvStore::get_instance();
+    hs_prov_store->configure_connection(options.cassandra,
+                                        9160,
+                                        cassandra_comm_monitor,
+                                        cassandra_resolver);
+    hs_prov_store->configure_workers(exception_handler,
+                                     options.cassandra_threads,
+                                     0);
+
+    // Test the connection to Cassandra before starting the store.
+    CassandraStore::ResultCode rc = hs_prov_store->connection_test();
+
+    if (rc == CassandraStore::OK)
+    {
+      // Cassandra connection is good, so start the store.
+      rc = hs_prov_store->start();
+    }
+
+    if (rc != CassandraStore::OK)
+    {
+      CL_HOMESTEAD_CASSANDRA_INIT_FAIL.log(rc);
+      TRC_ERROR("Failed to initialize the Cassandra store with error code %d.", rc);
+      TRC_STATUS("Homestead is shutting down");
+      exit(2);
+    }
+
+    hss_conn = new HssConnection::HsProvHssConnection(stats_manager,
+                                                      hs_prov_store,
+                                                      options.server_name);
+  }
+
+  // Common setup
+  HssConnection::HssConnection::configure_auth_schemes(options.scheme_digest,
+                                                       options.scheme_akav1,
+                                                       options.scheme_akav2);
+
+  HssCacheTask::configure_hss_connection(hss_conn, options.server_name);
+
+  ImpiTask::Config impi_handler_config(options.scheme_unknown,
                                        options.scheme_digest,
                                        options.scheme_akav1,
-                                       options.scheme_akav2,
-                                       options.diameter_timeout_ms);
-  ImpiRegistrationStatusTask::Config registration_status_handler_config(hss_configured,
-                                                                        options.diameter_timeout_ms);
-  ImpuLocationInfoTask::Config location_info_handler_config(hss_configured,
-                                                            options.diameter_timeout_ms);
+                                       options.scheme_akav2);
+  ImpiRegistrationStatusTask::Config registration_status_handler_config(options.dest_realm.empty() ?
+                                                                          options.home_domain :
+                                                                          options.dest_realm);
+  ImpuLocationInfoTask::Config location_info_handler_config;
   ImpuRegDataTask::Config impu_handler_config(hss_configured,
                                               options.hss_reregistration_time,
                                               record_ttl,
-                                              options.diameter_timeout_ms,
                                               options.request_shared_ifcs);
-  ImpuListTask::Config impu_list_config;
 
   HttpStackUtils::PingHandler ping_handler;
   HttpStackUtils::SpawningHandler<ImpiDigestTask, ImpiTask::Config> impi_digest_handler(&impi_handler_config);
@@ -860,7 +1049,6 @@ int main(int argc, char**argv)
   HttpStackUtils::SpawningHandler<ImpiRegistrationStatusTask, ImpiRegistrationStatusTask::Config> impi_reg_status_handler(&registration_status_handler_config);
   HttpStackUtils::SpawningHandler<ImpuLocationInfoTask, ImpuLocationInfoTask::Config> impu_loc_info_handler(&location_info_handler_config);
   HttpStackUtils::SpawningHandler<ImpuRegDataTask, ImpuRegDataTask::Config> impu_reg_data_handler(&impu_handler_config);
-  HttpStackUtils::SpawningHandler<ImpuListTask, ImpuListTask::Config> impu_list_handler(&impu_list_config);
 
   HttpStack* http_stack_sig = new HttpStack(options.http_threads,
                                             exception_handler,
@@ -910,8 +1098,6 @@ int main(int argc, char**argv)
                                       &ping_handler);
     http_stack_mgmt->register_handler("^/impu/[^/]*/reg-data$",
                                       &impu_read_reg_data_handler);
-    http_stack_mgmt->register_handler("^/impu/?$",
-                                      &impu_list_handler);
     http_stack_mgmt->start();
   }
   catch (HttpStack::Exception& e)
@@ -980,36 +1166,42 @@ int main(int argc, char**argv)
               e._func, e._rc);
   }
 
-  cache->stop();
-  cache->wait_stopped();
+  cache_processor->stop();
+  cache_processor->wait_stopped();
 
   if (hss_configured)
   {
     realm_manager->stop();
     delete realm_manager; realm_manager = NULL;
     delete diameter_resolver; diameter_resolver = NULL;
-    delete dns_resolver; dns_resolver = NULL;
+    delete dict; dict = NULL;
+    delete ppr_config; ppr_config = NULL;
+    delete rtr_config; rtr_config = NULL;
+    delete ppr_task; ppr_task = NULL;
+    delete rtr_task; rtr_task = NULL;
+
+    try
+    {
+      diameter_stack->stop();
+      diameter_stack->wait_stopped();
+    }
+    catch (Diameter::Stack::Exception& e)
+    {
+      CL_HOMESTEAD_DIAMETER_STOP_FAIL.log(e._func, e._rc);
+      TRC_ERROR("Failed to stop Diameter stack - function %s, rc %d", e._func, e._rc);
+    }
+  }
+  else
+  {
+    hs_prov_store->stop();
+    hs_prov_store->wait_stopped();
     delete cassandra_resolver; cassandra_resolver = NULL;
   }
 
-  try
-  {
-    diameter_stack->stop();
-    diameter_stack->wait_stopped();
-  }
-  catch (Diameter::Stack::Exception& e)
-  {
-    CL_HOMESTEAD_DIAMETER_STOP_FAIL.log(e._func, e._rc);
-    TRC_ERROR("Failed to stop Diameter stack - function %s, rc %d", e._func, e._rc);
-  }
-  delete dict; dict = NULL;
-  delete ppr_config; ppr_config = NULL;
-  delete rtr_config; rtr_config = NULL;
-  delete ppr_task; ppr_task = NULL;
-  delete rtr_task; rtr_task = NULL;
 
+  delete http_resolver; http_resolver = NULL;
+  delete dns_resolver; dns_resolver = NULL;
   delete sprout_conn; sprout_conn = NULL;
-
   delete realm_counter; realm_counter = NULL;
   delete host_counter; host_counter = NULL;
   delete stats_manager; stats_manager = NULL;
@@ -1026,11 +1218,15 @@ int main(int argc, char**argv)
   delete hc; hc = NULL;
   delete exception_handler; exception_handler = NULL;
 
+  delete cache_processor; cache_processor = NULL;
+  delete memcached_cache; memcached_cache = nullptr;
   delete load_monitor; load_monitor = NULL;
 
   SAS::term();
 
   // Delete Homestead's alarm objects
+  delete astaire_comm_monitor;
+  delete remote_astaire_comm_monitor;
   delete hss_comm_monitor;
   delete cassandra_comm_monitor;
   delete alarm_manager;

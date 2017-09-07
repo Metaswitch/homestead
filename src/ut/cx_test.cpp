@@ -18,7 +18,6 @@
 #include "diameterstack.h"
 #include "mockdiameterstack.hpp"
 #include "cx.h"
-#include "handlers.h"
 
 /// Fixture for CxTest.
 class CxTest : public testing::Test
@@ -28,6 +27,7 @@ public:
   static const std::string DEST_HOST;
   static const std::string IMPI;
   static const std::string IMPU;
+  static const std::string WILDCARD_IMPU;
   static const std::string SERVER_NAME;
   static const std::string SERVER_NAME_IN_CAPAB;
   static const std::string SIP_AUTH_SCHEME_DIGEST;
@@ -159,6 +159,7 @@ const std::string CxTest::DEST_REALM = "dest-realm";
 const std::string CxTest::DEST_HOST = "dest-host";
 const std::string CxTest::IMPI = "impi@example.com";
 const std::string CxTest::IMPU = "sip:impu@example.com";
+const std::string CxTest::WILDCARD_IMPU = "sip:im!.*!@scscf";
 const std::string CxTest::SERVER_NAME = "sip:example.com";
 const std::string CxTest::SERVER_NAME_IN_CAPAB = "sip:example2.com";
 const std::string CxTest::SIP_AUTH_SCHEME_DIGEST = "SIP Digest";
@@ -282,17 +283,19 @@ TEST_F(CxTest, MAATest)
   EXPECT_EQ(RESULT_CODE_SUCCESS, test_i32);
   EXPECT_EQ(SIP_AUTH_SCHEME_AKA, maa.sip_auth_scheme());
 
-  DigestAuthVector maa_digest = maa.digest_auth_vector();
-  EXPECT_EQ(digest.ha1, maa_digest.ha1);
-  EXPECT_EQ(digest.realm, maa_digest.realm);
-  EXPECT_EQ(digest.qop, maa_digest.qop);
+  DigestAuthVector* maa_digest = maa.digest_auth_vector();
+  EXPECT_EQ(digest.ha1, maa_digest->ha1);
+  EXPECT_EQ(digest.realm, maa_digest->realm);
+  EXPECT_EQ(digest.qop, maa_digest->qop);
+  delete maa_digest; maa_digest = NULL;
 
   // The AKA values should be decoded from base64/hex.
-  AKAAuthVector maa_aka = maa.aka_auth_vector();
-  EXPECT_EQ("c3VyZS4=", maa_aka.challenge);
-  EXPECT_EQ("726573706f6e7365", maa_aka.response);
-  EXPECT_EQ("63727970745f6b6579", maa_aka.crypt_key);
-  EXPECT_EQ("696e746567726974795f6b6579", maa_aka.integrity_key);
+  AKAAuthVector* maa_aka = maa.aka_auth_vector();
+  EXPECT_EQ("c3VyZS4=", maa_aka->challenge);
+  EXPECT_EQ("726573706f6e7365", maa_aka->response);
+  EXPECT_EQ("63727970745f6b6579", maa_aka->crypt_key);
+  EXPECT_EQ("696e746567726974795f6b6579", maa_aka->integrity_key);
+  delete maa_aka; maa_aka = NULL;
 }
 
 TEST_F(CxTest, MAATestNoAuthScheme)
@@ -323,17 +326,19 @@ TEST_F(CxTest, MAATestNoAuthScheme)
   EXPECT_EQ(RESULT_CODE_SUCCESS, test_i32);
   EXPECT_EQ(EMPTY_STRING, maa.sip_auth_scheme());
 
-  DigestAuthVector maa_digest = maa.digest_auth_vector();
-  EXPECT_EQ(digest.ha1, maa_digest.ha1);
-  EXPECT_EQ(digest.realm, maa_digest.realm);
-  EXPECT_EQ(digest.qop, maa_digest.qop);
+  DigestAuthVector* maa_digest = maa.digest_auth_vector();
+  EXPECT_EQ(digest.ha1, maa_digest->ha1);
+  EXPECT_EQ(digest.realm, maa_digest->realm);
+  EXPECT_EQ(digest.qop, maa_digest->qop);
+  delete maa_digest; maa_digest = NULL;
 
   // The AKA values should be decoded from base64/hex.
-  AKAAuthVector maa_aka = maa.aka_auth_vector();
-  EXPECT_EQ("c3VyZS4=", maa_aka.challenge);
-  EXPECT_EQ("726573706f6e7365", maa_aka.response);
-  EXPECT_EQ("63727970745f6b6579", maa_aka.crypt_key);
-  EXPECT_EQ("696e746567726974795f6b6579", maa_aka.integrity_key);
+  AKAAuthVector* maa_aka = maa.aka_auth_vector();
+  EXPECT_EQ("c3VyZS4=", maa_aka->challenge);
+  EXPECT_EQ("726573706f6e7365", maa_aka->response);
+  EXPECT_EQ("63727970745f6b6579", maa_aka->crypt_key);
+  EXPECT_EQ("696e746567726974795f6b6579", maa_aka->integrity_key);
+  delete maa_aka; maa_aka = NULL;
 }
 
 //
@@ -416,6 +421,49 @@ TEST_F(CxTest, SARTestNoSharedIFCSupport)
 
   Diameter::AVP::iterator supported_feature_avp = sar.begin(((Cx::Dictionary*)sar.dict())->SUPPORTED_FEATURES);
   EXPECT_EQ(supported_feature_avp, sar.end());
+}
+
+// Test that if we specify a wildcard impu on an appropriate SAR, we add the
+// wildcard AVP
+TEST_F(CxTest, SARWildcard)
+{
+  Cx::ServerAssignmentRequest sar(_cx_dict,
+                                  _mock_stack,
+                                  DEST_HOST,
+                                  DEST_REALM,
+                                  IMPI,
+                                  IMPU,
+                                  SERVER_NAME,
+                                  TIMEOUT_DEREGISTRATION,
+                                  false,
+                                  WILDCARD_IMPU);
+  launder_message(sar);
+  check_common_request_fields(sar);
+
+  Diameter::AVP::iterator wildcard_avp = sar.begin(((Cx::Dictionary*)sar.dict())->WILDCARDED_PUBLIC_IDENTITY);
+  EXPECT_TRUE(sar.get_wildcard(test_str));
+  EXPECT_EQ(WILDCARD_IMPU, test_str);
+}
+
+// Test that if we specify a wildcard impu on an inappropriate SAR, we don't add
+// the wildcard AVP
+TEST_F(CxTest, SARWildcardInappropriate)
+{
+  Cx::ServerAssignmentRequest sar(_cx_dict,
+                                  _mock_stack,
+                                  DEST_HOST,
+                                  DEST_REALM,
+                                  IMPI,
+                                  IMPU,
+                                  SERVER_NAME,
+                                  Cx::REGISTRATION,
+                                  false,
+                                  WILDCARD_IMPU);
+  launder_message(sar);
+  check_common_request_fields(sar);
+
+  Diameter::AVP::iterator wildcard_avp = sar.begin(((Cx::Dictionary*)sar.dict())->WILDCARDED_PUBLIC_IDENTITY);
+  EXPECT_FALSE(sar.get_wildcard(test_str));
 }
 
 //

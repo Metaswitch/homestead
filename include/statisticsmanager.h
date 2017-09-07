@@ -33,7 +33,7 @@ public:
   ACCUMULATOR_UPDATE_METHOD(H_hss_latency_us);
   ACCUMULATOR_UPDATE_METHOD(H_hss_digest_latency_us);
   ACCUMULATOR_UPDATE_METHOD(H_hss_subscription_latency_us);
-  ACCUMULATOR_UPDATE_METHOD(H_cache_latency_us);
+  ACCUMULATOR_UPDATE_METHOD(H_hsprov_latency_us);
 
   COUNTER_INCR_METHOD(H_incoming_requests);
   COUNTER_INCR_METHOD(H_rejected_overload);
@@ -51,7 +51,7 @@ private:
   SNMP::EventAccumulatorTable* H_hss_latency_us;
   SNMP::EventAccumulatorTable* H_hss_digest_latency_us;
   SNMP::EventAccumulatorTable* H_hss_subscription_latency_us;
-  SNMP::EventAccumulatorTable* H_cache_latency_us;
+  SNMP::EventAccumulatorTable* H_hsprov_latency_us;
 
   SNMP::CounterTable* H_incoming_requests;
   SNMP::CounterTable* H_rejected_overload;

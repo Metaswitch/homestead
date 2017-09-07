@@ -30,4 +30,7 @@
 	url = git@github.com:bagder/c-ares.git
 [submodule "modules/gcovr"]
 	path = modules/gcovr
-	url = git@github.com:gcovr/gcovr.git
+  url = git@github.com:gcovr/gcovr.git
+[submodule "modules/libmemcached"]
+	path = modules/libmemcached
+	url = git@github.com:Metaswitch/libmemcached-upstream.git

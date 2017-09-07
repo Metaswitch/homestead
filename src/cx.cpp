@@ -492,10 +492,10 @@ std::string MultimediaAuthAnswer::sip_auth_scheme() const
   return sip_auth_scheme;
 }
 
-DigestAuthVector MultimediaAuthAnswer::digest_auth_vector() const
+DigestAuthVector* MultimediaAuthAnswer::digest_auth_vector() const
 {
   TRC_DEBUG("Getting digest authentication vector from Multimedia-Auth answer");
-  DigestAuthVector digest_auth_vector;
+  DigestAuthVector* digest_auth_vector = new DigestAuthVector();
   Diameter::AVP::iterator sip_auth_data_item_avp =
                            begin(((Cx::Dictionary*)dict())->SIP_AUTH_DATA_ITEM);
   if (sip_auth_data_item_avp != end())
@@ -509,8 +509,8 @@ DigestAuthVector MultimediaAuthAnswer::digest_auth_vector() const
         sip_digest_authenticate_avp->begin(((Cx::Dictionary*)dict())->CX_DIGEST_HA1);
       if (digest_ha1_avp != sip_digest_authenticate_avp->end())
       {
-        digest_auth_vector.ha1 = digest_ha1_avp->val_str();
-        TRC_DEBUG("Found Digest-HA1 %s", digest_auth_vector.ha1.c_str());
+        digest_auth_vector->ha1 = digest_ha1_avp->val_str();
+        TRC_DEBUG("Found Digest-HA1 %s", digest_auth_vector->ha1.c_str());
       }
       else
       {
@@ -520,9 +520,9 @@ DigestAuthVector MultimediaAuthAnswer::digest_auth_vector() const
           sip_digest_authenticate_avp->begin(((Cx::Dictionary*)dict())->DIGEST_HA1);
         if (digest_ha1_avp != sip_digest_authenticate_avp->end())
         {
-          digest_auth_vector.ha1 = digest_ha1_avp->val_str();
+          digest_auth_vector->ha1 = digest_ha1_avp->val_str();
           TRC_DEBUG("Found (non-3GPP) Digest-HA1 %s",
-                    digest_auth_vector.ha1.c_str());
+                    digest_auth_vector->ha1.c_str());
         }
       }
       // Look for the realm.
@@ -530,8 +530,8 @@ DigestAuthVector MultimediaAuthAnswer::digest_auth_vector() const
         sip_digest_authenticate_avp->begin(((Cx::Dictionary*)dict())->CX_DIGEST_REALM);
       if (digest_realm_avp != sip_digest_authenticate_avp->end())
       {
-        digest_auth_vector.realm = digest_realm_avp->val_str();
-        TRC_DEBUG("Found Digest-Realm %s", digest_auth_vector.realm.c_str());
+        digest_auth_vector->realm = digest_realm_avp->val_str();
+        TRC_DEBUG("Found Digest-Realm %s", digest_auth_vector->realm.c_str());
       }
       else
       {
@@ -541,9 +541,9 @@ DigestAuthVector MultimediaAuthAnswer::digest_auth_vector() const
           sip_digest_authenticate_avp->begin(((Cx::Dictionary*)dict())->DIGEST_REALM);
         if (digest_realm_avp != sip_digest_authenticate_avp->end())
         {
-          digest_auth_vector.realm = digest_realm_avp->val_str();
+          digest_auth_vector->realm = digest_realm_avp->val_str();
           TRC_DEBUG("Found (non-3GPP) Digest-Realm %s",
-                    digest_auth_vector.realm.c_str());
+                    digest_auth_vector->realm.c_str());
         }
       }
       // Look for the QoP.
@@ -551,8 +551,8 @@ DigestAuthVector MultimediaAuthAnswer::digest_auth_vector() const
         sip_digest_authenticate_avp->begin(((Cx::Dictionary*)dict())->CX_DIGEST_QOP);
       if (digest_qop_avp != sip_digest_authenticate_avp->end())
       {
-        digest_auth_vector.qop = digest_qop_avp->val_str();
-        TRC_DEBUG("Found Digest-QoP %s", digest_auth_vector.qop.c_str());
+        digest_auth_vector->qop = digest_qop_avp->val_str();
+        TRC_DEBUG("Found Digest-QoP %s", digest_auth_vector->qop.c_str());
       }
       else
       {
@@ -562,9 +562,9 @@ DigestAuthVector MultimediaAuthAnswer::digest_auth_vector() const
           sip_digest_authenticate_avp->begin(((Cx::Dictionary*)dict())->DIGEST_QOP);
         if (digest_qop_avp != sip_digest_authenticate_avp->end())
         {
-          digest_auth_vector.qop = digest_qop_avp->val_str();
+          digest_auth_vector->qop = digest_qop_avp->val_str();
           TRC_DEBUG("Found (non-3GPP) Digest-QoP %s",
-                    digest_auth_vector.qop.c_str());
+                    digest_auth_vector->qop.c_str());
         }
       }
     }
@@ -572,10 +572,10 @@ DigestAuthVector MultimediaAuthAnswer::digest_auth_vector() const
   return digest_auth_vector;
 }
 
-AKAAuthVector MultimediaAuthAnswer::aka_auth_vector() const
+AKAAuthVector* MultimediaAuthAnswer::aka_auth_vector() const
 {
   TRC_DEBUG("Getting AKA authentication vector from Multimedia-Auth answer");
-  AKAAuthVector aka_auth_vector;
+  AKAAuthVector* aka_auth_vector = new AKAAuthVector();
   Diameter::AVP::iterator sip_auth_data_item_avp =
                            begin(((Cx::Dictionary*)dict())->SIP_AUTH_DATA_ITEM);
   if (sip_auth_data_item_avp != end())
@@ -587,9 +587,9 @@ AKAAuthVector MultimediaAuthAnswer::aka_auth_vector() const
     {
       size_t len;
       const uint8_t* data = sip_authenticate_avp->val_os(len);
-      aka_auth_vector.challenge = base64_encode(data, len);
+      aka_auth_vector->challenge = base64_encode(data, len);
       TRC_DEBUG("Found SIP-Authenticate (challenge) %s",
-                aka_auth_vector.challenge.c_str());
+                aka_auth_vector->challenge.c_str());
     }
 
     // Look for the response.
@@ -599,9 +599,9 @@ AKAAuthVector MultimediaAuthAnswer::aka_auth_vector() const
     {
       size_t len;
       const uint8_t* data = sip_authorization_avp->val_os(len);
-      aka_auth_vector.response = Utils::hex(data, len);
+      aka_auth_vector->response = Utils::hex(data, len);
       TRC_DEBUG("Found SIP-Authorization (response) %s",
-                aka_auth_vector.response.c_str());
+                aka_auth_vector->response.c_str());
     }
 
     // Look for the encryption key.
@@ -611,9 +611,9 @@ AKAAuthVector MultimediaAuthAnswer::aka_auth_vector() const
     {
       size_t len;
       const uint8_t* data = confidentiality_key_avp->val_os(len);
-      aka_auth_vector.crypt_key = Utils::hex(data, len);
+      aka_auth_vector->crypt_key = Utils::hex(data, len);
       TRC_DEBUG("Found Confidentiality-Key %s",
-                aka_auth_vector.crypt_key.c_str());
+                aka_auth_vector->crypt_key.c_str());
     }
 
     // Look for the integrity key.
@@ -623,18 +623,18 @@ AKAAuthVector MultimediaAuthAnswer::aka_auth_vector() const
     {
       size_t len;
       const uint8_t* data = integrity_key_avp->val_os(len);
-      aka_auth_vector.integrity_key = Utils::hex(data, len);
+      aka_auth_vector->integrity_key = Utils::hex(data, len);
       TRC_DEBUG("Found Integrity-Key %s",
-                aka_auth_vector.integrity_key.c_str());
+                aka_auth_vector->integrity_key.c_str());
     }
   }
   return aka_auth_vector;
 }
 
-AKAAuthVector MultimediaAuthAnswer::akav2_auth_vector() const
+AKAAuthVector* MultimediaAuthAnswer::akav2_auth_vector() const
 {
-  AKAAuthVector av = aka_auth_vector();
-  av.version = 2;
+  AKAAuthVector* av = aka_auth_vector();
+  av->version = 2;
   return av;
 }
 
