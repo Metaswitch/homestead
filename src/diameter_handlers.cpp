@@ -24,6 +24,38 @@ static SNMP::CxCounterTable* rtr_results_tbl;
 
 const std::string SIP_URI_PRE = "sip:";
 
+// Common SAS logging code.
+
+void log_sip_all_register_marker(SAS::TrailId trail, const std::string uri)
+{
+  std::string stripped_uri;
+
+  // Strip the scheme off the URI. We expect the scheme to be present, but
+  // cope with the case where it isn't.
+  stripped_uri = Utils::strip_uri_scheme(uri);
+
+  // Extract the user part from the remaining URI.
+  std::string user(stripped_uri);
+  size_t at = user.find('@');
+
+  if (at != std::string::npos)
+  {
+    user.erase(at, std::string::npos);
+  }
+
+  // Log the marker with the stripped URI as the first parameter, and the
+  // DN (if the URI can be interpreted as such) as the second parameter.
+  SAS::Marker sip_all_register(trail, MARKER_ID_SIP_ALL_REGISTER, 1u);
+  sip_all_register.add_var_param(stripped_uri);
+
+  if (Utils::is_user_numeric(user))
+  {
+    sip_all_register.add_var_param(Utils::remove_visual_separators(user));
+  }
+
+  SAS::report_marker(sip_all_register);
+}
+
 void RegistrationTerminationTask::run()
 {
   // Save off the deregistration reason and all private and public
@@ -36,6 +68,11 @@ void RegistrationTerminationTask::run()
 
   TRC_INFO("Received Registration-Termination request with dereg reason %d",
            _deregistration_reason);
+
+  // Log start of trail and "RTR received" event. SIP_ALL_REGISTER markers will be added
+  // for each IMPU once we have determined the list of IMPUs to unregister.
+  SAS::Marker init_time(trail(), MARKER_ID_START, 1u);
+  SAS::report_marker(init_time);
 
   SAS::Event rtr_received(this->trail(), SASEvent::RTR_RECEIVED, 0);
   rtr_received.add_var_param(impi);
@@ -130,7 +167,13 @@ void RegistrationTerminationTask::get_registration_sets_success(std::vector<Impl
     // Extract the default public identities from the registration sets.
     for (ImplicitRegistrationSet* reg_set : _reg_sets)
     {
-      default_public_identities.push_back(reg_set->get_default_impu());
+      std::string default_impu = reg_set->get_default_impu();
+
+      // Log IMPUs to SAS as SIP_ALL_REGISTER markers so this RTR shows up in search
+      // results for the IMPU.
+      log_sip_all_register_marker(trail(), default_impu);
+
+      default_public_identities.push_back(default_impu);
     }
 
     // We need to notify sprout of the deregistrations. What we send to sprout
@@ -267,6 +310,11 @@ void RegistrationTerminationTask::send_rta(const std::string result_code)
 
 void PushProfileTask::run()
 {
+  // Log start of trail and "PPR received" event. SIP_ALL_REGISTER markers will be added
+  // for each IMPU once we have determined the list of IMPUs affected by the PPR.
+  SAS::Marker init_time(trail(), MARKER_ID_START, 1u);
+  SAS::report_marker(init_time);
+
   SAS::Event ppr_received(trail(), SASEvent::PPR_RECEIVED, 0);
   SAS::report_event(ppr_received);
 
@@ -358,6 +406,14 @@ void PushProfileTask::on_get_ims_sub_success(ImsSubscription* ims_sub)
       SAS::Event event(this->trail(), SASEvent::NO_SIP_URI_IN_IRS, 0);
       event.add_compressed_param(_ims_subscription, &SASEvent::PROFILE_SERVICE_PROFILE);
       SAS::report_event(event);
+    }
+
+    // Log a SIP_ALL_REGISTER marker to SAS for all IMPUs found.
+    for (std::vector<std::string>::iterator it = _impus.begin();
+         it != _impus.end();
+         ++it)
+    {
+      log_sip_all_register_marker(trail(), *it);
     }
 
     // We can now update the IRS with the new XML. We will handle updating
