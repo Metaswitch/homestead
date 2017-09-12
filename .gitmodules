@@ -33,4 +33,4 @@
   url = git@github.com:gcovr/gcovr.git
 [submodule "modules/libmemcached"]
 	path = modules/libmemcached
-	url = git@github.com:Metaswitch/libmemcached-upstream.git
+	url = git@git.datcon.co.uk:/clearwater-core/libmemcached-upstream.git
