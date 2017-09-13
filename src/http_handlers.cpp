@@ -1110,11 +1110,14 @@ void ImpuRegDataTask::put_in_cache()
     void_success_cb success_cb =
       std::bind(&ImpuRegDataTask::on_put_reg_data_success, this);
 
+    progress_callback progress_cb =
+      std::bind(&ImpuRegDataTask::on_put_reg_data_progress, this);
+
     failure_callback failure_cb =
       std::bind(&ImpuRegDataTask::on_put_reg_data_failure, this, _1);
 
     // Cache the IRS
-    _cache->put_implicit_registration_set(success_cb, failure_cb, _irs, this->trail());
+    _cache->put_implicit_registration_set(success_cb, progress_cb, failure_cb, _irs, this->trail());
   }
   else
   {
@@ -1124,13 +1127,17 @@ void ImpuRegDataTask::put_in_cache()
   }
 }
 
-void ImpuRegDataTask::on_put_reg_data_success()
+void ImpuRegDataTask::on_put_reg_data_progress()
 {
   SAS::Event event(this->trail(), SASEvent::CACHE_PUT_REG_DATA_SUCCESS, 0);
   SAS::report_event(event);
 
   send_reply();
+}
 
+void ImpuRegDataTask::on_put_reg_data_success()
+{
+  // Just tidy up
   delete this;
 }
 
@@ -1261,10 +1268,13 @@ void ImpuRegDataTask::on_sar_response(const HssConnection::ServerAssignmentAnswe
     void_success_cb success_cb =
       std::bind(&ImpuRegDataTask::on_del_impu_success, this);
 
+    progress_callback progress_cb =
+      std::bind(&ImpuRegDataTask::on_del_impu_progress, this);
+
     failure_callback failure_cb =
       std::bind(&ImpuRegDataTask::on_del_impu_failure, this, _1);
 
-    _cache->delete_implicit_registration_set(success_cb, failure_cb, _irs, this->trail());
+    _cache->delete_implicit_registration_set(success_cb, progress_cb, failure_cb, _irs, this->trail());
     pending_cache_op = true;
   }
 
@@ -1298,13 +1308,17 @@ void ImpuRegDataTask::on_del_impu_benign(bool not_found)
   SAS::report_event(event);
 
   send_reply();
+}
 
-  delete this;
+void ImpuRegDataTask::on_del_impu_progress()
+{
+  on_del_impu_benign(false);
 }
 
 void ImpuRegDataTask::on_del_impu_success()
 {
-  on_del_impu_benign(false);
+  // Just tidy up
+  delete this;
 }
 
 void ImpuRegDataTask::on_del_impu_failure(Store::Status status)
@@ -1314,6 +1328,7 @@ void ImpuRegDataTask::on_del_impu_failure(Store::Status status)
   if (status == Store::Status::NOT_FOUND)
   {
     on_del_impu_benign(true);
+    delete this;
   }
   else
   {

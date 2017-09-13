@@ -31,12 +31,13 @@ public:
   // Deletes several registration sets
   // Used for an RTR when we have several registration sets to delete
   virtual Store::Status delete_implicit_registration_sets(const std::vector<ImplicitRegistrationSet*>& irss,
+                                                          progress_callback progress_cb,
                                                           SAS::TrailId trail);
 
 protected:
   virtual Store::Status get_implicit_registration_sets_for_impi(const std::string& impi,
-                                                                                                                              SAS::TrailId trail,
-                                                                                                                              std::vector<ImplicitRegistrationSet*>& result);
+                                                                SAS::TrailId trail,
+                                                                std::vector<ImplicitRegistrationSet*>& result);
 
   virtual Store::Status get_impus_for_impi(const std::string& impi,
                                            SAS::TrailId trail,

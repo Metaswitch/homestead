@@ -20,7 +20,6 @@ typedef std::function<void(Store::Status)> failure_callback;
 typedef std::function<void(ImplicitRegistrationSet*)> irs_success_callback;
 typedef std::function<void(std::vector<ImplicitRegistrationSet*>)> irs_vector_success_callback;
 typedef std::function<void()> void_success_cb;
-typedef std::function<void()> progress_callback;
 typedef std::function<void(ImsSubscription*)> ims_sub_success_cb;
 
 class HssCacheProcessor
