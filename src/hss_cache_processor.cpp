@@ -142,6 +142,7 @@ void HssCacheProcessor::get_implicit_registration_sets_for_impus(irs_vector_succ
 }
 
 void HssCacheProcessor::put_implicit_registration_set(void_success_cb success_cb,
+                                                      progress_callback progress_cb,
                                                       failure_callback failure_cb,
                                                       ImplicitRegistrationSet* irs,
                                                       SAS::TrailId trail)
@@ -166,6 +167,7 @@ void HssCacheProcessor::put_implicit_registration_set(void_success_cb success_cb
 }
 
 void HssCacheProcessor::delete_implicit_registration_set(void_success_cb success_cb,
+                                                         progress_callback progress_cb,
                                                          failure_callback failure_cb,
                                                          ImplicitRegistrationSet* irs,
                                                          SAS::TrailId trail)
@@ -190,6 +192,7 @@ void HssCacheProcessor::delete_implicit_registration_set(void_success_cb success
 }
 
 void HssCacheProcessor::delete_implicit_registration_sets(void_success_cb success_cb,
+                                                          progress_callback progress_cb,
                                                           failure_callback failure_cb,
                                                           std::vector<ImplicitRegistrationSet*> irss,
                                                           SAS::TrailId trail)
@@ -239,6 +242,7 @@ void HssCacheProcessor::get_ims_subscription(ims_sub_success_cb success_cb,
 }
 
 void HssCacheProcessor::put_ims_subscription(void_success_cb success_cb,
+                                             progress_callback progress_cb,
                                              failure_callback failure_cb,
                                              ImsSubscription* subscription,
                                              SAS::TrailId trail)

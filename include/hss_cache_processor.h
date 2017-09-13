@@ -20,6 +20,7 @@ typedef std::function<void(Store::Status)> failure_callback;
 typedef std::function<void(ImplicitRegistrationSet*)> irs_success_callback;
 typedef std::function<void(std::vector<ImplicitRegistrationSet*>)> irs_vector_success_callback;
 typedef std::function<void()> void_success_cb;
+typedef std::function<void()> progress_callback;
 typedef std::function<void(ImsSubscription*)> ims_sub_success_cb;
 
 class HssCacheProcessor
@@ -57,11 +58,19 @@ public:
   // The result of a get request is provided as the argument to the success
   // callback. Ownership of pointer results is passed to the calling function.
   //
-  // All put/delete operations do not take ownership of pointers, so the
-  // callback must delete them if appropriate.
+  // All put/delete operations take a progress callback as well as the success/
+  // failure callbacks. The progress callback is called once the cache has
+  // made enough progress that it can be called a success. However, it may still
+  // have work to do after this point, and so the progress callback must not
+  // delete the pointer that was put/deleted.
+  // Once the progress callback returns, the cache continues doing whatever work
+  // it deems necessary. Once it has finished, it returns and the success
+  // callback is called. This is the point at which the caller can delete the
+  // put/deleted object.
   //
   // If the request fails, the Store::Status code is provided as an argument to
-  // the failure callback.
+  // the failure callback. The progress callback will not be called in a failure
+  // scenario, so the failure callback must delete any put/deleted data.
   // ---------------------------------------------------------------------------
 
   // Get the IRS for a given impu
@@ -87,12 +96,14 @@ public:
   // Save the IRS in the cache
   // Must include updating the impi mapping table if impis have been added
   virtual void put_implicit_registration_set(void_success_cb success_cb,
-                                            failure_callback failure_cb,
-                                            ImplicitRegistrationSet* irs,
-                                            SAS::TrailId trail);
+                                             progress_callback progress_cb,
+                                             failure_callback failure_cb,
+                                             ImplicitRegistrationSet* irs,
+                                             SAS::TrailId trail);
 
   // Used for de-registration
   virtual void delete_implicit_registration_set(void_success_cb success_cb,
+                                                progress_callback progress_cb,
                                                 failure_callback failure_cb,
                                                 ImplicitRegistrationSet* irs,
                                                 SAS::TrailId trail);
@@ -100,6 +111,7 @@ public:
   // Deletes several registration sets
   // Used for an RTR when we have several registration sets to delete
   virtual void delete_implicit_registration_sets(void_success_cb success_cb,
+                                                 progress_callback progress_cb,
                                                  failure_callback failure_cb,
                                                  std::vector<ImplicitRegistrationSet*> irss,
                                                  SAS::TrailId trail);
@@ -114,6 +126,7 @@ public:
 
   // This is used to save the state that we changed in the PPR
   virtual void put_ims_subscription(void_success_cb success_cb,
+                                    progress_callback progress_cb,
                                     failure_callback failure_cb,
                                     ImsSubscription* subscription,
                                     SAS::TrailId trail);
