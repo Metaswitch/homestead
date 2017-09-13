@@ -378,6 +378,10 @@ private:
                                    SAS::TrailId trail,
                                    ImpuStore* store);
 
+  Store::Status put_ims_sub_action(ImsSubscription* subscription,
+                                   SAS::TrailId trail,
+                                   ImpuStore* store);
+
   // IRS IMPU handling methods
 
   Store::Status create_irs_impu(MemcachedImplicitRegistrationSet* irs,

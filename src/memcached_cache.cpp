@@ -847,14 +847,25 @@ Store::Status MemcachedCache::put_ims_subscription(ImsSubscription* subscription
                                                    progress_callback progress_cb,
                                                    SAS::TrailId trail)
 {
+  store_action action =
+    std::bind(&MemcachedCache::put_ims_sub_action, this, subscription, trail, _1);
+  Store::Status status = perform(action, progress_cb);
+  return status;
+}
+
+Store::Status MemcachedCache::put_ims_sub_action(ImsSubscription* subscription,
+                                                 SAS::TrailId trail,
+                                                 ImpuStore* store)
+{
   Store::Status status = Store::Status::OK;
 
-  BaseImsSubscription* mis = (BaseImsSubscription*)subscription;
+    BaseImsSubscription* mis = (BaseImsSubscription*)subscription;
 
-  for (BaseImsSubscription::Irs::value_type& irs : mis->get_irs())
-  {
-    put_implicit_registration_set(irs.second, progress_cb, trail);
-  }
+    for (BaseImsSubscription::Irs::value_type& irs : mis->get_irs())
+    {
+      MemcachedImplicitRegistrationSet* mirs = (MemcachedImplicitRegistrationSet*)irs.second;
+      put_irs_action(mirs, trail, store);
+    }
 
-  return status;
+    return status;
 }
