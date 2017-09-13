@@ -259,8 +259,8 @@ public:
         .WillOnce(Return(http_ret_code)).RetiresOnSaturation();
 
       // Expect deletions for each IRS
-      EXPECT_CALL(*_cache, delete_implicit_registration_sets(_, _, irss, FAKE_TRAIL_ID))
-        .WillOnce(InvokeArgument<0>());
+      EXPECT_CALL(*_cache, delete_implicit_registration_sets(_, _, _, irss, FAKE_TRAIL_ID))
+        .WillOnce(DoAll(InvokeArgument<1>(), InvokeArgument<0>()));
     }
     else
     {
@@ -529,8 +529,8 @@ TEST_F(DiameterHandlersTest, RTRIncludesBarredImpus)
     .WillOnce(Return(200)).RetiresOnSaturation();
 
   // Expect deletions for each IRS
-  EXPECT_CALL(*_cache, delete_implicit_registration_sets(_, _, irss, FAKE_TRAIL_ID))
-    .WillOnce(InvokeArgument<0>());
+  EXPECT_CALL(*_cache, delete_implicit_registration_sets(_, _, _, irss, FAKE_TRAIL_ID))
+    .WillOnce(DoAll(InvokeArgument<1>(), InvokeArgument<0>()));
 
   task->run();
 
@@ -594,8 +594,8 @@ TEST_F(DiameterHandlersTest, RTRIncludesBarringIndication)
     .WillOnce(Return(200)).RetiresOnSaturation();
 
   // Expect deletions for each IRS
-  EXPECT_CALL(*_cache, delete_implicit_registration_sets(_, _, irss, FAKE_TRAIL_ID))
-    .WillOnce(InvokeArgument<0>());
+  EXPECT_CALL(*_cache, delete_implicit_registration_sets(_, _, _, irss, FAKE_TRAIL_ID))
+    .WillOnce(DoAll(InvokeArgument<1>(), InvokeArgument<0>()));
 
   task->run();
 
@@ -732,8 +732,8 @@ TEST_F(DiameterHandlersTest, PPRMainline)
     .Times(1);
 
   // We'll then save the ImsSubscription in the cache
-  EXPECT_CALL(*_cache, put_ims_subscription(_, _, sub, FAKE_TRAIL_ID))
-    .WillOnce(InvokeArgument<0>());
+  EXPECT_CALL(*_cache, put_ims_subscription(_, _, _, sub, FAKE_TRAIL_ID))
+    .WillOnce(DoAll(InvokeArgument<1>(), InvokeArgument<0>()));
 
   // And notify Sprout
   ppr_sprout_connection(IMPU, IMS_SUBSCRIPTION, HTTP_OK);
@@ -784,8 +784,8 @@ TEST_F(DiameterHandlersTest, PPRChangeIDs)
   ppr_sprout_connection(IMPU, IMPU_IMS_SUBSCRIPTION, HTTP_OK);
 
   // We'll then save the ImsSubscription in the cache
-  EXPECT_CALL(*_cache, put_ims_subscription(_, _, sub, FAKE_TRAIL_ID))
-    .WillOnce(InvokeArgument<0>());
+  EXPECT_CALL(*_cache, put_ims_subscription(_, _, _, sub, FAKE_TRAIL_ID))
+    .WillOnce(DoAll(InvokeArgument<1>(), InvokeArgument<0>()));
 
   ppr_expect_ppa();
 
@@ -868,8 +868,8 @@ TEST_F(DiameterHandlersTest, PPRChargingAddrs)
     .Times(1);
 
   // We'll then save the ImsSubscription in the cache
-  EXPECT_CALL(*_cache, put_ims_subscription(_, _, sub, FAKE_TRAIL_ID))
-    .WillOnce(InvokeArgument<0>());
+  EXPECT_CALL(*_cache, put_ims_subscription(_, _, _, sub, FAKE_TRAIL_ID))
+    .WillOnce(DoAll(InvokeArgument<1>(), InvokeArgument<0>()));
 
   ppr_expect_ppa();
 
@@ -906,8 +906,8 @@ TEST_F(DiameterHandlersTest, PPRImsSub)
   ppr_sprout_connection(IMPU, IMS_SUBSCRIPTION, HTTP_OK);
 
   // We'll then save the ImsSubscription in the cache
-  EXPECT_CALL(*_cache, put_ims_subscription(_, _, sub, FAKE_TRAIL_ID))
-    .WillOnce(InvokeArgument<0>());
+  EXPECT_CALL(*_cache, put_ims_subscription(_, _, _, sub, FAKE_TRAIL_ID))
+    .WillOnce(DoAll(InvokeArgument<1>(), InvokeArgument<0>()));
 
   ppr_expect_ppa();
 
@@ -952,8 +952,8 @@ TEST_F(DiameterHandlersTest, PPRIMSSubNoSIPURI)
   ppr_sprout_connection(TEL_URI, TEL_URIS_IMS_SUBSCRIPTION, HTTP_OK);
 
   // We'll then save the ImsSubscription in the cache
-  EXPECT_CALL(*_cache, put_ims_subscription(_, _, sub, FAKE_TRAIL_ID))
-    .WillOnce(InvokeArgument<0>());
+  EXPECT_CALL(*_cache, put_ims_subscription(_, _, _, sub, FAKE_TRAIL_ID))
+    .WillOnce(DoAll(InvokeArgument<1>(), InvokeArgument<0>()));
 
   ppr_expect_ppa();
 
@@ -998,8 +998,8 @@ TEST_F(DiameterHandlersTest, PPRCacheFailure)
   ppr_sprout_connection(IMPU, IMS_SUBSCRIPTION, HTTP_OK);
 
   // We'll then save the ImsSubscription in the cache, which will give an error
-  EXPECT_CALL(*_cache, put_ims_subscription(_, _, sub, FAKE_TRAIL_ID))
-    .WillOnce(InvokeArgument<1>(Store::Status::ERROR));
+  EXPECT_CALL(*_cache, put_ims_subscription(_, _, _, sub, FAKE_TRAIL_ID))
+    .WillOnce(InvokeArgument<2>(Store::Status::ERROR));
 
   ppr_expect_ppa();
 
