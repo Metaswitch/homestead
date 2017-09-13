@@ -108,24 +108,3 @@ Store::Status BaseHssCache::get_implicit_registration_sets_for_impis(const std::
 
   return status;
 }
-
-Store::Status BaseHssCache::delete_implicit_registration_sets(const std::vector<ImplicitRegistrationSet*>& irss,
-                                                              progress_callback progress_cb,
-                                                              SAS::TrailId trail)
-{
-  Store::Status status = Store::Status::OK;
-
-  for (ImplicitRegistrationSet* irs : irss)
-  {
-    Store::Status inner_status = delete_implicit_registration_set(irs, progress_cb, trail);
-
-    if (inner_status != Store::Status::OK &&
-        inner_status != Store::Status::NOT_FOUND)
-    {
-      status = inner_status;
-      break;
-    }
-  }
-
-  return status;
-}
