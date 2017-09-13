@@ -13,6 +13,7 @@
 #include "test_interposer.hpp"
 #include "test_utils.hpp"
 #include "localstore.h"
+#include "fakelogger.h"
 
 static LocalStore LOCAL_STORE;
 static LocalStore LOCAL_STORE_2;
@@ -1112,6 +1113,43 @@ TEST_F(MemcachedCacheTest, PutIrsWithExistingRefreshedConflictAssociated)
   EXPECT_EQ(Store::Status::OK, status);
 
   delete irs;
+}
+
+TEST_F(MemcachedCacheTest, PutIrsRemoteError)
+{
+  CapturingTestLogger log(5);
+  ImplicitRegistrationSet* irs =
+    _memcached_cache->create_implicit_registration_set();
+
+  irs->set_ttl(1);
+  irs->set_ims_sub_xml(SERVICE_PROFILE);
+  irs->set_reg_state(RegistrationState::REGISTERED);
+
+  _rls->force_error();
+
+  // Expect that we still report success, but that we log the error
+  EXPECT_CALL(*_mock_progress_cb, progress_callback());
+  Store::Status status = _memcached_cache->put_implicit_registration_set(irs, _progress_callback, 0L);
+  EXPECT_EQ(Store::Status::OK, status);
+
+  EXPECT_TRUE(log.contains("Failed to perform operation to remote store with error 4"));
+  delete irs;
+}
+
+TEST_F(MemcachedCacheTest, PutIrsUnchanged)
+{
+  MemcachedImplicitRegistrationSet* mirs =
+    (MemcachedImplicitRegistrationSet*)_memcached_cache->create_implicit_registration_set();
+
+  mirs->_existing = true;
+  mirs->_refreshed = false;
+
+  // Expect that we still report success and call the progress callback
+  EXPECT_CALL(*_mock_progress_cb, progress_callback());
+  Store::Status status = _memcached_cache->put_implicit_registration_set(mirs, _progress_callback, 0L);
+  EXPECT_EQ(Store::Status::OK, status);
+
+  delete mirs;
 }
 
 TEST_F(MemcachedCacheTest, PutIrsWithExistingRefreshed)
