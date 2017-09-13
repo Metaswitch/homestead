@@ -168,6 +168,18 @@ static const std::string SERVICE_PROFILE_3 =
 static const uint64_t CAS = 1L;
 static const uint64_t CAS_2 = 2L;
 
+// Allows us to check that progress callbacks are called
+class MockProgressCallback
+{
+public:
+  virtual ~MockProgressCallback() {};
+  MOCK_METHOD0(progress_callback, void());
+};
+
+static MockProgressCallback* _mock_progress_cb;
+static progress_callback _progress_callback = []() {
+  _mock_progress_cb->progress_callback();
+};
 
 class MemcachedImplicitRegistrationSetTest : public ControlTimeTest
 {
@@ -649,10 +661,12 @@ public:
     _remote_stores = { _remote_store };
     _memcached_cache = new MemcachedCache(_local_store,
                                           _remote_stores);
+    _mock_progress_cb = new MockProgressCallback();
   }
 
   virtual void TearDown() override
   {
+    delete _mock_progress_cb;
     delete _memcached_cache;
     delete _remote_store;
     delete _rls;
@@ -962,8 +976,9 @@ TEST_F(MemcachedCacheTest, PutIrs)
   irs->set_ims_sub_xml(SERVICE_PROFILE);
   irs->set_reg_state(RegistrationState::REGISTERED);
 
-  EXPECT_EQ(Store::Status::OK,
-            _memcached_cache->put_implicit_registration_set(irs, 0L));
+  EXPECT_CALL(*_mock_progress_cb, progress_callback());
+  Store::Status status = _memcached_cache->put_implicit_registration_set(irs, _progress_callback, 0L);
+  EXPECT_EQ(Store::Status::OK, status);
 
   delete irs;
 }
@@ -1003,8 +1018,9 @@ TEST_F(MemcachedCacheTest, PutIrsWithExistingUnrefreshed)
 
   irs->add_associated_impi(IMPI);
 
-  EXPECT_EQ(Store::Status::OK,
-            _memcached_cache->put_implicit_registration_set(irs, 0L));
+  EXPECT_CALL(*_mock_progress_cb, progress_callback());
+  Store::Status status = _memcached_cache->put_implicit_registration_set(irs, _progress_callback, 0L);
+  EXPECT_EQ(Store::Status::OK, status);
 
   delete irs;
 }
@@ -1044,8 +1060,9 @@ TEST_F(MemcachedCacheTest, PutIrsWithExistingNotRefreshedConflictAssociated)
     delete ai;
   }
 
+  // Errors don't trigger the progress_callback
   EXPECT_EQ(Store::Status::ERROR,
-            _memcached_cache->put_implicit_registration_set(irs, 0L));
+            _memcached_cache->put_implicit_registration_set(irs, _progress_callback, 0L));
 
   delete irs;
 }
@@ -1090,8 +1107,9 @@ TEST_F(MemcachedCacheTest, PutIrsWithExistingRefreshedConflictAssociated)
     delete ai;
   }
 
-  EXPECT_EQ(Store::Status::OK,
-            _memcached_cache->put_implicit_registration_set(irs, 0L));
+  EXPECT_CALL(*_mock_progress_cb, progress_callback());
+  Store::Status status = _memcached_cache->put_implicit_registration_set(irs, _progress_callback, 0L);
+  EXPECT_EQ(Store::Status::OK, status);
 
   delete irs;
 }
@@ -1194,8 +1212,9 @@ TEST_F(MemcachedCacheTest, PutIrsWithExistingRefreshed)
   irs->delete_associated_impi(IMPI_2);
   irs->add_associated_impi(IMPI_3);
 
-  EXPECT_EQ(Store::Status::OK,
-            _memcached_cache->put_implicit_registration_set(irs, 0L));
+  EXPECT_CALL(*_mock_progress_cb, progress_callback());
+  Store::Status status = _memcached_cache->put_implicit_registration_set(irs, _progress_callback, 0L);
+  EXPECT_EQ(Store::Status::OK, status);
 
   delete irs;
 }
@@ -1209,8 +1228,9 @@ TEST_F(MemcachedCacheTest, DeleteIrsNotAdded)
   irs->set_ims_sub_xml(SERVICE_PROFILE);
   irs->set_reg_state(RegistrationState::REGISTERED);
 
-  EXPECT_EQ(Store::Status::OK,
-            _memcached_cache->delete_implicit_registration_set(irs, 0L));
+  EXPECT_CALL(*_mock_progress_cb, progress_callback());
+  Store::Status status = _memcached_cache->delete_implicit_registration_set(irs, _progress_callback, 0L);
+  EXPECT_EQ(Store::Status::OK, status);
 
   delete irs;
 }
@@ -1238,8 +1258,9 @@ TEST_F(MemcachedCacheTest, DeleteIrsAddedRemote)
 
   std::vector<ImplicitRegistrationSet*> irss = {irs};
 
-  EXPECT_EQ(Store::Status::OK,
-            _memcached_cache->delete_implicit_registration_sets(irss, 0L));
+  EXPECT_CALL(*_mock_progress_cb, progress_callback());
+  Store::Status status = _memcached_cache->delete_implicit_registration_set(irs, _progress_callback, 0L);
+  EXPECT_EQ(Store::Status::OK, status);
 
   delete irs;
 }
@@ -1269,8 +1290,9 @@ TEST_F(MemcachedCacheTest, DeleteIrsAddedLocalStoreFail)
 
   _lls->force_delete_error();
 
+  // The progress_callback is not called on error
   EXPECT_EQ(Store::Status::ERROR,
-            _memcached_cache->delete_implicit_registration_sets(irss, 0L));
+            _memcached_cache->delete_implicit_registration_sets(irss, _progress_callback, 0L));
 
   delete irs;
 }
@@ -1296,8 +1318,9 @@ TEST_F(MemcachedCacheTest, DeleteIrss)
 
   _memcached_cache->get_implicit_registration_set_for_impu(IMPU, 0L, irs);
 
-  EXPECT_EQ(Store::Status::OK,
-            _memcached_cache->delete_implicit_registration_set(irs, 0L));
+  EXPECT_CALL(*_mock_progress_cb, progress_callback());
+  Store::Status status = _memcached_cache->delete_implicit_registration_set(irs, _progress_callback, 0L);
+  EXPECT_EQ(Store::Status::OK, status);
 
   delete irs;
 }
@@ -1454,8 +1477,11 @@ TEST_F(MemcachedCacheTest, PutImsSubscription)
 
   subscription->set_charging_addrs(CHARGING_ADDRESSES_2);
 
+
+  EXPECT_CALL(*_mock_progress_cb, progress_callback());
   Store::Status status =
     _memcached_cache->put_ims_subscription(subscription,
+                                           _progress_callback,
                                            0L);
 
   EXPECT_EQ(Store::Status::OK, status);

@@ -400,6 +400,12 @@ Store::Status MemcachedCache::put_implicit_registration_set(ImplicitRegistration
   {
     status = perform(&MemcachedCache::put_implicit_registration_set, mirs, progress_cb, trail);
   }
+  else
+  {
+    // This is treated as success, so call the progress callback as if we'd
+    // successfully deleted it
+    progress_cb();
+  }
 
   return status;
 }
@@ -768,7 +774,12 @@ Store::Status MemcachedCache::delete_implicit_registration_set(ImplicitRegistrat
   }
   else
   {
-    TRC_WARNING("Attempted to delete IRS which hadn't been created: %s", irs->get_default_impu().c_str());
+    TRC_WARNING("Attempted to delete IRS which hadn't been created: %s",
+                irs->get_default_impu().c_str());
+
+    // This is treated as success, so call the progress callback as if we'd
+    // successfully deleted it
+    progress_cb();
   }
 
   return status;
