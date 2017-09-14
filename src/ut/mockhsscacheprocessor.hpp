@@ -18,8 +18,8 @@
 class MockHssCacheProcessor : public HssCacheProcessor
 {
 public:
-  MockHssCacheProcessor() : HssCacheProcessor(NULL) {};
-  virtual ~MockHssCacheProcessor() {};
+  MockHssCacheProcessor();
+  virtual ~MockHssCacheProcessor();
 
   MOCK_METHOD0(create_implicit_registration_set,
                ImplicitRegistrationSet*());
