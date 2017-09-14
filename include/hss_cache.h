@@ -18,6 +18,7 @@
 #include "ims_subscription.h"
 #include "implicit_reg_set.h"
 
+// The purpose of the progress_callback is explained in hss_cache_processor.h
 typedef std::function<void()> progress_callback;
 
 class HssCache

@@ -859,13 +859,13 @@ Store::Status MemcachedCache::put_ims_sub_action(ImsSubscription* subscription,
 {
   Store::Status status = Store::Status::OK;
 
-    BaseImsSubscription* mis = (BaseImsSubscription*)subscription;
+  BaseImsSubscription* mis = (BaseImsSubscription*)subscription;
 
-    for (BaseImsSubscription::Irs::value_type& irs : mis->get_irs())
-    {
-      MemcachedImplicitRegistrationSet* mirs = (MemcachedImplicitRegistrationSet*)irs.second;
-      put_irs_action(mirs, trail, store);
-    }
+  for (BaseImsSubscription::Irs::value_type& irs : mis->get_irs())
+  {
+    MemcachedImplicitRegistrationSet* mirs = (MemcachedImplicitRegistrationSet*)irs.second;
+    put_irs_action(mirs, trail, store);
+  }
 
-    return status;
+  return status;
 }
