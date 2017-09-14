@@ -250,10 +250,13 @@ void RegistrationTerminationTask::get_registration_sets_success(std::vector<Impl
     void_success_cb success_cb =
       std::bind(&RegistrationTerminationTask::delete_reg_sets_success, this);
 
+    progress_callback progress_cb =
+      std::bind(&RegistrationTerminationTask::delete_reg_sets_progress, this);
+
     failure_callback failure_cb =
       std::bind(&RegistrationTerminationTask::delete_reg_sets_failure, this, _1);
 
-    _cfg->cache->delete_implicit_registration_sets(success_cb, failure_cb, _reg_sets, this->trail());
+    _cfg->cache->delete_implicit_registration_sets(success_cb, progress_cb, failure_cb, _reg_sets, this->trail());
   }
 }
 
@@ -266,13 +269,18 @@ void RegistrationTerminationTask::get_registration_sets_failure(Store::Status rc
   delete this;
 }
 
-// These two callbacks are used so that we don't delete the task until we're
+// These callbacks are used so that we don't delete the task until we're
 // completely done with Cache operations.
 // This allows us to delete each of the ImplicitRegistrationSets in the
 // _reg_sets vector in the task's destructor.
-void RegistrationTerminationTask::delete_reg_sets_success()
+void RegistrationTerminationTask::delete_reg_sets_progress()
 {
   // We have already sent the reponse, so we do nothing here
+}
+
+void RegistrationTerminationTask::delete_reg_sets_success()
+{
+  // Just tidy up
   delete this;
 }
 
@@ -468,10 +476,13 @@ void PushProfileTask::on_get_ims_sub_success(ImsSubscription* ims_sub)
   void_success_cb success_cb =
     std::bind(&PushProfileTask::on_save_ims_sub_success, this);
 
+  progress_callback progress_cb =
+    std::bind(&PushProfileTask::on_save_ims_sub_progress, this);
+
   failure_callback failure_cb =
     std::bind(&PushProfileTask::on_save_ims_sub_failure, this, _1);
 
-  _cfg->cache->put_ims_subscription(success_cb, failure_cb, _ims_sub, this->trail());
+  _cfg->cache->put_ims_subscription(success_cb, progress_cb, failure_cb, _ims_sub, this->trail());
 }
 
 void PushProfileTask::on_get_ims_sub_failure(Store::Status rc)
@@ -483,11 +494,16 @@ void PushProfileTask::on_get_ims_sub_failure(Store::Status rc)
   delete this;
 }
 
-void PushProfileTask::on_save_ims_sub_success()
+void PushProfileTask::on_save_ims_sub_progress()
 {
   SAS::Event event(this->trail(), SASEvent::CACHE_PUT_REG_DATA_SUCCESS, 0);
   SAS::report_event(event);
   send_ppa(DIAMETER_REQ_SUCCESS);
+}
+
+void PushProfileTask::on_save_ims_sub_success()
+{
+  // Just tidy up
   delete this;
 }
 

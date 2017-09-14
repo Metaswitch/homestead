@@ -311,27 +311,35 @@ public:
   // Get the IRS for a given IMPU
   virtual Store::Status get_implicit_registration_set_for_impu(const std::string& impu,
                                                                SAS::TrailId trail,
-                                                               ImplicitRegistrationSet*& result);
+                                                               ImplicitRegistrationSet*& result) override;
 
   // Save the IRS in the cache
   // Must include updating the impi mapping table if impis have been added
   virtual Store::Status put_implicit_registration_set(ImplicitRegistrationSet* irs,
-                                                      SAS::TrailId trail);
+                                                      progress_callback progress_cb,
+                                                      SAS::TrailId trail) override;
 
   // Used for de-registration
   virtual Store::Status delete_implicit_registration_set(ImplicitRegistrationSet* irs,
-                                                         SAS::TrailId trail);
+                                                         progress_callback progress_cb,
+                                                         SAS::TrailId trail) override;
+
+  // Used for RTRs
+  virtual Store::Status delete_implicit_registration_sets(const std::vector<ImplicitRegistrationSet*>& irss,
+                                                          progress_callback progress_cb,
+                                                          SAS::TrailId trail) override;
 
   // Gets the whole IMS subscription for this impi
   // This is used when we get a PPR, and we have to update charging functions
   // as we'll need to updated every IRS that we've stored
   virtual Store::Status get_ims_subscription(const std::string& impi,
                                              SAS::TrailId trail,
-                                             ImsSubscription*& result);
+                                             ImsSubscription*& result) override;
 
   // This is used to save the state that we changed in the PPR
   virtual Store::Status put_ims_subscription(ImsSubscription* subscription,
-                                             SAS::TrailId trail);
+                                             progress_callback progress_cb,
+                                             SAS::TrailId trail) override;
 
 protected:
   // Base HSS Cache methods
@@ -351,21 +359,28 @@ private:
 
   // Per Store IRS methods
 
-  typedef Store::Status (MemcachedCache::*irs_store_action)(MemcachedImplicitRegistrationSet*,
-                                                            SAS::TrailId,
-                                                            ImpuStore*);
+  typedef std::function<Store::Status(ImpuStore*)> store_action;
 
-  Store::Status perform(irs_store_action action,
-                        MemcachedImplicitRegistrationSet*,
-                        SAS::TrailId trail);
+  // Performs the action on each store, calling the progress_cb once the action
+  // has been performed on the local store
+  Store::Status perform(store_action action,
+                        progress_callback progress_cb);
 
-  Store::Status put_implicit_registration_set(MemcachedImplicitRegistrationSet* irs,
-                                              SAS::TrailId trail,
-                                              ImpuStore* store);
+  Store::Status put_irs_action(MemcachedImplicitRegistrationSet* irs,
+                               SAS::TrailId trail,
+                               ImpuStore* store);
 
-  Store::Status delete_implicit_registration_set(MemcachedImplicitRegistrationSet* irs,
-                                                 SAS::TrailId trail,
-                                                 ImpuStore* store);
+  Store::Status delete_irs_action(MemcachedImplicitRegistrationSet* irs,
+                                  SAS::TrailId trail,
+                                  ImpuStore* store);
+
+  Store::Status delete_irss_action(const std::vector<ImplicitRegistrationSet*>& irss,
+                                   SAS::TrailId trail,
+                                   ImpuStore* store);
+
+  Store::Status put_ims_sub_action(ImsSubscription* subscription,
+                                   SAS::TrailId trail,
+                                   ImpuStore* store);
 
   // IRS IMPU handling methods
 

@@ -67,7 +67,8 @@ void HssCacheProcessor::get_implicit_registration_set_for_impu(irs_success_callb
 {
   // Create a work item that can run on the thread pool, capturing required
   // variables to complete the work
-  std::function<void()> work = [this, impu, trail, success_cb, failure_cb]()->void {
+  std::function<void()> work = [this, impu, trail, success_cb, failure_cb]()->void
+  {
     ImplicitRegistrationSet* result = NULL;
     Store::Status rc = _cache->get_implicit_registration_set_for_impu(impu,
                                                                       trail,
@@ -94,7 +95,8 @@ void HssCacheProcessor::get_implicit_registration_sets_for_impis(irs_vector_succ
 {
   // Create a work item that can run on the thread pool, capturing required
   // variables to complete the work
-  std::function<void()> work = [this, impis, trail, success_cb, failure_cb]()->void {
+  std::function<void()> work = [this, impis, trail, success_cb, failure_cb]()->void
+  {
     std::vector<ImplicitRegistrationSet*> result;
     Store::Status rc = _cache->get_implicit_registration_sets_for_impis(impis,
                                                                         trail,
@@ -121,7 +123,8 @@ void HssCacheProcessor::get_implicit_registration_sets_for_impus(irs_vector_succ
 {
   // Create a work item that can run on the thread pool, capturing required
   // variables to complete the work
-  std::function<void()> work = [this, impus, trail, success_cb, failure_cb]()->void {
+  std::function<void()> work = [this, impus, trail, success_cb, failure_cb]()->void
+  {
     std::vector<ImplicitRegistrationSet*> result;
     Store::Status rc = _cache->get_implicit_registration_sets_for_impus(impus,
                                                                         trail,
@@ -142,14 +145,16 @@ void HssCacheProcessor::get_implicit_registration_sets_for_impus(irs_vector_succ
 }
 
 void HssCacheProcessor::put_implicit_registration_set(void_success_cb success_cb,
+                                                      progress_callback progress_cb,
                                                       failure_callback failure_cb,
                                                       ImplicitRegistrationSet* irs,
                                                       SAS::TrailId trail)
 {
   // Create a work item that can run on the thread pool, capturing required
   // variables to complete the work
-  std::function<void()> work = [this, irs, trail, success_cb, failure_cb]()->void {
-    Store::Status rc = _cache->put_implicit_registration_set(irs, trail);
+  std::function<void()> work = [this, irs, trail, success_cb, progress_cb, failure_cb]()->void
+  {
+    Store::Status rc = _cache->put_implicit_registration_set(irs, progress_cb, trail);
 
     if (rc == Store::Status::OK)
     {
@@ -166,14 +171,16 @@ void HssCacheProcessor::put_implicit_registration_set(void_success_cb success_cb
 }
 
 void HssCacheProcessor::delete_implicit_registration_set(void_success_cb success_cb,
+                                                         progress_callback progress_cb,
                                                          failure_callback failure_cb,
                                                          ImplicitRegistrationSet* irs,
                                                          SAS::TrailId trail)
 {
   // Create a work item that can run on the thread pool, capturing required
   // variables to complete the work
-  std::function<void()> work = [this, irs, trail, success_cb, failure_cb]()->void {
-    Store::Status rc = _cache->delete_implicit_registration_set(irs, trail);
+  std::function<void()> work = [this, irs, trail, success_cb, progress_cb, failure_cb]()->void
+  {
+    Store::Status rc = _cache->delete_implicit_registration_set(irs, progress_cb, trail);
 
     if (rc == Store::Status::OK)
     {
@@ -190,14 +197,16 @@ void HssCacheProcessor::delete_implicit_registration_set(void_success_cb success
 }
 
 void HssCacheProcessor::delete_implicit_registration_sets(void_success_cb success_cb,
+                                                          progress_callback progress_cb,
                                                           failure_callback failure_cb,
                                                           std::vector<ImplicitRegistrationSet*> irss,
                                                           SAS::TrailId trail)
 {
   // Create a work item that can run on the thread pool, capturing required
   // variables to complete the work
-  std::function<void()> work = [this, irss, trail, success_cb, failure_cb]()->void {
-    Store::Status rc = _cache->delete_implicit_registration_sets(irss, trail);
+  std::function<void()> work = [this, irss, trail, success_cb, progress_cb, failure_cb]()->void
+  {
+    Store::Status rc = _cache->delete_implicit_registration_sets(irss, progress_cb, trail);
 
     if (rc == Store::Status::OK)
     {
@@ -220,7 +229,8 @@ void HssCacheProcessor::get_ims_subscription(ims_sub_success_cb success_cb,
 {
   // Create a work item that can run on the thread pool, capturing required
   // variables to complete the work
-  std::function<void()> work = [this, impi, trail, success_cb, failure_cb]()->void {
+  std::function<void()> work = [this, impi, trail, success_cb, failure_cb]()->void
+  {
     ImsSubscription* result = NULL;
     Store::Status rc = _cache->get_ims_subscription(impi, trail, result);
 
@@ -239,14 +249,16 @@ void HssCacheProcessor::get_ims_subscription(ims_sub_success_cb success_cb,
 }
 
 void HssCacheProcessor::put_ims_subscription(void_success_cb success_cb,
+                                             progress_callback progress_cb,
                                              failure_callback failure_cb,
                                              ImsSubscription* subscription,
                                              SAS::TrailId trail)
 {
   // Create a work item that can run on the thread pool, capturing required
   // variables to complete the work
-  std::function<void()> work = [this, subscription, trail, success_cb, failure_cb]()->void {
-    Store::Status rc = _cache->put_ims_subscription(subscription, trail);
+  std::function<void()> work = [this, subscription, trail, success_cb, progress_cb, failure_cb]()->void
+  {
+    Store::Status rc = _cache->put_ims_subscription(subscription, progress_cb, trail);
 
     if (rc == Store::Status::OK)
     {
