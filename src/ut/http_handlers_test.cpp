@@ -1493,12 +1493,12 @@ TEST_F(HTTPHandlersTest, ImpuRegDataInitialReg)
     .WillOnce(InvokeArgument<0>(ByRef(answer)));
 
   // We now expect it to be put in the cache with an updated TTL and state REGISTERED
-  EXPECT_CALL(*_cache, put_implicit_registration_set(_, _,
+  EXPECT_CALL(*_cache, put_implicit_registration_set(_, _, _,
     AllOf(Property(&ImplicitRegistrationSet::get_reg_state, RegistrationState::REGISTERED),
           Property(&ImplicitRegistrationSet::get_ttl, 7200),
           Property(&ImplicitRegistrationSet::get_associated_impis, IMPI_IN_VECTOR)),
     FAKE_TRAIL_ID))
-    .WillOnce(InvokeArgument<0>());
+    .WillOnce(DoAll(InvokeArgument<1>(), InvokeArgument<0>()));
 
   // Expect 200 response
   EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
@@ -1543,11 +1543,11 @@ TEST_F(HTTPHandlersTest, ImpuRegDataInitialRegNoServerName)
     .WillOnce(InvokeArgument<0>(ByRef(answer)));
 
   // We now expect it to be put in the cache with an updated TTL and state REGISTERED
-  EXPECT_CALL(*_cache, put_implicit_registration_set(_, _,
+  EXPECT_CALL(*_cache, put_implicit_registration_set(_, _, _,
     AllOf(Property(&ImplicitRegistrationSet::get_reg_state, RegistrationState::REGISTERED),
           Property(&ImplicitRegistrationSet::get_ttl, 7200)),
     FAKE_TRAIL_ID))
-    .WillOnce(InvokeArgument<0>());
+    .WillOnce(DoAll(InvokeArgument<1>(), InvokeArgument<0>()));
 
   // Expect 200 response
   EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
@@ -1595,11 +1595,11 @@ TEST_F(HTTPHandlersTest, ImpuRegDataInitialRegCacheGetNotFound)
 
 
   // We now expect it to be put in the cache with an updated TTL and state REGISTERED
-  EXPECT_CALL(*_cache, put_implicit_registration_set(_, _,
+  EXPECT_CALL(*_cache, put_implicit_registration_set(_, _, _,
     AllOf(Property(&ImplicitRegistrationSet::get_reg_state, RegistrationState::REGISTERED),
           Property(&ImplicitRegistrationSet::get_ttl, 7200)),
     FAKE_TRAIL_ID))
-    .WillOnce(InvokeArgument<0>());
+    .WillOnce(DoAll(InvokeArgument<1>(), InvokeArgument<0>()));
 
   // Expect 200 response
   EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
@@ -1664,11 +1664,11 @@ TEST_F(HTTPHandlersTest, ImpuRegDataInitialRegCachePutError)
     .WillOnce(InvokeArgument<0>(ByRef(answer)));
 
   // We simulate a cache error when trying to cache it
-  EXPECT_CALL(*_cache, put_implicit_registration_set(_, _,
+  EXPECT_CALL(*_cache, put_implicit_registration_set(_, _, _,
     AllOf(Property(&ImplicitRegistrationSet::get_reg_state, RegistrationState::REGISTERED),
           Property(&ImplicitRegistrationSet::get_ttl, 7200)),
     FAKE_TRAIL_ID))
-    .WillOnce(InvokeArgument<1>(Store::Status::ERROR));
+    .WillOnce(InvokeArgument<2>(Store::Status::ERROR));
 
   // Expect 503 response
   EXPECT_CALL(*_httpstack, send_reply(_, 503, _));
@@ -1714,11 +1714,11 @@ TEST_F(HTTPHandlersTest, ImpuRegDataReReg)
     .WillOnce(InvokeArgument<0>(ByRef(answer)));
 
   // We now expect it to be put in the cache with an updated TTL and state REGISTERED
-  EXPECT_CALL(*_cache, put_implicit_registration_set(_, _,
+  EXPECT_CALL(*_cache, put_implicit_registration_set(_, _, _,
     AllOf(Property(&ImplicitRegistrationSet::get_reg_state, RegistrationState::REGISTERED),
           Property(&ImplicitRegistrationSet::get_ttl, 7200)),
     FAKE_TRAIL_ID))
-    .WillOnce(InvokeArgument<0>());
+    .WillOnce(DoAll(InvokeArgument<1>(), InvokeArgument<0>()));
 
   // Expect 200 response
   EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
@@ -1766,11 +1766,11 @@ TEST_F(HTTPHandlersTest, ImpuRegDataReRegNoCache)
     .WillOnce(InvokeArgument<0>(ByRef(answer)));
 
   // We now expect it to be put in the cache with an updated TTL and state REGISTERED
-  EXPECT_CALL(*_cache, put_implicit_registration_set(_, _,
+  EXPECT_CALL(*_cache, put_implicit_registration_set(_, _, _,
     AllOf(Property(&ImplicitRegistrationSet::get_reg_state, RegistrationState::REGISTERED),
           Property(&ImplicitRegistrationSet::get_ttl, 7200)),
     FAKE_TRAIL_ID))
-    .WillOnce(InvokeArgument<0>());
+    .WillOnce(DoAll(InvokeArgument<1>(), InvokeArgument<0>()));
 
   // Expect 200 response
   EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
@@ -1847,11 +1847,11 @@ TEST_F(HTTPHandlersTest, ImpuRegDataReRegNewBinding)
     .WillOnce(InvokeArgument<0>(ByRef(answer)));
 
   // We now expect it to be put in the cache with an updated TTL and state REGISTERED
-  EXPECT_CALL(*_cache, put_implicit_registration_set(_, _,
+  EXPECT_CALL(*_cache, put_implicit_registration_set(_, _, _,
     AllOf(Property(&ImplicitRegistrationSet::get_reg_state, RegistrationState::REGISTERED),
           Property(&ImplicitRegistrationSet::get_ttl, 7200)),
     FAKE_TRAIL_ID))
-    .WillOnce(InvokeArgument<0>());
+    .WillOnce(DoAll(InvokeArgument<1>(), InvokeArgument<0>()));
 
   // Expect 200 response
   EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
@@ -1898,11 +1898,11 @@ TEST_F(HTTPHandlersTest, ImpuRegDataRegIncludesBarring)
     .WillOnce(InvokeArgument<0>(ByRef(answer)));
 
   // We now expect it to be put in the cache with an updated TTL and state REGISTERED
-  EXPECT_CALL(*_cache, put_implicit_registration_set(_, _,
+  EXPECT_CALL(*_cache, put_implicit_registration_set(_, _, _,
     AllOf(Property(&ImplicitRegistrationSet::get_reg_state, RegistrationState::REGISTERED),
           Property(&ImplicitRegistrationSet::get_ttl, 7200)),
     FAKE_TRAIL_ID))
-    .WillOnce(InvokeArgument<0>());
+    .WillOnce(DoAll(InvokeArgument<1>(), InvokeArgument<0>()));
 
   // Expect 200 response
   EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
@@ -2227,11 +2227,11 @@ TEST_F(HTTPHandlersTest, ImpuRegDataCallNewUnregisteredService)
     .WillOnce(InvokeArgument<0>(ByRef(answer)));
 
   // Data is cached with state UNREGISTERED
-  EXPECT_CALL(*_cache, put_implicit_registration_set(_, _,
+  EXPECT_CALL(*_cache, put_implicit_registration_set(_, _, _,
     AllOf(Property(&ImplicitRegistrationSet::get_reg_state, RegistrationState::UNREGISTERED),
           Property(&ImplicitRegistrationSet::get_ttl, 7200)),
     FAKE_TRAIL_ID))
-    .WillOnce(InvokeArgument<0>());
+    .WillOnce(DoAll(InvokeArgument<1>(), InvokeArgument<0>()));
 
   // Check the response
   EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
@@ -2277,10 +2277,10 @@ TEST_F(HTTPHandlersTest, ImpuRegDataDeregUser)
   // Data is deleted from cache
   // Check that the deletion request is using the correct service profile (as
   // that's how the cache knows what to delete)
-  EXPECT_CALL(*_cache, delete_implicit_registration_set(_, _,
+  EXPECT_CALL(*_cache, delete_implicit_registration_set(_, _, _,
     Property(&ImplicitRegistrationSet::get_ims_sub_xml, IMPU_IMS_SUBSCRIPTION),
     FAKE_TRAIL_ID))
-    .WillOnce(InvokeArgument<0>());
+    .WillOnce(DoAll(InvokeArgument<1>(), InvokeArgument<0>()));
 
   // Check the response
   EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
@@ -2326,10 +2326,10 @@ TEST_F(HTTPHandlersTest, ImpuRegDataDeregTimeout)
   // Data is deleted from cache
   // Check that the deletion request is using the correct service profile (as
   // that's how the cache knows what to delete)
-  EXPECT_CALL(*_cache, delete_implicit_registration_set(_, _,
+  EXPECT_CALL(*_cache, delete_implicit_registration_set(_, _, _,
     Property(&ImplicitRegistrationSet::get_ims_sub_xml, IMPU_IMS_SUBSCRIPTION),
     FAKE_TRAIL_ID))
-    .WillOnce(InvokeArgument<0>());
+    .WillOnce(DoAll(InvokeArgument<1>(), InvokeArgument<0>()));
 
   // Check the response
   EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
@@ -2375,10 +2375,10 @@ TEST_F(HTTPHandlersTest, ImpuRegDataDeregAdmin)
   // Data is deleted from cache
   // Check that the deletion request is using the correct service profile (as
   // that's how the cache knows what to delete)
-  EXPECT_CALL(*_cache, delete_implicit_registration_set(_, _,
+  EXPECT_CALL(*_cache, delete_implicit_registration_set(_, _, _,
     Property(&ImplicitRegistrationSet::get_ims_sub_xml, IMPU_IMS_SUBSCRIPTION),
     FAKE_TRAIL_ID))
-    .WillOnce(InvokeArgument<0>());
+    .WillOnce(DoAll(InvokeArgument<1>(), InvokeArgument<0>()));
 
   // Check the response
   EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
@@ -2425,10 +2425,10 @@ TEST_F(HTTPHandlersTest, ImpuRegDataDeregNoIMPI)
   // Data is deleted from cache
   // Check that the deletion request is using the correct service profile (as
   // that's how the cache knows what to delete)
-  EXPECT_CALL(*_cache, delete_implicit_registration_set(_, _,
+  EXPECT_CALL(*_cache, delete_implicit_registration_set(_, _, _,
     Property(&ImplicitRegistrationSet::get_ims_sub_xml, IMPU_IMS_SUBSCRIPTION),
     FAKE_TRAIL_ID))
-    .WillOnce(InvokeArgument<0>());
+    .WillOnce(DoAll(InvokeArgument<1>(), InvokeArgument<0>()));
 
   // Check the response
   EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
@@ -2474,10 +2474,10 @@ TEST_F(HTTPHandlersTest, ImpuRegDataDeregCacheError)
   // Data is deleted from cache
   // Check that the deletion request is using the correct service profile (as
   // that's how the cache knows what to delete)
-  EXPECT_CALL(*_cache, delete_implicit_registration_set(_, _,
+  EXPECT_CALL(*_cache, delete_implicit_registration_set(_, _, _,
     Property(&ImplicitRegistrationSet::get_ims_sub_xml, IMPU_IMS_SUBSCRIPTION),
     FAKE_TRAIL_ID))
-    .WillOnce(InvokeArgument<1>(Store::Status::ERROR));
+    .WillOnce(InvokeArgument<2>(Store::Status::ERROR));
 
   // Check the response
   EXPECT_CALL(*_httpstack, send_reply(_, 503, _));
@@ -2523,10 +2523,10 @@ TEST_F(HTTPHandlersTest, ImpuRegDataDeregCacheNotFound)
   // Cache delete gives a NOT_FOUND error
   // Check that the deletion request is using the correct service profile (as
   // that's how the cache knows what to delete)
-  EXPECT_CALL(*_cache, delete_implicit_registration_set(_, _,
+  EXPECT_CALL(*_cache, delete_implicit_registration_set(_, _, _,
     Property(&ImplicitRegistrationSet::get_ims_sub_xml, IMPU_IMS_SUBSCRIPTION),
     FAKE_TRAIL_ID))
-    .WillOnce(InvokeArgument<1>(Store::Status::NOT_FOUND));
+    .WillOnce(InvokeArgument<2>(Store::Status::NOT_FOUND));
 
   // Check the response
   EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
@@ -2572,10 +2572,10 @@ TEST_F(HTTPHandlersTest, ImpuRegDataDeregUnregSub)
   // Data is deleted from cache
   // Check that the deletion request is using the correct service profile (as
   // that's how the cache knows what to delete)
-  EXPECT_CALL(*_cache, delete_implicit_registration_set(_, _,
+  EXPECT_CALL(*_cache, delete_implicit_registration_set(_, _, _,
     Property(&ImplicitRegistrationSet::get_ims_sub_xml, IMPU_IMS_SUBSCRIPTION),
     FAKE_TRAIL_ID))
-    .WillOnce(InvokeArgument<0>());
+    .WillOnce(DoAll(InvokeArgument<1>(), InvokeArgument<0>()));
 
   // Check the response
   EXPECT_CALL(*_httpstack, send_reply(_, 200, _));

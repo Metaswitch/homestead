@@ -42,20 +42,23 @@ public:
                     std::vector<std::string> impus,
                     SAS::TrailId trail));
 
-  MOCK_METHOD4(put_implicit_registration_set,
+  MOCK_METHOD5(put_implicit_registration_set,
                void(void_success_cb success_cb,
+                    progress_callback progress_cb,
                     failure_callback failure_cb,
                     ImplicitRegistrationSet* irs,
                     SAS::TrailId trail));
 
-  MOCK_METHOD4(delete_implicit_registration_set,
+  MOCK_METHOD5(delete_implicit_registration_set,
                void(void_success_cb success_cb,
+                    progress_callback progress_cb,
                     failure_callback failure_cb,
                     ImplicitRegistrationSet* irs,
                     SAS::TrailId trail));
 
-  MOCK_METHOD4(delete_implicit_registration_sets,
+  MOCK_METHOD5(delete_implicit_registration_sets,
                void(void_success_cb success_cb,
+                    progress_callback progress_cb,
                     failure_callback failure_cb,
                     std::vector<ImplicitRegistrationSet*> irss,
                     SAS::TrailId trail));
@@ -66,8 +69,9 @@ public:
                     std::string impi,
                     SAS::TrailId trail));
 
-  MOCK_METHOD4(put_ims_subscription,
+  MOCK_METHOD5(put_ims_subscription,
                void(void_success_cb success_cb,
+                    progress_callback progress_cb,
                     failure_callback failure_cb,
                     ImsSubscription* subscription,
                     SAS::TrailId trail));
