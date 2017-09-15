@@ -10,12 +10,12 @@
  */
 
 #include "memcached_cache.h"
-
 #include <string>
-
 #include "homestead_xml_utils.h"
 #include "log.h"
 #include "utils.h"
+
+using std::placeholders::_1;
 
 ImpuStore::DefaultImpu* MemcachedImplicitRegistrationSet::create_impu(uint64_t cas,
                                                                       const ImpuStore* store)
@@ -359,17 +359,27 @@ Store::Status MemcachedCache::get_implicit_registration_set_for_impu(const std::
   return Store::Status::OK;
 }
 
-Store::Status MemcachedCache::perform(MemcachedCache::irs_store_action action,
-                                      MemcachedImplicitRegistrationSet* mirs,
-                                      SAS::TrailId trail)
+Store::Status MemcachedCache::perform(MemcachedCache::store_action action,
+                                      progress_callback progress_cb)
 {
-   Store::Status status = (this->*action)(mirs, trail, _local_store);
+   Store::Status status = action(_local_store);
 
    if (status == Store::Status::OK)
    {
+     // If the local store update succeeded, call the progress callback
+     progress_cb();
+
+     // Now perform the action to all the remote stores, but don't update the
+     // status (as we've already claimed success)
      for (ImpuStore* remote_store : _remote_stores)
      {
-       status = (this->*action)(mirs, trail, remote_store);
+       Store::Status inner_status = action(remote_store);
+       if (inner_status != Store::Status::OK)
+       {
+         // Nothing we can do, but log the error
+         TRC_ERROR("Failed to perform operation to remote store with error %d",
+                   inner_status);
+       }
      }
    }
 
@@ -377,6 +387,7 @@ Store::Status MemcachedCache::perform(MemcachedCache::irs_store_action action,
 }
 
 Store::Status MemcachedCache::put_implicit_registration_set(ImplicitRegistrationSet* irs,
+                                                            progress_callback progress_cb,
                                                             SAS::TrailId trail)
 {
   Store::Status status = Store::Status::OK;
@@ -385,7 +396,15 @@ Store::Status MemcachedCache::put_implicit_registration_set(ImplicitRegistration
 
   if (mirs->has_changed())
   {
-    status = perform(&MemcachedCache::put_implicit_registration_set, mirs, trail);
+    store_action action =
+      std::bind(&MemcachedCache::put_irs_action, this, mirs, trail, _1);
+    status = perform(action, progress_cb);
+  }
+  else
+  {
+    // This is treated as success, so call the progress callback as if we'd
+    // successfully deleted it
+    progress_cb();
   }
 
   return status;
@@ -688,9 +707,9 @@ Store::Status MemcachedCache::delete_irs_impu(MemcachedImplicitRegistrationSet* 
                                  store);
 }
 
-Store::Status MemcachedCache::put_implicit_registration_set(MemcachedImplicitRegistrationSet* irs,
-                                                            SAS::TrailId trail,
-                                                            ImpuStore* store)
+Store::Status MemcachedCache::put_irs_action(MemcachedImplicitRegistrationSet* irs,
+                                             SAS::TrailId trail,
+                                             ImpuStore* store)
 {
   // We have three operations to perform here, and can't guarantee
   // perfect consistency, but we should eventually get consistency
@@ -718,9 +737,9 @@ Store::Status MemcachedCache::put_implicit_registration_set(MemcachedImplicitReg
   return status;
 }
 
-Store::Status MemcachedCache::delete_implicit_registration_set(MemcachedImplicitRegistrationSet* irs,
-                                                               SAS::TrailId trail,
-                                                               ImpuStore* store)
+Store::Status MemcachedCache::delete_irs_action(MemcachedImplicitRegistrationSet* irs,
+                                                SAS::TrailId trail,
+                                                ImpuStore* store)
 {
   Store::Status status = delete_irs_impu(irs, trail, store);
 
@@ -742,6 +761,7 @@ Store::Status MemcachedCache::delete_implicit_registration_set(MemcachedImplicit
 }
 
 Store::Status MemcachedCache::delete_implicit_registration_set(ImplicitRegistrationSet* irs,
+                                                               progress_callback progress_cb,
                                                                SAS::TrailId trail)
 {
   Store::Status status = Store::Status::OK;
@@ -750,11 +770,46 @@ Store::Status MemcachedCache::delete_implicit_registration_set(ImplicitRegistrat
 
   if (mirs->is_existing())
   {
-    status = perform(&MemcachedCache::delete_implicit_registration_set, mirs, trail);
+    store_action action =
+      std::bind(&MemcachedCache::delete_irs_action, this, mirs, trail, _1);
+    status = perform(action, progress_cb);
   }
   else
   {
-    TRC_WARNING("Attempted to delete IRS which hadn't been created: %s", irs->get_default_impu().c_str());
+    TRC_WARNING("Attempted to delete IRS which hadn't been created: %s",
+                irs->get_default_impu().c_str());
+
+    // This is treated as success, so call the progress callback as if we'd
+    // successfully deleted it
+    progress_cb();
+  }
+
+  return status;
+}
+
+Store::Status MemcachedCache::delete_implicit_registration_sets(const std::vector<ImplicitRegistrationSet*>& irss,
+                                                                progress_callback progress_cb,
+                                                                SAS::TrailId trail)
+{
+  store_action action =
+    std::bind(&MemcachedCache::delete_irss_action, this, irss, trail, _1);
+  Store::Status status = perform(action, progress_cb);
+  return status;
+}
+
+Store::Status MemcachedCache::delete_irss_action(const std::vector<ImplicitRegistrationSet*>& irss,
+                                                 SAS::TrailId trail,
+                                                 ImpuStore* store)
+{
+  Store::Status status = Store::Status::OK;
+
+  for (ImplicitRegistrationSet* irs : irss)
+  {
+    MemcachedImplicitRegistrationSet* mirs = (MemcachedImplicitRegistrationSet*)irs;
+    if (mirs->is_existing())
+    {
+      status = delete_irs_action(mirs, trail, store);
+    }
   }
 
   return status;
@@ -789,7 +844,18 @@ Store::Status MemcachedCache::get_ims_subscription(const std::string& impi,
 }
 
 Store::Status MemcachedCache::put_ims_subscription(ImsSubscription* subscription,
+                                                   progress_callback progress_cb,
                                                    SAS::TrailId trail)
+{
+  store_action action =
+    std::bind(&MemcachedCache::put_ims_sub_action, this, subscription, trail, _1);
+  Store::Status status = perform(action, progress_cb);
+  return status;
+}
+
+Store::Status MemcachedCache::put_ims_sub_action(ImsSubscription* subscription,
+                                                 SAS::TrailId trail,
+                                                 ImpuStore* store)
 {
   Store::Status status = Store::Status::OK;
 
@@ -797,7 +863,8 @@ Store::Status MemcachedCache::put_ims_subscription(ImsSubscription* subscription
 
   for (BaseImsSubscription::Irs::value_type& irs : mis->get_irs())
   {
-    put_implicit_registration_set(irs.second, trail);
+    MemcachedImplicitRegistrationSet* mirs = (MemcachedImplicitRegistrationSet*)irs.second;
+    put_irs_action(mirs, trail, store);
   }
 
   return status;

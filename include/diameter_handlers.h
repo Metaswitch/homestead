@@ -72,6 +72,7 @@ private:
 
   void get_registration_sets_success(std::vector<ImplicitRegistrationSet*> reg_sets);
   void get_registration_sets_failure(Store::Status rc);
+  void delete_reg_sets_progress();
   void delete_reg_sets_success();
   void delete_reg_sets_failure(Store::Status rc);
 
@@ -137,6 +138,7 @@ private:
   void on_get_ims_sub_success(ImsSubscription* ims_sub);
   void on_get_ims_sub_failure(Store::Status rc);
 
+  void on_save_ims_sub_progress();
   void on_save_ims_sub_success();
   void on_save_ims_sub_failure(Store::Status rc);
 

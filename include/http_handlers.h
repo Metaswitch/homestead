@@ -230,8 +230,10 @@ public:
   void process_received_reg_data();
   void send_server_assignment_request(Cx::ServerAssignmentType type);
   void on_sar_response(const HssConnection::ServerAssignmentAnswer& saa);
+  void on_put_reg_data_progress();
   void on_put_reg_data_success();
   void on_put_reg_data_failure(Store::Status rc);
+  void on_del_impu_progress();
   void on_del_impu_success();
   void on_del_impu_benign(bool not_found);
   void on_del_impu_failure(Store::Status rc);

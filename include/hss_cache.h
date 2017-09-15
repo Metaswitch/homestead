@@ -12,10 +12,14 @@
 #define HSS_CACHE_H_
 
 #include "store.h"
+#include <functional>
 #include <vector>
 #include <string>
 #include "ims_subscription.h"
 #include "implicit_reg_set.h"
+
+// The purpose of the progress_callback is explained in hss_cache_processor.h
+typedef std::function<void()> progress_callback;
 
 class HssCache
 {
@@ -51,15 +55,18 @@ public:
   // Save the IRS in the cache
   // Must include updating the impi mapping table if impis have been added
   virtual Store::Status put_implicit_registration_set(ImplicitRegistrationSet* irs,
+                                                      progress_callback progress_cb,
                                                       SAS::TrailId trail) = 0;
 
   // Used for de-registration
   virtual Store::Status delete_implicit_registration_set(ImplicitRegistrationSet* irs,
+                                                         progress_callback progress_cb,
                                                          SAS::TrailId trail) = 0;
 
   // Deletes several registration sets
   // Used for an RTR when we have several registration sets to delete
   virtual Store::Status delete_implicit_registration_sets(const std::vector<ImplicitRegistrationSet*>& irss,
+                                                          progress_callback progress_cb,
                                                           SAS::TrailId trail) = 0;
 
   // Gets the whole IMS subscription for this impi
@@ -71,6 +78,7 @@ public:
 
   // This is used to save the state that we changed in the PPR
   virtual Store::Status put_ims_subscription(ImsSubscription* subscription,
+                                             progress_callback progress_cb,
                                              SAS::TrailId trail) = 0;
 };
 
