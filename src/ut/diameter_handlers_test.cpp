@@ -352,7 +352,7 @@ const std::string DiameterHandlersTest::SERVER_NAME = "scscf";
 const std::string DiameterHandlersTest::IMPI = "_impi@example.com";
 const std::string DiameterHandlersTest::IMPU = "sip:impu@example.com";
 const std::string DiameterHandlersTest::IMPU2 = "sip:impu2@example.com";
-const std::string DiameterHandlersTest::IMPU3 = "sip:impu3@example.com";
+const std::string DiameterHandlersTest::IMPU3 = "sip:+44(208)3661177@example.com";
 const std::string DiameterHandlersTest::IMPU4 = "sip:impu4@example.com";
 const std::string DiameterHandlersTest::IMS_SUBSCRIPTION = "<?xml version=\"1.0\"?><IMSSubscription><PrivateID>" + IMPI + "</PrivateID><ServiceProfile><PublicIdentity><Identity>" + IMPU + "</Identity></PublicIdentity></ServiceProfile></IMSSubscription>";
 const std::vector<int32_t> mandatory_capabilities = {1, 3};
