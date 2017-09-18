@@ -2,4 +2,3 @@
 
 MockStatisticsManager::MockStatisticsManager() {};
 MockStatisticsManager::~MockStatisticsManager() {};
-

@@ -2,4 +2,3 @@
 
 MockHsProvStore::MockHsProvStore() {};
 MockHsProvStore::~MockHsProvStore() {};
-

@@ -3,4 +3,3 @@
 MockHssConnection::MockHssConnection() :
   HssConnection(NULL) {};
 MockHssConnection::~MockHssConnection() {};
-

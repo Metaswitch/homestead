@@ -3,5 +3,3 @@
 MockHssCacheProcessor::MockHssCacheProcessor() :
   HssCacheProcessor(NULL) {};
 MockHssCacheProcessor::~MockHssCacheProcessor() {};
-
-
