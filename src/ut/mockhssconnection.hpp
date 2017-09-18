@@ -18,8 +18,8 @@
 class MockHssConnection : public ::HssConnection::HssConnection
 {
 public:
-  MockHssConnection() : HssConnection(NULL) {};
-  virtual ~MockHssConnection() {};
+  MockHssConnection();
+  virtual ~MockHssConnection();
 
   MOCK_METHOD3(send_multimedia_auth_request,
                void(::HssConnection::maa_cb cb, ::HssConnection::MultimediaAuthRequest req, SAS::TrailId trail));

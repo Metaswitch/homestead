@@ -78,7 +78,13 @@ homestead_test_SOURCES := ${COMMON_SOURCES} \
                           localstore.cpp \
                           memcachedcache_test.cpp \
                           mockfreediameter.cpp \
+                          mockdiameterstack.cpp \
+                          mockhttpstack.cpp \
                           mock_sas.cpp \
+                          mockhsprovstore.cpp \
+                          mockhsscacheprocessor.cpp \
+                          mockhssconnection.cpp \
+                          mockstatisticsmanager.cpp \
                           chargingaddresses_test.cpp \
                           pthread_cond_var_helper.cpp
 
