@@ -22,8 +22,8 @@ static DigestAuthVector mock_digest_av;
 class MockHsProvStore : public HsProvStore
 {
 public:
-  MockHsProvStore() {};
-  virtual ~MockHsProvStore() {};
+  MockHsProvStore();
+  virtual ~MockHsProvStore();
 
   MOCK_METHOD2(do_async, void(CassandraStore::Operation*& op,
                               CassandraStore::Transaction*& trx));
