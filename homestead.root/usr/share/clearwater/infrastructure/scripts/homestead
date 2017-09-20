@@ -22,6 +22,12 @@ then
     hs_listen_port=$hss_port
 fi
 
+# If homestead_tw_timer is not set, default to the minimum of 6s
+if [[ -z "$homestead_tw_timer" ]]
+then
+  homestead_tw_timer=6
+fi
+
 # Allow a specific FQDN for Homestead to be set (in case this is an
 # all-in-one node running both ralf and homestead Diameter stacks).
 # Otherwise, fall back to the public hostname.
@@ -38,5 +44,5 @@ then
   # Strip any characters not valid in an FQDN out of hs_hostname (for
   # example, it might be an IPv6 address)
   realm=$(echo $hs_hostname | sed -e 's/:[^:]*$//g' | sed -e 's/^\[//g' | sed -e 's/\]$//g')
-  /usr/share/clearwater/bin/generic_create_diameterconf homestead $identity $realm $hs_listen_port $hs_secure_listen_port $acl_required $check_destination_host
+  /usr/share/clearwater/bin/generic_create_diameterconf homestead $identity $realm $hs_listen_port $hs_secure_listen_port $acl_required $check_destination_host $homestead_tw_timer
 fi
