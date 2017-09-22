@@ -49,8 +49,7 @@ public:
     static thread_local LZ4_stream_t* _thrd_lz4_stream;
     static thread_local struct preserved_hash_table_entry_t* _thrd_lz4_hash;
 
-    static const char* _dict_v0;
-    static int _dict_v0_size;
+    const static std::string _dict_v0;
 
   protected:
     Impu(const std::string impu,

@@ -16,8 +16,7 @@
 #include "json_parse_utils.h"
 #include "log.h"
 
-const char* ImpuStore::Impu::_dict_v0 = "";
-int ImpuStore::Impu::_dict_v0_size = 0;
+const std::string ImpuStore::Impu::_dict_v0 = "{\"registration_state\":true,\"service_profile\":\"<IMSSubscription><PrivateID></PrivateID><ServiceProfile><PublicIdentity><Identity><Extension></Extension></PublicIdentity><IniitialFilterCriteria><Priority></Priority><TriggerPoint><ConditionTypeCNF></ConditionTypeCNF><SPT><ConditionNegated></ConditionNegated><Group></Group><Method></Method></TriggerPoint><ApplicationServer><ServerName></ServerName><DefaultHandling></DefaultHandling></ApplicationServer></InitialFilterCriteria></ServiceProfile></IMSSubscription><SIPHeader><Header></Header></SIPHeader><SessionCase></SessionCase>\",\"expiry\":,\"assoc_impu\":[\"],\"impis\":[],\"ecfs\":[],\"ccfs\":[]}\"default_impu\":\"";
 
 thread_local LZ4_stream_t* ImpuStore::Impu::_thrd_lz4_stream;
 thread_local struct preserved_hash_table_entry_t* ImpuStore::Impu::_thrd_lz4_hash;
@@ -148,8 +147,8 @@ ImpuStore::Impu* ImpuStore::Impu::from_data(const std::string& impu,
                                            json,
                                            compressed_size,
                                            length,
-                                           _dict_v0,
-                                           _dict_v0_size);
+                                           _dict_v0.c_str(),
+                                           _dict_v0.size());
 
 
     if (rc == 0 || rc != length)
@@ -270,7 +269,7 @@ void ImpuStore::Impu::compress_data_v0(const std::string& data,
   if (_thrd_lz4_stream == NULL)
   {
     _thrd_lz4_stream = LZ4_createStream();
-    LZ4_loadDict(_thrd_lz4_stream, _dict_v0, _dict_v0_size);
+    LZ4_loadDict(_thrd_lz4_stream, _dict_v0.c_str(), _dict_v0.size());
     LZ4_stream_preserve(_thrd_lz4_stream, &_thrd_lz4_hash);
   }
 
