@@ -518,7 +518,8 @@ Store::Status ImpuStore::set_impu_without_cas(ImpuStore::Impu* impu,
                                           impu->impu,
                                           data,
                                           impu->expiry - now,
-                                          trail);
+                                          trail,
+                                          false);
   }
 
   return status;
@@ -543,7 +544,8 @@ Store::Status ImpuStore::set_impu(ImpuStore::Impu* impu,
                               data,
                               impu->cas,
                               impu->expiry - now,
-                              trail);
+                              trail,
+                              false);
   }
 
   TRC_DEBUG("Wrote %s to store (SAS Trail: %lu) with result: %u",
