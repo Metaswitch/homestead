@@ -267,12 +267,6 @@ protected:
   std::string _impu;
   std::string _type_param;
   RequestType _type;
-  RegistrationState _original_state;
-
-  // These are now in the ImplicitRegistrationSet*
-  std::string _xml;
-  RegistrationState _new_state;
-  ChargingAddresses _charging_addrs;
 
   ImplicitRegistrationSet* _irs = NULL;
 
