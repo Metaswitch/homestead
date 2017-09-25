@@ -16,7 +16,17 @@
 #include "json_parse_utils.h"
 #include "log.h"
 
-const std::string ImpuStore::Impu::_dict_v0 = "{\"registration_state\":true,\"service_profile\":\"<IMSSubscription><PrivateID></PrivateID><ServiceProfile><PublicIdentity><Identity><Extension></Extension></PublicIdentity><IniitialFilterCriteria><Priority></Priority><TriggerPoint><ConditionTypeCNF></ConditionTypeCNF><SPT><ConditionNegated></ConditionNegated><Group></Group><Method></Method></TriggerPoint><ApplicationServer><ServerName></ServerName><DefaultHandling></DefaultHandling></ApplicationServer></InitialFilterCriteria></ServiceProfile></IMSSubscription><SIPHeader><Header></Header></SIPHeader><SessionCase></SessionCase>\",\"expiry\":,\"assoc_impu\":[\"],\"impis\":[],\"ecfs\":[],\"ccfs\":[]}\"default_impu\":\"";
+const std::string ImpuStore::Impu::_dict_v0 =
+  "{\"registration_state\":true,\"service_profile\":\"<IMSSubscription>"
+  "<PrivateID></PrivateID><ServiceProfile><PublicIdentity><Identity>"
+  "<Extension></Extension></PublicIdentity><IniitialFilterCriteria><Priority>"
+  "</Priority><TriggerPoint><ConditionTypeCNF></ConditionTypeCNF><SPT>"
+  "<ConditionNegated></ConditionNegated><Group></Group><Method></Method>"
+  "</TriggerPoint><ApplicationServer><ServerName></ServerName><DefaultHandling>"
+  "</DefaultHandling></ApplicationServer></InitialFilterCriteria>"
+  "</ServiceProfile></IMSSubscription><SIPHeader><Header></Header></SIPHeader>"
+  "<SessionCase></SessionCase>\",\"expiry\":,\"assoc_impu\":[\"],\"impis\":[],"
+  "\"ecfs\":[],\"ccfs\":[]}\"default_impu\":\"";
 
 thread_local LZ4_stream_t* ImpuStore::Impu::_thrd_lz4_stream;
 thread_local struct preserved_hash_table_entry_t* ImpuStore::Impu::_thrd_lz4_hash;
