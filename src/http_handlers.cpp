@@ -1106,15 +1106,17 @@ void ImpuRegDataTask::put_in_cache()
       }
     }
 
-    SAS::Event event(this->trail(), SASEvent::CACHE_PUT_REG_DATA, 0);
-    std::string public_ids_str = boost::algorithm::join(public_ids, ", ");
-    event.add_var_param(public_ids_str);
-    event.add_compressed_param(_irs->get_ims_sub_xml(), &SASEvent::PROFILE_SERVICE_PROFILE);
-    event.add_static_param(_irs->get_reg_state());
-    std::string associated_private_ids_str = boost::algorithm::join(_irs->get_associated_impis(), ", ");
-    event.add_var_param(associated_private_ids_str);
-    event.add_var_param(_irs->get_charging_addresses().log_string());
-    SAS::report_event(event);
+    {
+      SAS::Event event(this->trail(), SASEvent::CACHE_PUT_REG_DATA, 0);
+      std::string public_ids_str = boost::algorithm::join(public_ids, ", ");
+      event.add_var_param(public_ids_str);
+      event.add_compressed_param(_irs->get_ims_sub_xml(), &SASEvent::PROFILE_SERVICE_PROFILE);
+      event.add_static_param(_irs->get_reg_state());
+      std::string associated_private_ids_str = boost::algorithm::join(_irs->get_associated_impis(), ", ");
+      event.add_var_param(associated_private_ids_str);
+      event.add_var_param(_irs->get_charging_addresses().log_string());
+      SAS::report_event(event);
+    }
 
     // Create the callbacks
     void_success_cb success_cb =
