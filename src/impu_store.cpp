@@ -491,7 +491,12 @@ ImpuStore::Impu* ImpuStore::get_impu(const std::string& impu,
   std::string data;
   uint64_t cas;
 
-  Store::Status status = _store->get_data("impu", impu, data, cas, trail);
+  Store::Status status = _store->get_data("impu",
+                                          impu,
+                                          data,
+                                          cas,
+                                          trail,
+                                          false);
 
   if (status == Store::Status::OK)
   {
