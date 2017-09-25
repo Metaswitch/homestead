@@ -1037,7 +1037,7 @@ void ImpuRegDataTask::send_reply()
     else
     {
       SAS::Event event(this->trail(), SASEvent::REG_DATA_HSS_INVALID, 0);
-      event.add_compressed_param(_xml, &SASEvent::PROFILE_SERVICE_PROFILE);
+      event.add_compressed_param(_irs->get_ims_sub_xml(), &SASEvent::PROFILE_SERVICE_PROFILE);
       SAS::report_event(event);
     }
   }
@@ -1100,10 +1100,22 @@ void ImpuRegDataTask::put_in_cache()
         // LCOV_EXCL_START - This is essentially tested in the PPR UTs
         TRC_ERROR("No SIP URI in Implicit Registration Set");
         SAS::Event event(this->trail(), SASEvent::NO_SIP_URI_IN_IRS, 0);
-        event.add_compressed_param(_xml, &SASEvent::PROFILE_SERVICE_PROFILE);
+        event.add_compressed_param(_irs->get_ims_sub_xml(), &SASEvent::PROFILE_SERVICE_PROFILE);
         SAS::report_event(event);
         // LCOV_EXCL_STOP
       }
+    }
+
+    {
+      SAS::Event event(this->trail(), SASEvent::CACHE_PUT_REG_DATA, 0);
+      std::string public_ids_str = boost::algorithm::join(public_ids, ", ");
+      event.add_var_param(public_ids_str);
+      event.add_compressed_param(_irs->get_ims_sub_xml(), &SASEvent::PROFILE_SERVICE_PROFILE);
+      event.add_static_param(_irs->get_reg_state());
+      std::string associated_private_ids_str = boost::algorithm::join(_irs->get_associated_impis(), ", ");
+      event.add_var_param(associated_private_ids_str);
+      event.add_var_param(_irs->get_charging_addresses().log_string());
+      SAS::report_event(event);
     }
 
     // Create the callbacks

@@ -39,7 +39,7 @@ public:
   inline bool empty() const { return (ccfs.empty()) && (ecfs.empty()); }
 
   /// Convert the charging functions into a string to display in logs
-  std::string log_string()
+  std::string log_string() const
   {
     std::string log_str;
 
