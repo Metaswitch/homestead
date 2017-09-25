@@ -500,7 +500,12 @@ ImpuStore::Impu* ImpuStore::get_impu(const std::string& impu,
   std::string data;
   uint64_t cas;
 
-  Store::Status status = _store->get_data("impu", impu, data, cas, trail);
+  Store::Status status = _store->get_data("impu",
+                                          impu,
+                                          data,
+                                          cas,
+                                          trail,
+                                          false);
 
   if (status == Store::Status::OK)
   {
@@ -527,7 +532,8 @@ Store::Status ImpuStore::set_impu_without_cas(ImpuStore::Impu* impu,
                                           impu->impu,
                                           data,
                                           impu->expiry - now,
-                                          trail);
+                                          trail,
+                                          false);
   }
 
   return status;
@@ -552,7 +558,8 @@ Store::Status ImpuStore::set_impu(ImpuStore::Impu* impu,
                               data,
                               impu->cas,
                               impu->expiry - now,
-                              trail);
+                              trail,
+                              false);
   }
 
   TRC_DEBUG("Wrote %s to store (SAS Trail: %lu) with result: %u",
