@@ -24,8 +24,21 @@ namespace XmlUtils
 
 // Builds a ClearwaterRegData XML document for passing to Sprout,
 // based on the given registration state and User-Data XML from the HSS.
+// Will also include a PreviousRegistrationState element if a known
+// previous registration state is provided.
 int build_ClearwaterRegData_xml(ImplicitRegistrationSet* irs,
                                 std::string& xml_str)
+{
+  return build_ClearwaterRegData_xml(irs,
+                                     xml_str,
+                                     RegistrationState::UNKNOWN);
+}
+
+// As above, but will also include a PreviousRegistrationState element if a known
+// previous registration state is provided.
+int build_ClearwaterRegData_xml(ImplicitRegistrationSet* irs,
+                                std::string& xml_str,
+                                RegistrationState previous_registration_state)
 {
   rapidxml::xml_document<> doc;
   rapidxml::xml_node<>* root = doc.allocate_node(rapidxml::node_type::node_element,
@@ -34,7 +47,15 @@ int build_ClearwaterRegData_xml(ImplicitRegistrationSet* irs,
   // Add the registration state - note we need to pass in the regtype string
   // here to ensure it isn't destroyed before the XML is printed.
   std::string regtype;
-  add_reg_state_node(irs->get_reg_state(), doc, root, regtype);
+  add_reg_state_node(irs->get_reg_state(), doc, root, RegDataXMLUtils::REGISTRATION_STATE, regtype);
+
+  // If we have been provided with a previous_registration_state then add a
+  // PREVIOUS_REGISTRATION_STATE node.
+  std::string previous_regtype;
+  if (previous_registration_state != RegistrationState::UNKNOWN)
+  {
+    add_reg_state_node(irs->get_reg_state(), doc, root, RegDataXMLUtils::PREVIOUS_REGISTRATION_STATE, previous_regtype);
+  }
 
   std::string xml = irs->get_ims_sub_xml();
   if (xml != "")
@@ -66,6 +87,7 @@ int build_ClearwaterRegData_xml(ImplicitRegistrationSet* irs,
 void add_reg_state_node(RegistrationState state,
                         rapidxml::xml_document<> &doc,
                         rapidxml::xml_node<>* root,
+                        const char* nodename,
                         std::string& regtype)
 {
   if (state == RegistrationState::REGISTERED)
@@ -87,7 +109,7 @@ void add_reg_state_node(RegistrationState state,
   }
 
   rapidxml::xml_node<>* reg = doc.allocate_node(rapidxml::node_type::node_element,
-                                                RegDataXMLUtils::REGISTRATION_STATE,
+                                                nodename,
                                                 regtype.c_str());
   root->append_node(reg);
 }

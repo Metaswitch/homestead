@@ -270,6 +270,12 @@ protected:
 
   ImplicitRegistrationSet* _irs = NULL;
 
+  // The last registration state retrieved from the cache for this user.
+  // -- UNKNOWN if we haven't queried the cache
+  // -- UNREGISTERED if we have queries the cache and there was no record
+  // -- Otherwise whatever value was stored in the cache.
+  RegistrationState _cached_reg_state = RegistrationState::UNKNOWN;
+
   long _http_rc;
   std::string _provided_server_name;
 

@@ -27,11 +27,15 @@ namespace XmlUtils
   std::vector<std::string> get_public_and_default_ids(const std::string& user_data,
                                                       std::string& default_id);
   std::string get_private_id(const std::string& user_data);
-  int build_ClearwaterRegData_xml(ImplicitRegistrationSet* irs, 
+  int build_ClearwaterRegData_xml(ImplicitRegistrationSet* irs,
                                   std::string& xml_str);
+  int build_ClearwaterRegData_xml(ImplicitRegistrationSet* irs,
+                                  std::string& xml_str,
+                                  RegistrationState previous_registration_state);
   void add_reg_state_node(RegistrationState state,
                           rapidxml::xml_document<> &doc,
                           rapidxml::xml_node<>* root,
+                          const char* nodename,
                           std::string& regtype);
   int add_ims_subscription_node(std::string xml,
                                 rapidxml::xml_document<> &doc,
