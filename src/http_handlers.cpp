@@ -1029,10 +1029,9 @@ void ImpuRegDataTask::send_reply()
   }
   else
   {
-    _type = RequestType::UNKNOWN;
     // If this is s PUT with reqtype=reg then include the previous registration
     // state on the response.
-    if (_type == RequestType::REG)
+    if ((_type == RequestType::REG) || (_type == RequestType::CALL))
     {
       rc = XmlUtils::build_ClearwaterRegData_xml(_irs, xml_str, _cached_reg_state);
     }
