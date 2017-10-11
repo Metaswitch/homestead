@@ -88,6 +88,11 @@ get_settings()
 
         . /etc/clearwater/config
 
+        if [ -n "$homestead_http_threads" ];
+        then
+          num_http_threads="$homestead_http_threads"
+        fi
+
         # Derive server_name and sprout_http_name from other settings
         if [ -n "$scscf_uri" ]
         then
