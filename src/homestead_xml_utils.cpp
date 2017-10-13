@@ -38,23 +38,32 @@ int build_ClearwaterRegData_xml(ImplicitRegistrationSet* irs,
 // previous registration state is provided.
 int build_ClearwaterRegData_xml(ImplicitRegistrationSet* irs,
                                 std::string& xml_str,
-                                RegistrationState previous_registration_state)
+                                RegistrationState prev_reg_state)
 {
   rapidxml::xml_document<> doc;
   rapidxml::xml_node<>* root = doc.allocate_node(rapidxml::node_type::node_element,
                                                  RegDataXMLUtils::CLEARWATER_REG_DATA);
 
-  // Add the registration state - note we need to pass in the regtype string
-  // here to ensure it isn't destroyed before the XML is printed.
-  std::string regtype;
-  add_reg_state_node(irs->get_reg_state(), doc, root, RegDataXMLUtils::REGISTRATION_STATE, regtype);
+  // Add the registration state - note we need to pass in a string that can be
+  // used to store the registration state and whose life time is the same as
+  // that of the XML doc.
+  std::string state_string;
+  add_reg_state_node(irs->get_reg_state(),
+                     doc,
+                     root,
+                     RegDataXMLUtils::REGISTRATION_STATE,
+                     state_string);
 
-  // If we have been provided with a previous_registration_state then add a
-  // PREVIOUS_REGISTRATION_STATE node.
-  std::string previous_regtype;
-  if (previous_registration_state != RegistrationState::UNKNOWN)
+  // If we have been provided with a prev_reg_state then add a
+  // prev_reg_state node.
+  std::string previous_statestring;
+  if (prev_reg_state != RegistrationState::UNKNOWN)
   {
-    add_reg_state_node(previous_registration_state, doc, root, RegDataXMLUtils::PREVIOUS_REGISTRATION_STATE, previous_regtype);
+    add_reg_state_node(prev_reg_state,
+                       doc,
+                       root,
+                       RegDataXMLUtils::prev_reg_state,
+                       previous_regtype);
   }
 
   std::string xml = irs->get_ims_sub_xml();
@@ -83,20 +92,25 @@ int build_ClearwaterRegData_xml(ImplicitRegistrationSet* irs,
   return HTTP_OK;
 }
 
-// Builds the ResistrationState node, and adds it to the passed in XML doc.
+// Builds a RegistrationState or PreviousRegistrationState node, and adds it to
+// the passed in XML doc.
+//
+// A string must be provided (state_string) that can be used by this function o
+// store the value that is written to the XML: it must have a life time as long
+// as that of doc.
 void add_reg_state_node(RegistrationState state,
                         rapidxml::xml_document<> &doc,
                         rapidxml::xml_node<>* root,
-                        const char* nodename,
-                        std::string& regtype)
+                        const char* node_name,
+                        std::string& state_string)
 {
   if (state == RegistrationState::REGISTERED)
   {
-    regtype = RegDataXMLUtils::STATE_REGISTERED;
+    state_string = RegDataXMLUtils::STATE_REGISTERED;
   }
   else if (state == RegistrationState::UNREGISTERED)
   {
-    regtype = RegDataXMLUtils::STATE_UNREGISTERED;
+    state_string = RegDataXMLUtils::STATE_UNREGISTERED;
   }
   else
   {
@@ -105,12 +119,12 @@ void add_reg_state_node(RegistrationState state,
       TRC_DEBUG("Invalid registration state %d", state);
     }
 
-    regtype = RegDataXMLUtils::STATE_NOT_REGISTERED;
+    state_string = RegDataXMLUtils::STATE_NOT_REGISTERED;
   }
 
   rapidxml::xml_node<>* reg = doc.allocate_node(rapidxml::node_type::node_element,
-                                                nodename,
-                                                regtype.c_str());
+                                                node_name,
+                                                state_string.c_str());
   root->append_node(reg);
 }
 

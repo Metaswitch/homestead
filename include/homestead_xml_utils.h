@@ -31,7 +31,7 @@ namespace XmlUtils
                                   std::string& xml_str);
   int build_ClearwaterRegData_xml(ImplicitRegistrationSet* irs,
                                   std::string& xml_str,
-                                  RegistrationState previous_registration_state);
+                                  RegistrationState prev_reg_state);
   void add_reg_state_node(RegistrationState state,
                           rapidxml::xml_document<> &doc,
                           rapidxml::xml_node<>* root,

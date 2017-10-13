@@ -902,7 +902,7 @@ void ImpuRegDataTask::process_received_reg_data()
     // This message was based on a REGISTER request from Sprout. We need to
     // send an SAR to the HSS unless ALL of the following are true...
     // - this is a re-registration
-    // - there are no new bindings
+    // - this is not a new binding
     // - the request hasn't forbidden us from using cached data
     // - the existing record hasn't timed out.
     if ((_cached_reg_state == RegistrationState::REGISTERED) && (!new_binding))
@@ -1029,8 +1029,8 @@ void ImpuRegDataTask::send_reply()
   }
   else
   {
-    // If this is s PUT with reqtype=reg then include the previous registration
-    // state on the response.
+    // If this is a PUT of type REG or CALL then include the previous
+    // registration state on the response.
     if ((_type == RequestType::REG) || (_type == RequestType::CALL))
     {
       rc = XmlUtils::build_ClearwaterRegData_xml(_irs, xml_str, _cached_reg_state);
