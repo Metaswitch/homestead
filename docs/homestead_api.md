@@ -71,7 +71,7 @@ Changes to registration state can be done by:
 
 `PUT /impu/<public ID>/reg-data[?private_id=<private ID>]`
 
-The body of this PUT request is a JSON object with a mandatory "reqtype" field specifying the type of SIP request this state change is based on. The response to a successful PUT request is the same as a GET request (200 OK with an XML body describing the current registration state), except that for requests of type `reg` or `call` the XML also contains a PreviousRegistrationState element.  The PreviousRegistrationState indicates Homestead's local view of the registration state prior to this request (NOT_REGISTERED if Homestead had no cached state for this user).   E.g. on an initial registration the response body might be:
+The body of this PUT request is a JSON object with a mandatory "reqtype" field specifying the type of SIP request this state change is based on. The response to a successful PUT request is the same as a GET request (200 OK with an XML body describing the current registration state), except that for requests of type `reg` or `call` the XML also contains a PreviousRegistrationState element. The PreviousRegistrationState indicates Homestead's local view of the registration state prior to this request (NOT_REGISTERED if Homestead had no cached state for this user). E.g. on an initial registration the response body might be:
 ```
 <ClearwaterRegData>
     <RegistrationState>REGISTERED</RegistrationState>
