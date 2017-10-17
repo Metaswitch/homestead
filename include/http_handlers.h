@@ -272,7 +272,7 @@ protected:
 
   // The last registration state retrieved from the cache for this user.
   // -- UNKNOWN if we haven't queried the cache
-  // -- UNREGISTERED if we have queried the cache and there was no record
+  // -- NOT_REGISTERED if we have queried the cache and there was no record
   // -- Otherwise whatever value was stored in the cache.
   RegistrationState _cached_reg_state = RegistrationState::UNKNOWN;
 

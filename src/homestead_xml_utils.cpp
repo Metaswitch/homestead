@@ -56,14 +56,14 @@ int build_ClearwaterRegData_xml(ImplicitRegistrationSet* irs,
 
   // If we have been provided with a prev_reg_state then add a
   // prev_reg_state node.
-  std::string previous_statestring;
+  std::string previous_state_string;
   if (prev_reg_state != RegistrationState::UNKNOWN)
   {
     add_reg_state_node(prev_reg_state,
                        doc,
                        root,
-                       RegDataXMLUtils::prev_reg_state,
-                       previous_regtype);
+                       RegDataXMLUtils::PREVIOUS_REGISTRATION_STATE,
+                       previous_state_string);
   }
 
   std::string xml = irs->get_ims_sub_xml();
