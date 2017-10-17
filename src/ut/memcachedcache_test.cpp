@@ -661,7 +661,9 @@ public:
     _remote_store = new ImpuStore(_rls);
     _remote_stores = { _remote_store };
     _memcached_cache = new MemcachedCache(_local_store,
-                                          _remote_stores);
+                                          _remote_stores,
+                                          _remote_stores.size(),
+                                          nullptr);
     _mock_progress_cb = new MockProgressCallback();
   }
 

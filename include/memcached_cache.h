@@ -15,6 +15,7 @@
 #include "base_ims_subscription.h"
 #include "hss_cache.h"
 #include "impu_store.h"
+#include "threadpool.h"
 
 #include <map>
 #include <string>
@@ -291,14 +292,28 @@ class MemcachedCache : public BaseHssCache
 {
 public:
   MemcachedCache(ImpuStore* local_store,
-                 const std::vector<ImpuStore*>& remote_stores) :
+                 const std::vector<ImpuStore*>& remote_stores,
+                 int num_threads,
+                 ExceptionHandler* exception_handler) :
     BaseHssCache(),
     _local_store(local_store),
-    _remote_stores(remote_stores)
+    _remote_stores(remote_stores),
+    _thread_pool(num_threads,
+                 exception_handler,
+                 exception_callback,
+                 0)
   {
+    _thread_pool.start();
   }
 
   virtual ~MemcachedCache()
+  {
+    _thread_pool.stop();
+    _thread_pool.join();
+  }
+
+  // Dummy exception handler callback for the thread pool
+  static void inline exception_callback(std::function<void()> callable)
   {
   }
 
@@ -350,6 +365,7 @@ protected:
 private:
   ImpuStore* _local_store;
   std::vector<ImpuStore*> _remote_stores;
+  FunctorThreadPool _thread_pool;
 
   ImpuStore::Impu* get_impu_for_impu_gr(const std::string& impu,
                                         SAS::TrailId trail);

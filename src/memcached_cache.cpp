@@ -11,6 +11,7 @@
 
 #include "memcached_cache.h"
 #include <string>
+#include <future>
 #include "homestead_xml_utils.h"
 #include "log.h"
 #include "utils.h"
@@ -239,7 +240,7 @@ void MemcachedImplicitRegistrationSet::delete_impis()
   delete_tracked(_impis);
 }
 
-// Helper function to the details of an IMPU.
+// Helper function to get the details of an IMPU.
 // Note this doesn't sort out associated versus default impus.
 ImpuStore::Impu* MemcachedCache::get_impu_for_impu_gr(const std::string& impu,
                                                      SAS::TrailId trail)
@@ -248,14 +249,38 @@ ImpuStore::Impu* MemcachedCache::get_impu_for_impu_gr(const std::string& impu,
 
   if (!data)
   {
+    std::vector<std::promise<ImpuStore::Impu*>*> promises;
+
     for (ImpuStore* remote_store : _remote_stores)
     {
-      data = remote_store->get_impu(impu, trail);
+      std::promise<ImpuStore::Impu*>* promise = new std::promise<ImpuStore::Impu*>();
+      promises.push_back(promise);
 
-      if (data)
+      _thread_pool.add_work([promise, remote_store, impu, trail]()->void
       {
-        break;
+        promise->set_value(remote_store->get_impu(impu, trail));
+      });
+    }
+
+    for (std::promise<ImpuStore::Impu*>* promise : promises)
+    {
+      std::future<ImpuStore::Impu*> future = promise->get_future();
+
+      if (!data)
+      {
+        data = future.get();
       }
+      else
+      {
+        ImpuStore::Impu* discard = future.get();
+
+        if (discard)
+        {
+          delete discard;
+        }
+      }
+
+      delete promise;
     }
   }
 
