@@ -612,7 +612,9 @@ void create_memcached_cache(HssCacheProcessor*& cache_processor,
                             AlarmManager* alarm_manager,
                             std::vector<std::string>& remote_impu_stores_locations,
                             std::string& impu_store_location,
-                            int af)
+                            int af,
+                            int threads,
+                            ExceptionHandler* exception_handler)
 {
   astaire_comm_monitor = new CommunicationMonitor(new Alarm(alarm_manager,
                                                             "homestead",
@@ -645,17 +647,20 @@ void create_memcached_cache(HssCacheProcessor*& cache_processor,
     for (std::vector<std::string>::iterator it = remote_impu_stores_locations.begin();
            it != remote_impu_stores_locations.end();
            ++it)
-      {
-        TRC_STATUS("Using remote impu store: %s", (*it).c_str());
-        Store* remote_data_store = (Store*)new TopologyNeutralMemcachedStore(*it,
-                                                                             astaire_resolver,
-                                                                             true,
-                                                                             remote_astaire_comm_monitor);
-        remote_impu_data_stores.push_back(remote_data_store);
-        remote_impu_stores.push_back(new ImpuStore(remote_data_store));
-      }
+    {
+      TRC_STATUS("Using remote impu store: %s", (*it).c_str());
+      Store* remote_data_store = (Store*)new TopologyNeutralMemcachedStore(*it,
+                                                                           astaire_resolver,
+                                                                           true,
+                                                                           remote_astaire_comm_monitor);
+      remote_impu_data_stores.push_back(remote_data_store);
+      remote_impu_stores.push_back(new ImpuStore(remote_data_store));
+    }
 
-    memcached_cache = new MemcachedCache(local_impu_store, remote_impu_stores);
+    memcached_cache = new MemcachedCache(local_impu_store,
+                                         remote_impu_stores,
+                                         threads * remote_impu_stores_locations.size(),
+                                         exception_handler);
     cache_processor = new HssCacheProcessor(memcached_cache);
   }
   else
@@ -881,7 +886,9 @@ int main(int argc, char**argv)
                          alarm_manager,
                          remote_impu_stores_locations,
                          impu_store_location,
-                         af);
+                         af,
+                         options.cache_threads,
+                         exception_handler);
 
   HssCacheTask::configure_cache(cache_processor);
   bool started = cache_processor->start_threads(options.cache_threads,
