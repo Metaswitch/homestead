@@ -659,7 +659,9 @@ public:
     _local_store = new ImpuStore(_lls);
     _rls = new LocalStore();
     _remote_store = new ImpuStore(_rls);
-    _remote_stores = { _remote_store };
+    _rls_2 = new LocalStore();
+    _remote_store_2 = new ImpuStore(_rls_2);
+    _remote_stores = { _remote_store, _remote_store_2 };
     _memcached_cache = new MemcachedCache(_local_store,
                                           _remote_stores,
                                           _remote_stores.size(),
@@ -673,6 +675,8 @@ public:
     delete _memcached_cache;
     delete _remote_store;
     delete _rls;
+    delete _remote_store_2;
+    delete _rls_2;
     delete _local_store;
     delete _lls;
   }
@@ -682,6 +686,8 @@ private:
   ImpuStore* _local_store;
   LocalStore* _rls;
   ImpuStore* _remote_store;
+  LocalStore* _rls_2;
+  ImpuStore* _remote_store_2;
   std::vector<ImpuStore*> _remote_stores;
 
   MemcachedCache* _memcached_cache;
@@ -956,6 +962,68 @@ TEST_F(MemcachedCacheTest, GetIrsForImpuRemoteStore)
   _remote_store->set_impu(di, 0L);
 
   delete di;
+
+  ImplicitRegistrationSet* irs = nullptr;
+
+  Store::Status status =
+    _memcached_cache->get_implicit_registration_set_for_impu(IMPU,
+                                                             0L,
+                                                             irs);
+
+  ASSERT_EQ(Store::Status::OK, status);
+  ASSERT_NE(nullptr, irs);
+
+  delete irs;
+}
+
+TEST_F(MemcachedCacheTest, GetIrsForImpuSecondRemoteStore)
+{
+  ImpuStore::DefaultImpu* di =
+    new ImpuStore::DefaultImpu(IMPU,
+                               ASSOC_IMPUS,
+                               IMPIS,
+                               RegistrationState::REGISTERED,
+                               CHARGING_ADDRESSES,
+                               SERVICE_PROFILE,
+                               0L,
+                               time(0) + 1,
+                               _remote_store);
+
+  _remote_store_2->set_impu(di, 0L);
+
+  delete di;
+
+  ImplicitRegistrationSet* irs = nullptr;
+
+  Store::Status status =
+    _memcached_cache->get_implicit_registration_set_for_impu(IMPU,
+                                                             0L,
+                                                             irs);
+
+  ASSERT_EQ(Store::Status::OK, status);
+  ASSERT_NE(nullptr, irs);
+
+  delete irs;
+}
+
+TEST_F(MemcachedCacheTest, GetIrsForImpuBothRemoteStores)
+{
+  for(ImpuStore* store : { _remote_store, _remote_store_2})
+  {
+    ImpuStore::DefaultImpu* di =
+      new ImpuStore::DefaultImpu(IMPU,
+                                 ASSOC_IMPUS,
+                                 IMPIS,
+                                 RegistrationState::REGISTERED,
+                                 CHARGING_ADDRESSES,
+                                 SERVICE_PROFILE,
+                                 0L,
+                                 time(0) + 1,
+                                 store);
+    store->set_impu(di, 0L);
+
+    delete di;
+  }
 
   ImplicitRegistrationSet* irs = nullptr;
 
