@@ -862,7 +862,7 @@ void ImpuRegDataTask::process_received_reg_data()
   // blank one
   int32_t ttl = _irs->get_ttl();
   std::string service_profile = _irs->get_ims_sub_xml();
-  RegistrationState reg_state = _irs->get_reg_state();
+  _cached_reg_state = _irs->get_reg_state();
   std::vector<std::string> associated_impis = _irs->get_associated_impis();
   ChargingAddresses charging_addrs = _irs->get_charging_addresses();
 
@@ -899,12 +899,13 @@ void ImpuRegDataTask::process_received_reg_data()
 
   if (_type == RequestType::REG)
   {
-    // This message was based on a REGISTER request from Sprout. Check the
-    // cached subscriber state to determine whether this is an initial
-    // registration or a re-registration. If this subscriber is already
-    // registered but is registering with a new binding, we still need to tell
-    // the HSS.
-    if ((reg_state == RegistrationState::REGISTERED) && (!new_binding))
+    // This message was based on a REGISTER request from Sprout. We need to
+    // send an SAR to the HSS unless ALL of the following are true...
+    // - this is a re-registration
+    // - this is not a new binding
+    // - the request hasn't forbidden us from using cached data
+    // - the existing record hasn't timed out.
+    if ((_cached_reg_state == RegistrationState::REGISTERED) && (!new_binding))
     {
       int record_age = _cfg->record_ttl - ttl;
       TRC_DEBUG("Handling re-registration with binding age of %d", record_age);
@@ -952,7 +953,7 @@ void ImpuRegDataTask::process_received_reg_data()
     // (INVITE, PUBLISH, MESSAGE etc.).
     TRC_DEBUG("Handling call");
 
-    if (reg_state == RegistrationState::NOT_REGISTERED)
+    if (_cached_reg_state == RegistrationState::NOT_REGISTERED)
     {
       // We don't know anything about this subscriber. Send a
       // Server-Assignment-Request to provide unregistered service for
@@ -975,7 +976,7 @@ void ImpuRegDataTask::process_received_reg_data()
     // Sprout wants to deregister this subscriber (because of a
     // REGISTER with Expires: 0, a timeout of all bindings, a failed
     // app server, etc.).
-    if (reg_state != RegistrationState::NOT_REGISTERED)
+    if (_cached_reg_state != RegistrationState::NOT_REGISTERED)
     {
       // Forget about this subscriber entirely and send an appropriate SAR.
       TRC_DEBUG("Handling deregistration");
@@ -1028,7 +1029,17 @@ void ImpuRegDataTask::send_reply()
   }
   else
   {
-    rc = XmlUtils::build_ClearwaterRegData_xml(_irs, xml_str);
+    // If this is a PUT of type REG or CALL then include the previous
+    // registration state on the response.
+    if ((_type == RequestType::REG) || (_type == RequestType::CALL))
+    {
+      rc = XmlUtils::build_ClearwaterRegData_xml(_irs, xml_str, _cached_reg_state);
+    }
+    else
+    {
+      // Don't signal a previous registration state.
+      rc = XmlUtils::build_ClearwaterRegData_xml(_irs, xml_str);
+    }
 
     if (rc == HTTP_OK)
     {

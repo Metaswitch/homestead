@@ -91,9 +91,12 @@ public:
   static std::vector<std::string> IMPU3_IN_VECTOR;
   static std::vector<std::string> IMPI_IN_VECTOR;
   static const std::string IMS_SUBSCRIPTION;
-  static const std::string REGDATA_RESULT;
-  static const std::string REGDATA_RESULT_INCLUDES_BARRING;
-  static const std::string REGDATA_RESULT_UNREG;
+  static const std::string REGDATA_READ_RESULT;
+  static const std::string REGDATA_RESULT_WAS_REG;
+  static const std::string REGDATA_RESULT_WAS_NOTREG;
+  static const std::string REGDATA_RESULT_INCLUDES_BARRING_WAS_NOTREG;
+  static const std::string REGDATA_RESULT_UNREG_WAS_UNREG;
+  static const std::string REGDATA_RESULT_UNREG_WAS_NOTREG;
   static const std::string REGDATA_RESULT_DEREG;
   static const std::string REGDATA_BLANK_RESULT_DEREG;
   static const std::string VISITED_NETWORK;
@@ -455,11 +458,14 @@ const std::string HTTPHandlersTest::IMPU4 = "sip:impu4@example.com";
 const std::string HTTPHandlersTest::IMPU5 = "sip:impu5@example.com";
 const std::string HTTPHandlersTest::IMPU6 = "sip:impu6@example.com";
 const std::string HTTPHandlersTest::IMS_SUBSCRIPTION = "<?xml version=\"1.0\"?><IMSSubscription><PrivateID>" + IMPI + "</PrivateID><ServiceProfile><PublicIdentity><Identity>" + IMPU + "</Identity></PublicIdentity></ServiceProfile></IMSSubscription>";
-const std::string HTTPHandlersTest::REGDATA_RESULT = "<ClearwaterRegData>\n\t<RegistrationState>REGISTERED</RegistrationState>\n\t<IMSSubscription>\n\t\t<PrivateID>" + IMPI + "</PrivateID>\n\t\t<ServiceProfile>\n\t\t\t<PublicIdentity>\n\t\t\t\t<Identity>" + IMPU + "</Identity>\n\t\t\t</PublicIdentity>\n\t\t\t<PublicIdentity>\n\t\t\t\t<Identity>" + IMPU4 + "</Identity>\n\t\t\t</PublicIdentity>\n\t\t</ServiceProfile>\n\t</IMSSubscription>\n</ClearwaterRegData>\n\n";
-const std::string HTTPHandlersTest::REGDATA_RESULT_INCLUDES_BARRING = "<ClearwaterRegData>\n\t<RegistrationState>REGISTERED</RegistrationState>\n\t<IMSSubscription>\n\t\t<PrivateID>" + IMPI + "</PrivateID>\n\t\t<ServiceProfile>\n\t\t\t<PublicIdentity>\n\t\t\t\t<Identity>" + IMPU + "</Identity>\n\t\t\t\t<BarringIndication>1</BarringIndication>\n\t\t\t</PublicIdentity>\n\t\t\t<PublicIdentity>\n\t\t\t\t<Identity>" + IMPU2 + "</Identity>\n\t\t\t</PublicIdentity>\n\t\t</ServiceProfile>\n\t</IMSSubscription>\n</ClearwaterRegData>\n\n";
+const std::string HTTPHandlersTest::REGDATA_READ_RESULT = "<ClearwaterRegData>\n\t<RegistrationState>REGISTERED</RegistrationState>\n\t<IMSSubscription>\n\t\t<PrivateID>" + IMPI + "</PrivateID>\n\t\t<ServiceProfile>\n\t\t\t<PublicIdentity>\n\t\t\t\t<Identity>" + IMPU + "</Identity>\n\t\t\t</PublicIdentity>\n\t\t\t<PublicIdentity>\n\t\t\t\t<Identity>" + IMPU4 + "</Identity>\n\t\t\t</PublicIdentity>\n\t\t</ServiceProfile>\n\t</IMSSubscription>\n</ClearwaterRegData>\n\n";
+const std::string HTTPHandlersTest::REGDATA_RESULT_WAS_REG = "<ClearwaterRegData>\n\t<RegistrationState>REGISTERED</RegistrationState>\n\t<PreviousRegistrationState>REGISTERED</PreviousRegistrationState>\n\t<IMSSubscription>\n\t\t<PrivateID>" + IMPI + "</PrivateID>\n\t\t<ServiceProfile>\n\t\t\t<PublicIdentity>\n\t\t\t\t<Identity>" + IMPU + "</Identity>\n\t\t\t</PublicIdentity>\n\t\t\t<PublicIdentity>\n\t\t\t\t<Identity>" + IMPU4 + "</Identity>\n\t\t\t</PublicIdentity>\n\t\t</ServiceProfile>\n\t</IMSSubscription>\n</ClearwaterRegData>\n\n";
+const std::string HTTPHandlersTest::REGDATA_RESULT_WAS_NOTREG = "<ClearwaterRegData>\n\t<RegistrationState>REGISTERED</RegistrationState>\n\t<PreviousRegistrationState>NOT_REGISTERED</PreviousRegistrationState>\n\t<IMSSubscription>\n\t\t<PrivateID>" + IMPI + "</PrivateID>\n\t\t<ServiceProfile>\n\t\t\t<PublicIdentity>\n\t\t\t\t<Identity>" + IMPU + "</Identity>\n\t\t\t</PublicIdentity>\n\t\t\t<PublicIdentity>\n\t\t\t\t<Identity>" + IMPU4 + "</Identity>\n\t\t\t</PublicIdentity>\n\t\t</ServiceProfile>\n\t</IMSSubscription>\n</ClearwaterRegData>\n\n";
+const std::string HTTPHandlersTest::REGDATA_RESULT_INCLUDES_BARRING_WAS_NOTREG = "<ClearwaterRegData>\n\t<RegistrationState>REGISTERED</RegistrationState>\n\t<PreviousRegistrationState>NOT_REGISTERED</PreviousRegistrationState>\n\t<IMSSubscription>\n\t\t<PrivateID>" + IMPI + "</PrivateID>\n\t\t<ServiceProfile>\n\t\t\t<PublicIdentity>\n\t\t\t\t<Identity>" + IMPU + "</Identity>\n\t\t\t\t<BarringIndication>1</BarringIndication>\n\t\t\t</PublicIdentity>\n\t\t\t<PublicIdentity>\n\t\t\t\t<Identity>" + IMPU2 + "</Identity>\n\t\t\t</PublicIdentity>\n\t\t</ServiceProfile>\n\t</IMSSubscription>\n</ClearwaterRegData>\n\n";
 const std::string HTTPHandlersTest::REGDATA_RESULT_DEREG = "<ClearwaterRegData>\n\t<RegistrationState>NOT_REGISTERED</RegistrationState>\n\t<IMSSubscription>\n\t\t<PrivateID>" + IMPI + "</PrivateID>\n\t\t<ServiceProfile>\n\t\t\t<PublicIdentity>\n\t\t\t\t<Identity>" + IMPU + "</Identity>\n\t\t\t</PublicIdentity>\n\t\t\t<PublicIdentity>\n\t\t\t\t<Identity>" + IMPU4 + "</Identity>\n\t\t\t</PublicIdentity>\n\t\t</ServiceProfile>\n\t</IMSSubscription>\n</ClearwaterRegData>\n\n";
 const std::string HTTPHandlersTest::REGDATA_BLANK_RESULT_DEREG = "<ClearwaterRegData>\n\t<RegistrationState>NOT_REGISTERED</RegistrationState>\n</ClearwaterRegData>\n\n";
-const std::string HTTPHandlersTest::REGDATA_RESULT_UNREG = "<ClearwaterRegData>\n\t<RegistrationState>UNREGISTERED</RegistrationState>\n\t<IMSSubscription>\n\t\t<PrivateID>" + IMPI + "</PrivateID>\n\t\t<ServiceProfile>\n\t\t\t<PublicIdentity>\n\t\t\t\t<Identity>" + IMPU + "</Identity>\n\t\t\t</PublicIdentity>\n\t\t\t<PublicIdentity>\n\t\t\t\t<Identity>" + IMPU4 + "</Identity>\n\t\t\t</PublicIdentity>\n\t\t</ServiceProfile>\n\t</IMSSubscription>\n</ClearwaterRegData>\n\n";
+const std::string HTTPHandlersTest::REGDATA_RESULT_UNREG_WAS_UNREG = "<ClearwaterRegData>\n\t<RegistrationState>UNREGISTERED</RegistrationState>\n\t<PreviousRegistrationState>UNREGISTERED</PreviousRegistrationState>\n\t<IMSSubscription>\n\t\t<PrivateID>" + IMPI + "</PrivateID>\n\t\t<ServiceProfile>\n\t\t\t<PublicIdentity>\n\t\t\t\t<Identity>" + IMPU + "</Identity>\n\t\t\t</PublicIdentity>\n\t\t\t<PublicIdentity>\n\t\t\t\t<Identity>" + IMPU4 + "</Identity>\n\t\t\t</PublicIdentity>\n\t\t</ServiceProfile>\n\t</IMSSubscription>\n</ClearwaterRegData>\n\n";
+const std::string HTTPHandlersTest::REGDATA_RESULT_UNREG_WAS_NOTREG = "<ClearwaterRegData>\n\t<RegistrationState>UNREGISTERED</RegistrationState>\n\t<PreviousRegistrationState>NOT_REGISTERED</PreviousRegistrationState>\n\t<IMSSubscription>\n\t\t<PrivateID>" + IMPI + "</PrivateID>\n\t\t<ServiceProfile>\n\t\t\t<PublicIdentity>\n\t\t\t\t<Identity>" + IMPU + "</Identity>\n\t\t\t</PublicIdentity>\n\t\t\t<PublicIdentity>\n\t\t\t\t<Identity>" + IMPU4 + "</Identity>\n\t\t\t</PublicIdentity>\n\t\t</ServiceProfile>\n\t</IMSSubscription>\n</ClearwaterRegData>\n\n";
 const std::string HTTPHandlersTest::VISITED_NETWORK = "visited-network.com";
 const std::string HTTPHandlersTest::AUTH_TYPE_DEREG = "DEREG";
 const std::string HTTPHandlersTest::AUTH_TYPE_CAPAB = "CAPAB";
@@ -1409,7 +1415,7 @@ TEST_F(HTTPHandlersTest, ImpuReadRegDataMainline)
   task->run();
 
   // Build the expected response and check it matches the actual response
-  EXPECT_EQ(REGDATA_RESULT, req.content());
+  EXPECT_EQ(REGDATA_READ_RESULT, req.content());
 }
 
 TEST_F(HTTPHandlersTest, ImpuReadRegDataCacheGetNotFound)
@@ -1506,7 +1512,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataInitialReg)
   task->run();
 
   // Build the expected response and check it matches the actual response
-  EXPECT_EQ(REGDATA_RESULT, req.content());
+  EXPECT_EQ(REGDATA_RESULT_WAS_NOTREG, req.content());
 }
 
 TEST_F(HTTPHandlersTest, ImpuRegDataInitialRegNoServerName)
@@ -1555,7 +1561,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataInitialRegNoServerName)
   task->run();
 
   // Build the expected response and check it matches the actual response
-  EXPECT_EQ(REGDATA_RESULT, req.content());
+  EXPECT_EQ(REGDATA_RESULT_WAS_NOTREG, req.content());
 }
 
 TEST_F(HTTPHandlersTest, ImpuRegDataInitialRegCacheGetNotFound)
@@ -1607,7 +1613,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataInitialRegCacheGetNotFound)
   task->run();
 
   // Build the expected response and check it matches the actual response
-  EXPECT_EQ(REGDATA_RESULT, req.content());
+  EXPECT_EQ(REGDATA_RESULT_WAS_NOTREG, req.content());
 }
 
 TEST_F(HTTPHandlersTest, ImpuRegDataInitialRegCacheGetError)
@@ -1726,7 +1732,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataReReg)
   task->run();
 
   // Build the expected response and check it matches the actual response
-  EXPECT_EQ(REGDATA_RESULT, req.content());
+  EXPECT_EQ(REGDATA_RESULT_WAS_REG, req.content());
 }
 
 TEST_F(HTTPHandlersTest, ImpuRegDataReRegNoCache)
@@ -1778,7 +1784,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataReRegNoCache)
   task->run();
 
   // Build the expected response and check it matches the actual response
-  EXPECT_EQ(REGDATA_RESULT, req.content());
+  EXPECT_EQ(REGDATA_RESULT_WAS_REG, req.content());
 }
 
 TEST_F(HTTPHandlersTest, ImpuRegDataReRegCached)
@@ -1809,7 +1815,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataReRegCached)
   task->run();
 
   // Build the expected response and check it matches the actual response
-  EXPECT_EQ(REGDATA_RESULT, req.content());
+  EXPECT_EQ(REGDATA_RESULT_WAS_REG, req.content());
 }
 
 TEST_F(HTTPHandlersTest, ImpuRegDataReRegNewBinding)
@@ -1859,7 +1865,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataReRegNewBinding)
   task->run();
 
   // Build the expected response and check it matches the actual response
-  EXPECT_EQ(REGDATA_RESULT, req.content());
+  EXPECT_EQ(REGDATA_RESULT_WAS_REG, req.content());
 }
 
 TEST_F(HTTPHandlersTest, ImpuRegDataRegIncludesBarring)
@@ -1910,7 +1916,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataRegIncludesBarring)
   task->run();
 
   // Build the expected response and check it matches the actual response
-  EXPECT_EQ(REGDATA_RESULT_INCLUDES_BARRING, req.content());
+  EXPECT_EQ(REGDATA_RESULT_INCLUDES_BARRING_WAS_NOTREG, req.content());
 }
 
 TEST_F(HTTPHandlersTest, ImpuRegDataCallWildcardWithSAR)
@@ -2136,7 +2142,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataCallMainline)
 
   task->run();
 
-  EXPECT_EQ(REGDATA_RESULT, req.content());
+  EXPECT_EQ(REGDATA_RESULT_WAS_REG, req.content());
 }
 
 TEST_F(HTTPHandlersTest, ImpuRegDataCallWildcard)
@@ -2163,7 +2169,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataCallWildcard)
 
   task->run();
 
-  EXPECT_EQ(REGDATA_RESULT, req.content());
+  EXPECT_EQ(REGDATA_RESULT_WAS_REG, req.content());
 }
 
 TEST_F(HTTPHandlersTest, ImpuRegDataCallUnregisteredService)
@@ -2190,7 +2196,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataCallUnregisteredService)
 
   task->run();
 
-  EXPECT_EQ(REGDATA_RESULT_UNREG, req.content());
+  EXPECT_EQ(REGDATA_RESULT_UNREG_WAS_UNREG, req.content());
 }
 
 TEST_F(HTTPHandlersTest, ImpuRegDataCallNewUnregisteredService)
@@ -2238,7 +2244,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataCallNewUnregisteredService)
 
   task->run();
 
-  EXPECT_EQ(REGDATA_RESULT_UNREG, req.content());
+  EXPECT_EQ(REGDATA_RESULT_UNREG_WAS_NOTREG, req.content());
 }
 
 TEST_F(HTTPHandlersTest, ImpuRegDataDeregUser)
@@ -2625,7 +2631,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataDeregAuthFailedRegistered)
 
   task->run();
 
-  EXPECT_EQ(REGDATA_RESULT, req.content());
+  EXPECT_EQ(REGDATA_READ_RESULT, req.content());
 }
 
 TEST_F(HTTPHandlersTest, ImpuRegDataDeregAuthFailedNotRegistered)
