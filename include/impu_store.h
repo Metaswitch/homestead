@@ -251,7 +251,15 @@ public:
 
   }
 
+  // Sets the IMPU in the store without checking the CAS value, overwriting any
+  // data already present.
   Store::Status set_impu_without_cas(Impu* impu, SAS::TrailId trail);
+
+  // Attempts to set the IMPU in the store without checking the CAS value. If
+  // any non-tombstone data is found, doesn't retry and just returns OK
+  Store::Status add_impu_without_cas(Impu* impu, SAS::TrailId trail);
+
+  // Sets the IMPU using CAS
   Store::Status set_impu(Impu* impu, SAS::TrailId trail);
 
   Impu* get_impu(const std::string& impu, SAS::TrailId trail);

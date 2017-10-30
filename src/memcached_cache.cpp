@@ -615,13 +615,43 @@ Store::Status MemcachedCache::update_irs_associated_impus(MemcachedImplicitRegis
   return status;
 }
 
+// Create an IMPU from an IRS and set it in the store.
+// This is used when we think that the IMPU is new.
+// The behaviour depends on the registration state of the IMPU we're trying to
+// store:
+//  - if we're storing an IMPU in state REGISTERED, then we just blind write to
+//    the store. This is because we only do this when we've got a new
+//    registration, so we've just communicated with the HSS and the data we have
+//    is authoritative. We therefore want to overwrite anything that's been put
+//    in the store since then
+//
+//  - if we're storing an IMPU in state UNREGISTERED, then we want to attempt to
+//    write to the store. However, if there's any data already in the store, we
+//    want to give up because that data was added since we last checked.
+//    In the case where there is some data in the store, either:
+//      (a) The data in the store in also UNREGISTERED, which would happen if
+//          another thread was also handling an UNREGISTERED request. In that
+//          case, the data will be the same so we don't need to overwrite it
+//      (b) The data in the store in REGISTERED, which would happen if the user
+//          has registered while we've been processing this request. In that
+//          case, we don't want to overwrite it with the UNREGISTERED data.
+//    So in both cases we just ignore the failure to write to the store.
 Store::Status MemcachedCache::create_irs_impu(MemcachedImplicitRegistrationSet* irs,
                                               SAS::TrailId trail,
                                               ImpuStore* store)
 {
   ImpuStore::DefaultImpu* impu = irs->get_impu();
 
-  Store::Status status = store->set_impu_without_cas(impu, trail);
+  Store::Status status = Store::Status::OK;
+
+  if (impu->registration_state == RegistrationState::REGISTERED)
+  {
+    status = store->set_impu_without_cas(impu, trail);
+  }
+  else
+  {
+    status = store->add_impu_without_cas(impu, trail);
+  }
 
   delete impu;
 
