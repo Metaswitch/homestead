@@ -563,6 +563,8 @@ Store::Status ImpuStore::add_impu_without_cas(ImpuStore::Impu* impu,
     if (status == Store::Status::DATA_CONTENTION)
     {
       // Just ignore the error
+      TRC_DEBUG("Ignoring data contention error attempting to store IMPU for %s",
+                impu->impu.c_str());
       status = Store::Status::OK;
     }
   }
