@@ -1185,6 +1185,49 @@ TEST_F(MemcachedCacheTest, PutIrsWithExistingRefreshedConflictAssociated)
   delete irs;
 }
 
+TEST_F(MemcachedCacheTest, AddNewIrsUnregistered)
+{
+  // Tests the race conditions flow:
+  //  - create IRS for unregistered user
+  //  - create IRS for a user registered
+  //  - store the registered IRS
+  //  - attempt to store the unregistered IRS
+  //
+  // We should see that the final attempt doesn't actually cache the
+  // unregistered IRS, but that it still returns success
+  ImplicitRegistrationSet* unreg_irs =
+    _memcached_cache->create_implicit_registration_set();
+  unreg_irs->set_reg_state(RegistrationState::UNREGISTERED);
+  unreg_irs->set_ttl(1);
+  unreg_irs->set_ims_sub_xml(SERVICE_PROFILE);
+
+  ImplicitRegistrationSet* reg_irs =
+    _memcached_cache->create_implicit_registration_set();
+  reg_irs->set_reg_state(RegistrationState::REGISTERED);
+  reg_irs->set_ttl(1);
+  reg_irs->set_ims_sub_xml(SERVICE_PROFILE);
+
+  EXPECT_CALL(*_mock_progress_cb, progress_callback()).Times(2);
+  Store::Status status = _memcached_cache->put_implicit_registration_set(reg_irs, _progress_callback, 0L);
+  EXPECT_EQ(Store::Status::OK, status);
+
+  status = _memcached_cache->put_implicit_registration_set(unreg_irs, _progress_callback, 0L);
+  EXPECT_EQ(Store::Status::OK, status);
+
+  // Now, get the data from the store and check that the reg state is REGISTERED
+  ImplicitRegistrationSet* stored_irs = nullptr;
+  status = _memcached_cache->get_implicit_registration_set_for_impu(IMPU,
+                                                                    0L,
+                                                                    stored_irs);
+  ASSERT_EQ(Store::Status::OK, status);
+  ASSERT_NE(nullptr, stored_irs);
+  ASSERT_EQ(stored_irs->get_reg_state(), RegistrationState::REGISTERED);
+
+  delete unreg_irs;
+  delete reg_irs;
+  delete stored_irs;
+}
+
 TEST_F(MemcachedCacheTest, PutIrsRemoteError)
 {
   CapturingTestLogger log(5);
