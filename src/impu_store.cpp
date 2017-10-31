@@ -539,6 +539,31 @@ Store::Status ImpuStore::set_impu_without_cas(ImpuStore::Impu* impu,
   return status;
 }
 
+Store::Status ImpuStore::add_impu(ImpuStore::Impu* impu,
+                                  SAS::TrailId trail)
+{
+  std::string data;
+
+  Store::Status status = impu->to_data(data);
+
+  if (status == Store::Status::OK)
+  {
+    int now = time(0);
+
+    // Set the data with a CAS of 0, which will fail if there's data already
+    // present
+    status = _store->set_data("impu",
+                              impu->impu,
+                              data,
+                              0,
+                              impu->expiry - now,
+                              trail,
+                              false);
+  }
+
+  return status;
+}
+
 Store::Status ImpuStore::set_impu(ImpuStore::Impu* impu,
                                   SAS::TrailId trail)
 {
