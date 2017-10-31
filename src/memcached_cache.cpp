@@ -616,14 +616,27 @@ Store::Status MemcachedCache::update_irs_associated_impus(MemcachedImplicitRegis
 }
 
 // Create an IMPU from an IRS and set it in the store.
-// This is used when we think that the IMPU is new.
+// This is used when we failed to find the IMPU in the store, and have therefore
+// created a new record for it.
 // The behaviour depends on the registration state of the IMPU we're trying to
 // store:
 //  - if we're storing an IMPU in state REGISTERED, then we just blind write to
 //    the store. This is because we only do this when we've got a new
 //    registration, so we've just communicated with the HSS and the data we have
 //    is authoritative. We therefore want to overwrite anything that's been put
-//    in the store since then
+//    in the store since then.
+//    This is safe because either:
+//      (a) The data in the store is from a registration at the same time, and
+//          hence matches what we have (or is equivalently valid), so we can
+//          just write over it.
+//      (b) The data in the store is from an UNREGISTERED request at the same
+//          time, but that is now out of date as we have just registered on the
+//          HSS.
+//    Note that we aren't resolving any differing additional IMPUs or IMPIs.
+//    These should have been subject to a PPR, and will expire anyway. This very
+//    narrow race (multiple SAA and HSS changes happening simultaneously for a
+//    single IMPU) isn't worth resolving given the additional latency required,
+//    and it's not clear which one should win anyway.
 //
 //  - if we're storing an IMPU in state UNREGISTERED, then we want to attempt to
 //    write to the store. However, if there's any data already in the store, we
@@ -646,11 +659,22 @@ Store::Status MemcachedCache::create_irs_impu(MemcachedImplicitRegistrationSet* 
 
   if (impu->registration_state == RegistrationState::REGISTERED)
   {
+    TRC_DEBUG("Storing REGISTERED IMPU %s without checking CAS value",
+              impu->impu.c_str());
     status = store->set_impu_without_cas(impu, trail);
   }
   else
   {
-    status = store->add_impu_without_cas(impu, trail);
+    TRC_DEBUG("Attempting to add UNREGISTERED IMPU %s", impu->impu.c_str());
+    status = store->add_impu(impu, trail);
+
+    if (status == Store::Status::DATA_CONTENTION)
+    {
+      // Just ignore the error
+      TRC_DEBUG("Ignoring data contention error attempting to add IMPU for %s",
+                impu->impu.c_str());
+      status = Store::Status::OK;
+    }
   }
 
   delete impu;

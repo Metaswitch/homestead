@@ -539,8 +539,8 @@ Store::Status ImpuStore::set_impu_without_cas(ImpuStore::Impu* impu,
   return status;
 }
 
-Store::Status ImpuStore::add_impu_without_cas(ImpuStore::Impu* impu,
-                                              SAS::TrailId trail)
+Store::Status ImpuStore::add_impu(ImpuStore::Impu* impu,
+                                  SAS::TrailId trail)
 {
   std::string data;
 
@@ -559,18 +559,9 @@ Store::Status ImpuStore::add_impu_without_cas(ImpuStore::Impu* impu,
                               impu->expiry - now,
                               trail,
                               false);
-
-    if (status == Store::Status::DATA_CONTENTION)
-    {
-      // Just ignore the error
-      TRC_DEBUG("Ignoring data contention error attempting to store IMPU for %s",
-                impu->impu.c_str());
-      status = Store::Status::OK;
-    }
   }
 
   return status;
-
 }
 
 Store::Status ImpuStore::set_impu(ImpuStore::Impu* impu,
