@@ -268,7 +268,10 @@ public:
 
   Store::Status set_impi_mapping(ImpiMapping* mapping, SAS::TrailId trail);
 
-  ImpiMapping* get_impi_mapping(const std::string impi, SAS::TrailId trail);
+  // Get the ImpiMapping for this impi.
+  // If successful, set the pointer out_mapping to be the retrieved ImpiMapping
+  // If not, does not alter mapping
+  Store::Status get_impi_mapping(const std::string impi, ImpiMapping*& out_mapping, SAS::TrailId trail);
 
   Store::Status delete_impi_mapping(ImpiMapping* mapping, SAS::TrailId trail);
 

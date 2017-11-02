@@ -599,8 +599,9 @@ Store::Status ImpuStore::delete_impu(ImpuStore::Impu* impu,
   return _store->delete_data("impu", impu->impu, trail);
 }
 
-ImpuStore::ImpiMapping* ImpuStore::get_impi_mapping(const std::string impi,
-                                                    SAS::TrailId trail)
+Store::Status ImpuStore::get_impi_mapping(const std::string impi,
+                                          ImpuStore::ImpiMapping*& out_mapping,
+                                          SAS::TrailId trail)
 {
   std::string data;
   uint64_t cas;
@@ -613,12 +614,26 @@ ImpuStore::ImpiMapping* ImpuStore::get_impi_mapping(const std::string impi,
 
   if (status == Store::Status::OK)
   {
-    return ImpuStore::ImpiMapping::from_data(impi, data, cas);
+    // Use a temporary variable to hold the ImpiMapping* so that we don't change
+    // out_mapping if we fail to decode the mapping
+    ImpuStore::ImpiMapping* mapping = ImpuStore::ImpiMapping::from_data(impi,
+                                                                        data,
+                                                                        cas);
+    // LCOV_EXCL_START
+    if (mapping == nullptr)
+    {
+      // We failed to decode the mapping from the retrieved data, so just return
+      // an ERROR
+      status = Store::Status::ERROR;
+    }
+    // LCOV_EXCL_STOP
+    else
+    {
+      out_mapping = mapping;
+    }
   }
-  else
-  {
-    return nullptr;
-  }
+
+  return status;
 }
 
 Store::Status ImpuStore::set_impi_mapping(ImpiMapping* mapping,
