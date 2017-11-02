@@ -550,11 +550,16 @@ Store::Status MemcachedCache::update_irs_impi_mappings(MemcachedImplicitRegistra
 
       if (status == Store::Status::DATA_CONTENTION)
       {
-        Store::Status inner_status = store->get_impi_mapping(impi, mapping, trail);
+        ImpuStore::ImpiMapping* new_mapping = nullptr;
+        Store::Status inner_status = store->get_impi_mapping(impi, new_mapping, trail);
 
         if (inner_status == Store::Status::OK)
         {
-          // We found an existing mapping so update it
+          // We found an existing mapping so delete the old one and update the
+          // one we found
+          delete mapping;
+          mapping = new_mapping;
+
           int now = time(0);
           mapping->set_expiry(irs->get_ttl() + now);
 
