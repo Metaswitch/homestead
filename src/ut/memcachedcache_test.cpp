@@ -14,6 +14,11 @@
 #include "test_utils.hpp"
 #include "localstore.h"
 #include "fakelogger.h"
+#include "mockimpustore.hpp"
+
+using ::testing::_;
+using ::testing::Return;
+using ::testing::StrictMock;
 
 static LocalStore LOCAL_STORE;
 static LocalStore LOCAL_STORE_2;
@@ -1638,4 +1643,74 @@ TEST_F(MemcachedCacheTest, PutImsSubscription)
   EXPECT_EQ(Store::Status::OK, status);
 
   delete subscription;
+}
+
+// Tests that use a MockImpuStore rather than a real ImpuStore backed by LocalStores
+class MemcachedCacheMockStoreTest : public ControlTimeTest
+{
+public:
+  virtual void SetUp() override
+  {
+    _mock_store = new StrictMock<MockImpuStore>();
+    _memcached_cache = new MemcachedCache(_mock_store, {}, 0, nullptr);
+  }
+
+  virtual void TearDown() override
+  {
+    delete _memcached_cache;
+    delete _mock_store;
+  }
+
+private:
+  StrictMock<MockImpuStore>* _mock_store;
+  MemcachedCache* _memcached_cache;
+};
+
+TEST_F(MemcachedCacheMockStoreTest, UpdateIrsImpiMappingsDataContention)
+{
+  // Tests that if we add an ImpiMapping, hit DATA_CONTENTION when setting it,
+  // and then get NOT_FOUND on trying to get the stored mapping, we'll re-try
+  // with the original and that will succeed
+  MemcachedImplicitRegistrationSet* mirs = new MemcachedImplicitRegistrationSet();
+
+  mirs->set_ttl(1);
+  mirs->set_ims_sub_xml(SERVICE_PROFILE);
+  mirs->set_reg_state(RegistrationState::REGISTERED);
+  mirs->add_associated_impi(IMPI);
+
+  // The first set hits contention, the second succeeds
+  EXPECT_CALL(*_mock_store, set_impi_mapping(_, _))
+    .WillOnce(Return(Store::Status::DATA_CONTENTION))
+    .WillOnce(Return(Store::Status::OK));
+
+  // The get fails with NOT_FOUND
+  EXPECT_CALL(*_mock_store, get_impi_mapping(_, _, _)).WillOnce(Return(Store::Status::NOT_FOUND));
+  Store::Status status = _memcached_cache->update_irs_impi_mappings(mirs, 0L, _mock_store);
+  EXPECT_EQ(Store::Status::OK, status);
+
+  delete mirs;
+}
+
+TEST_F(MemcachedCacheMockStoreTest, UpdateIrsImpiMappingsDataContentionError)
+{
+  // Tests that if we add an ImpiMapping, hit DATA_CONTENTION when setting it,
+  // and then get ERROR on trying to get the stored mapping, we'll give up and
+  // report the error
+  MemcachedImplicitRegistrationSet* mirs = new MemcachedImplicitRegistrationSet();
+
+  mirs->set_ttl(1);
+  mirs->set_ims_sub_xml(SERVICE_PROFILE);
+  mirs->set_reg_state(RegistrationState::REGISTERED);
+  mirs->add_associated_impi(IMPI);
+
+  // Only one set, which hits contention
+  EXPECT_CALL(*_mock_store, set_impi_mapping(_, _))
+    .WillOnce(Return(Store::Status::DATA_CONTENTION));
+
+  // The get fails with ERROR
+  EXPECT_CALL(*_mock_store, get_impi_mapping(_, _, _)).WillOnce(Return(Store::Status::ERROR));
+  Store::Status status = _memcached_cache->update_irs_impi_mappings(mirs, 0L, _mock_store);
+  EXPECT_EQ(Store::Status::ERROR, status);
+
+  delete mirs;
 }
