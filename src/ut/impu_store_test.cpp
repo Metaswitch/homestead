@@ -303,9 +303,10 @@ TEST_F(ImpuStoreTest, GetAssociatedImpiMapping)
 
   delete mapping;
 
-  ImpuStore::ImpiMapping* got_mapping =
-    impu_store->get_impi_mapping(IMPI, 0);
+  ImpuStore::ImpiMapping* got_mapping = nullptr;
+  Store::Status status = impu_store->get_impi_mapping(IMPI, got_mapping, 0);
 
+  ASSERT_EQ(status, Store::Status::OK);
   ASSERT_NE(nullptr, got_mapping);
   ASSERT_EQ(IMPI, got_mapping->impi);
   ASSERT_TRUE(got_mapping->has_default_impu(IMPU));
@@ -443,7 +444,10 @@ TEST_F(ImpuStoreTest, ImpiMappingNotFound)
   LocalStore* local_store = new LocalStore();
   ImpuStore* impu_store = new ImpuStore(local_store);
 
-  ASSERT_EQ(nullptr, impu_store->get_impi_mapping(IMPI, 0L));
+  ImpuStore::ImpiMapping* mapping = nullptr;
+  Store::Status status = impu_store->get_impi_mapping(IMPI, mapping, 0L);
+  ASSERT_EQ(nullptr, mapping);
+  ASSERT_EQ(status, Store::Status::NOT_FOUND);
 
   delete impu_store;
   delete local_store;
