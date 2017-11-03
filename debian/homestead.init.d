@@ -79,7 +79,7 @@ get_settings()
         reg_max_expires=300
         log_level=2
         num_http_threads=$(($(grep processor /proc/cpuinfo | wc -l) * 4))
-        homestead_cache_threads=$(($(grep processor /proc/cpuinfo | wc -l) * 50))
+        homestead_cache_threads=$(($(grep processor /proc/cpuinfo | wc -l) * 150))
 
         hss_mar_scheme_unknown="Unknown"
         hss_mar_scheme_digest="SIP Digest"
