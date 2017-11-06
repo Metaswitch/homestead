@@ -453,6 +453,26 @@ TEST_F(ImpuStoreTest, ImpiMappingNotFound)
   delete local_store;
 }
 
+TEST_F(ImpuStoreTest, ImpiMappingBadJson)
+{
+  LocalStore* local_store = new LocalStore();
+  ImpuStore* impu_store = new ImpuStore(local_store);
+  local_store->set_data("impi_mapping",
+                        IMPI,
+                        INVALID_JSON,
+                        0,
+                        1,
+                        0L);
+
+  ImpuStore::ImpiMapping* mapping = nullptr;
+  Store::Status status = impu_store->get_impi_mapping(IMPI, mapping, 0L);
+  ASSERT_EQ(nullptr, mapping);
+  ASSERT_EQ(status, Store::Status::ERROR);
+
+  delete impu_store;
+  delete local_store;
+}
+
 TEST_F(ImpuStoreTest, ImpuSetWithoutCas)
 {
   LocalStore* local_store = new LocalStore();

@@ -619,14 +619,12 @@ Store::Status ImpuStore::get_impi_mapping(const std::string impi,
     ImpuStore::ImpiMapping* mapping = ImpuStore::ImpiMapping::from_data(impi,
                                                                         data,
                                                                         cas);
-    // LCOV_EXCL_START
     if (mapping == nullptr)
     {
       // We failed to decode the mapping from the retrieved data, so just return
       // an ERROR
       status = Store::Status::ERROR;
     }
-    // LCOV_EXCL_STOP
     else
     {
       out_mapping = mapping;
