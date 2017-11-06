@@ -264,7 +264,9 @@ public:
   // Sets the IMPU using CAS
   virtual Store::Status set_impu(Impu* impu, SAS::TrailId trail);
 
-  virtual Impu* get_impu(const std::string& impu, SAS::TrailId trail);
+  virtual Store::Status get_impu(const std::string& impu,
+                                 Impu*& out_impu,
+                                 SAS::TrailId trail);
 
   virtual Store::Status delete_impu(Impu* impu, SAS::TrailId trail);
 

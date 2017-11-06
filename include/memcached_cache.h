@@ -367,12 +367,17 @@ private:
   std::vector<ImpuStore*> _remote_stores;
   FunctorThreadPool _thread_pool;
 
-  ImpuStore::Impu* get_impu_for_impu_gr(const std::string& impu,
-                                        SAS::TrailId trail);
+  // Get the Impu for this impu, by first checking the local store and then any
+  // remote stores if no Impu is found in the local store.
+  // If successful, sets the pointer out_impu to be the retrieved Impu.
+  // If not, does not alter out_impu.
+  Store::Status get_impu_for_impu_gr(const std::string& impu,
+                                     ImpuStore::Impu*& out_impu,
+                                     SAS::TrailId trail);
 
   // Get the ImpiMapping for this impi, by first checking the local store and
   // then any remote stores if no mapping is found in the local store.
-  // If successful, set the pointer out_mapping to be the retrieved ImpiMapping
+  // If successful, sets the pointer out_mapping to be the retrieved ImpiMapping
   // If not, does not alter mapping
   Store::Status get_impi_mapping_gr(const std::string& impi,
                                     ImpuStore::ImpiMapping*& out_mapping,

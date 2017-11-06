@@ -494,8 +494,9 @@ Store::Status ImpuStore::ImpiMapping::to_data(std::string& data)
   return Store::Status::OK;
 }
 
-ImpuStore::Impu* ImpuStore::get_impu(const std::string& impu,
-                                     SAS::TrailId trail)
+Store::Status ImpuStore::get_impu(const std::string& impu,
+                                  ImpuStore::Impu*& out_impu,
+                                  SAS::TrailId trail)
 {
   std::string data;
   uint64_t cas;
@@ -509,12 +510,23 @@ ImpuStore::Impu* ImpuStore::get_impu(const std::string& impu,
 
   if (status == Store::Status::OK)
   {
-    return ImpuStore::Impu::from_data(impu, data, cas, this);
+    // Use a temporary variable to hold the Impu* so that we don't change
+    // out_impu if we fail to decode the impu
+    ImpuStore::Impu* temp_impu = ImpuStore::Impu::from_data(impu, data, cas, this);
+
+    if (temp_impu == nullptr)
+    {
+      // We failed to decode the impu from the retrieved data, so just return an
+      // ERROR
+      status = Store::Status::ERROR;
+    }
+    else
+    {
+      out_impu = temp_impu;
+    }
   }
-  else
-  {
-    return nullptr;
-  }
+
+  return status;
 }
 
 Store::Status ImpuStore::set_impu_without_cas(ImpuStore::Impu* impu,
