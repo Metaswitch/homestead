@@ -246,6 +246,8 @@ public:
     std::vector<std::string> _default_impus;
   };
 
+  virtual ~ImpuStore() {};
+
   ImpuStore(Store* store) : _store(store)
   {
 
@@ -253,24 +255,29 @@ public:
 
   // Sets the IMPU in the store without checking the CAS value, overwriting any
   // data already present.
-  Store::Status set_impu_without_cas(Impu* impu, SAS::TrailId trail);
+  virtual Store::Status set_impu_without_cas(Impu* impu, SAS::TrailId trail);
 
   // Attempts to add an IMPU that doesn't already exist in the store.
   // Fails with DATA_CONTENTION if an IMPU is already present.
-  Store::Status add_impu(Impu* impu, SAS::TrailId trail);
+  virtual Store::Status add_impu(Impu* impu, SAS::TrailId trail);
 
   // Sets the IMPU using CAS
-  Store::Status set_impu(Impu* impu, SAS::TrailId trail);
+  virtual Store::Status set_impu(Impu* impu, SAS::TrailId trail);
 
-  Impu* get_impu(const std::string& impu, SAS::TrailId trail);
+  virtual Store::Status get_impu(const std::string& impu,
+                                 Impu*& out_impu,
+                                 SAS::TrailId trail);
 
-  Store::Status delete_impu(Impu* impu, SAS::TrailId trail);
+  virtual Store::Status delete_impu(Impu* impu, SAS::TrailId trail);
 
-  Store::Status set_impi_mapping(ImpiMapping* mapping, SAS::TrailId trail);
+  virtual Store::Status set_impi_mapping(ImpiMapping* mapping, SAS::TrailId trail);
 
-  ImpiMapping* get_impi_mapping(const std::string impi, SAS::TrailId trail);
+  // Get the ImpiMapping for this impi.
+  // If successful, set the pointer out_mapping to be the retrieved ImpiMapping
+  // If not, does not alter mapping
+  virtual Store::Status get_impi_mapping(const std::string impi, ImpiMapping*& out_mapping, SAS::TrailId trail);
 
-  Store::Status delete_impi_mapping(ImpiMapping* mapping, SAS::TrailId trail);
+  virtual Store::Status delete_impi_mapping(ImpiMapping* mapping, SAS::TrailId trail);
 
 private:
   Store* _store;

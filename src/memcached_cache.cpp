@@ -242,37 +242,57 @@ void MemcachedImplicitRegistrationSet::delete_impis()
 
 // Helper function to get the details of an IMPU.
 // Note this doesn't sort out associated versus default impus.
-ImpuStore::Impu* MemcachedCache::get_impu_for_impu_gr(const std::string& impu,
-                                                     SAS::TrailId trail)
+//
+// We try to get the Impu from the local store, and fall back to remote stores
+// if we don't find it in the local store.
+// The exact logic is:
+//  - try to find the Impu in the local store
+//  - if we get any errors other than NOT_FOUND, immediately give up and return
+//    the error
+//  - if we get NOT_FOUND from the local store:
+//    - try all remote stores in parallel
+//    - if we get a result from a remote store, use that
+//    - if we get any other error, just ignore it (since we've already
+//      established that the local store returned NOT_FOUND)
+Store::Status MemcachedCache::get_impu_for_impu_gr(const std::string& impu,
+                                                   ImpuStore::Impu*& out_impu,
+                                                   SAS::TrailId trail)
 {
-  ImpuStore::Impu* data =  _local_store->get_impu(impu, trail);
+  Store::Status status = _local_store->get_impu(impu, out_impu, trail);
 
-  if (!data)
+  if (status == Store::Status::NOT_FOUND)
   {
-    std::vector<std::promise<ImpuStore::Impu*>*> promises;
+    // If we successfully connect to the local store but fail to find an Impu,
+    // try the remote stores
+    std::vector<std::promise<std::pair<Store::Status, ImpuStore::Impu*>>*> promises;
 
     for (ImpuStore* remote_store : _remote_stores)
     {
-      std::promise<ImpuStore::Impu*>* promise = new std::promise<ImpuStore::Impu*>();
+      std::promise<std::pair<Store::Status, ImpuStore::Impu*>>* promise = new std::promise<std::pair<Store::Status, ImpuStore::Impu*>>();
       promises.push_back(promise);
 
       _thread_pool.add_work([promise, remote_store, impu, trail]()->void
       {
-        promise->set_value(remote_store->get_impu(impu, trail));
+        ImpuStore::Impu* remote_data = nullptr;
+        Store::Status remote_status = remote_store->get_impu(impu, remote_data, trail);
+        promise->set_value(std::pair<Store::Status, ImpuStore::Impu*>(remote_status, remote_data));
       });
     }
 
-    for (std::promise<ImpuStore::Impu*>* promise : promises)
+    for (std::promise<std::pair<Store::Status, ImpuStore::Impu*>>* promise : promises)
     {
-      std::future<ImpuStore::Impu*> future = promise->get_future();
+      std::future<std::pair<Store::Status, ImpuStore::Impu*>> future = promise->get_future();
+      std::pair<Store::Status, ImpuStore::Impu*> result = future.get();
 
-      if (!data)
+      if ((status != Store::Status::OK) && (result.first == Store::Status::OK))
       {
-        data = future.get();
+        // If we've not yet set the impu, use the one from this remote if it succeeded
+        out_impu = result.second;
+        status = Store::Status::OK;
       }
       else
       {
-        ImpuStore::Impu* discard = future.get();
+        ImpuStore::Impu* discard = result.second;
 
         if (discard)
         {
@@ -284,66 +304,84 @@ ImpuStore::Impu* MemcachedCache::get_impu_for_impu_gr(const std::string& impu,
     }
   }
 
-  return data;
+  return status;
 }
 
 Store::Status MemcachedCache::get_impus_for_impi(const std::string& impi,
                                                  SAS::TrailId trail,
                                                  std::vector<std::string>& impus)
 {
-  ImpuStore::ImpiMapping* mapping = get_impi_mapping_gr(impi, trail);
+  ImpuStore::ImpiMapping* mapping = nullptr;
+  Store::Status status = get_impi_mapping_gr(impi, mapping, trail);
 
-  if (mapping != nullptr)
+  if (status == Store::Status::OK)
   {
     impus = mapping->get_default_impus();
     delete mapping;
+  }
 
-    return Store::Status::OK;
-  }
-  else
-  {
-    return Store::Status::NOT_FOUND;
-  }
+  return status;
 }
 
-ImpuStore::ImpiMapping* MemcachedCache::get_impi_mapping_gr(const std::string& impi,
-                                                           SAS::TrailId trail)
+// Try to get the ImpiMapping from the local store, falling back to the remote
+// stores if we don't find anything in the local store.
+// The exact logic is:
+//  - try to find the mapping in the local store
+//  - if we get any errors other than NOT_FOUND, immediately give up and return
+//    the error
+//  - if we get NOT_FOUND from the local store:
+//    - try each remote store in turn
+//    - if we get OK from a remote store, we've found a mapping so return OK
+//    - if we get any other error, try the next remote store but don't set the
+//      return value to that error (since we've already established that the
+//      local store returned NOT_FOUND)
+//
+// On success, out_mapping is set the to retrieved mapping.
+// On failure, out_mapping is unchanged.
+Store::Status MemcachedCache::get_impi_mapping_gr(const std::string& impi,
+                                                  ImpuStore::ImpiMapping*& out_mapping,
+                                                  SAS::TrailId trail)
 {
-  ImpuStore::ImpiMapping* mapping = _local_store->get_impi_mapping(impi, trail);
+  Store::Status status = _local_store->get_impi_mapping(impi, out_mapping, trail);
 
-  if (!mapping)
+  if (status == Store::Status::NOT_FOUND)
   {
+    // If we successfully connect to the local store but fail to find an
+    // ImpiMapping, try the remote stores
     for (ImpuStore* remote_store : _remote_stores)
     {
-      mapping = remote_store->get_impi_mapping(impi, trail);
+      Store::Status remote_status = remote_store->get_impi_mapping(impi, out_mapping, trail);
 
-      if (mapping)
+      if (remote_status == Store::Status::OK)
       {
+        status = remote_status;
         break;
       }
     }
   }
 
-  return mapping;
+  return status;
 }
 
 Store::Status MemcachedCache::get_implicit_registration_set_for_impu(const std::string& impu,
                                                      SAS::TrailId trail,
                                                      ImplicitRegistrationSet*& result)
 {
-  ImpuStore::Impu* data = get_impu_for_impu_gr(impu, trail);
 
-  if (data && !data->is_default_impu())
+  ImpuStore::Impu* data = nullptr;
+  Store::Status status = get_impu_for_impu_gr(impu, data, trail);
+
+  if (status == Store::Status::OK && !data->is_default_impu())
   {
     ImpuStore::AssociatedImpu* assoc_impu = (ImpuStore::AssociatedImpu*)data;
 
     TRC_INFO("IMPU: %s maps to IMPU: %s", impu.c_str(), assoc_impu->default_impu.c_str());
 
-    data = get_impu_for_impu_gr(assoc_impu->default_impu, trail);
+    status = get_impu_for_impu_gr(assoc_impu->default_impu, data, trail);
 
     delete assoc_impu;
 
-    if (data)
+    if (status == Store::Status::OK)
     {
       // Is the target IMPU a default IMPU?
       bool is_default = data->is_default_impu();
@@ -359,7 +397,7 @@ Store::Status MemcachedCache::get_implicit_registration_set_for_impu(const std::
         // Log and treat as not found.
         if (!is_default)
         {
-          TRC_INFO("None default IMPU pointed by associated IMPU record");
+          TRC_INFO("Non-default IMPU pointed by associated IMPU record");
         }
         else if (!is_associated)
         {
@@ -367,21 +405,18 @@ Store::Status MemcachedCache::get_implicit_registration_set_for_impu(const std::
         }
 
         delete data;
-        return Store::Status::NOT_FOUND;
+        status = Store::Status::NOT_FOUND;
       }
     }
   }
 
-  if (!data)
+  if (status == Store::Status::OK)
   {
-    TRC_INFO("No IMPU record found");
-    return Store::Status::NOT_FOUND;
+    result = new MemcachedImplicitRegistrationSet((ImpuStore::DefaultImpu*) data);
+    delete data;
   }
 
-  result = new MemcachedImplicitRegistrationSet((ImpuStore::DefaultImpu*) data);
-  delete data;
-
-  return Store::Status::OK;
+  return status;
 }
 
 Store::Status MemcachedCache::perform(MemcachedCache::store_action action,
@@ -449,9 +484,12 @@ Store::Status MemcachedCache::update_irs_impi_mappings(MemcachedImplicitRegistra
   {
     do
     {
-      ImpuStore::ImpiMapping* mapping = store->get_impi_mapping(impi, trail);
+      // We use a separate Status as failing to find an ImpiMapping shouldn't
+      // affect our overall Status
+      ImpuStore::ImpiMapping* mapping = nullptr;
+      Store::Status inner_status = store->get_impi_mapping(impi, mapping, trail);
 
-      if (mapping)
+      if (inner_status == Store::Status::OK)
       {
         if (mapping->has_default_impu(irs->get_default_impu()))
         {
@@ -480,10 +518,12 @@ Store::Status MemcachedCache::update_irs_impi_mappings(MemcachedImplicitRegistra
     {
       do
       {
-        ImpuStore::ImpiMapping* mapping = store->get_impi_mapping(impi,
-                                                                  trail);
+        // We use a separate Status as failing to find an ImpiMapping shouldn't
+        // affect our overall Status
+        ImpuStore::ImpiMapping* mapping = nullptr;
+        Store::Status inner_status = store->get_impi_mapping(impi, mapping, trail);
 
-        if (mapping)
+        if (inner_status == Store::Status::OK)
         {
           int now = time(0);
           mapping->set_expiry(irs->get_ttl() + now);
@@ -529,22 +569,41 @@ Store::Status MemcachedCache::update_irs_impi_mappings(MemcachedImplicitRegistra
 
       if (status == Store::Status::DATA_CONTENTION)
       {
-        delete mapping;
+        ImpuStore::ImpiMapping* new_mapping = nullptr;
+        Store::Status inner_status = store->get_impi_mapping(impi, new_mapping, trail);
 
-        mapping = store->get_impi_mapping(impi, trail);
-
-        int now = time(0);
-        mapping->set_expiry(irs->get_ttl() + now);
-
-        if (!mapping->has_default_impu(irs->get_default_impu()))
+        if (inner_status == Store::Status::OK)
         {
-          mapping->add_default_impu(irs->get_default_impu());
+          // We found an existing mapping so delete the old one and update the
+          // one we found
+          delete mapping;
+          mapping = new_mapping;
+
+          int now = time(0);
+          mapping->set_expiry(irs->get_ttl() + now);
+
+          if (!mapping->has_default_impu(irs->get_default_impu()))
+          {
+            mapping->add_default_impu(irs->get_default_impu());
+          }
+          else if (!irs->is_refreshed())
+          {
+            // We aren't being refreshed, and the IMPU is present, so just mark
+            // the data as good
+            status = Store::Status::OK;
+          }
         }
-        else if (!irs->is_refreshed())
+        else if (inner_status == Store::Status::NOT_FOUND)
         {
-          // We aren't being refreshed, and the IMPU is present, so just mark
-          // the data as good
-          status = Store::Status::OK;
+          // If we've failed to find something in the store, having just had
+          // DATA_CONTENTION, then just leave the mapping untouched and go back
+          // around the loop, as we shouldn't hit DATA_CONTENTION next time we
+          // try to set the mapping
+        }
+        else
+        {
+          // We've hit some other error, so just bail out
+          status = inner_status;
         }
       }
     } while(status == Store::Status::DATA_CONTENTION);
@@ -565,7 +624,8 @@ Store::Status MemcachedCache::update_irs_associated_impus(MemcachedImplicitRegis
   {
     do
     {
-      ImpuStore::Impu* mapping = store->get_impu(associated_impu, trail);
+      ImpuStore::Impu* mapping = nullptr;
+      store->get_impu(associated_impu, mapping, trail);
 
       if (mapping && !mapping->is_default_impu())
       {
@@ -712,7 +772,8 @@ Store::Status perform_irs_impu_action(irs_impu_action action,
       // As we merge in remote stores, we'll get a fuller picture of the
       // data, but we don't attempt to update local stores, and just
       // assume they'll fall into place.
-      ImpuStore::Impu* mapped_impu = store->get_impu(irs->get_default_impu(), trail);
+      ImpuStore::Impu* mapped_impu = nullptr;
+      store->get_impu(irs->get_default_impu(), mapped_impu, trail);
 
       if (mapped_impu == nullptr)
       {
@@ -900,9 +961,10 @@ Store::Status MemcachedCache::get_ims_subscription(const std::string& impi,
 {
   Store::Status status;
 
-  ImpuStore::ImpiMapping* mapping = get_impi_mapping_gr(impi, trail);
+  ImpuStore::ImpiMapping* mapping = nullptr;
+  status = get_impi_mapping_gr(impi, mapping, trail);
 
-  if (mapping)
+  if (status == Store::Status::OK)
   {
     std::vector<ImplicitRegistrationSet*> irs;
     status = get_implicit_registration_sets_for_impus(mapping->get_default_impus(), trail, irs);
@@ -913,10 +975,6 @@ Store::Status MemcachedCache::get_ims_subscription(const std::string& impi,
     }
 
     delete mapping;
-  }
-  else
-  {
-    status = Store::Status::NOT_FOUND;
   }
 
   return status;

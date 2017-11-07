@@ -140,6 +140,26 @@ TEST_F(ImpuStoreTest, SetInvalidRegistrationStateDefaultImpu)
   delete local_store;
 }
 
+TEST_F(ImpuStoreTest, GetImpuInvalidData)
+{
+  LocalStore* local_store = new LocalStore();
+  ImpuStore* impu_store = new ImpuStore(local_store);
+  local_store->set_data("impu",
+                        IMPU,
+                        INVALID_JSON,
+                        0,
+                        1,
+                        0L);
+
+  ImpuStore::Impu* impu = nullptr;
+  Store::Status status = impu_store->get_impu(IMPU, impu, 0L);
+  ASSERT_EQ(nullptr, impu);
+  ASSERT_EQ(status, Store::Status::ERROR);
+
+  delete impu_store;
+  delete local_store;
+}
+
 TEST_F(ImpuStoreTest, GetDefaultImpu)
 {
   LocalStore* local_store = new LocalStore();
@@ -161,8 +181,10 @@ TEST_F(ImpuStoreTest, GetDefaultImpu)
 
   delete default_impu;
 
-  ImpuStore::Impu* got_impu = impu_store->get_impu(IMPU.c_str(), 0L);
+  ImpuStore::Impu* got_impu = nullptr;
+  Store::Status status = impu_store->get_impu(IMPU.c_str(), got_impu, 0L);
 
+  ASSERT_EQ(status, Store::Status::OK);
   ASSERT_NE(nullptr, got_impu);
   ASSERT_EQ(IMPU, got_impu->impu);
   ASSERT_TRUE(got_impu->is_default_impu());
@@ -224,8 +246,10 @@ TEST_F(ImpuStoreTest, GetAssociatedImpu)
 
   delete assoc_impu;
 
-  ImpuStore::Impu* got_impu = impu_store->get_impu(ASSOC_IMPU, 0);
+  ImpuStore::Impu* got_impu = nullptr;
+  Store::Status status = impu_store->get_impu(ASSOC_IMPU, got_impu, 0);
 
+  ASSERT_EQ(status, Store::Status::OK);
   ASSERT_NE(nullptr, got_impu);
   ASSERT_EQ(ASSOC_IMPU, got_impu->impu);
   ASSERT_FALSE(got_impu->is_default_impu());
@@ -303,9 +327,10 @@ TEST_F(ImpuStoreTest, GetAssociatedImpiMapping)
 
   delete mapping;
 
-  ImpuStore::ImpiMapping* got_mapping =
-    impu_store->get_impi_mapping(IMPI, 0);
+  ImpuStore::ImpiMapping* got_mapping = nullptr;
+  Store::Status status = impu_store->get_impi_mapping(IMPI, got_mapping, 0);
 
+  ASSERT_EQ(status, Store::Status::OK);
   ASSERT_NE(nullptr, got_mapping);
   ASSERT_EQ(IMPI, got_mapping->impi);
   ASSERT_TRUE(got_mapping->has_default_impu(IMPU));
@@ -432,7 +457,10 @@ TEST_F(ImpuStoreTest, ImpuNotFound)
   LocalStore* local_store = new LocalStore();
   ImpuStore* impu_store = new ImpuStore(local_store);
 
-  ASSERT_EQ(nullptr, impu_store->get_impu(IMPU, 0L));
+  ImpuStore::Impu* got_impu = nullptr;
+  Store::Status status = impu_store->get_impu(IMPU, got_impu, 0L);
+  ASSERT_EQ(status, Store::Status::NOT_FOUND);
+  ASSERT_EQ(nullptr, got_impu);
 
   delete impu_store;
   delete local_store;
@@ -443,7 +471,30 @@ TEST_F(ImpuStoreTest, ImpiMappingNotFound)
   LocalStore* local_store = new LocalStore();
   ImpuStore* impu_store = new ImpuStore(local_store);
 
-  ASSERT_EQ(nullptr, impu_store->get_impi_mapping(IMPI, 0L));
+  ImpuStore::ImpiMapping* mapping = nullptr;
+  Store::Status status = impu_store->get_impi_mapping(IMPI, mapping, 0L);
+  ASSERT_EQ(nullptr, mapping);
+  ASSERT_EQ(status, Store::Status::NOT_FOUND);
+
+  delete impu_store;
+  delete local_store;
+}
+
+TEST_F(ImpuStoreTest, ImpiMappingBadJson)
+{
+  LocalStore* local_store = new LocalStore();
+  ImpuStore* impu_store = new ImpuStore(local_store);
+  local_store->set_data("impi_mapping",
+                        IMPI,
+                        INVALID_JSON,
+                        0,
+                        1,
+                        0L);
+
+  ImpuStore::ImpiMapping* mapping = nullptr;
+  Store::Status status = impu_store->get_impi_mapping(IMPI, mapping, 0L);
+  ASSERT_EQ(nullptr, mapping);
+  ASSERT_EQ(status, Store::Status::ERROR);
 
   delete impu_store;
   delete local_store;
