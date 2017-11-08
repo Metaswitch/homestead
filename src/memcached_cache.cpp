@@ -437,7 +437,7 @@ Store::Status MemcachedCache::perform(MemcachedCache::store_action action,
        if (inner_status != Store::Status::OK)
        {
          // Nothing we can do, but log the error
-         TRC_ERROR("Failed to perform operation to remote store with error %d",
+         TRC_DEBUG("Failed to perform operation to remote store with error %d",
                    inner_status);
        }
      }
