@@ -291,8 +291,12 @@ TEST_F(DiameterHssConnectionTest, SendMARDigest)
     .Times(1)
     .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
 
+  // Create a stopwatch to track that we're not including diameter latency
+  Utils::StopWatch stopwatch;
+  stopwatch.start();
+
   // Send the MAR
-  _hss_connection->send_multimedia_auth_request(MAA_CB, request, FAKE_TRAIL_ID);
+  _hss_connection->send_multimedia_auth_request(MAA_CB, request, FAKE_TRAIL_ID, &stopwatch);
 
   // Check that we've caught the message and it's not null
   ASSERT_FALSE(_caught_diam_tsx == NULL);
@@ -340,6 +344,11 @@ TEST_F(DiameterHssConnectionTest, SendMARDigest)
   EXPECT_CALL(*_stats, update_H_hss_latency_us(12000));
   cwtest_advance_time_ms(12);
 
+  // Check that the stopwatch doesn't include the time spent waiting on diameter response
+  unsigned long time;
+  EXPECT_EQ(true, stopwatch.read(time));
+  EXPECT_EQ(time, 0L);
+
   _caught_diam_tsx->on_response(maa);
 
   _caught_fd_msg = NULL;
@@ -364,7 +373,7 @@ TEST_F(DiameterHssConnectionTest, SendMARAKAv1)
     .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
 
   // Send the MAR
-  _hss_connection->send_multimedia_auth_request(MAA_CB, request, FAKE_TRAIL_ID);
+  _hss_connection->send_multimedia_auth_request(MAA_CB, request, FAKE_TRAIL_ID, nullptr);
 
   // Check that we've caught the message and it's not null
   ASSERT_FALSE(_caught_diam_tsx == NULL);
@@ -438,7 +447,7 @@ TEST_F(DiameterHssConnectionTest, SendMARAKAv2)
     .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
 
   // Send the MAR
-  _hss_connection->send_multimedia_auth_request(MAA_CB, request, FAKE_TRAIL_ID);
+  _hss_connection->send_multimedia_auth_request(MAA_CB, request, FAKE_TRAIL_ID, nullptr);
 
   // Check that we've caught the message and it's not null
   ASSERT_FALSE(_caught_diam_tsx == NULL);
@@ -513,7 +522,7 @@ TEST_F(DiameterHssConnectionTest, SendMARRecvUnknownScheme)
     .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
 
   // Send the MAR
-  _hss_connection->send_multimedia_auth_request(MAA_CB, request, FAKE_TRAIL_ID);
+  _hss_connection->send_multimedia_auth_request(MAA_CB, request, FAKE_TRAIL_ID, nullptr);
 
   // Check that we've caught the message and it's not null
   ASSERT_FALSE(_caught_diam_tsx == NULL);
@@ -579,7 +588,7 @@ TEST_F(DiameterHssConnectionTest, SendMARRecvSERVER_UNAVAILABLE)
     .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
 
   // Send the MAR
-  _hss_connection->send_multimedia_auth_request(MAA_CB, request, FAKE_TRAIL_ID);
+  _hss_connection->send_multimedia_auth_request(MAA_CB, request, FAKE_TRAIL_ID, nullptr);
 
   // Check that we've caught the message and it's not null
   ASSERT_FALSE(_caught_diam_tsx == NULL);
@@ -646,7 +655,7 @@ TEST_F(DiameterHssConnectionTest, SendMARRecvNOT_FOUND)
     .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
 
   // Send the MAR
-  _hss_connection->send_multimedia_auth_request(MAA_CB, request, FAKE_TRAIL_ID);
+  _hss_connection->send_multimedia_auth_request(MAA_CB, request, FAKE_TRAIL_ID, nullptr);
 
   // Check that we've caught the message and it's not null
   ASSERT_FALSE(_caught_diam_tsx == NULL);
@@ -712,7 +721,7 @@ TEST_F(DiameterHssConnectionTest, SendMARRecvUNKNOWN_ERROR)
     .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
 
   // Send the MAR
-  _hss_connection->send_multimedia_auth_request(MAA_CB, request, FAKE_TRAIL_ID);
+  _hss_connection->send_multimedia_auth_request(MAA_CB, request, FAKE_TRAIL_ID, nullptr);
 
   // Check that we've caught the message and it's not null
   ASSERT_FALSE(_caught_diam_tsx == NULL);
@@ -781,8 +790,12 @@ TEST_F(DiameterHssConnectionTest, SendUARServerName)
     .Times(1)
     .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
 
+  // Create a stopwatch to ensure we're not inlcuding diameter latency
+  Utils::StopWatch stopwatch;
+  stopwatch.start();
+
   // Send the UAR
-  _hss_connection->send_user_auth_request(UAA_CB, request, FAKE_TRAIL_ID);
+  _hss_connection->send_user_auth_request(UAA_CB, request, FAKE_TRAIL_ID, &stopwatch);
 
   // Check that we've caught the message and it's not null
   ASSERT_FALSE(_caught_diam_tsx == NULL);
@@ -822,6 +835,11 @@ TEST_F(DiameterHssConnectionTest, SendUARServerName)
   EXPECT_CALL(*_stats, update_H_hss_subscription_latency_us(12000));
   cwtest_advance_time_ms(12);
 
+  // Check that the stopwatch doesn't include the time spent waiting on diameter response
+  unsigned long time;
+  EXPECT_EQ(true, stopwatch.read(time));
+  EXPECT_EQ(time, 0L);
+
   _caught_diam_tsx->on_response(uaa);
 
   _caught_fd_msg = NULL;
@@ -846,7 +864,7 @@ TEST_F(DiameterHssConnectionTest, SendUARServerCapabilities)
     .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
 
   // Send the UAR
-  _hss_connection->send_user_auth_request(UAA_CB, request, FAKE_TRAIL_ID);
+  _hss_connection->send_user_auth_request(UAA_CB, request, FAKE_TRAIL_ID, nullptr);
 
   // Check that we've caught the message and it's not null
   ASSERT_FALSE(_caught_diam_tsx == NULL);
@@ -915,7 +933,7 @@ TEST_F(DiameterHssConnectionTest, SendUARUserUnknown)
     .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
 
   // Send the UAR
-  _hss_connection->send_user_auth_request(UAA_CB, request, FAKE_TRAIL_ID);
+  _hss_connection->send_user_auth_request(UAA_CB, request, FAKE_TRAIL_ID, nullptr);
 
   // Check that we've caught the message and it's not null
   ASSERT_FALSE(_caught_diam_tsx == NULL);
@@ -978,7 +996,7 @@ TEST_F(DiameterHssConnectionTest, SendUARIdentitiesDontMatch)
     .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
 
   // Send the UAR
-  _hss_connection->send_user_auth_request(UAA_CB, request, FAKE_TRAIL_ID);
+  _hss_connection->send_user_auth_request(UAA_CB, request, FAKE_TRAIL_ID, nullptr);
 
   // Check that we've caught the message and it's not null
   ASSERT_FALSE(_caught_diam_tsx == NULL);
@@ -1041,7 +1059,7 @@ TEST_F(DiameterHssConnectionTest, SendUARAuthRejected)
     .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
 
   // Send the UAR
-  _hss_connection->send_user_auth_request(UAA_CB, request, FAKE_TRAIL_ID);
+  _hss_connection->send_user_auth_request(UAA_CB, request, FAKE_TRAIL_ID, nullptr);
 
   // Check that we've caught the message and it's not null
   ASSERT_FALSE(_caught_diam_tsx == NULL);
@@ -1104,7 +1122,7 @@ TEST_F(DiameterHssConnectionTest, SendUARRoamingNotAllowed)
     .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
 
   // Send the UAR
-  _hss_connection->send_user_auth_request(UAA_CB, request, FAKE_TRAIL_ID);
+  _hss_connection->send_user_auth_request(UAA_CB, request, FAKE_TRAIL_ID, nullptr);
 
   // Check that we've caught the message and it's not null
   ASSERT_FALSE(_caught_diam_tsx == NULL);
@@ -1167,7 +1185,7 @@ TEST_F(DiameterHssConnectionTest, SendUARTooBusy)
     .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
 
   // Send the UAR
-  _hss_connection->send_user_auth_request(UAA_CB, request, FAKE_TRAIL_ID);
+  _hss_connection->send_user_auth_request(UAA_CB, request, FAKE_TRAIL_ID, nullptr);
 
   // Check that we've caught the message and it's not null
   ASSERT_FALSE(_caught_diam_tsx == NULL);
@@ -1230,7 +1248,7 @@ TEST_F(DiameterHssConnectionTest, SendUARUnableToDeliver)
     .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
 
   // Send the UAR
-  _hss_connection->send_user_auth_request(UAA_CB, request, FAKE_TRAIL_ID);
+  _hss_connection->send_user_auth_request(UAA_CB, request, FAKE_TRAIL_ID, nullptr);
 
   // Check that we've caught the message and it's not null
   ASSERT_FALSE(_caught_diam_tsx == NULL);
@@ -1293,7 +1311,7 @@ TEST_F(DiameterHssConnectionTest, SendUARUnknownError)
     .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
 
   // Send the UAR
-  _hss_connection->send_user_auth_request(UAA_CB, request, FAKE_TRAIL_ID);
+  _hss_connection->send_user_auth_request(UAA_CB, request, FAKE_TRAIL_ID, nullptr);
 
   // Check that we've caught the message and it's not null
   ASSERT_FALSE(_caught_diam_tsx == NULL);
@@ -1357,8 +1375,12 @@ TEST_F(DiameterHssConnectionTest, SendLIROriginating)
     .Times(1)
     .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
 
-  // Send the UAR
-  _hss_connection->send_location_info_request(LIA_CB, request, FAKE_TRAIL_ID);
+  // Create a stopwatch to track that we're not including diameter latency
+  Utils::StopWatch stopwatch;
+  stopwatch.start();
+
+  // Send the LIR
+  _hss_connection->send_location_info_request(LIA_CB, request, FAKE_TRAIL_ID, &stopwatch);
 
   // Check that we've caught the message and it's not null
   ASSERT_FALSE(_caught_diam_tsx == NULL);
@@ -1376,7 +1398,6 @@ TEST_F(DiameterHssConnectionTest, SendLIROriginating)
   EXPECT_TRUE(lir.originating(test_i32));
   EXPECT_EQ(0, test_i32);
   EXPECT_FALSE(lir.auth_type(test_i32));
-
 
   // We're now going to inject a response
   Cx::LocationInfoAnswer lia(_cx_dict,
@@ -1399,6 +1420,11 @@ TEST_F(DiameterHssConnectionTest, SendLIROriginating)
   EXPECT_CALL(*_stats, update_H_hss_subscription_latency_us(12000));
   cwtest_advance_time_ms(12);
 
+  // Check that the stopwatch doesn't include the time spent waiting on diameter response
+  unsigned long time;
+  EXPECT_EQ(true, stopwatch.read(time));
+  EXPECT_EQ(time, 0L);
+
   _caught_diam_tsx->on_response(lia);
 
   _caught_fd_msg = NULL;
@@ -1420,8 +1446,8 @@ TEST_F(DiameterHssConnectionTest, SendLIRAuthTypeCapabilities)
     .Times(1)
     .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
 
-  // Send the UAR
-  _hss_connection->send_location_info_request(LIA_CB, request, FAKE_TRAIL_ID);
+  // Send the LIR
+  _hss_connection->send_location_info_request(LIA_CB, request, FAKE_TRAIL_ID, nullptr);
 
   // Check that we've caught the message and it's not null
   ASSERT_FALSE(_caught_diam_tsx == NULL);
@@ -1486,8 +1512,8 @@ TEST_F(DiameterHssConnectionTest, SendLIRWildcardImpu)
     .Times(1)
     .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
 
-  // Send the UAR
-  _hss_connection->send_location_info_request(LIA_CB, request, FAKE_TRAIL_ID);
+  // Send the LIR
+  _hss_connection->send_location_info_request(LIA_CB, request, FAKE_TRAIL_ID, nullptr);
 
   // Check that we've caught the message and it's not null
   ASSERT_FALSE(_caught_diam_tsx == NULL);
@@ -1549,8 +1575,8 @@ TEST_F(DiameterHssConnectionTest, SendLIRUnregisteredService)
     .Times(1)
     .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
 
-  // Send the UAR
-  _hss_connection->send_location_info_request(LIA_CB, request, FAKE_TRAIL_ID);
+  // Send the LIR
+  _hss_connection->send_location_info_request(LIA_CB, request, FAKE_TRAIL_ID, nullptr);
 
   // Check that we've caught the message and it's not null
   ASSERT_FALSE(_caught_diam_tsx == NULL);
@@ -1611,8 +1637,8 @@ TEST_F(DiameterHssConnectionTest, SendLIRIdentityNotRegistered)
     .Times(1)
     .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
 
-  // Send the UAR
-  _hss_connection->send_location_info_request(LIA_CB, request, FAKE_TRAIL_ID);
+  // Send the LIR
+  _hss_connection->send_location_info_request(LIA_CB, request, FAKE_TRAIL_ID, nullptr);
 
   // Check that we've caught the message and it's not null
   ASSERT_FALSE(_caught_diam_tsx == NULL);
@@ -1673,8 +1699,8 @@ TEST_F(DiameterHssConnectionTest, SendLIRUserUnknown)
     .Times(1)
     .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
 
-  // Send the UAR
-  _hss_connection->send_location_info_request(LIA_CB, request, FAKE_TRAIL_ID);
+  // Send the LIR
+  _hss_connection->send_location_info_request(LIA_CB, request, FAKE_TRAIL_ID, nullptr);
 
   // Check that we've caught the message and it's not null
   ASSERT_FALSE(_caught_diam_tsx == NULL);
@@ -1733,8 +1759,8 @@ TEST_F(DiameterHssConnectionTest, SendLIRTooBusy)
     .Times(1)
     .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
 
-  // Send the UAR
-  _hss_connection->send_location_info_request(LIA_CB, request, FAKE_TRAIL_ID);
+  // Send the LIR
+  _hss_connection->send_location_info_request(LIA_CB, request, FAKE_TRAIL_ID, nullptr);
 
   // Check that we've caught the message and it's not null
   ASSERT_FALSE(_caught_diam_tsx == NULL);
@@ -1793,8 +1819,8 @@ TEST_F(DiameterHssConnectionTest, SendLIRUnableToDeliver)
     .Times(1)
     .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
 
-  // Send the UAR
-  _hss_connection->send_location_info_request(LIA_CB, request, FAKE_TRAIL_ID);
+  // Send the LIR
+  _hss_connection->send_location_info_request(LIA_CB, request, FAKE_TRAIL_ID, nullptr);
 
   // Check that we've caught the message and it's not null
   ASSERT_FALSE(_caught_diam_tsx == NULL);
@@ -1853,8 +1879,8 @@ TEST_F(DiameterHssConnectionTest, SendLIRUnknown)
     .Times(1)
     .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
 
-  // Send the UAR
-  _hss_connection->send_location_info_request(LIA_CB, request, FAKE_TRAIL_ID);
+  // Send the LIR
+  _hss_connection->send_location_info_request(LIA_CB, request, FAKE_TRAIL_ID, nullptr);
 
   // Check that we've caught the message and it's not null
   ASSERT_FALSE(_caught_diam_tsx == NULL);
@@ -1920,8 +1946,12 @@ TEST_F(DiameterHssConnectionTest, SendSARMainline)
     .Times(1)
     .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
 
+  // Create a stopwatch to track that we're not including diameter latency
+  Utils::StopWatch stopwatch;
+  stopwatch.start();
+
   // Send the SAR
-  _hss_connection->send_server_assignment_request(SAA_CB, request, FAKE_TRAIL_ID);
+  _hss_connection->send_server_assignment_request(SAA_CB, request, FAKE_TRAIL_ID, &stopwatch);
 
   // Check that we've caught the message and it's not null
   ASSERT_FALSE(_caught_diam_tsx == NULL);
@@ -1965,6 +1995,11 @@ TEST_F(DiameterHssConnectionTest, SendSARMainline)
   EXPECT_CALL(*_stats, update_H_hss_subscription_latency_us(12000));
   cwtest_advance_time_ms(12);
 
+  // Check that the stopwatch doesn't include the time spent waiting on diameter response
+  unsigned long time;
+  EXPECT_EQ(true, stopwatch.read(time));
+  EXPECT_EQ(time, 0L);
+
   _caught_diam_tsx->on_response(saa);
 
   _caught_fd_msg = NULL;
@@ -1990,7 +2025,7 @@ TEST_F(DiameterHssConnectionTest, SendSARWildcardImpu)
     .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
 
   // Send the SAR
-  _hss_connection->send_server_assignment_request(SAA_CB, request, FAKE_TRAIL_ID);
+  _hss_connection->send_server_assignment_request(SAA_CB, request, FAKE_TRAIL_ID, nullptr);
 
   // Check that we've caught the message and it's not null
   ASSERT_FALSE(_caught_diam_tsx == NULL);
@@ -2057,7 +2092,7 @@ TEST_F(DiameterHssConnectionTest, SendSARWildcardEmpty)
     .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
 
   // Send the SAR
-  _hss_connection->send_server_assignment_request(SAA_CB, request, FAKE_TRAIL_ID);
+  _hss_connection->send_server_assignment_request(SAA_CB, request, FAKE_TRAIL_ID, nullptr);
 
   // Check that we've caught the message and it's not null
   ASSERT_FALSE(_caught_diam_tsx == NULL);
@@ -2123,7 +2158,7 @@ TEST_F(DiameterHssConnectionTest, SendSARUnableToDeliver)
     .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
 
   // Send the SAR
-  _hss_connection->send_server_assignment_request(SAA_CB, request, FAKE_TRAIL_ID);
+  _hss_connection->send_server_assignment_request(SAA_CB, request, FAKE_TRAIL_ID, nullptr);
 
   // Check that we've caught the message and it's not null
   ASSERT_FALSE(_caught_diam_tsx == NULL);
@@ -2189,7 +2224,7 @@ TEST_F(DiameterHssConnectionTest, SendSARUserUnknown)
     .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
 
   // Send the SAR
-  _hss_connection->send_server_assignment_request(SAA_CB, request, FAKE_TRAIL_ID);
+  _hss_connection->send_server_assignment_request(SAA_CB, request, FAKE_TRAIL_ID, nullptr);
 
   // Check that we've caught the message and it's not null
   ASSERT_FALSE(_caught_diam_tsx == NULL);
@@ -2255,7 +2290,7 @@ TEST_F(DiameterHssConnectionTest, SendSARUnknown)
     .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
 
   // Send the SAR
-  _hss_connection->send_server_assignment_request(SAA_CB, request, FAKE_TRAIL_ID);
+  _hss_connection->send_server_assignment_request(SAA_CB, request, FAKE_TRAIL_ID, nullptr);
 
   // Check that we've caught the message and it's not null
   ASSERT_FALSE(_caught_diam_tsx == NULL);
@@ -2327,7 +2362,7 @@ TEST_F(DiameterHssConnectionTest, DiameterTimeout)
     .WillOnce(WithArgs<0,1>(Invoke(store_msg_tsx)));
 
   // Send the SAR
-  _hss_connection->send_server_assignment_request(SAA_CB, request, FAKE_TRAIL_ID);
+  _hss_connection->send_server_assignment_request(SAA_CB, request, FAKE_TRAIL_ID, nullptr);
 
   // Check that we've caught the message and it's not null
   ASSERT_FALSE(_caught_diam_tsx == NULL);

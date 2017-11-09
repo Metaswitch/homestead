@@ -18,6 +18,7 @@
 #include "servercapabilities.h"
 #include "charging_addresses.h"
 #include "statisticsmanager.h"
+#include "utils.h"
 
 namespace HssConnection {
 
@@ -305,27 +306,33 @@ public:
   // Ownership of the response objects passed to the callbacks is delegated to
   // the callback target. It's the responsibility of the callback to delete the
   // object when it is done with it.
+  // Each method also takes a StopWatch, which it will pause when performing
+  // network I/O.
   // ---------------------------------------------------------------------------
 
   // Send a multimedia auth request to the HSS
   virtual void send_multimedia_auth_request(maa_cb callback,
                                             MultimediaAuthRequest request,
-                                            SAS::TrailId trail) = 0;
+                                            SAS::TrailId trail,
+                                            Utils::StopWatch* stopwatch) = 0;
 
   // Send a user auth request to the HSS
   virtual void send_user_auth_request(uaa_cb callback,
                                       UserAuthRequest request,
-                                      SAS::TrailId trail) = 0;
+                                      SAS::TrailId trail,
+                                      Utils::StopWatch* stopwatch) = 0;
 
   // Send a location info request to the HSS
   virtual void send_location_info_request(lia_cb callback,
                                           LocationInfoRequest request,
-                                          SAS::TrailId trail) = 0;
+                                          SAS::TrailId trail,
+                                          Utils::StopWatch* stopwatch) = 0;
 
   // Send a server assignment request to the HSS
   virtual void send_server_assignment_request(saa_cb callback,
                                               ServerAssignmentRequest request,
-                                              SAS::TrailId trail) = 0;
+                                              SAS::TrailId trail,
+                                              Utils::StopWatch* stopwatch) = 0;
 
   static void configure_auth_schemes(const std::string& scheme_digest,
                                      const std::string& scheme_akav1,

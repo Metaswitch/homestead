@@ -52,22 +52,26 @@ public:
   // Send a multimedia auth request to the HSS
   virtual void send_multimedia_auth_request(maa_cb callback,
                                             MultimediaAuthRequest request,
-                                            SAS::TrailId trail);
+                                            SAS::TrailId trail,
+                                            Utils::StopWatch* stopwatch);
 
   // Send a user auth request to the HSS
   virtual void send_user_auth_request(uaa_cb callback,
                                       UserAuthRequest request,
-                                      SAS::TrailId trail);
+                                      SAS::TrailId trail,
+                                      Utils::StopWatch* stopwatch);
 
   // Send a location info request to the HSS
   virtual void send_location_info_request(lia_cb callback,
                                           LocationInfoRequest request,
-                                          SAS::TrailId trail);
+                                          SAS::TrailId trail,
+                                          Utils::StopWatch* stopwatch);
 
   // Send a server assignment request to the HSS
   virtual void send_server_assignment_request(saa_cb callback,
                                               ServerAssignmentRequest request,
-                                              SAS::TrailId trail);
+                                              SAS::TrailId trail,
+                                              Utils::StopWatch* stopwatch);
 
 private:
   Cx::Dictionary* _dict;

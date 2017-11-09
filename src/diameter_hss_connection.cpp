@@ -402,7 +402,8 @@ DiameterHssConnection::DiameterHssConnection(StatisticsManager* stats_manager,
 // Send a multimedia auth request to the HSS
 void DiameterHssConnection::send_multimedia_auth_request(maa_cb callback,
                                                          MultimediaAuthRequest request,
-                                                         SAS::TrailId trail)
+                                                         SAS::TrailId trail,
+                                                         Utils::StopWatch* stopwatch)
 {
   // Transactions are deleted in the DiameterStack's on_response or or_timeout,
   // so we don't have to delete this after sending
@@ -425,7 +426,8 @@ void DiameterHssConnection::send_multimedia_auth_request(maa_cb callback,
 // Send a user auth request to the HSS
 void DiameterHssConnection::send_user_auth_request(uaa_cb callback,
                                                    UserAuthRequest request,
-                                                   SAS::TrailId trail)
+                                                   SAS::TrailId trail,
+                                                   Utils::StopWatch* stopwatch)
 {
   // Transactions are deleted in the DiameterStack's on_response or or_timeout,
   // so we don't have to delete this after sending
@@ -448,7 +450,8 @@ void DiameterHssConnection::send_user_auth_request(uaa_cb callback,
 // Send a location info request to the HSS
 void DiameterHssConnection::send_location_info_request(lia_cb callback,
                                                        LocationInfoRequest request,
-                                                       SAS::TrailId trail)
+                                                       SAS::TrailId trail,
+                                                       Utils::StopWatch* stopwatch)
 {
   LirDiameterTransaction* tsx =
     new LirDiameterTransaction(_dict, trail, SUBSCRIPTION_STATS, callback, lir_results_tbl, _stats_manager);
@@ -467,7 +470,8 @@ void DiameterHssConnection::send_location_info_request(lia_cb callback,
 // Send a server assignment request to the HSS
 void DiameterHssConnection::send_server_assignment_request(saa_cb callback,
                                                            ServerAssignmentRequest request,
-                                                           SAS::TrailId trail)
+                                                           SAS::TrailId trail,
+                                                           Utils::StopWatch* stopwatch)
 {
   // Transactions are deleted in the DiameterStack's on_response or or_timeout,
   // so we don't have to delete this after sending

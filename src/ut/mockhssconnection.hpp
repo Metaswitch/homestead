@@ -21,17 +21,29 @@ public:
   MockHssConnection();
   virtual ~MockHssConnection();
 
-  MOCK_METHOD3(send_multimedia_auth_request,
-               void(::HssConnection::maa_cb cb, ::HssConnection::MultimediaAuthRequest req, SAS::TrailId trail));
+  MOCK_METHOD4(send_multimedia_auth_request,
+               void(::HssConnection::maa_cb cb,
+                    ::HssConnection::MultimediaAuthRequest req,
+                    SAS::TrailId trail,
+                    Utils::StopWatch* stopwatch));
 
-  MOCK_METHOD3(send_user_auth_request,
-               void(::HssConnection::uaa_cb cb, ::HssConnection::UserAuthRequest req, SAS::TrailId trail));
+  MOCK_METHOD4(send_user_auth_request,
+               void(::HssConnection::uaa_cb cb,
+                    ::HssConnection::UserAuthRequest req,
+                    SAS::TrailId trail,
+                    Utils::StopWatch* stopwatch));
 
-  MOCK_METHOD3(send_location_info_request,
-               void(::HssConnection::lia_cb cb, ::HssConnection::LocationInfoRequest req, SAS::TrailId trail));
+  MOCK_METHOD4(send_location_info_request,
+               void(::HssConnection::lia_cb cb,
+                    ::HssConnection::LocationInfoRequest req,
+                    SAS::TrailId trail,
+                    Utils::StopWatch* stopwatch));
 
-  MOCK_METHOD3(send_server_assignment_request,
-               void(::HssConnection::saa_cb cb, ::HssConnection::ServerAssignmentRequest req, SAS::TrailId trail));
+  MOCK_METHOD4(send_server_assignment_request,
+               void(::HssConnection::saa_cb cb,
+                    ::HssConnection::ServerAssignmentRequest req,
+                    SAS::TrailId trail,
+                    Utils::StopWatch* stopwatch));
 };
 
 #endif
