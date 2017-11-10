@@ -1420,7 +1420,7 @@ TEST_F(HTTPHandlersTest, ImpuReadRegDataMainline)
   irs->set_ims_sub_xml(IMPU_IMS_SUBSCRIPTION);
   irs->set_reg_state(RegistrationState::REGISTERED);
 
-  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID, _))
     .WillOnce(InvokeArgument<0>(irs));
 
   // HTTP response is sent straight back - no state is changed.
@@ -1445,7 +1445,7 @@ TEST_F(HTTPHandlersTest, ImpuReadRegDataCacheGetNotFound)
   ImpuReadRegDataTask* task = new ImpuReadRegDataTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Set up the cache to hit an error
-  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID, _))
     .WillOnce(InvokeArgument<1>(Store::Status::NOT_FOUND));
 
   // 404 error expected
@@ -1493,7 +1493,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataInitialReg)
   irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
 
   // Set up the cache to return our IRS
-  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID, _))
     .WillOnce(InvokeArgument<0>(irs));
 
   // Create an SAA with which the mock hss will respond to our SAR
@@ -1518,7 +1518,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataInitialReg)
     AllOf(Property(&ImplicitRegistrationSet::get_reg_state, RegistrationState::REGISTERED),
           Property(&ImplicitRegistrationSet::get_ttl, 7200),
           Property(&ImplicitRegistrationSet::get_associated_impis, IMPI_IN_VECTOR)),
-    FAKE_TRAIL_ID))
+    FAKE_TRAIL_ID, _))
     .WillOnce(DoAll(InvokeArgument<1>(), InvokeArgument<0>()));
 
   // Expect 200 response
@@ -1544,7 +1544,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataInitialRegNoServerName)
   irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
 
   // Set up the cache to return our IRS
-  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID, _))
     .WillOnce(InvokeArgument<0>(irs));
 
   // Create an SAA with which the mock hss will respond to our SAR
@@ -1568,7 +1568,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataInitialRegNoServerName)
   EXPECT_CALL(*_cache, put_implicit_registration_set(_, _, _,
     AllOf(Property(&ImplicitRegistrationSet::get_reg_state, RegistrationState::REGISTERED),
           Property(&ImplicitRegistrationSet::get_ttl, 7200)),
-    FAKE_TRAIL_ID))
+    FAKE_TRAIL_ID, _))
     .WillOnce(DoAll(InvokeArgument<1>(), InvokeArgument<0>()));
 
   // Expect 200 response
@@ -1590,7 +1590,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataInitialRegCacheGetNotFound)
   ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Set up the cache to return NOT_FOUND
-  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID, _))
     .WillOnce(InvokeArgument<1>(Store::Status::NOT_FOUND));
 
   // Create IRS to be returned from the cache whenthe above is not found
@@ -1621,7 +1621,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataInitialRegCacheGetNotFound)
   EXPECT_CALL(*_cache, put_implicit_registration_set(_, _, _,
     AllOf(Property(&ImplicitRegistrationSet::get_reg_state, RegistrationState::REGISTERED),
           Property(&ImplicitRegistrationSet::get_ttl, 7200)),
-    FAKE_TRAIL_ID))
+    FAKE_TRAIL_ID, _))
     .WillOnce(DoAll(InvokeArgument<1>(), InvokeArgument<0>()));
 
   // Expect 200 response
@@ -1641,7 +1641,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataInitialRegCacheGetError)
   ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Set up the cache to hit an error
-  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID, _))
     .WillOnce(InvokeArgument<1>(Store::Status::ERROR));
 
   // 504 error expected
@@ -1667,7 +1667,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataInitialRegCachePutError)
   irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
 
   // Set up the cache to return our IRS
-  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID, _))
     .WillOnce(InvokeArgument<0>(irs));
 
   // Create an SAA with which the mock hss will respond to our SAR
@@ -1691,7 +1691,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataInitialRegCachePutError)
   EXPECT_CALL(*_cache, put_implicit_registration_set(_, _, _,
     AllOf(Property(&ImplicitRegistrationSet::get_reg_state, RegistrationState::REGISTERED),
           Property(&ImplicitRegistrationSet::get_ttl, 7200)),
-    FAKE_TRAIL_ID))
+    FAKE_TRAIL_ID, _))
     .WillOnce(InvokeArgument<2>(Store::Status::ERROR));
 
   // Expect 503 response
@@ -1718,7 +1718,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataReReg)
   irs->add_associated_impi(IMPI);
 
   // Set up the cache to return our IRS
-  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID, _))
     .WillOnce(InvokeArgument<0>(irs));
 
   // Create an SAA with which the mock hss will respond to our SAR
@@ -1742,7 +1742,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataReReg)
   EXPECT_CALL(*_cache, put_implicit_registration_set(_, _, _,
     AllOf(Property(&ImplicitRegistrationSet::get_reg_state, RegistrationState::REGISTERED),
           Property(&ImplicitRegistrationSet::get_ttl, 7200)),
-    FAKE_TRAIL_ID))
+    FAKE_TRAIL_ID, _))
     .WillOnce(DoAll(InvokeArgument<1>(), InvokeArgument<0>()));
 
   // Expect 200 response
@@ -1771,7 +1771,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataReRegNoCache)
   irs->set_ttl(7200);
 
   // Set up the cache to return our IRS
-  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID, _))
     .WillOnce(InvokeArgument<0>(irs));
 
   // Create an SAA with which the mock hss will respond to our SAR
@@ -1795,7 +1795,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataReRegNoCache)
   EXPECT_CALL(*_cache, put_implicit_registration_set(_, _, _,
     AllOf(Property(&ImplicitRegistrationSet::get_reg_state, RegistrationState::REGISTERED),
           Property(&ImplicitRegistrationSet::get_ttl, 7200)),
-    FAKE_TRAIL_ID))
+    FAKE_TRAIL_ID, _))
     .WillOnce(DoAll(InvokeArgument<1>(), InvokeArgument<0>()));
 
   // Expect 200 response
@@ -1824,7 +1824,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataReRegCached)
   irs->add_associated_impi(IMPI);
 
   // Set up the cache to return our IRS
-  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID, _))
     .WillOnce(InvokeArgument<0>(irs));
 
   // No SAR is made, and not new data added to cache
@@ -1852,7 +1852,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataReRegNewBinding)
   irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
 
   // Set up the cache to return our IRS
-  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID, _))
     .WillOnce(InvokeArgument<0>(irs));
 
   // Create an SAA with which the mock hss will respond to our SAR
@@ -1877,7 +1877,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataReRegNewBinding)
   EXPECT_CALL(*_cache, put_implicit_registration_set(_, _, _,
     AllOf(Property(&ImplicitRegistrationSet::get_reg_state, RegistrationState::REGISTERED),
           Property(&ImplicitRegistrationSet::get_ttl, 7200)),
-    FAKE_TRAIL_ID))
+    FAKE_TRAIL_ID, _))
     .WillOnce(DoAll(InvokeArgument<1>(), InvokeArgument<0>()));
 
   // Expect 200 response
@@ -1905,7 +1905,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataRegIncludesBarring)
   irs->set_charging_addresses(NO_CHARGING_ADDRESSES);
 
   // Set up the cache to return our IRS
-  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID, _))
     .WillOnce(InvokeArgument<0>(irs));
 
   // Create an SAA with which the mock hss will respond to our SAR
@@ -1929,7 +1929,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataRegIncludesBarring)
   EXPECT_CALL(*_cache, put_implicit_registration_set(_, _, _,
     AllOf(Property(&ImplicitRegistrationSet::get_reg_state, RegistrationState::REGISTERED),
           Property(&ImplicitRegistrationSet::get_ttl, 7200)),
-    FAKE_TRAIL_ID))
+    FAKE_TRAIL_ID, _))
     .WillOnce(DoAll(InvokeArgument<1>(), InvokeArgument<0>()));
 
   // Expect 200 response
@@ -1955,7 +1955,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataCallWildcardWithSAR)
   irs->set_reg_state(RegistrationState::NOT_REGISTERED);
 
   // Set up the cache to return our IRS
-  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID, _))
     .WillOnce(InvokeArgument<0>(irs));
 
   // Create an SAA with which the mock hss will respond to our SAR
@@ -1980,7 +1980,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataCallWildcardWithSAR)
   FakeImplicitRegistrationSet* irs2 = new FakeImplicitRegistrationSet(IMPU);
   irs2->set_reg_state(RegistrationState::REGISTERED);
 
-  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, WILDCARD, FAKE_TRAIL_ID))
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, WILDCARD, FAKE_TRAIL_ID, _))
     .WillOnce(InvokeArgument<0>(irs2));
 
   // Expect 200 response
@@ -2002,7 +2002,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataCallNewWildcard)
   irs->set_reg_state(RegistrationState::NOT_REGISTERED);
 
   // Set up the cache to return our IRS
-  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, WILDCARD, FAKE_TRAIL_ID))
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, WILDCARD, FAKE_TRAIL_ID, _))
     .WillOnce(InvokeArgument<0>(irs));
 
   // Create an SAA with which the mock hss will respond to our SAR
@@ -2028,7 +2028,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataCallNewWildcard)
   FakeImplicitRegistrationSet* irs2 = new FakeImplicitRegistrationSet(IMPU);
   irs2->set_reg_state(RegistrationState::REGISTERED);
 
-  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, NEW_WILDCARD, FAKE_TRAIL_ID))
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, NEW_WILDCARD, FAKE_TRAIL_ID, _))
     .WillOnce(InvokeArgument<0>(irs2));
 
   // Expect 200 response
@@ -2051,7 +2051,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataCallNewWildcardNotFound)
   irs->set_reg_state(RegistrationState::NOT_REGISTERED);
 
   // Set up the cache to return our IRS
-  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, WILDCARD, FAKE_TRAIL_ID))
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, WILDCARD, FAKE_TRAIL_ID, _))
     .WillOnce(InvokeArgument<0>(irs));
 
   // Create an SAA with which the mock hss will respond to our SAR
@@ -2074,7 +2074,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataCallNewWildcardNotFound)
 
   // We now expect another cache lookup for the new wildcard impu, which will
   // return NOT_FOUND
-  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, NEW_WILDCARD, FAKE_TRAIL_ID))
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, NEW_WILDCARD, FAKE_TRAIL_ID, _))
     .WillOnce(InvokeArgument<1>(Store::Status::NOT_FOUND));
 
   // Create IRS to be returned from the cache when we fail to find the above
@@ -2118,7 +2118,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataCallWildcardLoop)
   irs->set_reg_state(RegistrationState::NOT_REGISTERED);
 
   // Set up the cache to return our IRS
-  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, WILDCARD, FAKE_TRAIL_ID))
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, WILDCARD, FAKE_TRAIL_ID, _))
     .WillOnce(InvokeArgument<0>(irs));
 
   // Create an SAA with which the mock hss will respond to our SAR
@@ -2161,7 +2161,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataCallMainline)
   irs->add_associated_impi(IMPI);
 
   // Set up the cache to return our IRS
-  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID, _))
     .WillOnce(InvokeArgument<0>(irs));
 
   // Check the response
@@ -2188,7 +2188,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataCallWildcard)
   irs->add_associated_impi(IMPI);
 
   // Set up the cache to return our IRS
-  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, WILDCARD, FAKE_TRAIL_ID))
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, WILDCARD, FAKE_TRAIL_ID, _))
     .WillOnce(InvokeArgument<0>(irs));
 
   // Check the response
@@ -2215,7 +2215,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataCallUnregisteredService)
   irs->add_associated_impi(IMPI);
 
   // Set up the cache to return our IRS
-  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID, _))
     .WillOnce(InvokeArgument<0>(irs));
 
   // Check the response
@@ -2236,7 +2236,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataCallNewUnregisteredService)
   ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Get NOT_FOUND from the cache
-  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID, _))
     .WillOnce(InvokeArgument<1>(Store::Status::NOT_FOUND));
 
   // Create IRS to be returned from the cache when we fail to find the above
@@ -2264,7 +2264,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataCallNewUnregisteredService)
   EXPECT_CALL(*_cache, put_implicit_registration_set(_, _, _,
     AllOf(Property(&ImplicitRegistrationSet::get_reg_state, RegistrationState::UNREGISTERED),
           Property(&ImplicitRegistrationSet::get_ttl, 7200)),
-    FAKE_TRAIL_ID))
+    FAKE_TRAIL_ID, _))
     .WillOnce(DoAll(InvokeArgument<1>(), InvokeArgument<0>()));
 
   // Check the response
@@ -2291,7 +2291,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataDeregUser)
   irs->add_associated_impi(IMPI);
 
   // Lookup use in cache
-  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID, _))
     .WillOnce(InvokeArgument<0>(irs));
 
   // Then send SAR, which gets SUCCESS back
@@ -2314,8 +2314,9 @@ TEST_F(HTTPHandlersTest, ImpuRegDataDeregUser)
   // that's how the cache knows what to delete)
   EXPECT_CALL(*_cache, delete_implicit_registration_set(_, _, _,
     Property(&ImplicitRegistrationSet::get_ims_sub_xml, IMPU_IMS_SUBSCRIPTION),
-    FAKE_TRAIL_ID))
+    FAKE_TRAIL_ID, _))
     .WillOnce(DoAll(InvokeArgument<1>(), InvokeArgument<0>()));
+
 
   // Check the response
   EXPECT_CALL(*_httpstack, send_reply(_, 200, _));
@@ -2341,7 +2342,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataDeregTimeout)
   irs->add_associated_impi(IMPI);
 
   // Lookup use in cache
-  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID, _))
     .WillOnce(InvokeArgument<0>(irs));
 
   // Then send SAR, which gets SUCCESS back
@@ -2364,7 +2365,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataDeregTimeout)
   // that's how the cache knows what to delete)
   EXPECT_CALL(*_cache, delete_implicit_registration_set(_, _, _,
     Property(&ImplicitRegistrationSet::get_ims_sub_xml, IMPU_IMS_SUBSCRIPTION),
-    FAKE_TRAIL_ID))
+    FAKE_TRAIL_ID, _))
     .WillOnce(DoAll(InvokeArgument<1>(), InvokeArgument<0>()));
 
   // Check the response
@@ -2391,7 +2392,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataDeregAdmin)
   irs->add_associated_impi(IMPI);
 
   // Lookup use in cache
-  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID, _))
     .WillOnce(InvokeArgument<0>(irs));
 
   // Then send SAR, which gets SUCCESS back
@@ -2414,7 +2415,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataDeregAdmin)
   // that's how the cache knows what to delete)
   EXPECT_CALL(*_cache, delete_implicit_registration_set(_, _, _,
     Property(&ImplicitRegistrationSet::get_ims_sub_xml, IMPU_IMS_SUBSCRIPTION),
-    FAKE_TRAIL_ID))
+    FAKE_TRAIL_ID, _))
     .WillOnce(DoAll(InvokeArgument<1>(), InvokeArgument<0>()));
 
   // Check the response
@@ -2442,7 +2443,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataDeregNoIMPI)
   irs->add_associated_impi(IMPI);
 
   // Lookup use in cache
-  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID, _))
     .WillOnce(InvokeArgument<0>(irs));
 
   // Then send SAR, which gets SUCCESS back
@@ -2465,7 +2466,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataDeregNoIMPI)
   // that's how the cache knows what to delete)
   EXPECT_CALL(*_cache, delete_implicit_registration_set(_, _, _,
     Property(&ImplicitRegistrationSet::get_ims_sub_xml, IMPU_IMS_SUBSCRIPTION),
-    FAKE_TRAIL_ID))
+    FAKE_TRAIL_ID, _))
     .WillOnce(DoAll(InvokeArgument<1>(), InvokeArgument<0>()));
 
   // Check the response
@@ -2492,7 +2493,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataDeregCacheError)
   irs->add_associated_impi(IMPI);
 
   // Lookup use in cache
-  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID, _))
     .WillOnce(InvokeArgument<0>(irs));
 
   // Then send SAR, which gets SUCCESS back
@@ -2515,7 +2516,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataDeregCacheError)
   // that's how the cache knows what to delete)
   EXPECT_CALL(*_cache, delete_implicit_registration_set(_, _, _,
     Property(&ImplicitRegistrationSet::get_ims_sub_xml, IMPU_IMS_SUBSCRIPTION),
-    FAKE_TRAIL_ID))
+    FAKE_TRAIL_ID, _))
     .WillOnce(InvokeArgument<2>(Store::Status::ERROR));
 
   // Check the response
@@ -2542,7 +2543,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataDeregCacheNotFound)
   irs->add_associated_impi(IMPI);
 
   // Lookup use in cache
-  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID, _))
     .WillOnce(InvokeArgument<0>(irs));
 
   // Then send SAR, which gets SUCCESS back
@@ -2565,7 +2566,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataDeregCacheNotFound)
   // that's how the cache knows what to delete)
   EXPECT_CALL(*_cache, delete_implicit_registration_set(_, _, _,
     Property(&ImplicitRegistrationSet::get_ims_sub_xml, IMPU_IMS_SUBSCRIPTION),
-    FAKE_TRAIL_ID))
+    FAKE_TRAIL_ID, _))
     .WillOnce(InvokeArgument<2>(Store::Status::NOT_FOUND));
 
   // Check the response
@@ -2592,7 +2593,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataDeregUnregSub)
   irs->add_associated_impi(IMPI);
 
   // Lookup irs in cache
-  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID, _))
     .WillOnce(InvokeArgument<0>(irs));
 
   // Then send SAR, which gets SUCCESS back
@@ -2615,7 +2616,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataDeregUnregSub)
   // that's how the cache knows what to delete)
   EXPECT_CALL(*_cache, delete_implicit_registration_set(_, _, _,
     Property(&ImplicitRegistrationSet::get_ims_sub_xml, IMPU_IMS_SUBSCRIPTION),
-    FAKE_TRAIL_ID))
+    FAKE_TRAIL_ID, _))
     .WillOnce(DoAll(InvokeArgument<1>(), InvokeArgument<0>()));
 
   // Check the response
@@ -2644,7 +2645,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataDeregAuthFailedRegistered)
   irs->add_associated_impi(IMPI);
 
   // Expect a cache lookup will return IRS in state REGISTERED
-  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID, _))
     .WillOnce(InvokeArgument<0>(irs));
 
   // Then send an auth failure SAR, which gets SUCCESS back
@@ -2688,7 +2689,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataDeregAuthFailedNotRegistered)
   irs->add_associated_impi(IMPI);
 
   // Expect a cache lookup will return IRS in state NOT_REGISTERED
-  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID, _))
     .WillOnce(InvokeArgument<0>(irs));
 
   // Then send an auth failure SAR, which gets SUCCESS back
@@ -2732,7 +2733,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataDeregAuthTimeout)
   irs->add_associated_impi(IMPI);
 
   // Expect a cache lookup will return IRS in state NOT_REGISTERED
-  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID, _))
     .WillOnce(InvokeArgument<0>(irs));
 
   // Then send an auth timeout SAR, which gets SUCCESS back
@@ -2775,7 +2776,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataDeregInvalid)
   irs->add_associated_impi(IMPI);
 
   // Expect a cache lookup will return IRS in state NOT_REGISTERED
-  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID, _))
     .WillOnce(InvokeArgument<0>(irs));
 
   // No SAR, just a 400 Bad Request
@@ -2795,7 +2796,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataInvalidXML)
   ImpuRegDataTask* task = new ImpuRegDataTask(req, &cfg, FAKE_TRAIL_ID);
 
   // Cache doesn't find anything, and so creates an empty IRS
-  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID, _))
     .WillOnce(InvokeArgument<1>(Store::Status::NOT_FOUND));
 
   FakeImplicitRegistrationSet* irs = new FakeImplicitRegistrationSet(IMPU);
@@ -2883,7 +2884,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataHssNotFound)
   irs->add_associated_impi(IMPI);
 
   // Expect a cache lookup will return IRS in state NOT_REGISTERED
-  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID, _))
     .WillOnce(InvokeArgument<0>(irs));
 
   // Then send a SAR, which gets a NOT_FOUND error
@@ -2922,7 +2923,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataHssUnavailable)
   irs->add_associated_impi(IMPI);
 
   // Expect a cache lookup will return IRS in state NOT_REGISTERED
-  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID, _))
     .WillOnce(InvokeArgument<0>(irs));
 
   // Then send a SAR, which gets a SERVER_UNAVAILABLE error
@@ -2961,7 +2962,7 @@ TEST_F(HTTPHandlersTest, ImpuRegDataHssUnknownError)
   irs->add_associated_impi(IMPI);
 
   // Expect a cache lookup will return IRS in state NOT_REGISTERED
-  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID))
+  EXPECT_CALL(*_cache, get_implicit_registration_set_for_impu(_, _, IMPU, FAKE_TRAIL_ID, _))
     .WillOnce(InvokeArgument<0>(irs));
 
   // Then send a SAR, which gets a NOT_FOUND error
