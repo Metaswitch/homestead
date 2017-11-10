@@ -20,21 +20,25 @@ public:
   // Used for RTR when we have a list of impus
   virtual Store::Status get_implicit_registration_sets_for_impis(const std::vector<std::string>& impis,
                                                                  SAS::TrailId trail,
-                                                                 std::vector<ImplicitRegistrationSet*>& result);
+                                                                 Utils::StopWatch* stopwatch,
+                                                                 std::vector<ImplicitRegistrationSet*>& result) override;
 
   // Get the list of IRSs for the given list of imps
   // Used for RTR when we have a list of impis
   virtual Store::Status get_implicit_registration_sets_for_impus(const std::vector<std::string>& impus,
                                                                  SAS::TrailId trail,
-                                                                 std::vector<ImplicitRegistrationSet*>& result);
+                                                                 Utils::StopWatch* stopwatch,
+                                                                 std::vector<ImplicitRegistrationSet*>& result) override;
 
 protected:
   virtual Store::Status get_implicit_registration_sets_for_impi(const std::string& impi,
                                                                 SAS::TrailId trail,
+                                                                Utils::StopWatch* stopwatch,
                                                                 std::vector<ImplicitRegistrationSet*>& result);
 
   virtual Store::Status get_impus_for_impi(const std::string& impi,
                                            SAS::TrailId trail,
+                                           Utils::StopWatch* stopwatch,
                                            std::vector<std::string>& impus) = 0;
 };
 

@@ -12,15 +12,16 @@
 
 Store::Status BaseHssCache::get_implicit_registration_sets_for_impi(const std::string& impi,
                                                                 SAS::TrailId trail,
+                                                                Utils::StopWatch* stopwatch,
                                                                 std::vector<ImplicitRegistrationSet*>& result)
 {
   std::vector<std::string> impus;
 
-  Store::Status status = get_impus_for_impi(impi, trail, impus);
+  Store::Status status = get_impus_for_impi(impi, trail, stopwatch, impus);
 
   if (status == Store::Status::OK)
   {
-    status = BaseHssCache::get_implicit_registration_sets_for_impus(impus, trail, result);
+    status = BaseHssCache::get_implicit_registration_sets_for_impus(impus, trail, stopwatch, result);
   }
 
   return status;
@@ -28,6 +29,7 @@ Store::Status BaseHssCache::get_implicit_registration_sets_for_impi(const std::s
 
 Store::Status BaseHssCache::get_implicit_registration_sets_for_impus(const std::vector<std::string>& impus,
                                                                      SAS::TrailId trail,
+                                                                     Utils::StopWatch* stopwatch,
                                                                      std::vector<ImplicitRegistrationSet*>& result)
 {
   Store::Status status = Store::Status::OK;
@@ -35,7 +37,7 @@ Store::Status BaseHssCache::get_implicit_registration_sets_for_impus(const std::
   for (const std::string& impu : impus)
   {
     ImplicitRegistrationSet* irs;
-    Store::Status inner_status = get_implicit_registration_set_for_impu(impu, trail, irs);
+    Store::Status inner_status = get_implicit_registration_set_for_impu(impu, trail, stopwatch, irs);
 
     if (inner_status == Store::Status::OK)
     {
@@ -70,6 +72,7 @@ Store::Status BaseHssCache::get_implicit_registration_sets_for_impus(const std::
 
 Store::Status BaseHssCache::get_implicit_registration_sets_for_impis(const std::vector<std::string>& impis,
                                                                      SAS::TrailId trail,
+                                                                     Utils::StopWatch* stopwatch,
                                                                      std::vector<ImplicitRegistrationSet*>& result)
 {
   Store::Status status = Store::Status::OK;
@@ -77,7 +80,7 @@ Store::Status BaseHssCache::get_implicit_registration_sets_for_impis(const std::
   for (const std::string& impi : impis)
   {
     std::vector<ImplicitRegistrationSet*> inner_result;
-    Store::Status inner_status = get_implicit_registration_sets_for_impi(impi, trail, inner_result);
+    Store::Status inner_status = get_implicit_registration_sets_for_impi(impi, trail, stopwatch, inner_result);
 
     if (inner_status == Store::Status::OK)
     {

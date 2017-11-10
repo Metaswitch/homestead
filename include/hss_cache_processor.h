@@ -70,27 +70,34 @@ public:
   // If the request fails, the Store::Status code is provided as an argument to
   // the failure callback. The progress callback will not be called in a failure
   // scenario, so the failure callback must delete any put/deleted data.
+  //
+  // All requests optionally take a StopWatch*, which is passed to the HssCache
+  // to allow it to pause the StopWatch when performing network I/O that
+  // shouldn't count towards request latency.
   // ---------------------------------------------------------------------------
 
   // Get the IRS for a given impu
   virtual void get_implicit_registration_set_for_impu(irs_success_callback success_cb,
                                                       failure_callback failure_cb,
                                                       std::string impu,
-                                                      SAS::TrailId trail);
+                                                      SAS::TrailId trail,
+                                                      Utils::StopWatch* stopwatch);
 
   // Get the list of IRSs for the given list of impus
   // Used for RTR when we have a list of impus
   virtual void get_implicit_registration_sets_for_impis(irs_vector_success_callback success_cb,
                                                         failure_callback failure_cb,
                                                         std::vector<std::string> impis,
-                                                        SAS::TrailId trail);
+                                                        SAS::TrailId trail,
+                                                        Utils::StopWatch* stopwatch);
 
   // Get the list of IRSs for the given list of imps
   // Used for RTR when we have a list of impis
   virtual void get_implicit_registration_sets_for_impus(irs_vector_success_callback success_cb,
                                                         failure_callback failure_cb,
                                                         std::vector<std::string> impus,
-                                                        SAS::TrailId trail);
+                                                        SAS::TrailId trail,
+                                                        Utils::StopWatch* stopwatch);
 
   // Save the IRS in the cache
   // Must include updating the impi mapping table if impis have been added
@@ -98,14 +105,16 @@ public:
                                              progress_callback progress_cb,
                                              failure_callback failure_cb,
                                              ImplicitRegistrationSet* irs,
-                                             SAS::TrailId trail);
+                                             SAS::TrailId trail,
+                                             Utils::StopWatch* stopwatch);
 
   // Used for de-registration
   virtual void delete_implicit_registration_set(void_success_cb success_cb,
                                                 progress_callback progress_cb,
                                                 failure_callback failure_cb,
                                                 ImplicitRegistrationSet* irs,
-                                                SAS::TrailId trail);
+                                                SAS::TrailId trail,
+                                                Utils::StopWatch* stopwatch);
 
   // Deletes several registration sets
   // Used for an RTR when we have several registration sets to delete
@@ -113,7 +122,8 @@ public:
                                                  progress_callback progress_cb,
                                                  failure_callback failure_cb,
                                                  std::vector<ImplicitRegistrationSet*> irss,
-                                                 SAS::TrailId trail);
+                                                 SAS::TrailId trail,
+                                                 Utils::StopWatch* stopwatch);
 
   // Gets the whole IMS subscription for this impi
   // This is used when we get a PPR, and we have to update charging functions
@@ -121,14 +131,16 @@ public:
   virtual void get_ims_subscription(ims_sub_success_cb success_cb,
                                     failure_callback failure_cb,
                                     std::string impi,
-                                    SAS::TrailId trail);
+                                    SAS::TrailId trail,
+                                    Utils::StopWatch* stopwatch);
 
   // This is used to save the state that we changed in the PPR
   virtual void put_ims_subscription(void_success_cb success_cb,
                                     progress_callback progress_cb,
                                     failure_callback failure_cb,
                                     ImsSubscription* subscription,
-                                    SAS::TrailId trail);
+                                    SAS::TrailId trail,
+                                    Utils::StopWatch* stopwatch);
 
 private:
   // Dummy exception handler callback for the thread pool
