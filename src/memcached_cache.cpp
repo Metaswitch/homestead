@@ -18,6 +18,24 @@
 
 using std::placeholders::_1;
 
+static void pause_stopwatch(Utils::StopWatch& stopwatch, const std::string& reason)
+{
+  TRC_DEBUG("Pausing stopwatch due to %s", reason.c_str());
+  stopwatch.stop();
+}
+
+static void resume_stopwatch(Utils::StopWatch& stopwatch, const std::string& reason)
+{
+  TRC_DEBUG("Resuming stopwatch due to %s", reason.c_str());
+  stopwatch.start();
+}
+
+Utils::IOHook* create_hook(Utils::StopWatch* stopwatch)
+{
+  return new Utils::IOHook(std::bind(pause_stopwatch, *stopwatch, _1),
+                           std::bind(resume_stopwatch, *stopwatch, _1));
+}
+
 ImpuStore::DefaultImpu* MemcachedImplicitRegistrationSet::create_impu(uint64_t cas,
                                                                       const ImpuStore* store)
 {
@@ -259,41 +277,100 @@ Store::Status MemcachedCache::get_impu_for_impu_gr(const std::string& impu,
                                                    SAS::TrailId trail,
                                                    Utils::StopWatch* stopwatch)
 {
+  Utils::IOHook* hook = nullptr;
+
+  if (stopwatch)
+  {
+    hook = create_hook(stopwatch);
+  }
+
   Store::Status status = _local_store->get_impu(impu, out_impu, trail);
+
+  // We've done the only network I/O on this thread that we were going to, so
+  // can safely delete our hook now
+  if (hook)
+  {
+    delete hook; hook = nullptr;
+  }
 
   if (status == Store::Status::NOT_FOUND)
   {
     // If we successfully connect to the local store but fail to find an Impu,
     // try the remote stores
-    std::vector<std::promise<std::pair<Store::Status, ImpuStore::Impu*>>*> promises;
+    std::vector<std::promise<std::tuple<Store::Status, ImpuStore::Impu*, unsigned long>>*> promises;
 
     for (ImpuStore* remote_store : _remote_stores)
     {
-      std::promise<std::pair<Store::Status, ImpuStore::Impu*>>* promise = new std::promise<std::pair<Store::Status, ImpuStore::Impu*>>();
+      std::promise<std::tuple<Store::Status, ImpuStore::Impu*, unsigned long>>* promise = new std::promise<std::tuple<Store::Status, ImpuStore::Impu*, unsigned long>>();
       promises.push_back(promise);
 
-      _thread_pool.add_work([promise, remote_store, impu, trail]()->void
+      // If we have a stopwatch, we need to time how long each of the parallel
+      // remote requests takes, so we need to create and start a StopWatch for
+      // each one.
+      Utils::StopWatch* remote_stopwatch = nullptr;
+      if (stopwatch)
       {
+        remote_stopwatch = new Utils:: StopWatch();
+        remote_stopwatch->start();
+      }
+
+      _thread_pool.add_work([promise, remote_store, impu, trail, remote_stopwatch]()->void
+      {
+        // If we created a StopWatch, we now need to create an IOHook so that it
+        // will pause when we're doing network I/O
+        // These Hooks are thread_local, which is why this is done here (on the
+        // thread we'll use for the remote read)
+        Utils::IOHook* remote_hook = nullptr;
+        if (remote_stopwatch)
+        {
+          remote_hook = create_hook(remote_stopwatch);
+        }
+
         ImpuStore::Impu* remote_data = nullptr;
         Store::Status remote_status = remote_store->get_impu(impu, remote_data, trail);
-        promise->set_value(std::pair<Store::Status, ImpuStore::Impu*>(remote_status, remote_data));
+        unsigned long remote_time = 0L;
+
+        if (remote_stopwatch)
+        {
+          remote_stopwatch->read(remote_time);
+          delete remote_stopwatch;
+          delete remote_hook;
+        }
+
+        promise->set_value(std::tuple<Store::Status, ImpuStore::Impu*, unsigned long>(remote_status, remote_data, remote_time));
       });
     }
 
-    for (std::promise<std::pair<Store::Status, ImpuStore::Impu*>>* promise : promises)
+    if (stopwatch)
     {
-      std::future<std::pair<Store::Status, ImpuStore::Impu*>> future = promise->get_future();
-      std::pair<Store::Status, ImpuStore::Impu*> result = future.get();
+      // Stop the main StopWatch while we wait for the remote reads to complete.
+      // We'll later add on the time we spent processing these, minus I/O time
+      stopwatch->stop();
+    }
 
-      if ((status != Store::Status::OK) && (result.first == Store::Status::OK))
+    unsigned long remote_time_to_add = 0L;
+
+    for (std::promise<std::tuple<Store::Status, ImpuStore::Impu*, unsigned long>>* promise : promises)
+    {
+      std::future<std::tuple<Store::Status, ImpuStore::Impu*, unsigned long>> future = promise->get_future();
+      std::tuple<Store::Status, ImpuStore::Impu*, unsigned long> result = future.get();
+
+      // Want to choose whichever request took the longest to add to our stopwatch time
+      unsigned long remote_time = std::get<2>(result);
+      if (remote_time > remote_time_to_add)
+      {
+        remote_time_to_add = remote_time;
+      }
+
+      if ((status != Store::Status::OK) && (std::get<0>(result) == Store::Status::OK))
       {
         // If we've not yet set the impu, use the one from this remote if it succeeded
-        out_impu = result.second;
+        out_impu = std::get<1>(result);
         status = Store::Status::OK;
       }
       else
       {
-        ImpuStore::Impu* discard = result.second;
+        ImpuStore::Impu* discard = std::get<1>(result);
 
         if (discard)
         {
@@ -302,6 +379,13 @@ Store::Status MemcachedCache::get_impu_for_impu_gr(const std::string& impu,
       }
 
       delete promise;
+    }
+
+    // Restart the StopWatch
+    if (stopwatch)
+    {
+      stopwatch->start();
+      stopwatch->add_time(remote_time_to_add);
     }
   }
 
