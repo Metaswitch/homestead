@@ -92,12 +92,14 @@ private:
                         StatsFlags stat_updates,
                         callback_t response_clbk,
                         SNMP::CxCounterTable* cx_results_tbl,
-                        StatisticsManager* stats_manager) :
+                        StatisticsManager* stats_manager,
+                        Utils::StopWatch* stopwatch) :
       Diameter::Transaction(dict, trail),
       _stat_updates(stat_updates),
       _response_clbk(response_clbk),
       _cx_results_tbl(cx_results_tbl),
-      _stats_manager(stats_manager)
+      _stats_manager(stats_manager),
+      _stopwatch(stopwatch)
     {};
 
   protected:
@@ -105,6 +107,7 @@ private:
     callback_t _response_clbk;
     SNMP::CxCounterTable* _cx_results_tbl;
     StatisticsManager* _stats_manager;
+    Utils::StopWatch* _stopwatch;
 
     // Implementations will use this to create the correct answer
     virtual AnswerType create_answer(Diameter::Message& rsp) = 0;

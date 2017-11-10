@@ -65,11 +65,17 @@ void DiameterHssConnection::DiameterTransaction<AnswerType>::on_timeout()
 template <class T>
 void DiameterHssConnection::DiameterTransaction<T>::update_latency_stats()
 {
-  if (_stats_manager != NULL)
+  if (_stats_manager != nullptr)
   {
     unsigned long latency = 0;
     if (get_duration(latency))
     {
+      // We want to subtract the diameter latency time from our stopwatch
+      if (_stopwatch != nullptr)
+      {
+        _stopwatch->subtract_time(latency);
+      }
+
       if (_stat_updates & STAT_HSS_LATENCY)
       {
         _stats_manager->update_H_hss_latency_us(latency);
@@ -104,7 +110,7 @@ MultimediaAuthAnswer DiameterHssConnection::MarDiameterTransaction::create_answe
 
   // Now, parse into our generic MAA
   std::string auth_scheme;
-  AuthVector* av = NULL;
+  AuthVector* av = nullptr;
   ResultCode rc = ResultCode::SUCCESS;
 
   int32_t result_code = 0;
@@ -122,7 +128,7 @@ MultimediaAuthAnswer DiameterHssConnection::MarDiameterTransaction::create_answe
   if (result_code == DIAMETER_SUCCESS)
   {
     auth_scheme = diameter_maa.sip_auth_scheme();
-    av = NULL;
+    av = nullptr;
 
     if (auth_scheme == HssConnection::_scheme_digest)
     {
@@ -408,7 +414,7 @@ void DiameterHssConnection::send_multimedia_auth_request(maa_cb callback,
   // Transactions are deleted in the DiameterStack's on_response or or_timeout,
   // so we don't have to delete this after sending
   MarDiameterTransaction* tsx =
-    new MarDiameterTransaction(_dict, trail, DIGEST_STATS, callback, mar_results_tbl, _stats_manager);
+    new MarDiameterTransaction(_dict, trail, DIGEST_STATS, callback, mar_results_tbl, _stats_manager, stopwatch);
 
   Cx::MultimediaAuthRequest mar(_dict,
                                 _diameter_stack,
@@ -432,7 +438,7 @@ void DiameterHssConnection::send_user_auth_request(uaa_cb callback,
   // Transactions are deleted in the DiameterStack's on_response or or_timeout,
   // so we don't have to delete this after sending
   UarDiameterTransaction* tsx =
-    new UarDiameterTransaction(_dict, trail, SUBSCRIPTION_STATS, callback, uar_results_tbl, _stats_manager);
+    new UarDiameterTransaction(_dict, trail, SUBSCRIPTION_STATS, callback, uar_results_tbl, _stats_manager, stopwatch);
 
   Cx::UserAuthorizationRequest uar(_dict,
                                    _diameter_stack,
@@ -454,7 +460,7 @@ void DiameterHssConnection::send_location_info_request(lia_cb callback,
                                                        Utils::StopWatch* stopwatch)
 {
   LirDiameterTransaction* tsx =
-    new LirDiameterTransaction(_dict, trail, SUBSCRIPTION_STATS, callback, lir_results_tbl, _stats_manager);
+    new LirDiameterTransaction(_dict, trail, SUBSCRIPTION_STATS, callback, lir_results_tbl, _stats_manager, stopwatch);
 
   Cx::LocationInfoRequest lir(_dict,
                               _diameter_stack,
@@ -476,7 +482,7 @@ void DiameterHssConnection::send_server_assignment_request(saa_cb callback,
   // Transactions are deleted in the DiameterStack's on_response or or_timeout,
   // so we don't have to delete this after sending
   SarDiameterTransaction* tsx =
-    new SarDiameterTransaction(_dict, trail, SUBSCRIPTION_STATS, callback, sar_results_tbl, _stats_manager);
+    new SarDiameterTransaction(_dict, trail, SUBSCRIPTION_STATS, callback, sar_results_tbl, _stats_manager, stopwatch);
 
   Cx::ServerAssignmentRequest sar(_dict,
                                   _diameter_stack,

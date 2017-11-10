@@ -344,12 +344,12 @@ TEST_F(DiameterHssConnectionTest, SendMARDigest)
   EXPECT_CALL(*_stats, update_H_hss_latency_us(12000));
   cwtest_advance_time_ms(12);
 
+  _caught_diam_tsx->on_response(maa);
+
   // Check that the stopwatch doesn't include the time spent waiting on diameter response
   unsigned long time;
   EXPECT_EQ(true, stopwatch.read(time));
   EXPECT_EQ(time, 0L);
-
-  _caught_diam_tsx->on_response(maa);
 
   _caught_fd_msg = NULL;
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
@@ -835,12 +835,12 @@ TEST_F(DiameterHssConnectionTest, SendUARServerName)
   EXPECT_CALL(*_stats, update_H_hss_subscription_latency_us(12000));
   cwtest_advance_time_ms(12);
 
+  _caught_diam_tsx->on_response(uaa);
+
   // Check that the stopwatch doesn't include the time spent waiting on diameter response
   unsigned long time;
   EXPECT_EQ(true, stopwatch.read(time));
   EXPECT_EQ(time, 0L);
-
-  _caught_diam_tsx->on_response(uaa);
 
   _caught_fd_msg = NULL;
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
@@ -1420,12 +1420,12 @@ TEST_F(DiameterHssConnectionTest, SendLIROriginating)
   EXPECT_CALL(*_stats, update_H_hss_subscription_latency_us(12000));
   cwtest_advance_time_ms(12);
 
+  _caught_diam_tsx->on_response(lia);
+
   // Check that the stopwatch doesn't include the time spent waiting on diameter response
   unsigned long time;
   EXPECT_EQ(true, stopwatch.read(time));
   EXPECT_EQ(time, 0L);
-
-  _caught_diam_tsx->on_response(lia);
 
   _caught_fd_msg = NULL;
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
@@ -1995,12 +1995,12 @@ TEST_F(DiameterHssConnectionTest, SendSARMainline)
   EXPECT_CALL(*_stats, update_H_hss_subscription_latency_us(12000));
   cwtest_advance_time_ms(12);
 
+  _caught_diam_tsx->on_response(saa);
+
   // Check that the stopwatch doesn't include the time spent waiting on diameter response
   unsigned long time;
   EXPECT_EQ(true, stopwatch.read(time));
   EXPECT_EQ(time, 0L);
-
-  _caught_diam_tsx->on_response(saa);
 
   _caught_fd_msg = NULL;
   delete _caught_diam_tsx; _caught_diam_tsx = NULL;
