@@ -394,12 +394,15 @@ private:
 
   // Per Store IRS methods
 
-  typedef std::function<Store::Status(ImpuStore*)> store_action;
+  typedef std::function<Store::Status(ImpuStore*, Utils::StopWatch*)> store_action;
 
   // Performs the action on each store, calling the progress_cb once the action
   // has been performed on the local store
+  // If a StopWatch is provided, it will be paused when performing network I/O
+  // for the local store, but not for the remotes.
   Store::Status perform(store_action action,
-                        progress_callback progress_cb);
+                        progress_callback progress_cb,
+                        Utils::StopWatch* stopwatch);
 
   Store::Status put_irs_action(MemcachedImplicitRegistrationSet* irs,
                                SAS::TrailId trail,
