@@ -17,6 +17,8 @@
 #include "mockimpustore.hpp"
 
 using ::testing::_;
+using ::testing::DoAll;
+using ::testing::InvokeWithoutArgs;
 using ::testing::Return;
 using ::testing::StrictMock;
 
@@ -736,10 +738,11 @@ TEST_F(MemcachedCacheTest, GetIrsForImpis)
 
   std::vector<ImplicitRegistrationSet*> irss;
 
+  Utils::StopWatch unused;
   Store::Status status =
     _memcached_cache->get_implicit_registration_sets_for_impis({IMPI},
                                                                0L,
-                                                               nullptr,
+                                                               &unused,
                                                                irss);
 
 
@@ -1064,7 +1067,9 @@ TEST_F(MemcachedCacheTest, PutIrs)
   irs->set_reg_state(RegistrationState::REGISTERED);
 
   EXPECT_CALL(*_mock_progress_cb, progress_callback());
-  Store::Status status = _memcached_cache->put_implicit_registration_set(irs, _progress_callback, 0L, nullptr);
+
+  Utils::StopWatch unused;
+  Store::Status status = _memcached_cache->put_implicit_registration_set(irs, _progress_callback, 0L, &unused);
   EXPECT_EQ(Store::Status::OK, status);
 
   delete irs;
@@ -1487,7 +1492,9 @@ TEST_F(MemcachedCacheTest, DeleteIrss)
   _memcached_cache->get_implicit_registration_set_for_impu(IMPU, 0L, nullptr, irs);
 
   EXPECT_CALL(*_mock_progress_cb, progress_callback());
-  Store::Status status = _memcached_cache->delete_implicit_registration_set(irs, _progress_callback, 0L, nullptr);
+
+  Utils::StopWatch unused;
+  Store::Status status = _memcached_cache->delete_implicit_registration_set(irs, _progress_callback, 0L, &unused);
   EXPECT_EQ(Store::Status::OK, status);
 
   delete irs;
@@ -1669,19 +1676,41 @@ class MemcachedCacheMockStoreTest : public ControlTimeTest
 public:
   virtual void SetUp() override
   {
-    _mock_store = new StrictMock<MockImpuStore>();
-    _memcached_cache = new MemcachedCache(_mock_store, {}, 0, nullptr);
+    _local_mock_store = new StrictMock<MockImpuStore>();
+    _remote_mock_store1 = new StrictMock<MockImpuStore>();
+    _remote_mock_store2 = new StrictMock<MockImpuStore>();
+    _memcached_cache = new MemcachedCache(_local_mock_store, {_remote_mock_store1, _remote_mock_store2}, 2, nullptr);
   }
 
   virtual void TearDown() override
   {
     delete _memcached_cache;
-    delete _mock_store;
+    delete _local_mock_store;
+    delete _remote_mock_store1;
+    delete _remote_mock_store2;
   }
 
 private:
-  StrictMock<MockImpuStore>* _mock_store;
+  StrictMock<MockImpuStore>* _local_mock_store;
+  StrictMock<MockImpuStore>* _remote_mock_store1;
+  StrictMock<MockImpuStore>* _remote_mock_store2;
   MemcachedCache* _memcached_cache;
+
+  // These allow us to advance time as a side effect of a mock function call
+  static void advance_time_10_ms()
+  {
+    cwtest_advance_time_ms(10);
+  }
+
+  static void advance_time_25_ms()
+  {
+    cwtest_advance_time_ms(25);
+  }
+
+  static void advance_time_50_ms()
+  {
+    cwtest_advance_time_ms(50);
+  }
 };
 
 TEST_F(MemcachedCacheMockStoreTest, UpdateIrsImpiMappingsDataContention)
@@ -1697,13 +1726,14 @@ TEST_F(MemcachedCacheMockStoreTest, UpdateIrsImpiMappingsDataContention)
   mirs->add_associated_impi(IMPI);
 
   // The first set hits contention, the second succeeds
-  EXPECT_CALL(*_mock_store, set_impi_mapping(_, _))
+  EXPECT_CALL(*_local_mock_store, set_impi_mapping(_, _))
     .WillOnce(Return(Store::Status::DATA_CONTENTION))
     .WillOnce(Return(Store::Status::OK));
 
   // The get fails with NOT_FOUND
-  EXPECT_CALL(*_mock_store, get_impi_mapping(_, _, _)).WillOnce(Return(Store::Status::NOT_FOUND));
-  Store::Status status = _memcached_cache->update_irs_impi_mappings(mirs, 0L, _mock_store, nullptr);
+  EXPECT_CALL(*_local_mock_store, get_impi_mapping(_, _, _)).WillOnce(Return(Store::Status::NOT_FOUND));
+
+  Store::Status status = _memcached_cache->update_irs_impi_mappings(mirs, 0L, _local_mock_store, nullptr);
   EXPECT_EQ(Store::Status::OK, status);
 
   delete mirs;
@@ -1722,13 +1752,39 @@ TEST_F(MemcachedCacheMockStoreTest, UpdateIrsImpiMappingsDataContentionError)
   mirs->add_associated_impi(IMPI);
 
   // Only one set, which hits contention
-  EXPECT_CALL(*_mock_store, set_impi_mapping(_, _))
+  EXPECT_CALL(*_local_mock_store, set_impi_mapping(_, _))
     .WillOnce(Return(Store::Status::DATA_CONTENTION));
 
   // The get fails with ERROR
-  EXPECT_CALL(*_mock_store, get_impi_mapping(_, _, _)).WillOnce(Return(Store::Status::ERROR));
-  Store::Status status = _memcached_cache->update_irs_impi_mappings(mirs, 0L, _mock_store, nullptr);
+  EXPECT_CALL(*_local_mock_store, get_impi_mapping(_, _, _)).WillOnce(Return(Store::Status::ERROR));
+  Store::Status status = _memcached_cache->update_irs_impi_mappings(mirs, 0L, _local_mock_store, nullptr);
   EXPECT_EQ(Store::Status::ERROR, status);
 
   delete mirs;
+}
+
+TEST_F(MemcachedCacheMockStoreTest, StopWatchGetImpuForImpuGR)
+{
+  ImpuStore::Impu* result = nullptr;
+  Utils::StopWatch stopwatch;
+  stopwatch.start();
+
+  // The local store will take 10ms to return NOT_FOUND
+  EXPECT_CALL(*_local_mock_store, get_impu(_, _, _))
+    .WillOnce(DoAll(InvokeWithoutArgs(advance_time_10_ms), Return(Store::Status::NOT_FOUND)));
+
+  // The first remote store will take an additional 25ms to return NOT_FOUND
+  EXPECT_CALL(*_remote_mock_store1, get_impu(_, _, _))
+  .WillOnce(DoAll(InvokeWithoutArgs(advance_time_25_ms), Return(Store::Status::NOT_FOUND)));
+
+  // The second remote store will take an additional 50ms to return NOT_FOUND
+  EXPECT_CALL(*_remote_mock_store2, get_impu(_, _, _))
+  .WillOnce(DoAll(InvokeWithoutArgs(advance_time_50_ms), Return(Store::Status::NOT_FOUND)));
+
+  _memcached_cache->get_impu_for_impu_gr(IMPU, result, 0L, &stopwatch);
+
+  // The stopwatch should have advanced by 85ms
+  unsigned long time = 0L;
+  EXPECT_TRUE(stopwatch.read(time));
+  EXPECT_EQ(time, 85000);
 }

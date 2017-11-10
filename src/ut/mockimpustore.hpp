@@ -24,7 +24,7 @@ public:
   MOCK_METHOD2(set_impu_without_cas, Store::Status(Impu* impu, SAS::TrailId trail));
   MOCK_METHOD2(add_impu, Store::Status(Impu* impu, SAS::TrailId trail));
   MOCK_METHOD2(set_impu, Store::Status(Impu* impu, SAS::TrailId trail));
-  MOCK_METHOD2(get_impu, Impu*(const std::string& impu, SAS::TrailId trail));
+  MOCK_METHOD3(get_impu, Store::Status(const std::string& impu, Impu*& out_impu, SAS::TrailId trail));
   MOCK_METHOD2(delete_impu, Store::Status(Impu* impu, SAS::TrailId trail));
   MOCK_METHOD2(set_impi_mapping, Store::Status(ImpiMapping* mapping, SAS::TrailId trail));
   MOCK_METHOD3(get_impi_mapping, Store::Status(const std::string impi, ImpiMapping*& out_mapping, SAS::TrailId trail));

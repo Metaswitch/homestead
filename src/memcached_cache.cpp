@@ -19,6 +19,7 @@
 using std::placeholders::_1;
 using std::placeholders::_2;
 
+// LCOV_EXCL_START
 static void pause_stopwatch(Utils::StopWatch& stopwatch, const std::string& reason)
 {
   TRC_DEBUG("Pausing stopwatch due to %s", reason.c_str());
@@ -30,6 +31,7 @@ static void resume_stopwatch(Utils::StopWatch& stopwatch, const std::string& rea
   TRC_DEBUG("Resuming stopwatch due to %s", reason.c_str());
   stopwatch.start();
 }
+// LCOV_EXCL_STOP
 
 Utils::IOHook* create_hook(Utils::StopWatch* stopwatch)
 {
