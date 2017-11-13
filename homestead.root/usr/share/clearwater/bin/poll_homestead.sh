@@ -15,7 +15,7 @@
 # least the grace period, the script returns zero. This is to allow the process
 # some time to initialize.
 
-GRACE_PERIOD = 20
+GRACE_PERIOD=20
 
 # Determine the HTTP IP, poll it, and handle the result according to whether or
 # not we are in the grace period.
