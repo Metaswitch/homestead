@@ -19,6 +19,8 @@
 using std::placeholders::_1;
 using std::placeholders::_2;
 
+typedef std::tuple<Store::Status, ImpuStore::Impu*, unsigned long> impu_result_t;
+
 // LCOV_EXCL_START
 static void pause_stopwatch(Utils::StopWatch* stopwatch, const std::string& reason)
 {
@@ -300,11 +302,11 @@ Store::Status MemcachedCache::get_impu_for_impu_gr(const std::string& impu,
   {
     // If we successfully connect to the local store but fail to find an Impu,
     // try the remote stores
-    std::vector<std::promise<std::tuple<Store::Status, ImpuStore::Impu*, unsigned long>>*> promises;
+    std::vector<std::promise<impu_result_t>*> promises;
 
     for (ImpuStore* remote_store : _remote_stores)
     {
-      std::promise<std::tuple<Store::Status, ImpuStore::Impu*, unsigned long>>* promise = new std::promise<std::tuple<Store::Status, ImpuStore::Impu*, unsigned long>>();
+      std::promise<impu_result_t>* promise = new std::promise<impu_result_t>();
       promises.push_back(promise);
 
       // If we have a stopwatch, we need to time how long each of the parallel
@@ -313,7 +315,7 @@ Store::Status MemcachedCache::get_impu_for_impu_gr(const std::string& impu,
       Utils::StopWatch* remote_stopwatch = nullptr;
       if (stopwatch)
       {
-        remote_stopwatch = new Utils:: StopWatch();
+        remote_stopwatch = new Utils::StopWatch();
         remote_stopwatch->start();
       }
 
@@ -335,12 +337,12 @@ Store::Status MemcachedCache::get_impu_for_impu_gr(const std::string& impu,
 
         if (remote_stopwatch)
         {
+          delete remote_hook;
           remote_stopwatch->read(remote_time);
           delete remote_stopwatch;
-          delete remote_hook;
         }
 
-        promise->set_value(std::tuple<Store::Status, ImpuStore::Impu*, unsigned long>(remote_status, remote_data, remote_time));
+        promise->set_value(impu_result_t(remote_status, remote_data, remote_time));
       });
     }
 
@@ -353,10 +355,10 @@ Store::Status MemcachedCache::get_impu_for_impu_gr(const std::string& impu,
 
     unsigned long remote_time_to_add = 0L;
 
-    for (std::promise<std::tuple<Store::Status, ImpuStore::Impu*, unsigned long>>* promise : promises)
+    for (std::promise<impu_result_t>* promise : promises)
     {
-      std::future<std::tuple<Store::Status, ImpuStore::Impu*, unsigned long>> future = promise->get_future();
-      std::tuple<Store::Status, ImpuStore::Impu*, unsigned long> result = future.get();
+      std::future<impu_result_t> future = promise->get_future();
+      impu_result_t result = future.get();
 
       // Want to choose whichever request took the longest to add to our stopwatch time
       unsigned long remote_time = std::get<2>(result);
