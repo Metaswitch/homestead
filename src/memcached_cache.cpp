@@ -17,6 +17,29 @@
 #include "utils.h"
 
 using std::placeholders::_1;
+using std::placeholders::_2;
+
+typedef std::tuple<Store::Status, ImpuStore::Impu*, unsigned long> impu_result_t;
+
+// LCOV_EXCL_START
+static void pause_stopwatch(Utils::StopWatch* stopwatch, const std::string& reason)
+{
+  TRC_DEBUG("Pausing stopwatch due to %s", reason.c_str());
+  stopwatch->stop();
+}
+
+static void resume_stopwatch(Utils::StopWatch* stopwatch, const std::string& reason)
+{
+  TRC_DEBUG("Resuming stopwatch due to %s", reason.c_str());
+  stopwatch->start();
+}
+// LCOV_EXCL_STOP
+
+Utils::IOHook* create_hook(Utils::StopWatch* stopwatch)
+{
+  return new Utils::IOHook(std::bind(pause_stopwatch, stopwatch, _1),
+                           std::bind(resume_stopwatch, stopwatch, _1));
+}
 
 ImpuStore::DefaultImpu* MemcachedImplicitRegistrationSet::create_impu(uint64_t cas,
                                                                       const ImpuStore* store)
@@ -256,43 +279,103 @@ void MemcachedImplicitRegistrationSet::delete_impis()
 //      established that the local store returned NOT_FOUND)
 Store::Status MemcachedCache::get_impu_for_impu_gr(const std::string& impu,
                                                    ImpuStore::Impu*& out_impu,
-                                                   SAS::TrailId trail)
+                                                   SAS::TrailId trail,
+                                                   Utils::StopWatch* stopwatch)
 {
+  Utils::IOHook* hook = nullptr;
+
+  if (stopwatch)
+  {
+    hook = create_hook(stopwatch);
+  }
+
   Store::Status status = _local_store->get_impu(impu, out_impu, trail);
+
+  // We've done the only network I/O on this thread that we were going to, so
+  // can safely delete our hook now
+  if (hook)
+  {
+    delete hook; hook = nullptr;
+  }
 
   if (status == Store::Status::NOT_FOUND)
   {
     // If we successfully connect to the local store but fail to find an Impu,
     // try the remote stores
-    std::vector<std::promise<std::pair<Store::Status, ImpuStore::Impu*>>*> promises;
+    std::vector<std::promise<impu_result_t>*> promises;
 
     for (ImpuStore* remote_store : _remote_stores)
     {
-      std::promise<std::pair<Store::Status, ImpuStore::Impu*>>* promise = new std::promise<std::pair<Store::Status, ImpuStore::Impu*>>();
+      std::promise<impu_result_t>* promise = new std::promise<impu_result_t>();
       promises.push_back(promise);
 
-      _thread_pool.add_work([promise, remote_store, impu, trail]()->void
+      // If we have a stopwatch, we need to time how long each of the parallel
+      // remote requests takes, so we need to create and start a StopWatch for
+      // each one.
+      Utils::StopWatch* remote_stopwatch = nullptr;
+      if (stopwatch)
       {
+        remote_stopwatch = new Utils::StopWatch();
+        remote_stopwatch->start();
+      }
+
+      _thread_pool.add_work([promise, remote_store, impu, trail, remote_stopwatch]()->void
+      {
+        // If we created a StopWatch, we now need to create an IOHook so that it
+        // will pause when we're doing network I/O
+        // These Hooks are thread_local, which is why this is done here (on the
+        // thread we'll use for the remote read)
+        Utils::IOHook* remote_hook = nullptr;
+        if (remote_stopwatch)
+        {
+          remote_hook = create_hook(remote_stopwatch);
+        }
+
         ImpuStore::Impu* remote_data = nullptr;
         Store::Status remote_status = remote_store->get_impu(impu, remote_data, trail);
-        promise->set_value(std::pair<Store::Status, ImpuStore::Impu*>(remote_status, remote_data));
+        unsigned long remote_time = 0L;
+
+        if (remote_stopwatch)
+        {
+          delete remote_hook;
+          remote_stopwatch->read(remote_time);
+          delete remote_stopwatch;
+        }
+
+        promise->set_value(impu_result_t(remote_status, remote_data, remote_time));
       });
     }
 
-    for (std::promise<std::pair<Store::Status, ImpuStore::Impu*>>* promise : promises)
+    if (stopwatch)
     {
-      std::future<std::pair<Store::Status, ImpuStore::Impu*>> future = promise->get_future();
-      std::pair<Store::Status, ImpuStore::Impu*> result = future.get();
+      // Stop the main StopWatch while we wait for the remote reads to complete.
+      // We'll later add on the time we spent processing these, minus I/O time
+      stopwatch->stop();
+    }
 
-      if ((status != Store::Status::OK) && (result.first == Store::Status::OK))
+    unsigned long remote_time_to_add = 0L;
+
+    for (std::promise<impu_result_t>* promise : promises)
+    {
+      std::future<impu_result_t> future = promise->get_future();
+      impu_result_t result = future.get();
+
+      // Want to choose whichever request took the longest to add to our stopwatch time
+      unsigned long remote_time = std::get<2>(result);
+      if (remote_time > remote_time_to_add)
+      {
+        remote_time_to_add = remote_time;
+      }
+
+      if ((status != Store::Status::OK) && (std::get<0>(result) == Store::Status::OK))
       {
         // If we've not yet set the impu, use the one from this remote if it succeeded
-        out_impu = result.second;
+        out_impu = std::get<1>(result);
         status = Store::Status::OK;
       }
       else
       {
-        ImpuStore::Impu* discard = result.second;
+        ImpuStore::Impu* discard = std::get<1>(result);
 
         if (discard)
         {
@@ -302,6 +385,13 @@ Store::Status MemcachedCache::get_impu_for_impu_gr(const std::string& impu,
 
       delete promise;
     }
+
+    // Restart the StopWatch
+    if (stopwatch)
+    {
+      stopwatch->start();
+      stopwatch->add_time(remote_time_to_add);
+    }
   }
 
   return status;
@@ -309,10 +399,11 @@ Store::Status MemcachedCache::get_impu_for_impu_gr(const std::string& impu,
 
 Store::Status MemcachedCache::get_impus_for_impi(const std::string& impi,
                                                  SAS::TrailId trail,
+                                                 Utils::StopWatch* stopwatch,
                                                  std::vector<std::string>& impus)
 {
   ImpuStore::ImpiMapping* mapping = nullptr;
-  Store::Status status = get_impi_mapping_gr(impi, mapping, trail);
+  Store::Status status = get_impi_mapping_gr(impi, mapping, trail, stopwatch);
 
   if (status == Store::Status::OK)
   {
@@ -340,8 +431,17 @@ Store::Status MemcachedCache::get_impus_for_impi(const std::string& impi,
 // On failure, out_mapping is unchanged.
 Store::Status MemcachedCache::get_impi_mapping_gr(const std::string& impi,
                                                   ImpuStore::ImpiMapping*& out_mapping,
-                                                  SAS::TrailId trail)
+                                                  SAS::TrailId trail,
+                                                  Utils::StopWatch* stopwatch)
 {
+  Utils::IOHook* hook = nullptr;
+
+  // Create an IOHook that will pause the StopWatch while performing network I/O
+  if (stopwatch)
+  {
+    hook = create_hook(stopwatch);
+  }
+
   Store::Status status = _local_store->get_impi_mapping(impi, out_mapping, trail);
 
   if (status == Store::Status::NOT_FOUND)
@@ -360,16 +460,22 @@ Store::Status MemcachedCache::get_impi_mapping_gr(const std::string& impi,
     }
   }
 
+  if (hook)
+  {
+    delete hook;
+  }
+
   return status;
 }
 
 Store::Status MemcachedCache::get_implicit_registration_set_for_impu(const std::string& impu,
                                                      SAS::TrailId trail,
+                                                     Utils::StopWatch* stopwatch,
                                                      ImplicitRegistrationSet*& result)
 {
 
   ImpuStore::Impu* data = nullptr;
-  Store::Status status = get_impu_for_impu_gr(impu, data, trail);
+  Store::Status status = get_impu_for_impu_gr(impu, data, trail, stopwatch);
 
   if (status == Store::Status::OK && !data->is_default_impu())
   {
@@ -377,7 +483,7 @@ Store::Status MemcachedCache::get_implicit_registration_set_for_impu(const std::
 
     TRC_INFO("IMPU: %s maps to IMPU: %s", impu.c_str(), assoc_impu->default_impu.c_str());
 
-    status = get_impu_for_impu_gr(assoc_impu->default_impu, data, trail);
+    status = get_impu_for_impu_gr(assoc_impu->default_impu, data, trail, stopwatch);
 
     delete assoc_impu;
 
@@ -420,9 +526,10 @@ Store::Status MemcachedCache::get_implicit_registration_set_for_impu(const std::
 }
 
 Store::Status MemcachedCache::perform(MemcachedCache::store_action action,
-                                      progress_callback progress_cb)
+                                      progress_callback progress_cb,
+                                      Utils::StopWatch* stopwatch)
 {
-   Store::Status status = action(_local_store);
+   Store::Status status = action(_local_store, stopwatch);
 
    if (status == Store::Status::OK)
    {
@@ -433,7 +540,7 @@ Store::Status MemcachedCache::perform(MemcachedCache::store_action action,
      // status (as we've already claimed success)
      for (ImpuStore* remote_store : _remote_stores)
      {
-       Store::Status inner_status = action(remote_store);
+       Store::Status inner_status = action(remote_store, nullptr);
        if (inner_status != Store::Status::OK)
        {
          // Nothing we can do, but log the error
@@ -448,7 +555,8 @@ Store::Status MemcachedCache::perform(MemcachedCache::store_action action,
 
 Store::Status MemcachedCache::put_implicit_registration_set(ImplicitRegistrationSet* irs,
                                                             progress_callback progress_cb,
-                                                            SAS::TrailId trail)
+                                                            SAS::TrailId trail,
+                                                            Utils::StopWatch* stopwatch)
 {
   Store::Status status = Store::Status::OK;
 
@@ -457,8 +565,8 @@ Store::Status MemcachedCache::put_implicit_registration_set(ImplicitRegistration
   if (mirs->has_changed())
   {
     store_action action =
-      std::bind(&MemcachedCache::put_irs_action, this, mirs, trail, _1);
-    status = perform(action, progress_cb);
+      std::bind(&MemcachedCache::put_irs_action, this, mirs, trail, _1, _2);
+    status = perform(action, progress_cb, stopwatch);
   }
   else
   {
@@ -472,9 +580,17 @@ Store::Status MemcachedCache::put_implicit_registration_set(ImplicitRegistration
 
 Store::Status MemcachedCache::update_irs_impi_mappings(MemcachedImplicitRegistrationSet* irs,
                                                        SAS::TrailId trail,
-                                                       ImpuStore* store)
+                                                       ImpuStore* store,
+                                                       Utils::StopWatch* stopwatch)
 {
   Store::Status status = Store::Status::OK;
+
+  // Create an IOHook to pause the stopwatch when performing network I/O
+  Utils::IOHook* hook = nullptr;
+  if (stopwatch)
+  {
+    hook = create_hook(stopwatch);
+  }
 
   // Updating the mappings needs to be CASed, as each of the IMPIs maps
   // to an array, which may be mutated by multiple Homesteads simultaneously
@@ -610,14 +726,28 @@ Store::Status MemcachedCache::update_irs_impi_mappings(MemcachedImplicitRegistra
 
     delete mapping;
   }
+
+  if (hook)
+  {
+    delete hook;
+  }
+
   return status;
 }
 
 Store::Status MemcachedCache::update_irs_associated_impus(MemcachedImplicitRegistrationSet* irs,
                                                           SAS::TrailId trail,
-                                                          ImpuStore* store)
+                                                          ImpuStore* store,
+                                                          Utils::StopWatch* stopwatch)
 {
   Store::Status status = Store::Status::OK;
+
+  // Create an IOHook to pause the stopwatch when performing network I/O
+  Utils::IOHook* hook = nullptr;
+  if (stopwatch)
+  {
+    hook = create_hook(stopwatch);
+  }
 
   // Remove old associated IMPUs
   for (const std::string& associated_impu : irs->impus(MemcachedImplicitRegistrationSet::State::DELETED))
@@ -672,6 +802,11 @@ Store::Status MemcachedCache::update_irs_associated_impus(MemcachedImplicitRegis
     delete impu;
   }
 
+  if (hook)
+  {
+    delete hook;
+  }
+
   return status;
 }
 
@@ -711,11 +846,19 @@ Store::Status MemcachedCache::update_irs_associated_impus(MemcachedImplicitRegis
 //    So in both cases we just ignore the failure to write to the store.
 Store::Status MemcachedCache::create_irs_impu(MemcachedImplicitRegistrationSet* irs,
                                               SAS::TrailId trail,
-                                              ImpuStore* store)
+                                              ImpuStore* store,
+                                              Utils::StopWatch* stopwatch)
 {
   ImpuStore::DefaultImpu* impu = irs->get_impu();
 
   Store::Status status = Store::Status::OK;
+
+  // Create an IOHook to pause the stopwatch when performing network I/O
+  Utils::IOHook* hook = nullptr;
+  if (stopwatch)
+  {
+    hook = create_hook(stopwatch);
+  }
 
   if (impu->registration_state == RegistrationState::REGISTERED)
   {
@@ -739,6 +882,11 @@ Store::Status MemcachedCache::create_irs_impu(MemcachedImplicitRegistrationSet* 
 
   delete impu;
 
+  if (hook)
+  {
+    delete hook;
+  }
+
   return status;
 }
 
@@ -747,10 +895,18 @@ typedef Store::Status (ImpuStore::*irs_impu_action)(ImpuStore::Impu*, SAS::Trail
 Store::Status perform_irs_impu_action(irs_impu_action action,
                                       MemcachedImplicitRegistrationSet* irs,
                                       SAS::TrailId trail,
-                                      ImpuStore* store)
+                                      ImpuStore* store,
+                                      Utils::StopWatch* stopwatch)
 {
   Store::Status status = Store::Status::OK;
   ImpuStore::DefaultImpu* impu = irs->get_impu_for_store(store);
+
+  // Create an IOHook to pause the stopwatch when performing network I/O
+  Utils::IOHook* hook = nullptr;
+  if (stopwatch)
+  {
+    hook = create_hook(stopwatch);
+  }
 
   do
   {
@@ -822,34 +978,44 @@ Store::Status perform_irs_impu_action(irs_impu_action action,
 
   } while(status == Store::Status::DATA_CONTENTION);
 
+  if (hook)
+  {
+    delete hook;
+  }
+
   return status;
 }
 
 Store::Status MemcachedCache::update_irs_impu(MemcachedImplicitRegistrationSet* irs,
                                               SAS::TrailId trail,
-                                              ImpuStore* store)
+                                              ImpuStore* store,
+                                              Utils::StopWatch* stopwatch)
 {
   return perform_irs_impu_action(&ImpuStore::set_impu,
-                                   irs,
-                                   trail,
-                                   store);
+                                 irs,
+                                 trail,
+                                 store,
+                                 stopwatch);
 }
 
 Store::Status MemcachedCache::delete_irs_impu(MemcachedImplicitRegistrationSet* irs,
                                               SAS::TrailId trail,
-                                              ImpuStore* store)
+                                              ImpuStore* store,
+                                              Utils::StopWatch* stopwatch)
 {
   // If we are deleting an MIRS, we are refreshing it.
   irs->mark_as_refreshed();
   return perform_irs_impu_action(&ImpuStore::delete_impu,
                                  irs,
                                  trail,
-                                 store);
+                                 store,
+                                 stopwatch);
 }
 
 Store::Status MemcachedCache::put_irs_action(MemcachedImplicitRegistrationSet* irs,
                                              SAS::TrailId trail,
-                                             ImpuStore* store)
+                                             ImpuStore* store,
+                                             Utils::StopWatch* stopwatch)
 {
   // We have three operations to perform here, and can't guarantee
   // perfect consistency, but we should eventually get consistency
@@ -857,21 +1023,21 @@ Store::Status MemcachedCache::put_irs_action(MemcachedImplicitRegistrationSet* i
 
   if (irs->is_existing())
   {
-    status = update_irs_impu(irs, trail, store);
+    status = update_irs_impu(irs, trail, store, stopwatch);
   }
   else
   {
-    status = create_irs_impu(irs, trail, store);
+    status = create_irs_impu(irs, trail, store, stopwatch);
   }
 
   if (status == Store::Status::OK)
   {
-    update_irs_associated_impus(irs, trail, store);
+    update_irs_associated_impus(irs, trail, store, stopwatch);
   }
 
   if (status == Store::Status::OK)
   {
-    update_irs_impi_mappings(irs, trail, store);
+    update_irs_impi_mappings(irs, trail, store, stopwatch);
   }
 
   return status;
@@ -879,22 +1045,23 @@ Store::Status MemcachedCache::put_irs_action(MemcachedImplicitRegistrationSet* i
 
 Store::Status MemcachedCache::delete_irs_action(MemcachedImplicitRegistrationSet* irs,
                                                 SAS::TrailId trail,
-                                                ImpuStore* store)
+                                                ImpuStore* store,
+                                                Utils::StopWatch* stopwatch)
 {
-  Store::Status status = delete_irs_impu(irs, trail, store);
+  Store::Status status = delete_irs_impu(irs, trail, store, stopwatch);
 
   if (status == Store::Status::OK)
   {
     // Mark the Associated IMPUs as deleted, and update the store to match
     irs->delete_assoc_impus();
-    status = update_irs_associated_impus(irs, trail, store);
+    status = update_irs_associated_impus(irs, trail, store, stopwatch);
   }
 
   if (status == Store::Status::OK)
   {
     // And similar with the IMPIs
     irs->delete_impis();
-    status = update_irs_impi_mappings(irs, trail, store);
+    status = update_irs_impi_mappings(irs, trail, store, stopwatch);
   }
 
   return status;
@@ -902,7 +1069,8 @@ Store::Status MemcachedCache::delete_irs_action(MemcachedImplicitRegistrationSet
 
 Store::Status MemcachedCache::delete_implicit_registration_set(ImplicitRegistrationSet* irs,
                                                                progress_callback progress_cb,
-                                                               SAS::TrailId trail)
+                                                               SAS::TrailId trail,
+                                                               Utils::StopWatch* stopwatch)
 {
   Store::Status status = Store::Status::OK;
 
@@ -911,8 +1079,8 @@ Store::Status MemcachedCache::delete_implicit_registration_set(ImplicitRegistrat
   if (mirs->is_existing())
   {
     store_action action =
-      std::bind(&MemcachedCache::delete_irs_action, this, mirs, trail, _1);
-    status = perform(action, progress_cb);
+      std::bind(&MemcachedCache::delete_irs_action, this, mirs, trail, _1, _2);
+    status = perform(action, progress_cb, stopwatch);
   }
   else
   {
@@ -929,17 +1097,19 @@ Store::Status MemcachedCache::delete_implicit_registration_set(ImplicitRegistrat
 
 Store::Status MemcachedCache::delete_implicit_registration_sets(const std::vector<ImplicitRegistrationSet*>& irss,
                                                                 progress_callback progress_cb,
-                                                                SAS::TrailId trail)
+                                                                SAS::TrailId trail,
+                                                                Utils::StopWatch* stopwatch)
 {
   store_action action =
-    std::bind(&MemcachedCache::delete_irss_action, this, irss, trail, _1);
-  Store::Status status = perform(action, progress_cb);
+    std::bind(&MemcachedCache::delete_irss_action, this, irss, trail, _1, _2);
+  Store::Status status = perform(action, progress_cb, stopwatch);
   return status;
 }
 
 Store::Status MemcachedCache::delete_irss_action(const std::vector<ImplicitRegistrationSet*>& irss,
                                                  SAS::TrailId trail,
-                                                 ImpuStore* store)
+                                                 ImpuStore* store,
+                                                 Utils::StopWatch* stopwatch)
 {
   Store::Status status = Store::Status::OK;
 
@@ -948,7 +1118,7 @@ Store::Status MemcachedCache::delete_irss_action(const std::vector<ImplicitRegis
     MemcachedImplicitRegistrationSet* mirs = (MemcachedImplicitRegistrationSet*)irs;
     if (mirs->is_existing())
     {
-      status = delete_irs_action(mirs, trail, store);
+      status = delete_irs_action(mirs, trail, store, stopwatch);
     }
   }
 
@@ -957,17 +1127,18 @@ Store::Status MemcachedCache::delete_irss_action(const std::vector<ImplicitRegis
 
 Store::Status MemcachedCache::get_ims_subscription(const std::string& impi,
                                                    SAS::TrailId trail,
+                                                   Utils::StopWatch* stopwatch,
                                                    ImsSubscription*& result)
 {
   Store::Status status;
 
   ImpuStore::ImpiMapping* mapping = nullptr;
-  status = get_impi_mapping_gr(impi, mapping, trail);
+  status = get_impi_mapping_gr(impi, mapping, trail, stopwatch);
 
   if (status == Store::Status::OK)
   {
     std::vector<ImplicitRegistrationSet*> irs;
-    status = get_implicit_registration_sets_for_impus(mapping->get_default_impus(), trail, irs);
+    status = get_implicit_registration_sets_for_impus(mapping->get_default_impus(), trail, stopwatch, irs);
 
     if (status == Store::Status::OK)
     {
@@ -982,17 +1153,19 @@ Store::Status MemcachedCache::get_ims_subscription(const std::string& impi,
 
 Store::Status MemcachedCache::put_ims_subscription(ImsSubscription* subscription,
                                                    progress_callback progress_cb,
-                                                   SAS::TrailId trail)
+                                                   SAS::TrailId trail,
+                                                   Utils::StopWatch* stopwatch)
 {
   store_action action =
-    std::bind(&MemcachedCache::put_ims_sub_action, this, subscription, trail, _1);
-  Store::Status status = perform(action, progress_cb);
+    std::bind(&MemcachedCache::put_ims_sub_action, this, subscription, trail, _1, _2);
+  Store::Status status = perform(action, progress_cb, stopwatch);
   return status;
 }
 
 Store::Status MemcachedCache::put_ims_sub_action(ImsSubscription* subscription,
                                                  SAS::TrailId trail,
-                                                 ImpuStore* store)
+                                                 ImpuStore* store,
+                                                 Utils::StopWatch* stopwatch)
 {
   Store::Status status = Store::Status::OK;
 
@@ -1001,7 +1174,7 @@ Store::Status MemcachedCache::put_ims_sub_action(ImsSubscription* subscription,
   for (BaseImsSubscription::Irs::value_type& irs : mis->get_irs())
   {
     MemcachedImplicitRegistrationSet* mirs = (MemcachedImplicitRegistrationSet*)irs.second;
-    put_irs_action(mirs, trail, store);
+    put_irs_action(mirs, trail, store, stopwatch);
   }
 
   return status;

@@ -205,7 +205,8 @@ HsProvHssConnection::HsProvHssConnection(StatisticsManager* stats_manager,
 // Send a multimedia auth request to the HSS
 void HsProvHssConnection::send_multimedia_auth_request(maa_cb callback,
                                                        MultimediaAuthRequest request,
-                                                       SAS::TrailId trail)
+                                                       SAS::TrailId trail,
+                                                       Utils::StopWatch* stopwatch)
 {
   SAS::Event event(trail, SASEvent::HSPROV_GET_AV, 0);
   event.add_var_param(request.impi);
@@ -226,7 +227,8 @@ void HsProvHssConnection::send_multimedia_auth_request(maa_cb callback,
 // Send a user auth request to the HSS
 void HsProvHssConnection::send_user_auth_request(uaa_cb callback,
                                                  UserAuthRequest request,
-                                                 SAS::TrailId trail)
+                                                 SAS::TrailId trail,
+                                                 Utils::StopWatch* stopwatch)
 {
   SAS::Event event(trail, SASEvent::ICSCF_NO_HSS, 0);
   SAS::report_event(event);
@@ -244,7 +246,8 @@ void HsProvHssConnection::send_user_auth_request(uaa_cb callback,
 // Send a location info request to the HSS
 void HsProvHssConnection::send_location_info_request(lia_cb callback,
                                                      LocationInfoRequest request,
-                                                     SAS::TrailId trail)
+                                                     SAS::TrailId trail,
+                                                     Utils::StopWatch* stopwatch)
 {
   SAS::Event event(trail, SASEvent::ICSCF_NO_HSS_CHECK_CASSANDRA, 0);
   SAS::report_event(event);
@@ -263,7 +266,8 @@ void HsProvHssConnection::send_location_info_request(lia_cb callback,
 // Send a server assignment request to the HSS
 void HsProvHssConnection::send_server_assignment_request(saa_cb callback,
                                                          ServerAssignmentRequest request,
-                                                         SAS::TrailId trail)
+                                                         SAS::TrailId trail,
+                                                         Utils::StopWatch* stopwatch)
 {
   if ((request.type == Cx::ServerAssignmentType::REGISTRATION) ||
       (request.type == Cx::ServerAssignmentType::RE_REGISTRATION) ||

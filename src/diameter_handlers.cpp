@@ -113,7 +113,8 @@ void RegistrationTerminationTask::run()
     _cfg->cache->get_implicit_registration_sets_for_impis(success_cb,
                                                           failure_cb,
                                                           _impis,
-                                                          this->trail());
+                                                          this->trail(),
+                                                          nullptr);
   }
   else if ((!_impus.empty()) && ((_deregistration_reason == PERMANENT_TERMINATION) ||
                                  (_deregistration_reason == REMOVE_SCSCF)))
@@ -130,7 +131,8 @@ void RegistrationTerminationTask::run()
     _cfg->cache->get_implicit_registration_sets_for_impus(success_cb,
                                                           failure_cb,
                                                           _impus,
-                                                          this->trail());
+                                                          this->trail(),
+                                                          nullptr);
   }
   else
   {
@@ -256,7 +258,7 @@ void RegistrationTerminationTask::get_registration_sets_success(std::vector<Impl
     failure_callback failure_cb =
       std::bind(&RegistrationTerminationTask::delete_reg_sets_failure, this, _1);
 
-    _cfg->cache->delete_implicit_registration_sets(success_cb, progress_cb, failure_cb, _reg_sets, this->trail());
+    _cfg->cache->delete_implicit_registration_sets(success_cb, progress_cb, failure_cb, _reg_sets, this->trail(), nullptr);
   }
 }
 
@@ -354,7 +356,7 @@ void PushProfileTask::run()
     failure_callback failure_cb =
       std::bind(&PushProfileTask::on_get_ims_sub_failure, this, _1);
 
-    _cfg->cache->get_ims_subscription(success_cb, failure_cb, _impi, this->trail());
+    _cfg->cache->get_ims_subscription(success_cb, failure_cb, _impi, this->trail(), nullptr);
   }
 }
 
@@ -482,7 +484,7 @@ void PushProfileTask::on_get_ims_sub_success(ImsSubscription* ims_sub)
   failure_callback failure_cb =
     std::bind(&PushProfileTask::on_save_ims_sub_failure, this, _1);
 
-  _cfg->cache->put_ims_subscription(success_cb, progress_cb, failure_cb, _ims_sub, this->trail());
+  _cfg->cache->put_ims_subscription(success_cb, progress_cb, failure_cb, _ims_sub, this->trail(), nullptr);
 }
 
 void PushProfileTask::on_get_ims_sub_failure(Store::Status rc)

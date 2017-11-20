@@ -24,57 +24,65 @@ public:
   MOCK_METHOD0(create_implicit_registration_set,
                ImplicitRegistrationSet*());
 
-  MOCK_METHOD4(get_implicit_registration_set_for_impu,
+  MOCK_METHOD5(get_implicit_registration_set_for_impu,
                void(irs_success_callback success_cb,
                     failure_callback failure_cb,
                     std::string impu,
-                    SAS::TrailId trail));
+                    SAS::TrailId trail,
+                    Utils::StopWatch* stopwatch));
 
-  MOCK_METHOD4(get_implicit_registration_sets_for_impis,
+  MOCK_METHOD5(get_implicit_registration_sets_for_impis,
                void(irs_vector_success_callback success_cb,
                     failure_callback failure_cb,
                     std::vector<std::string> impis,
-                    SAS::TrailId trail));
+                    SAS::TrailId trail,
+                    Utils::StopWatch* stopwatch));
 
-  MOCK_METHOD4(get_implicit_registration_sets_for_impus,
+  MOCK_METHOD5(get_implicit_registration_sets_for_impus,
                void(irs_vector_success_callback success_cb,
                     failure_callback failure_cb,
                     std::vector<std::string> impus,
-                    SAS::TrailId trail));
+                    SAS::TrailId trail,
+                    Utils::StopWatch* stopwatch));
 
-  MOCK_METHOD5(put_implicit_registration_set,
+  MOCK_METHOD6(put_implicit_registration_set,
                void(void_success_cb success_cb,
                     progress_callback progress_cb,
                     failure_callback failure_cb,
                     ImplicitRegistrationSet* irs,
-                    SAS::TrailId trail));
+                    SAS::TrailId trail,
+                    Utils::StopWatch* stopwatch));
 
-  MOCK_METHOD5(delete_implicit_registration_set,
+  MOCK_METHOD6(delete_implicit_registration_set,
                void(void_success_cb success_cb,
                     progress_callback progress_cb,
                     failure_callback failure_cb,
                     ImplicitRegistrationSet* irs,
-                    SAS::TrailId trail));
+                    SAS::TrailId trail,
+                    Utils::StopWatch* stopwatch));
 
-  MOCK_METHOD5(delete_implicit_registration_sets,
+  MOCK_METHOD6(delete_implicit_registration_sets,
                void(void_success_cb success_cb,
                     progress_callback progress_cb,
                     failure_callback failure_cb,
                     std::vector<ImplicitRegistrationSet*> irss,
-                    SAS::TrailId trail));
+                    SAS::TrailId trail,
+                    Utils::StopWatch* stopwatch));
 
-  MOCK_METHOD4(get_ims_subscription,
+  MOCK_METHOD5(get_ims_subscription,
                void(ims_sub_success_cb success_cb,
                     failure_callback failure_cb,
                     std::string impi,
-                    SAS::TrailId trail));
+                    SAS::TrailId trail,
+                    Utils::StopWatch* stopwatch));
 
-  MOCK_METHOD5(put_ims_subscription,
+  MOCK_METHOD6(put_ims_subscription,
                void(void_success_cb success_cb,
                     progress_callback progress_cb,
                     failure_callback failure_cb,
                     ImsSubscription* subscription,
-                    SAS::TrailId trail));
+                    SAS::TrailId trail,
+                    Utils::StopWatch* stopwatch));
 
 };
 

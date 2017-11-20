@@ -243,13 +243,13 @@ public:
                           (dereg_reason == NEW_SERVER_ASSIGNED)))
       {
         // Expect a cache lookup using the provided list of IMPUs
-        EXPECT_CALL(*_cache, get_implicit_registration_sets_for_impus(_, _, IMPUS, FAKE_TRAIL_ID))
+        EXPECT_CALL(*_cache, get_implicit_registration_sets_for_impus(_, _, IMPUS, FAKE_TRAIL_ID, _))
           .WillOnce(InvokeArgument<0>(irss));
       }
       else
       {
         // Expect a cache lookup using the list of IMPIs
-        EXPECT_CALL(*_cache, get_implicit_registration_sets_for_impis(_, _, impis, FAKE_TRAIL_ID))
+        EXPECT_CALL(*_cache, get_implicit_registration_sets_for_impis(_, _, impis, FAKE_TRAIL_ID, _))
           .WillOnce(InvokeArgument<0>(irss));
       }
 
@@ -259,7 +259,7 @@ public:
         .WillOnce(Return(http_ret_code)).RetiresOnSaturation();
 
       // Expect deletions for each IRS
-      EXPECT_CALL(*_cache, delete_implicit_registration_sets(_, _, _, irss, FAKE_TRAIL_ID))
+      EXPECT_CALL(*_cache, delete_implicit_registration_sets(_, _, _, irss, FAKE_TRAIL_ID, _))
         .WillOnce(DoAll(InvokeArgument<1>(), InvokeArgument<0>()));
     }
     else
@@ -520,7 +520,7 @@ TEST_F(DiameterHandlersTest, RTRIncludesBarredImpus)
 
   std::vector<ImplicitRegistrationSet*> irss = { irs };
 
-  EXPECT_CALL(*_cache, get_implicit_registration_sets_for_impus(_, _, IMPU_IN_VECTOR, FAKE_TRAIL_ID))
+  EXPECT_CALL(*_cache, get_implicit_registration_sets_for_impus(_, _, IMPU_IN_VECTOR, FAKE_TRAIL_ID, _))
     .WillOnce(InvokeArgument<0>(irss));
 
   // Expect a delete to be sent to Sprout.
@@ -529,7 +529,7 @@ TEST_F(DiameterHandlersTest, RTRIncludesBarredImpus)
     .WillOnce(Return(200)).RetiresOnSaturation();
 
   // Expect deletions for each IRS
-  EXPECT_CALL(*_cache, delete_implicit_registration_sets(_, _, _, irss, FAKE_TRAIL_ID))
+  EXPECT_CALL(*_cache, delete_implicit_registration_sets(_, _, _, irss, FAKE_TRAIL_ID, _))
     .WillOnce(DoAll(InvokeArgument<1>(), InvokeArgument<0>()));
 
   task->run();
@@ -585,7 +585,7 @@ TEST_F(DiameterHandlersTest, RTRIncludesBarringIndication)
 
   std::vector<ImplicitRegistrationSet*> irss = { irs };
 
-  EXPECT_CALL(*_cache, get_implicit_registration_sets_for_impus(_, _, IMPU_IN_VECTOR, FAKE_TRAIL_ID))
+  EXPECT_CALL(*_cache, get_implicit_registration_sets_for_impus(_, _, IMPU_IN_VECTOR, FAKE_TRAIL_ID, _))
     .WillOnce(InvokeArgument<0>(irss));
 
   // Expect a delete to be sent to Sprout.
@@ -594,7 +594,7 @@ TEST_F(DiameterHandlersTest, RTRIncludesBarringIndication)
     .WillOnce(Return(200)).RetiresOnSaturation();
 
   // Expect deletions for each IRS
-  EXPECT_CALL(*_cache, delete_implicit_registration_sets(_, _, _, irss, FAKE_TRAIL_ID))
+  EXPECT_CALL(*_cache, delete_implicit_registration_sets(_, _, _, irss, FAKE_TRAIL_ID, _))
     .WillOnce(DoAll(InvokeArgument<1>(), InvokeArgument<0>()));
 
   task->run();
@@ -642,7 +642,7 @@ TEST_F(DiameterHandlersTest, RTRNoRegSets)
 
   // The cache returns an empty vectory
   std::vector<ImplicitRegistrationSet*> irss = {};
-  EXPECT_CALL(*_cache, get_implicit_registration_sets_for_impus(_, _, IMPUS, FAKE_TRAIL_ID))
+  EXPECT_CALL(*_cache, get_implicit_registration_sets_for_impus(_, _, IMPUS, FAKE_TRAIL_ID, _))
     .WillOnce(InvokeArgument<0>(irss));
 
   task->run();
@@ -687,7 +687,7 @@ TEST_F(DiameterHandlersTest, RTRCacheError)
   std::vector<std::string> impis = { IMPI, ASSOCIATED_IDENTITY1, ASSOCIATED_IDENTITY2 };
 
   // The cache will return ERROR
-  EXPECT_CALL(*_cache, get_implicit_registration_sets_for_impus(_, _, IMPUS, FAKE_TRAIL_ID))
+  EXPECT_CALL(*_cache, get_implicit_registration_sets_for_impus(_, _, IMPUS, FAKE_TRAIL_ID, _))
     .WillOnce(InvokeArgument<1>(Store::Status::ERROR));
 
   task->run();
@@ -720,7 +720,7 @@ TEST_F(DiameterHandlersTest, PPRMainline)
   MockImsSubscription* sub = new MockImsSubscription();
 
   // Expect that we'll look up the ImsSubscription for the provided IMPI
-  EXPECT_CALL(*_cache, get_ims_subscription(_, _, IMPI, FAKE_TRAIL_ID))
+  EXPECT_CALL(*_cache, get_ims_subscription(_, _, IMPI, FAKE_TRAIL_ID, _))
     .WillOnce(InvokeArgument<0>(sub));
 
   // Expect that we'll request the IRS for the default IMPU from the ImsSubscription
@@ -732,7 +732,7 @@ TEST_F(DiameterHandlersTest, PPRMainline)
     .Times(1);
 
   // We'll then save the ImsSubscription in the cache
-  EXPECT_CALL(*_cache, put_ims_subscription(_, _, _, sub, FAKE_TRAIL_ID))
+  EXPECT_CALL(*_cache, put_ims_subscription(_, _, _, sub, FAKE_TRAIL_ID, _))
     .WillOnce(DoAll(InvokeArgument<1>(), InvokeArgument<0>()));
 
   // And notify Sprout
@@ -769,7 +769,7 @@ TEST_F(DiameterHandlersTest, PPRChangeIDs)
   MockImsSubscription* sub = new MockImsSubscription();
 
   // Expect that we'll look up the ImsSubscription for the provided IMPI
-  EXPECT_CALL(*_cache, get_ims_subscription(_, _, IMPI, FAKE_TRAIL_ID))
+  EXPECT_CALL(*_cache, get_ims_subscription(_, _, IMPI, FAKE_TRAIL_ID, _))
     .WillOnce(InvokeArgument<0>(sub));
 
   // Expect that we'll request the IRS for the default IMPU from the ImsSubscription
@@ -784,7 +784,7 @@ TEST_F(DiameterHandlersTest, PPRChangeIDs)
   ppr_sprout_connection(IMPU, IMPU_IMS_SUBSCRIPTION, HTTP_OK);
 
   // We'll then save the ImsSubscription in the cache
-  EXPECT_CALL(*_cache, put_ims_subscription(_, _, _, sub, FAKE_TRAIL_ID))
+  EXPECT_CALL(*_cache, put_ims_subscription(_, _, _, sub, FAKE_TRAIL_ID, _))
     .WillOnce(DoAll(InvokeArgument<1>(), InvokeArgument<0>()));
 
   ppr_expect_ppa();
@@ -823,7 +823,7 @@ TEST_F(DiameterHandlersTest, PPRChangeIDsServerError)
   MockImsSubscription* sub = new MockImsSubscription();
 
   // Expect that we'll look up the ImsSubscription for the provided IMPI
-  EXPECT_CALL(*_cache, get_ims_subscription(_, _, IMPI, FAKE_TRAIL_ID))
+  EXPECT_CALL(*_cache, get_ims_subscription(_, _, IMPI, FAKE_TRAIL_ID, _))
     .WillOnce(InvokeArgument<0>(sub));
 
   // Expect that we'll request the IRS for the default IMPU from the ImsSubscription
@@ -859,7 +859,7 @@ TEST_F(DiameterHandlersTest, PPRChargingAddrs)
   MockImsSubscription* sub = new MockImsSubscription();
 
   // Expect that we'll look up the ImsSubscription for the provided IMPI
-  EXPECT_CALL(*_cache, get_ims_subscription(_, _, IMPI, FAKE_TRAIL_ID))
+  EXPECT_CALL(*_cache, get_ims_subscription(_, _, IMPI, FAKE_TRAIL_ID, _))
     .WillOnce(InvokeArgument<0>(sub));
 
   // Expect that we'll set the charging addresses on the ImsSubscription
@@ -868,7 +868,7 @@ TEST_F(DiameterHandlersTest, PPRChargingAddrs)
     .Times(1);
 
   // We'll then save the ImsSubscription in the cache
-  EXPECT_CALL(*_cache, put_ims_subscription(_, _, _, sub, FAKE_TRAIL_ID))
+  EXPECT_CALL(*_cache, put_ims_subscription(_, _, _, sub, FAKE_TRAIL_ID, _))
     .WillOnce(DoAll(InvokeArgument<1>(), InvokeArgument<0>()));
 
   ppr_expect_ppa();
@@ -896,7 +896,7 @@ TEST_F(DiameterHandlersTest, PPRImsSub)
   MockImsSubscription* sub = new MockImsSubscription();
 
   // Expect that we'll look up the ImsSubscription for the provided IMPI
-  EXPECT_CALL(*_cache, get_ims_subscription(_, _, IMPI, FAKE_TRAIL_ID))
+  EXPECT_CALL(*_cache, get_ims_subscription(_, _, IMPI, FAKE_TRAIL_ID, _))
     .WillOnce(InvokeArgument<0>(sub));
 
   // Expect that we'll request the IRS for the default IMPU from the ImsSubscription
@@ -906,7 +906,7 @@ TEST_F(DiameterHandlersTest, PPRImsSub)
   ppr_sprout_connection(IMPU, IMS_SUBSCRIPTION, HTTP_OK);
 
   // We'll then save the ImsSubscription in the cache
-  EXPECT_CALL(*_cache, put_ims_subscription(_, _, _, sub, FAKE_TRAIL_ID))
+  EXPECT_CALL(*_cache, put_ims_subscription(_, _, _, sub, FAKE_TRAIL_ID, _))
     .WillOnce(DoAll(InvokeArgument<1>(), InvokeArgument<0>()));
 
   ppr_expect_ppa();
@@ -942,7 +942,7 @@ TEST_F(DiameterHandlersTest, PPRIMSSubNoSIPURI)
   MockImsSubscription* sub = new MockImsSubscription();
 
   // Expect that we'll look up the ImsSubscription for the provided IMPI
-  EXPECT_CALL(*_cache, get_ims_subscription(_, _, IMPI, FAKE_TRAIL_ID))
+  EXPECT_CALL(*_cache, get_ims_subscription(_, _, IMPI, FAKE_TRAIL_ID, _))
     .WillOnce(InvokeArgument<0>(sub));
 
   // Expect that we'll request the IRS for the default IMPU from the ImsSubscription
@@ -952,7 +952,7 @@ TEST_F(DiameterHandlersTest, PPRIMSSubNoSIPURI)
   ppr_sprout_connection(TEL_URI, TEL_URIS_IMS_SUBSCRIPTION, HTTP_OK);
 
   // We'll then save the ImsSubscription in the cache
-  EXPECT_CALL(*_cache, put_ims_subscription(_, _, _, sub, FAKE_TRAIL_ID))
+  EXPECT_CALL(*_cache, put_ims_subscription(_, _, _, sub, FAKE_TRAIL_ID, _))
     .WillOnce(DoAll(InvokeArgument<1>(), InvokeArgument<0>()));
 
   ppr_expect_ppa();
@@ -988,7 +988,7 @@ TEST_F(DiameterHandlersTest, PPRCacheFailure)
   MockImsSubscription* sub = new MockImsSubscription();
 
   // Expect that we'll look up the ImsSubscription for the provided IMPI
-  EXPECT_CALL(*_cache, get_ims_subscription(_, _, IMPI, FAKE_TRAIL_ID))
+  EXPECT_CALL(*_cache, get_ims_subscription(_, _, IMPI, FAKE_TRAIL_ID, _))
     .WillOnce(InvokeArgument<0>(sub));
 
   // Expect that we'll request the IRS for the default IMPU from the ImsSubscription
@@ -998,7 +998,7 @@ TEST_F(DiameterHandlersTest, PPRCacheFailure)
   ppr_sprout_connection(IMPU, IMS_SUBSCRIPTION, HTTP_OK);
 
   // We'll then save the ImsSubscription in the cache, which will give an error
-  EXPECT_CALL(*_cache, put_ims_subscription(_, _, _, sub, FAKE_TRAIL_ID))
+  EXPECT_CALL(*_cache, put_ims_subscription(_, _, _, sub, FAKE_TRAIL_ID, _))
     .WillOnce(InvokeArgument<2>(Store::Status::ERROR));
 
   ppr_expect_ppa();
@@ -1024,7 +1024,7 @@ TEST_F(DiameterHandlersTest, PPRGetRegSetFailure)
 
   // Expect that we'll look up the ImsSubscription for the provided IMPI, which
   // will fail
-  EXPECT_CALL(*_cache, get_ims_subscription(_, _, IMPI, FAKE_TRAIL_ID))
+  EXPECT_CALL(*_cache, get_ims_subscription(_, _, IMPI, FAKE_TRAIL_ID, _))
     .WillOnce(InvokeArgument<1>(Store::Status::ERROR));
 
   ppr_expect_ppa();
@@ -1063,7 +1063,7 @@ TEST_F(DiameterHandlersTest, PPRChangesDefaultRejected)
   MockImsSubscription* sub = new MockImsSubscription();
 
   // Expect that we'll look up the ImsSubscription for the provided IMPI
-  EXPECT_CALL(*_cache, get_ims_subscription(_, _, IMPI, FAKE_TRAIL_ID))
+  EXPECT_CALL(*_cache, get_ims_subscription(_, _, IMPI, FAKE_TRAIL_ID, _))
     .WillOnce(InvokeArgument<0>(sub));
 
   // Expect that we'll request the IRS for the default IMPU from the ImsSubscription,

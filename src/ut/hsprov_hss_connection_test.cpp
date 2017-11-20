@@ -207,7 +207,7 @@ TEST_F(HsProvHssConnectionTest, SendMAR)
   EXPECT_DO_ASYNC(*_mock_store, mock_op);
 
   // Send the MAR
-  _hss_connection->send_multimedia_auth_request(MAA_CB, request, FAKE_TRAIL_ID);
+  _hss_connection->send_multimedia_auth_request(MAA_CB, request, FAKE_TRAIL_ID, nullptr);
 
   // Confirm the transaction is not NULL, and specify an auth vector to be
   // returned
@@ -258,7 +258,7 @@ TEST_F(HsProvHssConnectionTest, SendMARNotFound)
   EXPECT_DO_ASYNC(*_mock_store, mock_op);
 
   // Send the MAR
-  _hss_connection->send_multimedia_auth_request(MAA_CB, request, FAKE_TRAIL_ID);
+  _hss_connection->send_multimedia_auth_request(MAA_CB, request, FAKE_TRAIL_ID, nullptr);
 
   // Confirm the transaction is not NULL
   CassandraStore::Transaction* t = mock_op.get_trx();
@@ -299,7 +299,7 @@ TEST_F(HsProvHssConnectionTest, SendMAROtherError)
   EXPECT_DO_ASYNC(*_mock_store, mock_op);
 
   // Send the MAR
-  _hss_connection->send_multimedia_auth_request(MAA_CB, request, FAKE_TRAIL_ID);
+  _hss_connection->send_multimedia_auth_request(MAA_CB, request, FAKE_TRAIL_ID, nullptr);
 
   // Confirm the transaction is not NULL
   CassandraStore::Transaction* t = mock_op.get_trx();
@@ -342,7 +342,7 @@ TEST_F(HsProvHssConnectionTest, SendUAR)
           Field(&HssConnection::UserAuthAnswer::_server_name, SERVER_NAME)))).Times(1).RetiresOnSaturation();
 
   // Send the UAR
-  _hss_connection->send_user_auth_request(UAA_CB, request, FAKE_TRAIL_ID);
+  _hss_connection->send_user_auth_request(UAA_CB, request, FAKE_TRAIL_ID, nullptr);
 }
 
 //
@@ -366,7 +366,7 @@ TEST_F(HsProvHssConnectionTest, SendLIR)
   EXPECT_DO_ASYNC(*_mock_store, mock_op);
 
   // Send the LIR
-  _hss_connection->send_location_info_request(LIA_CB, request, FAKE_TRAIL_ID);
+  _hss_connection->send_location_info_request(LIA_CB, request, FAKE_TRAIL_ID, nullptr);
 
   // Confirm the transaction is not NULL
   CassandraStore::Transaction* t = mock_op.get_trx();
@@ -409,7 +409,7 @@ TEST_F(HsProvHssConnectionTest, SendLIRNotFound)
   EXPECT_DO_ASYNC(*_mock_store, mock_op);
 
   // Send the LIR
-  _hss_connection->send_location_info_request(LIA_CB, request, FAKE_TRAIL_ID);
+  _hss_connection->send_location_info_request(LIA_CB, request, FAKE_TRAIL_ID, nullptr);
 
   // Confirm the transaction is not NULL
   CassandraStore::Transaction* t = mock_op.get_trx();
@@ -446,7 +446,7 @@ TEST_F(HsProvHssConnectionTest, SendLIROtherError)
   EXPECT_DO_ASYNC(*_mock_store, mock_op);
 
   // Send the LIR
-  _hss_connection->send_location_info_request(LIA_CB, request, FAKE_TRAIL_ID);
+  _hss_connection->send_location_info_request(LIA_CB, request, FAKE_TRAIL_ID, nullptr);
 
   // Confirm the transaction is not NULL
   CassandraStore::Transaction* t = mock_op.get_trx();
@@ -490,7 +490,7 @@ TEST_F(HsProvHssConnectionTest, SendSAR)
   EXPECT_DO_ASYNC(*_mock_store, mock_op);
 
   // Send the SAR
-  _hss_connection->send_server_assignment_request(SAA_CB, request, FAKE_TRAIL_ID);
+  _hss_connection->send_server_assignment_request(SAA_CB, request, FAKE_TRAIL_ID, nullptr);
 
   // Confirm the transaction is not NULL
   CassandraStore::Transaction* t = mock_op.get_trx();
@@ -540,7 +540,7 @@ TEST_F(HsProvHssConnectionTest, SendSARNotFound)
   EXPECT_DO_ASYNC(*_mock_store, mock_op);
 
   // Send the SAR
-  _hss_connection->send_server_assignment_request(SAA_CB, request, FAKE_TRAIL_ID);
+  _hss_connection->send_server_assignment_request(SAA_CB, request, FAKE_TRAIL_ID, nullptr);
 
   // Confirm the transaction is not NULL
   CassandraStore::Transaction* t = mock_op.get_trx();
@@ -581,7 +581,7 @@ TEST_F(HsProvHssConnectionTest, SendSARError)
   EXPECT_DO_ASYNC(*_mock_store, mock_op);
 
   // Send the SAR
-  _hss_connection->send_server_assignment_request(SAA_CB, request, FAKE_TRAIL_ID);
+  _hss_connection->send_server_assignment_request(SAA_CB, request, FAKE_TRAIL_ID, nullptr);
 
   // Confirm the transaction is not NULL
   CassandraStore::Transaction* t = mock_op.get_trx();
@@ -619,5 +619,5 @@ TEST_F(HsProvHssConnectionTest, SendSARDeReg)
     .Times(1).RetiresOnSaturation();
 
   // Send the SAR
-  _hss_connection->send_server_assignment_request(SAA_CB, request, FAKE_TRAIL_ID);
+  _hss_connection->send_server_assignment_request(SAA_CB, request, FAKE_TRAIL_ID, nullptr);
 }

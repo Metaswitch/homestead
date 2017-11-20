@@ -99,7 +99,7 @@ void ImpiTask::send_mar()
     std::bind(&ImpiTask::on_mar_response, this, _1);
 
   // Send the request
-  _hss->send_multimedia_auth_request(callback, request, this->trail());
+  _hss->send_multimedia_auth_request(callback, request, this->trail(), _req.get_stopwatch());
 }
 
 void ImpiTask::on_mar_response(const HssConnection::MultimediaAuthAnswer& maa)
@@ -345,7 +345,7 @@ void ImpiRegistrationStatusTask::run()
     std::bind(&ImpiRegistrationStatusTask::on_uar_response, this, _1);
 
   // Send the request
-  _hss->send_user_auth_request(callback, request, this->trail());
+  _hss->send_user_auth_request(callback, request, this->trail(), _req.get_stopwatch());
 }
 
 void ImpiRegistrationStatusTask::on_uar_response(const HssConnection::UserAuthAnswer& uaa)
@@ -465,7 +465,7 @@ void ImpuLocationInfoTask::run()
     std::bind(&ImpuLocationInfoTask::on_lir_response, this, _1);
 
   // Send the request
-  _hss->send_location_info_request(callback, request, this->trail());
+  _hss->send_location_info_request(callback, request, this->trail(), _req.get_stopwatch());
 }
 
 void ImpuLocationInfoTask::on_lir_response(const HssConnection::LocationInfoAnswer& lia)
@@ -770,7 +770,8 @@ void ImpuRegDataTask::get_reg_data()
   _cache->get_implicit_registration_set_for_impu(success_cb,
                                                  failure_cb,
                                                  public_id(),
-                                                 this->trail());
+                                                 this->trail(),
+                                                 _req.get_stopwatch());
 }
 
 std::string regstate_to_str(RegistrationState state)
@@ -1075,7 +1076,7 @@ void ImpuRegDataTask::send_server_assignment_request(Cx::ServerAssignmentType ty
     std::bind(&ImpuRegDataTask::on_sar_response, this, _1);
 
   // Send the request
-  _hss->send_server_assignment_request(callback, request, this->trail());
+  _hss->send_server_assignment_request(callback, request, this->trail(), _req.get_stopwatch());
 }
 
 void ImpuRegDataTask::put_in_cache()
@@ -1140,7 +1141,7 @@ void ImpuRegDataTask::put_in_cache()
       std::bind(&ImpuRegDataTask::on_put_reg_data_failure, this, _1);
 
     // Cache the IRS
-    _cache->put_implicit_registration_set(success_cb, progress_cb, failure_cb, _irs, this->trail());
+    _cache->put_implicit_registration_set(success_cb, progress_cb, failure_cb, _irs, this->trail(), _req.get_stopwatch());
   }
   else
   {
@@ -1297,7 +1298,7 @@ void ImpuRegDataTask::on_sar_response(const HssConnection::ServerAssignmentAnswe
     failure_callback failure_cb =
       std::bind(&ImpuRegDataTask::on_del_impu_failure, this, _1);
 
-    _cache->delete_implicit_registration_set(success_cb, progress_cb, failure_cb, _irs, this->trail());
+    _cache->delete_implicit_registration_set(success_cb, progress_cb, failure_cb, _irs, this->trail(), _req.get_stopwatch());
     pending_cache_op = true;
   }
 

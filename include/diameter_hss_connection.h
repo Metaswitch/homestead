@@ -52,22 +52,26 @@ public:
   // Send a multimedia auth request to the HSS
   virtual void send_multimedia_auth_request(maa_cb callback,
                                             MultimediaAuthRequest request,
-                                            SAS::TrailId trail);
+                                            SAS::TrailId trail,
+                                            Utils::StopWatch* stopwatch);
 
   // Send a user auth request to the HSS
   virtual void send_user_auth_request(uaa_cb callback,
                                       UserAuthRequest request,
-                                      SAS::TrailId trail);
+                                      SAS::TrailId trail,
+                                      Utils::StopWatch* stopwatch);
 
   // Send a location info request to the HSS
   virtual void send_location_info_request(lia_cb callback,
                                           LocationInfoRequest request,
-                                          SAS::TrailId trail);
+                                          SAS::TrailId trail,
+                                          Utils::StopWatch* stopwatch);
 
   // Send a server assignment request to the HSS
   virtual void send_server_assignment_request(saa_cb callback,
                                               ServerAssignmentRequest request,
-                                              SAS::TrailId trail);
+                                              SAS::TrailId trail,
+                                              Utils::StopWatch* stopwatch);
 
 private:
   Cx::Dictionary* _dict;
@@ -88,12 +92,14 @@ private:
                         StatsFlags stat_updates,
                         callback_t response_clbk,
                         SNMP::CxCounterTable* cx_results_tbl,
-                        StatisticsManager* stats_manager) :
+                        StatisticsManager* stats_manager,
+                        Utils::StopWatch* stopwatch) :
       Diameter::Transaction(dict, trail),
       _stat_updates(stat_updates),
       _response_clbk(response_clbk),
       _cx_results_tbl(cx_results_tbl),
-      _stats_manager(stats_manager)
+      _stats_manager(stats_manager),
+      _stopwatch(stopwatch)
     {};
 
   protected:
@@ -101,6 +107,7 @@ private:
     callback_t _response_clbk;
     SNMP::CxCounterTable* _cx_results_tbl;
     StatisticsManager* _stats_manager;
+    Utils::StopWatch* _stopwatch;
 
     // Implementations will use this to create the correct answer
     virtual AnswerType create_answer(Diameter::Message& rsp) = 0;
