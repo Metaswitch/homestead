@@ -840,7 +840,7 @@ int main(int argc, char**argv)
   SNMP::CxCounterTable* rtr_results_table = SNMP::CxCounterTable::create("cx_rtr_results",
                                                                          ".1.2.826.0.1.1578918.9.5.15");
   SNMP::EventAccumulatorByScopeTable* memcached_queue_size_table =
-    SNMP::EventAccumulatorByScopeTable::create("H_memcached_queue_size",
+    SNMP::EventAccumulatorByScopeTable::create("memcached_queue_size",
                                                ".1.2.826.0.1.1578918.9.5.16");
 
   // Must happen after all SNMP tables have been registered.
