@@ -839,8 +839,8 @@ int main(int argc, char**argv)
                                                                          ".1.2.826.0.1.1578918.9.5.14");
   SNMP::CxCounterTable* rtr_results_table = SNMP::CxCounterTable::create("cx_rtr_results",
                                                                          ".1.2.826.0.1.1578918.9.5.15");
-  SNMP::EventAccumulatorByScopeTable* memcached_queue_size_table =
-    SNMP::EventAccumulatorByScopeTable::create("memcached_queue_size",
+  SNMP::EventAccumulatorByScopeTable* cache_queue_size_table =
+    SNMP::EventAccumulatorByScopeTable::create("cache_queue_size",
                                                ".1.2.826.0.1.1578918.9.5.16");
 
   // Must happen after all SNMP tables have been registered.
@@ -914,7 +914,7 @@ int main(int argc, char**argv)
   bool started = cache_processor->start_threads(options.cache_threads,
                                                 exception_handler,
                                                 0,
-                                                memcached_queue_size_table);
+                                                cache_queue_size_table);
   if (!started)
   {
     CL_HOMESTEAD_CACHE_INIT_FAIL.log();
@@ -1246,7 +1246,7 @@ int main(int argc, char**argv)
   delete lir_results_table; lir_results_table = NULL;
   delete ppr_results_table; ppr_results_table = NULL;
   delete rtr_results_table; rtr_results_table = NULL;
-  delete memcached_queue_size_table; memcached_queue_size_table = NULL;
+  delete cache_queue_size_table; cache_queue_size_table = NULL;
 
   delete http_stack_sig; http_stack_sig = NULL;
   delete http_stack_mgmt; http_stack_mgmt = NULL;
