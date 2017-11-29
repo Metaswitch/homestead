@@ -25,13 +25,15 @@ HssCacheProcessor::HssCacheProcessor(HssCache* cache) :
 
 bool HssCacheProcessor::start_threads(int num_threads,
                                       ExceptionHandler* exception_handler,
-                                      unsigned int max_queue)
+                                      unsigned int max_queue,
+                                      SNMP::EventAccumulatorByScopeTable* queue_size_table)
 {
   TRC_INFO("Starting threadpool with %d threads", num_threads);
   _thread_pool = new FunctorThreadPool(num_threads,
                                        exception_handler,
                                        exception_callback,
-                                       max_queue);
+                                       max_queue,
+                                       queue_size_table);
 
   return _thread_pool->start();
 }

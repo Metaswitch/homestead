@@ -34,7 +34,8 @@ public:
   // Starts the threadpool with the required number of threads
   bool start_threads(int num_threads,
                      ExceptionHandler* exception_handler,
-                     unsigned int max_queue);
+                     unsigned int max_queue,
+                     SNMP::EventAccumulatorByScopeTable* queue_size_table);
 
   // Stops the threadpool
   void stop();
