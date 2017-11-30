@@ -12,4 +12,17 @@
 . /etc/clearwater/config
 http_ip=$(/usr/share/clearwater/bin/bracket-ipv6-address $local_ip)
 /usr/share/clearwater/bin/poll-http $http_ip:8888
-exit $?
+
+rc=$?
+
+# If the homestead process is not stable, we ignore a non-zero return code and
+# return zero.
+if [ $rc != 0 ]; then
+  /usr/share/clearwater/infrastructure/monit_stability/homestead-stability check
+  if [ $? != 0 ]; then
+    echo "return code $rc ignored" >&2
+    rc=0
+  fi
+fi
+
+exit $rc
