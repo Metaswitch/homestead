@@ -143,8 +143,8 @@ def count_timeouts(table_segment_head):
         _log.debug("Got value {} for timeout OID {}.2.0".format(timeouts[0], table_segment_head))
         return int(timeouts[0])
     else:
-        _log.debug("Timeout OID {}.2.0 entry is empty, possibly homestead process is dead".format(table_segment_head))
         # return a large value as all connections may have timed out.
+        _log.debug("Timeout OID {}.2.0 entry is empty, possibly homestead process is dead".format(table_segment_head))
         return 100
 
 # Perform a single check of the statistics to determine whether the Cx Diameter
