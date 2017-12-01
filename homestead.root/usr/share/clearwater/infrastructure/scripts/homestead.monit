@@ -24,7 +24,7 @@ check process homestead_process with pidfile /var/run/homestead/homestead.pid
 
   # Check the service's resource usage, and abort the process if it's too high. This will
   # generate a core file and trigger diagnostics collection.
-  if memory > 40% then exec "/bin/bash -c '/usr/share/clearwater/infrastructure/monit_stability/homestead-stability abort; /usr/share/clearwater/bin/issue-alarm monit 1500.3; /etc/init.d/homestead abort'"
+  if memory > 40% then exec "/bin/bash -c '/usr/share/clearwater/infrastructure/monit_stability/homestead-stability aborted; /usr/share/clearwater/bin/issue-alarm monit 1500.3; /etc/init.d/homestead abort'"
 
 # Clear any alarms if the process has been running long enough.
 check program homestead_uptime with path /usr/share/clearwater/infrastructure/monit_uptime/check-homestead-uptime
@@ -40,7 +40,7 @@ check program poll_homestead with path "/usr/share/clearwater/bin/poll_homestead
   depends on homestead_process
 
   # Aborting generates a core file and triggers diagnostic collection.
-  if status != 0 for 2 cycles then exec "/bin/bash -c '/usr/share/clearwater/infrastructure/monit_stability/homestead-stability abort; /usr/share/clearwater/bin/issue-alarm monit 1500.3; /etc/init.d/homestead abort'"
+  if status != 0 for 2 cycles then exec "/bin/bash -c '/usr/share/clearwater/infrastructure/monit_stability/homestead-stability aborted; /usr/share/clearwater/bin/issue-alarm monit 1500.3; /etc/init.d/homestead abort'"
 
 
 # Check the Diameter interface. This depends on the Homestead process (and so won't run
@@ -59,7 +59,7 @@ check program check_cx_health with path "/usr/share/clearwater/bin/check_cx_heal
   # (Check for 2 cycles to get round monit's limitation of effectively checking exit codes one cycle
   # late.  If you don't wait for at least 2 consecutive cycles, you can end up with monit erroneously
   # killing homestead twice)
-  if status = 3 for 2 cycles then exec "/bin/bash -c '/usr/share/clearwater/infrastructure/monit_stability/homestead-stability abort; /usr/share/clearwater/bin/issue-alarm monit 1500.3; /usr/share/clearwater/bin/stop_or_abort homestead cx_health 86400'"
+  if status = 3 for 2 cycles then exec "/bin/bash -c '/usr/share/clearwater/infrastructure/monit_stability/homestead-stability aborted; /usr/share/clearwater/bin/issue-alarm monit 1500.3; /usr/share/clearwater/bin/stop_or_abort homestead cx_health 86400'"
 
 EOF
 chmod 0644 /etc/monit/conf.d/homestead.monit
