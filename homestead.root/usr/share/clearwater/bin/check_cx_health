@@ -11,3 +11,16 @@ set -ue
 . /etc/clearwater/config
 
 /usr/share/clearwater/bin/check_cx_health.py "${hss_server_error_tolerance:-20}"
+rc=$?
+
+# If the homestead process is not stable, we ignore a non-zero return code and
+# return zero.
+if [ $rc != 0 ]; then
+  /usr/share/clearwater/infrastructure/monit_stability/homestead-stability check
+  if [ $? != 0 ]; then
+    echo "return code $rc ignored" >&2
+    rc=0
+  fi
+fi
+
+exit $rc
