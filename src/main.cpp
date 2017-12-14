@@ -556,7 +556,8 @@ int init_options(int argc, char**argv, struct options& options)
       break;
 
     case DISABLE_SAS_COMPRESS_LOGS:
-      options.sas_compress_logs = true;
+      TRC_INFO("Compression of SAS logs is disabled");
+      options.sas_compress_logs = false;
       break;
 
     case REQUEST_SHARED_IFCS:
@@ -749,7 +750,7 @@ int main(int argc, char**argv)
   options.pidfile = "";
   options.daemon = false;
   options.sas_signaling_if = false;
-  options.sas_compress_logs = false;
+  options.sas_compress_logs = true;
   options.request_shared_ifcs = false;
 
   if (init_logging_options(argc, argv, options) != 0)
