@@ -414,7 +414,18 @@ void PushProfileTask::on_get_ims_sub_success(ImsSubscription* ims_sub)
     {
       TRC_ERROR("No SIP URI in Implicit Registration Set");
       SAS::Event event(this->trail(), SASEvent::NO_SIP_URI_IN_IRS, 0);
-      event.add_compressed_param(_ims_subscription, &SASEvent::PROFILE_SERVICE_PROFILE);
+
+
+      // JA4
+      if (_cfg->compress_sas_logs)
+      {
+        event.add_compressed_param(_ims_subscription, &SASEvent::PROFILE_SERVICE_PROFILE);
+      }
+      else
+      {
+        event.add_var_param(_ims_subscription);
+      }
+
       SAS::report_event(event);
     }
 
@@ -450,13 +461,29 @@ void PushProfileTask::on_get_ims_sub_success(ImsSubscription* ims_sub)
   {
     // Add the impu and XMl to the SAS event
     put_cache_event.add_var_param(new_default_id);
-    put_cache_event.add_compressed_param(_ims_subscription, &SASEvent::PROFILE_SERVICE_PROFILE);
+
+
+    // JA4
+    if (_cfg->compress_sas_logs)
+    {
+      put_cache_event.add_compressed_param(_ims_subscription, &SASEvent::PROFILE_SERVICE_PROFILE);
+    }
+    else
+    {
+      put_cache_event.add_var_param(_ims_subscription);
+    }
+
   }
   else
   {
     // Put an empty string for the impu, and note that the XML is unchanged
     put_cache_event.add_var_param("");
+
+
+    // JA4
     put_cache_event.add_compressed_param("IMS subscription unchanged", &SASEvent::PROFILE_SERVICE_PROFILE);
+
+
   }
 
   // We now may have to update the charging addresses

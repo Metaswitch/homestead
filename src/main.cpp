@@ -950,8 +950,14 @@ int main(int argc, char**argv)
                                             NULL);
   SproutConnection* sprout_conn = new SproutConnection(http);
   HssConnection::HssConnection* hss_conn = nullptr;
+
+  // JA4
   RegistrationTerminationTask::Config* rtr_config = nullptr;
+
+  // JA4
   PushProfileTask::Config* ppr_config = nullptr;
+
+  // JA4
   Diameter::SpawningHandler<RegistrationTerminationTask, RegistrationTerminationTask::Config>* rtr_task = nullptr;
   Diameter::SpawningHandler<PushProfileTask, PushProfileTask::Config>* ppr_task = nullptr;
   Cx::Dictionary* dict = nullptr;
@@ -981,21 +987,31 @@ int main(int argc, char**argv)
                                 hss_comm_monitor,
                                 realm_counter,
                                 host_counter);
+
+      // JA4
       dict = new Cx::Dictionary();
 
+
+      // JA4
       rtr_config = new RegistrationTerminationTask::Config(cache_processor,
                                                            dict,
                                                            sprout_conn);
+
+      // JA4
       ppr_config = new PushProfileTask::Config(cache_processor,
                                                dict,
-                                               sprout_conn);
+                                               sprout_conn,
+                                               options.sas_compress_logs);
 
+      // JA4
       rtr_task = new Diameter::SpawningHandler<RegistrationTerminationTask, RegistrationTerminationTask::Config>(dict, rtr_config);
       ppr_task = new Diameter::SpawningHandler<PushProfileTask, PushProfileTask::Config>(dict, ppr_config);
 
       diameter_stack->advertize_application(Diameter::Dictionary::Application::AUTH,
                                             dict->TGPP, dict->CX);
       diameter_stack->register_handler(dict->CX, dict->REGISTRATION_TERMINATION_REQUEST, rtr_task);
+
+      // JA4
       diameter_stack->register_handler(dict->CX, dict->PUSH_PROFILE_REQUEST, ppr_task);
       diameter_stack->register_fallback_handler(dict->CX);
       diameter_stack->start();
@@ -1094,7 +1110,8 @@ int main(int argc, char**argv)
   ImpuRegDataTask::Config impu_handler_config(hss_configured,
                                               options.hss_reregistration_time,
                                               record_ttl,
-                                              options.request_shared_ifcs);
+                                              options.request_shared_ifcs,
+                                              options.sas_compress_logs);
 
   HttpStackUtils::PingHandler ping_handler;
   HttpStackUtils::SpawningHandler<ImpiDigestTask, ImpiTask::Config> impi_digest_handler(&impi_handler_config);

@@ -86,14 +86,17 @@ public:
   {
     Config(HssCacheProcessor* _cache,
            Cx::Dictionary* _dict,
-           SproutConnection* _sprout_conn) :
+           SproutConnection* _sprout_conn,
+           bool _compress_sas_logs = true) :
       cache(_cache),
       dict(_dict),
-      sprout_conn(_sprout_conn) {}
+      sprout_conn(_sprout_conn),
+      compress_sas_logs(_compress_sas_logs) {}
 
     HssCacheProcessor* cache;
     Cx::Dictionary* dict;
     SproutConnection* sprout_conn;
+    bool compress_sas_logs;
   };
 
   PushProfileTask(const Diameter::Dictionary* dict,

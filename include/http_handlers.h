@@ -198,16 +198,19 @@ public:
     Config(bool _hss_configured = true,
            int _hss_reregistration_time = 3600,
            int _record_ttl = 7200,
-           bool _support_shared_ifcs = true) :
+           bool _support_shared_ifcs = true,
+           bool _compress_sas_logs = true) :
       hss_configured(_hss_configured),
       hss_reregistration_time(_hss_reregistration_time),
       record_ttl(_record_ttl),
-      support_shared_ifcs(_support_shared_ifcs) {}
+      support_shared_ifcs(_support_shared_ifcs),
+      compress_sas_logs(_compress_sas_logs) {}
 
     bool hss_configured;
     int hss_reregistration_time;
     int record_ttl;
     bool support_shared_ifcs;
+    bool compress_sas_logs;
   };
 
   ImpuRegDataTask(HttpStack::Request& req, const Config* cfg, SAS::TrailId trail) :
