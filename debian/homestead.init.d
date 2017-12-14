@@ -186,6 +186,7 @@ get_daemon_args()
         [ "$diameter_blacklist_duration" = "" ] || DAEMON_ARGS="$DAEMON_ARGS --diameter-blacklist-duration=$diameter_blacklist_duration"
         [ "$dns_timeout" = "" ]                 || DAEMON_ARGS="$DAEMON_ARGS --dns-timeout=$dns_timeout"
         [ "$astaire_blacklist_duration" = "" ]  || DAEMON_ARGS="$DAEMON_ARGS --astaire-blacklist-duration=$astaire_blacklist_duration"
+        [ "$sas_compress_logs" != "N"]          || DAEMON_ARGS="$DAEMON_ARGS --disable-sas-compress-logs"
 }
 
 #

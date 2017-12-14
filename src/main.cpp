@@ -95,6 +95,7 @@ struct options
   std::string pidfile;
   bool daemon;
   bool sas_signaling_if;
+  bool sas_compress_logs;
   bool request_shared_ifcs;
 };
 
@@ -122,6 +123,7 @@ enum OptionTypes
   FORCE_HSS_PEER,
   LOCAL_SITE_NAME,
   SAS_USE_SIGNALING_IF,
+  DISABLE_SAS_COMPRESS_LOGS,
   REQUEST_SHARED_IFCS,
   PIDFILE,
   DAEMON,
@@ -174,6 +176,7 @@ const static struct option long_opt[] =
   {"pidfile",                     required_argument, NULL, PIDFILE},
   {"daemon",                      no_argument,       NULL, DAEMON},
   {"sas-use-signaling-interface", no_argument,       NULL, SAS_USE_SIGNALING_IF},
+  {"disable-sas-compress-logs",   no_argument,       NULL, DISABLE_SAS_COMPRESS_LOGS},
   {"request-shared-ifcs",         no_argument,       NULL, REQUEST_SHARED_IFCS},
   {NULL,                          0,                 NULL, 0},
 };
@@ -246,6 +249,8 @@ void usage(void)
        "     --sas-use-signaling-interface\n"
        "                            Whether SAS traffic is to be dispatched over the signaling network\n"
        "                            interface rather than the default management interface\n"
+       "     --disable-sas-compress-logs\n"
+       "                            Whether compression of SAS logs is disabled (compression is on by default).\n"
        "     --http-blacklist-duration <secs>\n"
        "                            The amount of time to blacklist an HTTP peer when it is unresponsive.\n"
        "     --diameter-blacklist-duration <secs>\n"
@@ -550,6 +555,10 @@ int init_options(int argc, char**argv, struct options& options)
       options.sas_signaling_if = true;
       break;
 
+    case DISABLE_SAS_COMPRESS_LOGS:
+      options.sas_compress_logs = true;
+      break;
+
     case REQUEST_SHARED_IFCS:
       options.request_shared_ifcs = true;
       break;
@@ -740,6 +749,7 @@ int main(int argc, char**argv)
   options.pidfile = "";
   options.daemon = false;
   options.sas_signaling_if = false;
+  options.sas_compress_logs = false;
   options.request_shared_ifcs = false;
 
   if (init_logging_options(argc, argv, options) != 0)
