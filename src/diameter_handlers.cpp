@@ -417,7 +417,7 @@ void PushProfileTask::on_get_ims_sub_success(ImsSubscription* ims_sub)
       Utils::add_sas_param_compressed_if_toggled(event,
                                                  _ims_subscription,
                                                  &SASEvent::PROFILE_SERVICE_PROFILE,
-                                                 _cfg->compress_sas_logs)
+                                                 _cfg->compress_sas_logs);
       SAS::report_event(event);
     }
 
