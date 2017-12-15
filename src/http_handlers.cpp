@@ -806,7 +806,7 @@ void ImpuRegDataTask::on_get_reg_data_success(ImplicitRegistrationSet* irs)
   Utils::add_sas_param_compressed_if_toggled(event,
                                              service_profile,
                                              &SASEvent::PROFILE_SERVICE_PROFILE,
-                                             _cfg.compress_sas_logs);
+                                             _cfg->compress_sas_logs);
   event.add_static_param(reg_state);
   std::string associated_impis_str = boost::algorithm::join(associated_impis, ", ");
   event.add_var_param(associated_impis_str);
@@ -1055,7 +1055,7 @@ void ImpuRegDataTask::send_reply()
       Utils::add_sas_param_compressed_if_toggled(event,
                                                  _irs->get_ims_sub_xml(),
                                                  &SASEvent::PROFILE_SERVICE_PROFILE,
-                                                 _cfg.compress_sas_logs);
+                                                 _cfg->compress_sas_logs);
 
 
 
@@ -1124,7 +1124,7 @@ void ImpuRegDataTask::put_in_cache()
         Utils::add_sas_param_compressed_if_toggled(event,
                                                    _irs->get_ims_sub_xml(),
                                                     &SASEvent::PROFILE_SERVICE_PROFILE,
-                                                   _cfg.compress_sas_logs);
+                                                   _cfg->compress_sas_logs);
         SAS::report_event(event);
         // LCOV_EXCL_STOP
       }
@@ -1137,7 +1137,7 @@ void ImpuRegDataTask::put_in_cache()
       Utils::add_sas_param_compressed_if_toggled(event,
                                                  _irs->get_ims_sub_xml(),
                                                  &SASEvent::PROFILE_SERVICE_PROFILE,
-                                                 _cfg.compress_sas_logs);
+                                                 _cfg->compress_sas_logs);
       event.add_static_param(_irs->get_reg_state());
       std::string associated_private_ids_str = boost::algorithm::join(_irs->get_associated_impis(), ", ");
       event.add_var_param(associated_private_ids_str);
