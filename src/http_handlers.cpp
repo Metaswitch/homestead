@@ -803,19 +803,10 @@ void ImpuRegDataTask::on_get_reg_data_success(ImplicitRegistrationSet* irs)
   ChargingAddresses charging_addrs = _irs->get_charging_addresses();
 
   SAS::Event event(this->trail(), SASEvent::CACHE_GET_REG_DATA_SUCCESS, 0);
-
-
-  //JA4
-  if (_cfg->compress_sas_logs)
-  {
-    event.add_compressed_param(service_profile, &SASEvent::PROFILE_SERVICE_PROFILE);
-  }
-  else
-  {
-    event.add_var_param(service_profile);
-  }
-
-
+  Utils::add_sas_param_compressed_if_toggled(event,
+                                             service_profile,
+                                             &SASEvent::PROFILE_SERVICE_PROFILE,
+                                             _cfg.compress_sas_logs);
   event.add_static_param(reg_state);
   std::string associated_impis_str = boost::algorithm::join(associated_impis, ", ");
   event.add_var_param(associated_impis_str);
@@ -1061,17 +1052,11 @@ void ImpuRegDataTask::send_reply()
     else
     {
       SAS::Event event(this->trail(), SASEvent::REG_DATA_HSS_INVALID, 0);
+      Utils::add_sas_param_compressed_if_toggled(event,
+                                                 _irs->get_ims_sub_xml(),
+                                                 &SASEvent::PROFILE_SERVICE_PROFILE,
+                                                 _cfg.compress_sas_logs);
 
-
-      //JA4
-      if (_cfg->compress_sas_logs)
-      {
-        event.add_compressed_param(_irs->get_ims_sub_xml(), &SASEvent::PROFILE_SERVICE_PROFILE);
-      }
-      else
-      {
-        event.add_var_param(_irs->get_ims_sub_xml());
-      }
 
 
       SAS::report_event(event);
@@ -1136,19 +1121,10 @@ void ImpuRegDataTask::put_in_cache()
         // LCOV_EXCL_START - This is essentially tested in the PPR UTs
         TRC_ERROR("No SIP URI in Implicit Registration Set");
         SAS::Event event(this->trail(), SASEvent::NO_SIP_URI_IN_IRS, 0);
-
-
-        //JA4
-        if (_cfg->compress_sas_logs)
-        {
-          event.add_compressed_param(_irs->get_ims_sub_xml(), &SASEvent::PROFILE_SERVICE_PROFILE);
-        }
-        else
-        {
-          event.add_var_param(_irs->get_ims_sub_xml());
-        }
-
-
+        Utils::add_sas_param_compressed_if_toggled(event,
+                                                   _irs->get_ims_sub_xml(),
+                                                    &SASEvent::PROFILE_SERVICE_PROFILE,
+                                                   _cfg.compress_sas_logs);
         SAS::report_event(event);
         // LCOV_EXCL_STOP
       }
@@ -1158,19 +1134,10 @@ void ImpuRegDataTask::put_in_cache()
       SAS::Event event(this->trail(), SASEvent::CACHE_PUT_REG_DATA, 0);
       std::string public_ids_str = boost::algorithm::join(public_ids, ", ");
       event.add_var_param(public_ids_str);
-
-
-      //JA4
-      if (_cfg->compress_sas_logs)
-      {
-        event.add_compressed_param(_irs->get_ims_sub_xml(), &SASEvent::PROFILE_SERVICE_PROFILE);
-      }
-      else
-      {
-        event.add_var_param(_irs->get_ims_sub_xml());
-      }
-
-
+      Utils::add_sas_param_compressed_if_toggled(event,
+                                                 _irs->get_ims_sub_xml(),
+                                                 &SASEvent::PROFILE_SERVICE_PROFILE,
+                                                 _cfg.compress_sas_logs);
       event.add_static_param(_irs->get_reg_state());
       std::string associated_private_ids_str = boost::algorithm::join(_irs->get_associated_impis(), ", ");
       event.add_var_param(associated_private_ids_str);

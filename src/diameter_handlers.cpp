@@ -414,18 +414,10 @@ void PushProfileTask::on_get_ims_sub_success(ImsSubscription* ims_sub)
     {
       TRC_ERROR("No SIP URI in Implicit Registration Set");
       SAS::Event event(this->trail(), SASEvent::NO_SIP_URI_IN_IRS, 0);
-
-
-      // JA4
-      if (_cfg->compress_sas_logs)
-      {
-        event.add_compressed_param(_ims_subscription, &SASEvent::PROFILE_SERVICE_PROFILE);
-      }
-      else
-      {
-        event.add_var_param(_ims_subscription);
-      }
-
+      Utils::add_sas_param_compressed_if_toggled(event,
+                                                 _ims_subscription,
+                                                 &SASEvent::PROFILE_SERVICE_PROFILE,
+                                                 _cfg.compress_sas_logs)
       SAS::report_event(event);
     }
 
@@ -461,29 +453,20 @@ void PushProfileTask::on_get_ims_sub_success(ImsSubscription* ims_sub)
   {
     // Add the impu and XMl to the SAS event
     put_cache_event.add_var_param(new_default_id);
-
-
-    // JA4
-    if (_cfg->compress_sas_logs)
-    {
-      put_cache_event.add_compressed_param(_ims_subscription, &SASEvent::PROFILE_SERVICE_PROFILE);
-    }
-    else
-    {
-      put_cache_event.add_var_param(_ims_subscription);
-    }
-
+    Utils::add_sas_param_compressed_if_toggled(put_cache_event,
+                                               _ims_subscription,
+                                               &SASEvent::PROFILE_SERVICE_PROFILE,
+                                               _cfg.compress_sas_logs);
   }
   else
   {
     // Put an empty string for the impu, and note that the XML is unchanged
     put_cache_event.add_var_param("");
-
-
-    // JA4
-    put_cache_event.add_compressed_param("IMS subscription unchanged", &SASEvent::PROFILE_SERVICE_PROFILE);
-
-
+    put_cache_event.add_var_param(new_default_id);
+    Utils::add_sas_param_compressed_if_toggled(put_cache_event,
+                                               "IMS subscription unchanged",
+                                               &SASEvent::PROFILE_SERVICE_PROFILE,
+                                               _cfg.compress_sas_logs);
   }
 
   // We now may have to update the charging addresses
