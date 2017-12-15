@@ -1697,18 +1697,24 @@ private:
   MemcachedCache* _memcached_cache;
 
   // These allow us to advance time as a side effect of a mock function call
+  // They all actually pause for 5ms too, to avoid some double counting in
+  // the MemcachedCache (which we don't care about in production, as we'd rather
+  // over-count than under-count)
   static void advance_time_10_ms()
   {
+    usleep(5000);
     cwtest_advance_time_ms(10);
   }
 
   static void advance_time_25_ms()
   {
+    usleep(5000);
     cwtest_advance_time_ms(25);
   }
 
   static void advance_time_50_ms()
   {
+    usleep(5000);
     cwtest_advance_time_ms(50);
   }
 };
