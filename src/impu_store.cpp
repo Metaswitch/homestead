@@ -357,8 +357,6 @@ Store::Status ImpuStore::Impu::to_data(std::string& data)
       json = buffer.GetString();
     }
 
-    json.push_back('\0'); // Add a terminating null byte for safety
-
     uncomp_size = json.size();
 
     TRC_DEBUG("Wrote IMPU %s to JSON: %lu bytes", impu.c_str(), uncomp_size);
@@ -489,7 +487,6 @@ Store::Status ImpuStore::ImpiMapping::to_data(std::string& data)
   write_json(writer);
   writer.EndObject();
   data = buffer.GetString();
-  data.push_back('\0'); // Add a terminating null byte for safety
 
   return Store::Status::OK;
 }
@@ -622,7 +619,8 @@ Store::Status ImpuStore::get_impi_mapping(const std::string impi,
                                           impi,
                                           data,
                                           cas,
-                                          trail);
+                                          trail,
+                                          Store::Format::JSON);
 
   if (status == Store::Status::OK)
   {
@@ -662,7 +660,8 @@ Store::Status ImpuStore::set_impi_mapping(ImpiMapping* mapping,
                               data,
                               mapping->cas,
                               mapping->get_expiry() - now,
-                              trail);
+                              trail,
+                              Store::Format::JSON);
   }
 
   return status;
