@@ -102,6 +102,8 @@ private:
       _stopwatch(stopwatch)
     {};
 
+    virtual ~DiameterTransaction() {};
+
   protected:
     StatsFlags _stat_updates;
     callback_t _response_clbk;
@@ -129,6 +131,7 @@ private:
     using DiameterTransaction::DiameterTransaction;
 
     virtual MultimediaAuthAnswer create_answer(Diameter::Message& rsp) override;
+    virtual ~MarDiameterTransaction() {};
   };
 
   class UarDiameterTransaction : public DiameterTransaction<UserAuthAnswer>
@@ -138,6 +141,7 @@ private:
     using DiameterTransaction::DiameterTransaction;
 
     virtual UserAuthAnswer create_answer(Diameter::Message& rsp) override;
+    virtual ~UarDiameterTransaction() {};
   };
 
   class LirDiameterTransaction : public DiameterTransaction<LocationInfoAnswer>
@@ -147,6 +151,7 @@ private:
     using DiameterTransaction::DiameterTransaction;
 
     virtual LocationInfoAnswer create_answer(Diameter::Message& rsp) override;
+    virtual ~LirDiameterTransaction() {};
   };
 
   class SarDiameterTransaction : public DiameterTransaction<ServerAssignmentAnswer>
@@ -156,6 +161,7 @@ private:
     using DiameterTransaction::DiameterTransaction;
 
     virtual ServerAssignmentAnswer create_answer(Diameter::Message& rsp) override;
+    virtual ~SarDiameterTransaction() {};
   };
 };
 
