@@ -63,6 +63,8 @@ public:
       _stats_manager(stats_manager)
     {};
 
+    virtual ~HsProvTransaction() {};
+
   protected:
     callback_t _response_clbk;
     StatisticsManager* _stats_manager;
@@ -92,6 +94,7 @@ public:
     using HsProvTransaction::HsProvTransaction;
 
     virtual MultimediaAuthAnswer create_answer(CassandraStore::Operation* op) override;
+    virtual ~MarHsProvTransaction() {};
   };
 
   class LirHsProvTransaction : public HsProvTransaction<LocationInfoAnswer>
@@ -101,6 +104,7 @@ public:
     using HsProvTransaction::HsProvTransaction;
 
     virtual LocationInfoAnswer create_answer(CassandraStore::Operation* op) override;
+    virtual ~LirHsProvTransaction() {};
   };
 
   class SarHsProvTransaction : public HsProvTransaction<ServerAssignmentAnswer>
@@ -110,6 +114,7 @@ public:
     using HsProvTransaction::HsProvTransaction;
 
     virtual ServerAssignmentAnswer create_answer(CassandraStore::Operation* op) override;
+    virtual ~SarHsProvTransaction() {};
   };
 
 private:
