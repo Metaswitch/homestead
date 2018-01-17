@@ -31,7 +31,7 @@ COMMON_SOURCES := a_record_resolver.cpp \
                   hss_connection.cpp \
                   http_connection_pool.cpp \
                   httpclient.cpp \
-                  httpconnection.cpp \
+                  http_request.cpp \
                   httpstack.cpp \
                   httpstack_utils.cpp \
                   impu_store.cpp \
@@ -87,7 +87,9 @@ homestead_test_SOURCES := ${COMMON_SOURCES} \
                           mockhssconnection.cpp \
                           mockstatisticsmanager.cpp \
                           chargingaddresses_test.cpp \
-                          pthread_cond_var_helper.cpp
+                          pthread_cond_var_helper.cpp \
+                          sproutconnection_test.cpp \
+                          mocksproutconnection.hpp
 
 COMMON_CPPFLAGS := -I../include \
                    -I../usr/include \
