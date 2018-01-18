@@ -17,90 +17,175 @@
 
 using ::testing::Mock;
 using ::testing::Return;
+using ::testing::_;
+
+const SAS::TrailId FAKE_TRAIL_ID = 0x12345678;
 
 class SproutConnectionTest : public testing::Test
 {
-  static MockHttpConnection* mock_http_conn;
-  static SproutConnection* sprout_conn;
-  static MockHttpRequest* mock_http_req;
-  static std::vector<std::string> IMPIS;
-  static std::vector<std::string> IMPUS;
+  static const std::string IMPU;
+  static const std::string IMPI;
+  static const std::vector<std::string> IMPIS;
+  static const std::vector<std::string> IMPUS;
+  static const std::string IMS_SUBSCRIPTION;
+  static const std::string dereg_body;
+  static const std::string dereg_body_no_impis;
+  static const std::string change_ids_body;
 
   SproutConnectionTest()
   {
-    TRC_ERROR("sr2sr2 create test object");
+    _mock_http_conn = new MockHttpConnection();
+    _sprout_conn = new SproutConnection(_mock_http_conn);
+    _mock_http_req = new MockHttpRequest();
   }
 
   virtual ~SproutConnectionTest()
   {
-    TRC_ERROR("sr2sr2 destroy with piointer %p", sprout_conn);
-    Mock::VerifyAndClear(mock_http_conn);
-  }
+    Mock::VerifyAndClear(_mock_http_conn);
+    Mock::VerifyAndClear(_mock_http_req);
 
-  static void SetUpTestCase()
-  {
-    // Common to whole suite
-    TRC_ERROR("sr2sr2 setuptestcase");
-    mock_http_conn = new MockHttpConnection();
-    sprout_conn = new SproutConnection(mock_http_conn);
-    mock_http_req = new MockHttpRequest();
-  }
-
-  static void TearDownTestCase()
-  {
-    TRC_ERROR("sr2sr2 testdown testcase");
     // We don't delete mock_http_conn as the SproutConnection does that for us
-    delete mock_http_req; mock_http_req = nullptr;
-    delete sprout_conn; sprout_conn = nullptr;
+    delete _sprout_conn; _sprout_conn = nullptr;
+
+    // We don't delete the MockHttpRequest, as that will be deleted when the
+    // unique pointer returned from HttpConnection::create_request() goes out of
+    //scope
   }
 
-  virtual void SetUp()
-  {
-    TRC_ERROR("sr2sr2 setup test");
-  }
-  virtual void TearDown()
-  {
-  TRC_ERROR("sr2sr2 teardown test");
-  }
-
-/*
-  void pprsprout_connection(std::string impu, std::string user_data, HTTPCode http_ret_code)
-  {
-    // Expect a PUT to be sent to Sprout.
-    std::string http_path = "/registrations/" + impu;
-    std::string body =sprout_conn->ppr_create_body(user_data);
-
-    EXPECT_CALL(*_mock_http_conn, send_put(http_path, body, _))
-      .Times(1)
-      .WillOnce(Return(http_ret_code));
-  }*/
+  MockHttpConnection* _mock_http_conn;
+  SproutConnection* _sprout_conn;
+  MockHttpRequest* _mock_http_req;
 };
 
-MockHttpConnection* SproutConnectionTest::mock_http_conn;
-SproutConnection* SproutConnectionTest::sprout_conn;
-MockHttpRequest* SproutConnectionTest::mock_http_req;
-std::vector<std::string> SproutConnectionTest::IMPIS = { "_impi1@example.com", "_impi2@example.com" };
-std::vector<std::string> SproutConnectionTest::IMPUS = { "sip:impu1@example.com", "sip:impu2@example.com" };
+const std::string SproutConnectionTest::IMPU = "sip:impu@example.com";
+const std::string SproutConnectionTest::IMPI = "_impi@example.com";
+const std::vector<std::string> SproutConnectionTest::IMPIS = { "_impi1@example.com", "_impi2@example.com" };
+const std::vector<std::string> SproutConnectionTest::IMPUS = { "sip:impu1@example.com", "sip:impu2@example.com" };
+const std::string SproutConnectionTest::IMS_SUBSCRIPTION = "<?xml version=\"1.0\"?><IMSSubscription><PrivateID>" + IMPI + "</PrivateID><ServiceProfile><PublicIdentity><Identity>" + IMPU + "</Identity></PublicIdentity></ServiceProfile></IMSSubscription>";
+const std::string SproutConnectionTest::dereg_body = "{\"registrations\":[{\"primary-impu\":\"sip:impu1@example.com\",\"impi\":\"_impi1@example.com\"},{\"primary-impu\":\"sip:impu1@example.com\",\"impi\":\"_impi2@example.com\"},{\"primary-impu\":\"sip:impu2@example.com\",\"impi\":\"_impi1@example.com\"},{\"primary-impu\":\"sip:impu2@example.com\",\"impi\":\"_impi2@example.com\"}]}";
+const std::string SproutConnectionTest::dereg_body_no_impis = "{\"registrations\":[{\"primary-impu\":\"sip:impu1@example.com\"},{\"primary-impu\":\"sip:impu2@example.com\"}]}";
+const std::string SproutConnectionTest::change_ids_body = "{\"user-data-xml\":\"<?xml version=\\\"1.0\\\"?><IMSSubscription><PrivateID>_impi@example.com</PrivateID><ServiceProfile><PublicIdentity><Identity>sip:impu@example.com</Identity></PublicIdentity></ServiceProfile></IMSSubscription>\"}";
+
 
 TEST_F(SproutConnectionTest, DeregisterBindingsWithNotifications)
 {
-  TRC_ERROR("sr2sr2 have conn");
+  // Create a response that will be returned
   HttpResponse resp(HTTP_OK, "", {});
-  // Expect a delete to be sent to Sprout.
 
-  EXPECT_CALL(*mock_http_conn, create_request_proxy(HttpClient::RequestType::DELETE, "path"))
-    .WillOnce(Return(mock_http_req));
-    // TODO Create the MockHttpRequest at start of day, and return it here
+  // Expect that the SproutConnection will create the correct HttpRequest
+  EXPECT_CALL(*_mock_http_conn,
+              create_request_proxy(HttpClient::RequestType::DELETE,
+                                   "/registrations?send-notifications=true"))
+    .WillOnce(Return(_mock_http_req));
 
-  std::vector<std::string> vec = { "a" };
-  std::vector<std::string> vec2 = {};
+  // Expect that the SproutConnection sets the correct fields on the HttpRequest
+  EXPECT_CALL(*_mock_http_req, set_req_body(dereg_body)).Times(1);
+  EXPECT_CALL(*_mock_http_req, set_sas_trail(FAKE_TRAIL_ID)).Times(1);
 
-  //HttpCode result = sprout_conn->deregister_bindings(true, IMPUS, IMPIS, 0L);
+  // Expect that the request is sent, and set it to return the response
+  EXPECT_CALL(*_mock_http_req, send()).WillOnce(Return(resp));
 
-  //EXPECT_EQ();
+  // Actually deregister_bindings
+  HTTPCode result = _sprout_conn->deregister_bindings(true, IMPUS, IMPIS, FAKE_TRAIL_ID);
 
+  // Expect that we get the correct return code
+  EXPECT_EQ(HTTP_OK, result);
 }
 
-TEST_F(SproutConnectionTest, DeregisterBindingsWithNotifications2)
+TEST_F(SproutConnectionTest, DeregisterBindingsWithoutNotifications)
 {
+  // Create a response that will be returned. This one will return an error
+  HttpResponse resp(HTTP_OK, "", {});
+
+  // Expect that the SproutConnection will create the correct HttpRequest
+  EXPECT_CALL(*_mock_http_conn,
+              create_request_proxy(HttpClient::RequestType::DELETE,
+                                   "/registrations?send-notifications=false"))
+    .WillOnce(Return(_mock_http_req));
+
+  // Expect that the SproutConnection sets the correct fields on the HttpRequest
+  EXPECT_CALL(*_mock_http_req, set_req_body(dereg_body)).Times(1);
+  EXPECT_CALL(*_mock_http_req, set_sas_trail(FAKE_TRAIL_ID)).Times(1);
+
+  // Expect that the request is sent, and set it to return the response
+  EXPECT_CALL(*_mock_http_req, send()).WillOnce(Return(resp));
+
+  // Actually deregister_bindings
+  HTTPCode result = _sprout_conn->deregister_bindings(false, IMPUS, IMPIS, FAKE_TRAIL_ID);
+
+  // Expect that we get the correct return code
+  EXPECT_EQ(HTTP_OK, result);
+}
+
+TEST_F(SproutConnectionTest, DeregisterBindingsEmptyImpis)
+{
+  // Create a response that will be returned
+  HttpResponse resp(HTTP_OK, "", {});
+
+  // Expect that the SproutConnection will create the correct HttpRequest
+  EXPECT_CALL(*_mock_http_conn,
+              create_request_proxy(HttpClient::RequestType::DELETE,
+                                   "/registrations?send-notifications=false"))
+    .WillOnce(Return(_mock_http_req));
+
+  // Expect that the SproutConnection sets the correct fields on the HttpRequest
+  EXPECT_CALL(*_mock_http_req, set_req_body(dereg_body_no_impis)).Times(1);
+  EXPECT_CALL(*_mock_http_req, set_sas_trail(FAKE_TRAIL_ID)).Times(1);
+
+  // Expect that the request is sent, and set it to return the response
+  EXPECT_CALL(*_mock_http_req, send()).WillOnce(Return(resp));
+
+  // Actually deregister_bindings
+  HTTPCode result = _sprout_conn->deregister_bindings(false, IMPUS, {}, FAKE_TRAIL_ID);
+
+  // Expect that we get the correct return code
+  EXPECT_EQ(HTTP_OK, result);
+}
+
+TEST_F(SproutConnectionTest, DeregisterBindingsError)
+{
+  // Create an error response that will be returned
+  HttpResponse resp(HTTP_SERVER_UNAVAILABLE, "", {});
+
+  // Expect that the SproutConnection will create a request
+  EXPECT_CALL(*_mock_http_conn, create_request_proxy(_, _))
+    .WillOnce(Return(_mock_http_req));
+
+  // Expect that the SproutConnection sets some fields on the HttpRequest
+  EXPECT_CALL(*_mock_http_req, set_req_body(_)).Times(1);
+  EXPECT_CALL(*_mock_http_req, set_sas_trail(_)).Times(1);
+
+  // Expect that the request is sent, and set it to return the response
+  EXPECT_CALL(*_mock_http_req, send()).WillOnce(Return(resp));
+
+  // Actually deregister_bindings
+  HTTPCode result = _sprout_conn->deregister_bindings(false, IMPUS, {}, FAKE_TRAIL_ID);
+
+  // Expect that we get the correct return code
+  EXPECT_EQ(HTTP_SERVER_UNAVAILABLE, result);
+}
+
+TEST_F(SproutConnectionTest, ChangeAssociatedIdentities)
+{
+  // Create a response that will be returned
+  HttpResponse resp(HTTP_OK, "", {});
+
+  // Expect that the SproutConnection will create the correct HttpRequest
+  EXPECT_CALL(*_mock_http_conn,
+              create_request_proxy(HttpClient::RequestType::PUT,
+                                   "/registrations/" + IMPU))
+    .WillOnce(Return(_mock_http_req));
+
+  // Expect that the SproutConnection sets the correct fields on the HttpRequest
+  EXPECT_CALL(*_mock_http_req, set_req_body(change_ids_body)).Times(1);
+  EXPECT_CALL(*_mock_http_req, set_sas_trail(FAKE_TRAIL_ID)).Times(1);
+
+  // Expect that the request is sent, and set it to return the response
+  EXPECT_CALL(*_mock_http_req, send()).WillOnce(Return(resp));
+
+  // Change the identities
+  HTTPCode result = _sprout_conn->change_associated_identities(IMPU, IMS_SUBSCRIPTION, FAKE_TRAIL_ID);
+
+  // Expect that we get the correct return code
+  EXPECT_EQ(HTTP_OK, result);
 }
