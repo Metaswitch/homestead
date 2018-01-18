@@ -40,7 +40,7 @@
 #include "mockdiameterstack.hpp"
 #include "fake_implicit_reg_set.h"
 #include "diameter_handlers.h"
-#include "mocksproutconnection.hpp"
+#include "mock_sproutconnection.h"
 
 #include "mockhssconnection.hpp"
 #include "mockhsscacheprocessor.hpp"

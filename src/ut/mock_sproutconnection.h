@@ -1,5 +1,5 @@
 /**
- * @file mocksproutconnection.h
+ * @file mock_sproutconnection.h
  *
  * Copyright (C) Metaswitch Networks 2018
  * If license terms are provided to you in a COPYING file in the root directory
@@ -9,8 +9,8 @@
  * Metaswitch Networks in a separate written agreement.
  */
 
-#ifndef MOCKSPROUTCONNECTION_H__
-#define MOCKSPROUTCONNECTION_H__
+#ifndef MOCK_SPROUTCONNECTION_H__
+#define MOCK_SPROUTCONNECTION_H__
 
 #include "gmock/gmock.h"
 #include "sproutconnection.h"
@@ -18,8 +18,8 @@
 class MockSproutConnection : public SproutConnection
 {
 public:
-  MockSproutConnection() : SproutConnection(nullptr) {};
-  virtual ~MockSproutConnection() {};
+  MockSproutConnection();
+  virtual ~MockSproutConnection();
 
   MOCK_METHOD4(deregister_bindings, HTTPCode(const bool& send_notifications,
                                              const std::vector<std::string>& default_public_ids,

@@ -89,7 +89,9 @@ homestead_test_SOURCES := ${COMMON_SOURCES} \
                           chargingaddresses_test.cpp \
                           pthread_cond_var_helper.cpp \
                           sproutconnection_test.cpp \
-                          mocksproutconnection.hpp
+                          mock_sproutconnection.cpp \
+                          mock_httpconnection.cpp \
+                          mock_http_request.cpp
 
 COMMON_CPPFLAGS := -I../include \
                    -I../usr/include \
