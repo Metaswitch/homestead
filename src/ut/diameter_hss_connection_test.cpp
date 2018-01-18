@@ -34,19 +34,12 @@
 #include "test_interposer.hpp"
 #include "fakelogger.h"
 #include <curl/curl.h>
-
 #include "httpstack_utils.h"
-
 #include "mockdiameterstack.hpp"
-#include "mockhttpstack.hpp"
-#include "mockhttpconnection.hpp"
-#include "fakehttpresolver.hpp"
 #include "mockstatisticsmanager.hpp"
-#include "sproutconnection.h"
 #include "mock_health_checker.hpp"
 #include "fakesnmp.hpp"
 #include "base64.h"
-
 #include "diameter_hss_connection.h"
 
 using ::testing::Return;
