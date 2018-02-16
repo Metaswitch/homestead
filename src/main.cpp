@@ -884,14 +884,7 @@ int main(int argc, char**argv)
                                               options.min_token_rate,
                                               options.max_token_rate);
   DnsCachedResolver* dns_resolver = new DnsCachedResolver(options.dns_servers,
-                                                          options.dns_timeout,
-                                                          "/etc/clearwater/dns.json");
-
-  // Reload dns.json on SIGHUP
-  Updater<void, DnsCachedResolver>* dns_updater =
-         new Updater<void, DnsCachedResolver>(dns_resolver,
-                                              std::mem_fun(&DnsCachedResolver::reload_static_records));
-
+                                                          options.dns_timeout);
   HttpResolver* http_resolver = new HttpResolver(dns_resolver,
                                                  af,
                                                  options.http_blacklist_duration);
@@ -1249,7 +1242,6 @@ int main(int argc, char**argv)
 
 
   delete http_resolver; http_resolver = NULL;
-  delete dns_updater; dns_updater = NULL;
   delete dns_resolver; dns_resolver = NULL;
   delete sprout_conn; sprout_conn = NULL;
   delete realm_counter; realm_counter = NULL;
