@@ -20,7 +20,6 @@ COMMON_SOURCES := a_record_resolver.cpp \
                   diameterstack.cpp \
                   diameterresolver.cpp \
                   dnscachedresolver.cpp \
-                  static_dns_cache.cpp \
                   dnsparser.cpp \
                   exception_handler.cpp \
                   http_handlers.cpp \
