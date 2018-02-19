@@ -45,7 +45,6 @@ COMMON_SOURCES := a_record_resolver.cpp \
                   realmmanager.cpp \
                   saslogger.cpp \
                   sproutconnection.cpp \
-                  static_dns_cache.cpp \
                   statistic.cpp \
                   statisticsmanager.cpp \
                   snmp_agent.cpp \
