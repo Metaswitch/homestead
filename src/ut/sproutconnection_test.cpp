@@ -79,7 +79,7 @@ TEST_F(SproutConnectionTest, DeregisterBindingsWithNotifications)
     .WillOnce(Return(_mock_http_req));
 
   // Expect that the SproutConnection sets the correct fields on the HttpRequest
-  EXPECT_CALL(*_mock_http_req, set_req_body(dereg_body)).Times(1);
+  EXPECT_CALL(*_mock_http_req, set_body(dereg_body)).Times(1);
   EXPECT_CALL(*_mock_http_req, set_sas_trail(FAKE_TRAIL_ID)).Times(1);
 
   // Expect that the request is sent, and set it to return the response
@@ -104,7 +104,7 @@ TEST_F(SproutConnectionTest, DeregisterBindingsWithoutNotifications)
     .WillOnce(Return(_mock_http_req));
 
   // Expect that the SproutConnection sets the correct fields on the HttpRequest
-  EXPECT_CALL(*_mock_http_req, set_req_body(dereg_body)).Times(1);
+  EXPECT_CALL(*_mock_http_req, set_body(dereg_body)).Times(1);
   EXPECT_CALL(*_mock_http_req, set_sas_trail(FAKE_TRAIL_ID)).Times(1);
 
   // Expect that the request is sent, and set it to return the response
@@ -129,7 +129,7 @@ TEST_F(SproutConnectionTest, DeregisterBindingsEmptyImpis)
     .WillOnce(Return(_mock_http_req));
 
   // Expect that the SproutConnection sets the correct fields on the HttpRequest
-  EXPECT_CALL(*_mock_http_req, set_req_body(dereg_body_no_impis)).Times(1);
+  EXPECT_CALL(*_mock_http_req, set_body(dereg_body_no_impis)).Times(1);
   EXPECT_CALL(*_mock_http_req, set_sas_trail(FAKE_TRAIL_ID)).Times(1);
 
   // Expect that the request is sent, and set it to return the response
@@ -152,7 +152,7 @@ TEST_F(SproutConnectionTest, DeregisterBindingsError)
     .WillOnce(Return(_mock_http_req));
 
   // Expect that the SproutConnection sets some fields on the HttpRequest
-  EXPECT_CALL(*_mock_http_req, set_req_body(_)).Times(1);
+  EXPECT_CALL(*_mock_http_req, set_body(_)).Times(1);
   EXPECT_CALL(*_mock_http_req, set_sas_trail(_)).Times(1);
 
   // Expect that the request is sent, and set it to return the response
@@ -177,7 +177,7 @@ TEST_F(SproutConnectionTest, ChangeAssociatedIdentities)
     .WillOnce(Return(_mock_http_req));
 
   // Expect that the SproutConnection sets the correct fields on the HttpRequest
-  EXPECT_CALL(*_mock_http_req, set_req_body(change_ids_body)).Times(1);
+  EXPECT_CALL(*_mock_http_req, set_body(change_ids_body)).Times(1);
   EXPECT_CALL(*_mock_http_req, set_sas_trail(FAKE_TRAIL_ID)).Times(1);
 
   // Expect that the request is sent, and set it to return the response
