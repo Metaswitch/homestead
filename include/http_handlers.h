@@ -51,6 +51,8 @@ public:
     HttpStackUtils::Task(req, trail)
   {};
 
+  virtual ~HssCacheTask() {};
+
   static void configure_hss_connection(HssConnection::HssConnection* hss,
                                        std::string server_name);
   static void configure_cache(HssCacheProcessor* cache);
@@ -122,6 +124,7 @@ public:
     ImpiTask(req, cfg, trail)
   {}
 
+  virtual ~ImpiDigestTask() {};
   bool parse_request();
   void send_reply(const DigestAuthVector& av);
   void send_reply(const AKAAuthVector& av);
@@ -137,6 +140,7 @@ public:
     ImpiTask(req, cfg, trail)
   {}
 
+  virtual ~ImpiAvTask() {};
   bool parse_request();
   void send_reply(const DigestAuthVector& av);
   void send_reply(const AKAAuthVector& av);
@@ -156,6 +160,7 @@ public:
     HssCacheTask(req, trail), _cfg(cfg), _impi(), _impu(), _visited_network(), _authorization_type(), _emergency()
   {}
 
+  virtual ~ImpiRegistrationStatusTask() {};
   void run();
   void on_uar_response(const HssConnection::UserAuthAnswer& uaa);
 
@@ -180,6 +185,7 @@ public:
     HssCacheTask(req, trail), _cfg(cfg), _impu(), _originating(), _authorization_type()
   {}
 
+  virtual ~ImpuLocationInfoTask() {};
   void run();
   void on_lir_response(const HssConnection::LocationInfoAnswer& lia);
 

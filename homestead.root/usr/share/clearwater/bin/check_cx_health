@@ -6,7 +6,9 @@
 # Otherwise no rights are granted except for those provided to you by
 # Metaswitch Networks in a separate written agreement.
 
-set -ue
+# We must not `set -e` here because we check the return codes of commands
+# explicitly
+set -u
 
 . /etc/clearwater/config
 
