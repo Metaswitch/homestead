@@ -155,7 +155,7 @@ void ImpiTask::on_mar_response(const HssConnection::MultimediaAuthAnswer& maa)
   }
   else if (rc == HssConnection::ResultCode::TIMEOUT)
   {
-    TRC_INFO("Timeout error - reject");
+    TRC_ERROR("Timeout error at HSS when attempting MAR - reject with 504");
 
     // We also record a penalty for the purposes of overload control
     record_penalty();
@@ -410,7 +410,7 @@ void ImpiRegistrationStatusTask::on_uar_response(const HssConnection::UserAuthAn
   }
   else if (rc == HssConnection::ResultCode::TIMEOUT)
   {
-    TRC_INFO("Timeout error - reject");
+    TRC_ERROR("Timeout error at HSS when attempting UAR - reject with 504");
 
     // We also record a penalty for the purposes of overload control
     record_penalty();
@@ -526,7 +526,7 @@ void ImpuLocationInfoTask::on_lir_response(const HssConnection::LocationInfoAnsw
   }
   else if (rc == HssConnection::ResultCode::TIMEOUT)
   {
-    TRC_INFO("Timeout error - reject");
+    TRC_ERROR("Timeout error at HSS when attempting LIR - reject with 504");
 
     // We also record a penalty for the purposes of overload control
     record_penalty();
@@ -849,7 +849,7 @@ void ImpuRegDataTask::on_get_reg_data_failure(Store::Status rc)
   else
   {
     // Send a 504 in all other cases (the request won't be retried)
-    TRC_DEBUG("Cache query failed with rc %d", rc);
+    TRC_ERROR("Cache query failed with rc %d - reject with 504", rc);
     SAS::Event event(this->trail(), SASEvent::CACHE_GET_REG_DATA_FAIL, 0);
     SAS::report_event(event);
     send_http_reply(HTTP_GATEWAY_TIMEOUT);
@@ -1238,7 +1238,7 @@ void ImpuRegDataTask::on_sar_response(const HssConnection::ServerAssignmentAnswe
   }
   else if (rc == HssConnection::ResultCode::TIMEOUT)
   {
-    TRC_INFO("Timeout error - reject");
+    TRC_ERROR("Timeout error at HSS when attempting SAR - reject with 504");
 
     // We also record a penalty for the purposes of overload control
     record_penalty();
