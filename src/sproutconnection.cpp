@@ -41,10 +41,10 @@ HTTPCode SproutConnection::deregister_bindings(const bool& send_notifications,
 
   std::string body = rtr_create_body(default_public_ids, impis);
 
-  std::unique_ptr<HttpRequest> req = _http->create_request(HttpClient::RequestType::DELETE, path);
-  req->set_body(body);
-  req->set_sas_trail(trail);
-  HttpResponse resp = req->send();
+  HttpRequest req = _http->create_request(HttpClient::RequestType::DELETE, path);
+  req.set_body(body);
+  req.set_sas_trail(trail);
+  HttpResponse resp = req.send();
   HTTPCode ret_code = resp.get_rc();
 
   TRC_DEBUG("HTTP return code from Sprout: %d", ret_code);
@@ -109,10 +109,10 @@ HTTPCode SproutConnection::change_associated_identities(const std::string& defau
   std::string path = "/registrations/" + default_id;
   std::string body = ppr_create_body(user_data);
 
-  std::unique_ptr<HttpRequest> req = _http->create_request(HttpClient::RequestType::PUT, path);
-  req->set_body(body);
-  req->set_sas_trail(trail);
-  HttpResponse resp = req->send();
+  HttpRequest req = _http->create_request(HttpClient::RequestType::PUT, path);
+  req.set_body(body);
+  req.set_sas_trail(trail);
+  HttpResponse resp = req.send();
   HTTPCode ret_code = resp.get_rc();
 
   return ret_code;

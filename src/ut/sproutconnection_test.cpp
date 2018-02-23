@@ -12,12 +12,12 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "sproutconnection.h"
-#include "mock_httpconnection.h"
-#include "mock_http_request.h"
+#include "mock_httpclient.h"
 
 using ::testing::Mock;
 using ::testing::Return;
 using ::testing::_;
+using ::testing::AllOf;
 
 const SAS::TrailId FAKE_TRAIL_ID = 0x12345678;
 
@@ -34,27 +34,26 @@ class SproutConnectionTest : public testing::Test
 
   SproutConnectionTest()
   {
-    _mock_http_conn = new MockHttpConnection();
-    _sprout_conn = new SproutConnection(_mock_http_conn);
-    _mock_http_req = new MockHttpRequest();
+    _mock_http_client = new MockHttpClient();
+    HttpConnection* conn = new HttpConnection("server", _mock_http_client);
+    _sprout_conn = new SproutConnection(conn);
+
+    // If we don't override the default behaviour, return a nonsensical HTTP Code
+    ON_CALL(*_mock_http_client, send_request(_)).WillByDefault(Return(HttpResponse(-1, "", {})));
   }
 
   virtual ~SproutConnectionTest()
   {
-    Mock::VerifyAndClear(_mock_http_conn);
-    Mock::VerifyAndClear(_mock_http_req);
+    Mock::VerifyAndClear(_mock_http_client);
 
-    // We don't delete mock_http_conn as the SproutConnection does that for us
+    delete _mock_http_client; _mock_http_client = nullptr;
+
+    // We don't delete the HttpConnection as the SproutConnection does that for us
     delete _sprout_conn; _sprout_conn = nullptr;
-
-    // We don't delete the MockHttpRequest, as that will be deleted when the
-    // unique pointer returned from HttpConnection::create_request() goes out of
-    //scope
   }
 
-  MockHttpConnection* _mock_http_conn;
+  MockHttpClient* _mock_http_client;
   SproutConnection* _sprout_conn;
-  MockHttpRequest* _mock_http_req;
 };
 
 const std::string SproutConnectionTest::IMPU = "sip:impu@example.com";
@@ -72,18 +71,12 @@ TEST_F(SproutConnectionTest, DeregisterBindingsWithNotifications)
   // Create a response that will be returned
   HttpResponse resp(HTTP_OK, "", {});
 
-  // Expect that the SproutConnection will create the correct HttpRequest
-  EXPECT_CALL(*_mock_http_conn,
-              create_request_proxy(HttpClient::RequestType::DELETE,
-                                   "/registrations?send-notifications=true"))
-    .WillOnce(Return(_mock_http_req));
-
-  // Expect that the SproutConnection sets the correct fields on the HttpRequest
-  EXPECT_CALL(*_mock_http_req, set_body(dereg_body)).Times(1);
-  EXPECT_CALL(*_mock_http_req, set_sas_trail(FAKE_TRAIL_ID)).Times(1);
-
   // Expect that the request is sent, and set it to return the response
-  EXPECT_CALL(*_mock_http_req, send()).WillOnce(Return(resp));
+  EXPECT_CALL(*_mock_http_client, send_request(AllOf(IsDelete(),
+                                                     HasBody(dereg_body),
+                                                     HasTrail(FAKE_TRAIL_ID),
+                                                     HasPath("/registrations?send-notifications=true"))))
+    .WillOnce(Return(resp));
 
   // Actually deregister_bindings
   HTTPCode result = _sprout_conn->deregister_bindings(true, IMPUS, IMPIS, FAKE_TRAIL_ID);
@@ -97,18 +90,10 @@ TEST_F(SproutConnectionTest, DeregisterBindingsWithoutNotifications)
   // Create a response that will be returned. This one will return an error
   HttpResponse resp(HTTP_OK, "", {});
 
-  // Expect that the SproutConnection will create the correct HttpRequest
-  EXPECT_CALL(*_mock_http_conn,
-              create_request_proxy(HttpClient::RequestType::DELETE,
-                                   "/registrations?send-notifications=false"))
-    .WillOnce(Return(_mock_http_req));
-
-  // Expect that the SproutConnection sets the correct fields on the HttpRequest
-  EXPECT_CALL(*_mock_http_req, set_body(dereg_body)).Times(1);
-  EXPECT_CALL(*_mock_http_req, set_sas_trail(FAKE_TRAIL_ID)).Times(1);
-
   // Expect that the request is sent, and set it to return the response
-  EXPECT_CALL(*_mock_http_req, send()).WillOnce(Return(resp));
+  EXPECT_CALL(*_mock_http_client, send_request(AllOf(IsDelete(),
+                                                     HasPath("/registrations?send-notifications=false"))))
+    .WillOnce(Return(resp));
 
   // Actually deregister_bindings
   HTTPCode result = _sprout_conn->deregister_bindings(false, IMPUS, IMPIS, FAKE_TRAIL_ID);
@@ -122,18 +107,10 @@ TEST_F(SproutConnectionTest, DeregisterBindingsEmptyImpis)
   // Create a response that will be returned
   HttpResponse resp(HTTP_OK, "", {});
 
-  // Expect that the SproutConnection will create the correct HttpRequest
-  EXPECT_CALL(*_mock_http_conn,
-              create_request_proxy(HttpClient::RequestType::DELETE,
-                                   "/registrations?send-notifications=false"))
-    .WillOnce(Return(_mock_http_req));
-
-  // Expect that the SproutConnection sets the correct fields on the HttpRequest
-  EXPECT_CALL(*_mock_http_req, set_body(dereg_body_no_impis)).Times(1);
-  EXPECT_CALL(*_mock_http_req, set_sas_trail(FAKE_TRAIL_ID)).Times(1);
-
   // Expect that the request is sent, and set it to return the response
-  EXPECT_CALL(*_mock_http_req, send()).WillOnce(Return(resp));
+  EXPECT_CALL(*_mock_http_client, send_request(AllOf(IsDelete(),
+                                                     HasBody(dereg_body_no_impis))))
+    .WillOnce(Return(resp));
 
   // Actually deregister_bindings
   HTTPCode result = _sprout_conn->deregister_bindings(false, IMPUS, {}, FAKE_TRAIL_ID);
@@ -147,16 +124,10 @@ TEST_F(SproutConnectionTest, DeregisterBindingsError)
   // Create an error response that will be returned
   HttpResponse resp(HTTP_SERVER_UNAVAILABLE, "", {});
 
-  // Expect that the SproutConnection will create a request
-  EXPECT_CALL(*_mock_http_conn, create_request_proxy(_, _))
-    .WillOnce(Return(_mock_http_req));
-
-  // Expect that the SproutConnection sets some fields on the HttpRequest
-  EXPECT_CALL(*_mock_http_req, set_body(_)).Times(1);
-  EXPECT_CALL(*_mock_http_req, set_sas_trail(_)).Times(1);
-
   // Expect that the request is sent, and set it to return the response
-  EXPECT_CALL(*_mock_http_req, send()).WillOnce(Return(resp));
+  EXPECT_CALL(*_mock_http_client, send_request(AllOf(IsDelete(),
+                                                     HasBody(dereg_body_no_impis))))
+    .WillOnce(Return(resp));
 
   // Actually deregister_bindings
   HTTPCode result = _sprout_conn->deregister_bindings(false, IMPUS, {}, FAKE_TRAIL_ID);
@@ -170,19 +141,12 @@ TEST_F(SproutConnectionTest, ChangeAssociatedIdentities)
   // Create a response that will be returned
   HttpResponse resp(HTTP_OK, "", {});
 
-  // Expect that the SproutConnection will create the correct HttpRequest
-  EXPECT_CALL(*_mock_http_conn,
-              create_request_proxy(HttpClient::RequestType::PUT,
-                                   "/registrations/" + IMPU))
-    .WillOnce(Return(_mock_http_req));
-
-  // Expect that the SproutConnection sets the correct fields on the HttpRequest
-  EXPECT_CALL(*_mock_http_req, set_body(change_ids_body)).Times(1);
-  EXPECT_CALL(*_mock_http_req, set_sas_trail(FAKE_TRAIL_ID)).Times(1);
-
   // Expect that the request is sent, and set it to return the response
-  EXPECT_CALL(*_mock_http_req, send()).WillOnce(Return(resp));
-
+  EXPECT_CALL(*_mock_http_client, send_request(AllOf(IsPut(),
+                                                     HasBody(change_ids_body),
+                                                     HasTrail(FAKE_TRAIL_ID),
+                                                     HasPath("/registrations/" + IMPU))))
+    .WillOnce(Return(resp));
   // Change the identities
   HTTPCode result = _sprout_conn->change_associated_identities(IMPU, IMS_SUBSCRIPTION, FAKE_TRAIL_ID);
 
