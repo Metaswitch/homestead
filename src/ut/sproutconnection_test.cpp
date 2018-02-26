@@ -69,16 +69,22 @@ const std::string SproutConnectionTest::IMS_SUBSCRIPTION =
     "</ServiceProfile>"
   "</IMSSubscription>";
 
+// The body of the HTTP request we expect to create for an RTR specifying IMPIS
+// and IMPUS
 const std::string SproutConnectionTest::dereg_body =
 "{\"registrations\":[{\"primary-impu\":\"sip:impu1@example.com\",\"impi\":\"_impi1@example.com\"},"
                     "{\"primary-impu\":\"sip:impu1@example.com\",\"impi\":\"_impi2@example.com\"},"
                     "{\"primary-impu\":\"sip:impu2@example.com\",\"impi\":\"_impi1@example.com\"},"
                     "{\"primary-impu\":\"sip:impu2@example.com\",\"impi\":\"_impi2@example.com\"}]}";
 
+// The body of the HTTP request we expect to create for an RTR specifying just
+// IMPUS
 const std::string SproutConnectionTest::dereg_body_no_impis =
   "{\"registrations\":[{\"primary-impu\":\"sip:impu1@example.com\"},"
                       "{\"primary-impu\":\"sip:impu2@example.com\"}]}";
 
+// The body of the HTTP request we expect to create for a PPR with the
+// IMS_SUBSCRIPTION specified above
 const std::string SproutConnectionTest::change_ids_body =
   "{\"user-data-xml\":\"<?xml version=\\\"1.0\\\"?>"
     "<IMSSubscription>"
