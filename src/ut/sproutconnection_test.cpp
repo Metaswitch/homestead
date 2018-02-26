@@ -59,9 +59,15 @@ const std::string SproutConnectionTest::IMPI = "_impi@example.com";
 const std::vector<std::string> SproutConnectionTest::IMPIS = { "_impi1@example.com", "_impi2@example.com" };
 const std::vector<std::string> SproutConnectionTest::IMPUS = { "sip:impu1@example.com", "sip:impu2@example.com" };
 const std::string SproutConnectionTest::IMS_SUBSCRIPTION =
-  "<?xml version=\"1.0\"?><IMSSubscription><PrivateID>" + IMPI +
-  "</PrivateID><ServiceProfile><PublicIdentity><Identity>" + IMPU +
-  "</Identity></PublicIdentity></ServiceProfile></IMSSubscription>";
+  "<?xml version=\"1.0\"?>"
+  "<IMSSubscription>"
+    "<PrivateID>" + IMPI + "</PrivateID>"
+    "<ServiceProfile>"
+      "<PublicIdentity>"
+        "<Identity>" + IMPU + "</Identity>"
+      "</PublicIdentity>"
+    "</ServiceProfile>"
+  "</IMSSubscription>";
 
 const std::string SproutConnectionTest::dereg_body =
 "{\"registrations\":[{\"primary-impu\":\"sip:impu1@example.com\",\"impi\":\"_impi1@example.com\"},"
