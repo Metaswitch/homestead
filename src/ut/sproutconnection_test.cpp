@@ -35,8 +35,8 @@ class SproutConnectionTest : public testing::Test
   SproutConnectionTest()
   {
     _mock_http_client = new MockHttpClient();
-    HttpConnection* conn = new HttpConnection("server", _mock_http_client);
-    _sprout_conn = new SproutConnection(conn);
+    _http_conn = new HttpConnection("server", _mock_http_client);
+    _sprout_conn = new SproutConnection(_http_conn);
 
     // If we don't override the default behaviour, return a nonsensical HTTP Code
     ON_CALL(*_mock_http_client, send_request(_)).WillByDefault(Return(HttpResponse(-1, "", {})));
@@ -47,12 +47,12 @@ class SproutConnectionTest : public testing::Test
     Mock::VerifyAndClear(_mock_http_client);
 
     delete _mock_http_client; _mock_http_client = nullptr;
-
-    // We don't delete the HttpConnection as the SproutConnection does that for us
     delete _sprout_conn; _sprout_conn = nullptr;
+    delete _http_conn; _http_conn = nullptr;
   }
 
   MockHttpClient* _mock_http_client;
+  HttpConnection* _http_conn;
   SproutConnection* _sprout_conn;
 };
 

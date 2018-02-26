@@ -1246,6 +1246,7 @@ int main(int argc, char**argv)
   delete http_resolver; http_resolver = nullptr;
   delete dns_resolver; dns_resolver = nullptr;
   delete sprout_conn; sprout_conn = nullptr;
+  delete http_conn; http_conn = nullptr;
   delete realm_counter; realm_counter = nullptr;
   delete host_counter; host_counter = nullptr;
   delete stats_manager; stats_manager = nullptr;

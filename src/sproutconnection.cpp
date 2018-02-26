@@ -27,8 +27,6 @@ SproutConnection::SproutConnection(HttpConnection* http) : _http(http)
 
 SproutConnection::~SproutConnection()
 {
-  delete _http;
-  _http = NULL;
 }
 
 HTTPCode SproutConnection::deregister_bindings(const bool& send_notifications,
