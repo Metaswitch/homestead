@@ -240,7 +240,8 @@ public:
           .WillOnce(InvokeArgument<0>(irss));
       }
 
-      // Expect that we ask the Sprout connection to deregister bindings
+      // Expect that we ask the Sprout connection to deregister bindings.
+      // As above, the default impu for the IRS that contains IMPU2 is IMPU3
       std::vector<std::string> default_impus = {IMPU3, IMPU};
       bool send_notifications = !(dereg_reason == PERMANENT_TERMINATION || dereg_reason == NEW_SERVER_ASSIGNED);
       std::vector<std::string> impi_vector = (dereg_reason == PERMANENT_TERMINATION) ? impis : EMPTY_VECTOR;

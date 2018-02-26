@@ -44,8 +44,6 @@ class SproutConnectionTest : public testing::Test
 
   virtual ~SproutConnectionTest()
   {
-    Mock::VerifyAndClear(_mock_http_client);
-
     delete _mock_http_client; _mock_http_client = nullptr;
     delete _sprout_conn; _sprout_conn = nullptr;
     delete _http_conn; _http_conn = nullptr;
@@ -60,18 +58,39 @@ const std::string SproutConnectionTest::IMPU = "sip:impu@example.com";
 const std::string SproutConnectionTest::IMPI = "_impi@example.com";
 const std::vector<std::string> SproutConnectionTest::IMPIS = { "_impi1@example.com", "_impi2@example.com" };
 const std::vector<std::string> SproutConnectionTest::IMPUS = { "sip:impu1@example.com", "sip:impu2@example.com" };
-const std::string SproutConnectionTest::IMS_SUBSCRIPTION = "<?xml version=\"1.0\"?><IMSSubscription><PrivateID>" + IMPI + "</PrivateID><ServiceProfile><PublicIdentity><Identity>" + IMPU + "</Identity></PublicIdentity></ServiceProfile></IMSSubscription>";
-const std::string SproutConnectionTest::dereg_body = "{\"registrations\":[{\"primary-impu\":\"sip:impu1@example.com\",\"impi\":\"_impi1@example.com\"},{\"primary-impu\":\"sip:impu1@example.com\",\"impi\":\"_impi2@example.com\"},{\"primary-impu\":\"sip:impu2@example.com\",\"impi\":\"_impi1@example.com\"},{\"primary-impu\":\"sip:impu2@example.com\",\"impi\":\"_impi2@example.com\"}]}";
-const std::string SproutConnectionTest::dereg_body_no_impis = "{\"registrations\":[{\"primary-impu\":\"sip:impu1@example.com\"},{\"primary-impu\":\"sip:impu2@example.com\"}]}";
-const std::string SproutConnectionTest::change_ids_body = "{\"user-data-xml\":\"<?xml version=\\\"1.0\\\"?><IMSSubscription><PrivateID>_impi@example.com</PrivateID><ServiceProfile><PublicIdentity><Identity>sip:impu@example.com</Identity></PublicIdentity></ServiceProfile></IMSSubscription>\"}";
+const std::string SproutConnectionTest::IMS_SUBSCRIPTION =
+  "<?xml version=\"1.0\"?><IMSSubscription><PrivateID>" + IMPI +
+  "</PrivateID><ServiceProfile><PublicIdentity><Identity>" + IMPU +
+  "</Identity></PublicIdentity></ServiceProfile></IMSSubscription>";
+
+const std::string SproutConnectionTest::dereg_body =
+"{\"registrations\":[{\"primary-impu\":\"sip:impu1@example.com\",\"impi\":\"_impi1@example.com\"},"
+                    "{\"primary-impu\":\"sip:impu1@example.com\",\"impi\":\"_impi2@example.com\"},"
+                    "{\"primary-impu\":\"sip:impu2@example.com\",\"impi\":\"_impi1@example.com\"},"
+                    "{\"primary-impu\":\"sip:impu2@example.com\",\"impi\":\"_impi2@example.com\"}]}";
+
+const std::string SproutConnectionTest::dereg_body_no_impis =
+  "{\"registrations\":[{\"primary-impu\":\"sip:impu1@example.com\"},"
+                      "{\"primary-impu\":\"sip:impu2@example.com\"}]}";
+
+const std::string SproutConnectionTest::change_ids_body =
+  "{\"user-data-xml\":\"<?xml version=\\\"1.0\\\"?>"
+    "<IMSSubscription>"
+      "<PrivateID>_impi@example.com</PrivateID>"
+      "<ServiceProfile>"
+        "<PublicIdentity>"
+          "<Identity>sip:impu@example.com</Identity>"
+        "</PublicIdentity>"
+      "</ServiceProfile>"
+    "</IMSSubscription>\"}";
 
 
 TEST_F(SproutConnectionTest, DeregisterBindingsWithNotifications)
 {
-  // Create a response that will be returned
+  // Create an OK response to be returned by the HttpClient
   HttpResponse resp(HTTP_OK, "", {});
 
-  // Expect that the request is sent, and set it to return the response
+  // Expect that the correct request is sent, and set it to return the response
   EXPECT_CALL(*_mock_http_client, send_request(AllOf(IsDelete(),
                                                      HasBody(dereg_body),
                                                      HasTrail(FAKE_TRAIL_ID),
@@ -87,10 +106,10 @@ TEST_F(SproutConnectionTest, DeregisterBindingsWithNotifications)
 
 TEST_F(SproutConnectionTest, DeregisterBindingsWithoutNotifications)
 {
-  // Create a response that will be returned. This one will return an error
+  // Create an OK response to be returned by the HttpClient
   HttpResponse resp(HTTP_OK, "", {});
 
-  // Expect that the request is sent, and set it to return the response
+  // Expect that the correct request is sent, and set it to return the response
   EXPECT_CALL(*_mock_http_client, send_request(AllOf(IsDelete(),
                                                      HasPath("/registrations?send-notifications=false"))))
     .WillOnce(Return(resp));
@@ -104,10 +123,10 @@ TEST_F(SproutConnectionTest, DeregisterBindingsWithoutNotifications)
 
 TEST_F(SproutConnectionTest, DeregisterBindingsEmptyImpis)
 {
-  // Create a response that will be returned
+  // Create an OK response to be returned by the HttpClient
   HttpResponse resp(HTTP_OK, "", {});
 
-  // Expect that the request is sent, and set it to return the response
+  // Expect that the correct request is sent, and set it to return the response
   EXPECT_CALL(*_mock_http_client, send_request(AllOf(IsDelete(),
                                                      HasBody(dereg_body_no_impis))))
     .WillOnce(Return(resp));
@@ -121,12 +140,11 @@ TEST_F(SproutConnectionTest, DeregisterBindingsEmptyImpis)
 
 TEST_F(SproutConnectionTest, DeregisterBindingsError)
 {
-  // Create an error response that will be returned
+  // Create an error response to be returned by the HttpClient
   HttpResponse resp(HTTP_SERVER_UNAVAILABLE, "", {});
 
-  // Expect that the request is sent, and set it to return the response
-  EXPECT_CALL(*_mock_http_client, send_request(AllOf(IsDelete(),
-                                                     HasBody(dereg_body_no_impis))))
+  // Expect that the correct request is sent, and set it to return the response
+  EXPECT_CALL(*_mock_http_client, send_request(IsDelete()))
     .WillOnce(Return(resp));
 
   // Actually deregister_bindings
@@ -138,10 +156,10 @@ TEST_F(SproutConnectionTest, DeregisterBindingsError)
 
 TEST_F(SproutConnectionTest, ChangeAssociatedIdentities)
 {
-  // Create a response that will be returned
+  // Create an OK response to be returned by the HttpClient
   HttpResponse resp(HTTP_OK, "", {});
 
-  // Expect that the request is sent, and set it to return the response
+  // Expect that the correct request is sent, and set it to return the response
   EXPECT_CALL(*_mock_http_client, send_request(AllOf(IsPut(),
                                                      HasBody(change_ids_body),
                                                      HasTrail(FAKE_TRAIL_ID),
