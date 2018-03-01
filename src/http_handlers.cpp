@@ -155,7 +155,7 @@ void ImpiTask::on_mar_response(const HssConnection::MultimediaAuthAnswer& maa)
   }
   else if (rc == HssConnection::ResultCode::TIMEOUT)
   {
-    TRC_INFO("Timeout error - reject");
+    TRC_ERROR("Timeout error at HSS when attempting MAR - reject with 504");
 
     // We also record a penalty for the purposes of overload control
     record_penalty();
@@ -410,7 +410,7 @@ void ImpiRegistrationStatusTask::on_uar_response(const HssConnection::UserAuthAn
   }
   else if (rc == HssConnection::ResultCode::TIMEOUT)
   {
-    TRC_INFO("Timeout error - reject");
+    TRC_ERROR("Timeout error at HSS when attempting UAR - reject with 504");
 
     // We also record a penalty for the purposes of overload control
     record_penalty();
@@ -526,7 +526,7 @@ void ImpuLocationInfoTask::on_lir_response(const HssConnection::LocationInfoAnsw
   }
   else if (rc == HssConnection::ResultCode::TIMEOUT)
   {
-    TRC_INFO("Timeout error - reject");
+    TRC_ERROR("Timeout error at HSS when attempting LIR - reject with 504");
 
     // We also record a penalty for the purposes of overload control
     record_penalty();
@@ -803,7 +803,7 @@ void ImpuRegDataTask::on_get_reg_data_success(ImplicitRegistrationSet* irs)
   ChargingAddresses charging_addrs = _irs->get_charging_addresses();
 
   SAS::Event event(this->trail(), SASEvent::CACHE_GET_REG_DATA_SUCCESS, 0);
-  event.add_compressed_param(service_profile, &SASEvent::PROFILE_SERVICE_PROFILE);
+  event.add_var_param(service_profile);
   event.add_static_param(reg_state);
   std::string associated_impis_str = boost::algorithm::join(associated_impis, ", ");
   event.add_var_param(associated_impis_str);
@@ -849,7 +849,7 @@ void ImpuRegDataTask::on_get_reg_data_failure(Store::Status rc)
   else
   {
     // Send a 504 in all other cases (the request won't be retried)
-    TRC_DEBUG("Cache query failed with rc %d", rc);
+    TRC_ERROR("Cache query failed with rc %d - reject with 504", rc);
     SAS::Event event(this->trail(), SASEvent::CACHE_GET_REG_DATA_FAIL, 0);
     SAS::report_event(event);
     send_http_reply(HTTP_GATEWAY_TIMEOUT);
@@ -1049,7 +1049,7 @@ void ImpuRegDataTask::send_reply()
     else
     {
       SAS::Event event(this->trail(), SASEvent::REG_DATA_HSS_INVALID, 0);
-      event.add_compressed_param(_irs->get_ims_sub_xml(), &SASEvent::PROFILE_SERVICE_PROFILE);
+      event.add_var_param(_irs->get_ims_sub_xml());
       SAS::report_event(event);
     }
   }
@@ -1112,7 +1112,7 @@ void ImpuRegDataTask::put_in_cache()
         // LCOV_EXCL_START - This is essentially tested in the PPR UTs
         TRC_ERROR("No SIP URI in Implicit Registration Set");
         SAS::Event event(this->trail(), SASEvent::NO_SIP_URI_IN_IRS, 0);
-        event.add_compressed_param(_irs->get_ims_sub_xml(), &SASEvent::PROFILE_SERVICE_PROFILE);
+        event.add_var_param(_irs->get_ims_sub_xml());
         SAS::report_event(event);
         // LCOV_EXCL_STOP
       }
@@ -1122,7 +1122,7 @@ void ImpuRegDataTask::put_in_cache()
       SAS::Event event(this->trail(), SASEvent::CACHE_PUT_REG_DATA, 0);
       std::string public_ids_str = boost::algorithm::join(public_ids, ", ");
       event.add_var_param(public_ids_str);
-      event.add_compressed_param(_irs->get_ims_sub_xml(), &SASEvent::PROFILE_SERVICE_PROFILE);
+      event.add_var_param(_irs->get_ims_sub_xml());
       event.add_static_param(_irs->get_reg_state());
       std::string associated_private_ids_str = boost::algorithm::join(_irs->get_associated_impis(), ", ");
       event.add_var_param(associated_private_ids_str);
@@ -1238,7 +1238,7 @@ void ImpuRegDataTask::on_sar_response(const HssConnection::ServerAssignmentAnswe
   }
   else if (rc == HssConnection::ResultCode::TIMEOUT)
   {
-    TRC_INFO("Timeout error - reject");
+    TRC_ERROR("Timeout error at HSS when attempting SAR - reject with 504");
 
     // We also record a penalty for the purposes of overload control
     record_penalty();
