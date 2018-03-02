@@ -939,12 +939,13 @@ int main(int argc, char**argv)
 
   HssCacheTask::configure_health_checker(hc);
 
-  HttpConnection* http = new HttpConnection(options.sprout_http_name,
-                                            false,
-                                            http_resolver,
-                                            SASEvent::HttpLogLevel::PROTOCOL,
-                                            NULL);
-  SproutConnection* sprout_conn = new SproutConnection(http);
+  HttpClient* http_client = new HttpClient(false,
+                                           http_resolver,
+                                           SASEvent::HttpLogLevel::PROTOCOL,
+                                           nullptr);
+  HttpConnection* http_conn = new HttpConnection(options.sprout_http_name,
+                                                 http_client);
+  SproutConnection* sprout_conn = new SproutConnection(http_conn);
   HssConnection::HssConnection* hss_conn = nullptr;
   RegistrationTerminationTask::Config* rtr_config = nullptr;
   PushProfileTask::Config* ppr_config = nullptr;
@@ -1247,21 +1248,22 @@ int main(int argc, char**argv)
     delete cassandra_resolver; cassandra_resolver = NULL;
   }
 
-
-  delete http_resolver; http_resolver = NULL;
-  delete dns_updater; dns_updater = NULL;
-  delete dns_resolver; dns_resolver = NULL;
-  delete sprout_conn; sprout_conn = NULL;
-  delete realm_counter; realm_counter = NULL;
-  delete host_counter; host_counter = NULL;
-  delete stats_manager; stats_manager = NULL;
-  delete mar_results_table; mar_results_table = NULL;
-  delete sar_results_table; sar_results_table = NULL;
-  delete uar_results_table; uar_results_table = NULL;
-  delete lir_results_table; lir_results_table = NULL;
-  delete ppr_results_table; ppr_results_table = NULL;
-  delete rtr_results_table; rtr_results_table = NULL;
-  delete cache_queue_size_table; cache_queue_size_table = NULL;
+  delete http_client; http_client = nullptr;
+  delete http_resolver; http_resolver = nullptr;
+  delete dns_updater; dns_updater = nullptr;
+  delete dns_resolver; dns_resolver = nullptr;
+  delete sprout_conn; sprout_conn = nullptr;
+  delete http_conn; http_conn = nullptr;
+  delete realm_counter; realm_counter = nullptr;
+  delete host_counter; host_counter = nullptr;
+  delete stats_manager; stats_manager = nullptr;
+  delete mar_results_table; mar_results_table = nullptr;
+  delete sar_results_table; sar_results_table = nullptr;
+  delete uar_results_table; uar_results_table = nullptr;
+  delete lir_results_table; lir_results_table = nullptr;
+  delete ppr_results_table; ppr_results_table = nullptr;
+  delete rtr_results_table; rtr_results_table = nullptr;
+  delete cache_queue_size_table; cache_queue_size_table = nullptr;
 
   delete http_stack_sig; http_stack_sig = NULL;
   delete http_stack_mgmt; http_stack_mgmt = NULL;

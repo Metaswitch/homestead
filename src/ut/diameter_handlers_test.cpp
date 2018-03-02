@@ -38,12 +38,9 @@
 #include "httpstack_utils.h"
 
 #include "mockdiameterstack.hpp"
-#include "mockhttpstack.hpp"
-#include "mockhttpconnection.hpp"
-#include "fakehttpresolver.hpp"
 #include "fake_implicit_reg_set.h"
 #include "diameter_handlers.h"
-#include "sproutconnection.h"
+#include "mock_sproutconnection.h"
 
 #include "mockhssconnection.hpp"
 #include "mockhsscacheprocessor.hpp"
@@ -113,9 +110,7 @@ public:
   static MockDiameterStack* _mock_stack;
   static HttpResolver* _mock_resolver;
   static MockHssCacheProcessor* _cache;
-  static MockHttpStack* _httpstack;
-  static MockHttpConnection* _mock_http_conn;
-  static SproutConnection* _sprout_conn;
+  static MockSproutConnection* _sprout_conn;
 
   static SNMP::CxCounterTable* _rtr_results_table;
   static SNMP::CxCounterTable* _ppr_results_table;
@@ -130,10 +125,7 @@ public:
   uint32_t test_u32;
 
   DiameterHandlersTest() {}
-  virtual ~DiameterHandlersTest()
-  {
-    Mock::VerifyAndClear(_httpstack);
-  }
+  virtual ~DiameterHandlersTest() {}
 
   static void SetUpTestCase()
   {
@@ -141,10 +133,7 @@ public:
     _real_stack->initialize();
     _real_stack->configure(UT_DIR + "/diameterstack.conf", NULL);
     _cache = new MockHssCacheProcessor();
-    _httpstack = new MockHttpStack();
-    _mock_resolver = new FakeHttpResolver("1.2.3.4");
-    _mock_http_conn = new MockHttpConnection(_mock_resolver);
-    _sprout_conn = new SproutConnection(_mock_http_conn);
+    _sprout_conn = new MockSproutConnection();
     _mock_stack = new MockDiameterStack();
     _cx_dict = new Cx::Dictionary();
 
@@ -160,9 +149,7 @@ public:
     cwtest_reset_time();
 
     delete _cache; _cache = NULL;
-    delete _httpstack; _httpstack = NULL;
     delete _sprout_conn; _sprout_conn = NULL;
-    delete _mock_resolver; _mock_resolver = NULL;
     delete _mock_stack; _mock_stack = NULL;
     delete _cx_dict; _cx_dict = NULL;
     _real_stack->stop();
@@ -253,10 +240,13 @@ public:
           .WillOnce(InvokeArgument<0>(irss));
       }
 
-      // Expect a delete to be sent to Sprout.
-      EXPECT_CALL(*_mock_http_conn, send_delete(http_path, _, body))
-        .Times(1)
-        .WillOnce(Return(http_ret_code)).RetiresOnSaturation();
+      // Expect that we ask the Sprout connection to deregister bindings.
+      // As above, the default impu for the IRS that contains IMPU2 is IMPU3
+      std::vector<std::string> default_impus = {IMPU3, IMPU};
+      bool send_notifications = !(dereg_reason == PERMANENT_TERMINATION || dereg_reason == NEW_SERVER_ASSIGNED);
+      std::vector<std::string> impi_vector = (dereg_reason == PERMANENT_TERMINATION) ? impis : EMPTY_VECTOR;
+      EXPECT_CALL(*_sprout_conn, deregister_bindings(send_notifications, default_impus, impi_vector, FAKE_TRAIL_ID))
+        .Times(1).WillOnce(Return(http_ret_code)).RetiresOnSaturation();
 
       // Expect deletions for each IRS
       EXPECT_CALL(*_cache, delete_implicit_registration_sets(_, _, _, irss, FAKE_TRAIL_ID, _))
@@ -312,17 +302,6 @@ public:
     // We have to make sure the message is pointing at the mock stack.
     (*ptask)->_msg._stack = _mock_stack;
     (*ptask)->_ppr._stack = _mock_stack;
-  }
-
-  void ppr_sprout_connection(std::string impu, std::string user_data, HTTPCode http_ret_code)
-  {
-    // Expect a PUT to be sent to Sprout.
-    std::string http_path = "/registrations/" + impu;
-    std::string body =_sprout_conn->ppr_create_body(user_data);
-
-    EXPECT_CALL(*_mock_http_conn, send_put(http_path, body, _))
-      .Times(1)
-      .WillOnce(Return(http_ret_code));
   }
 
   void ppr_expect_ppa()
@@ -409,9 +388,7 @@ Diameter::Stack* DiameterHandlersTest::_real_stack = NULL;
 MockDiameterStack* DiameterHandlersTest::_mock_stack = NULL;
 HttpResolver* DiameterHandlersTest::_mock_resolver = NULL;
 MockHssCacheProcessor* DiameterHandlersTest::_cache = NULL;
-MockHttpStack* DiameterHandlersTest::_httpstack = NULL;
-MockHttpConnection* DiameterHandlersTest::_mock_http_conn = NULL;
-SproutConnection* DiameterHandlersTest::_sprout_conn = NULL;
+MockSproutConnection* DiameterHandlersTest::_sprout_conn = NULL;
 
 SNMP::CxCounterTable* DiameterHandlersTest::_rtr_results_table = NULL;
 SNMP::CxCounterTable* DiameterHandlersTest::_ppr_results_table = NULL;
@@ -523,10 +500,10 @@ TEST_F(DiameterHandlersTest, RTRIncludesBarredImpus)
   EXPECT_CALL(*_cache, get_implicit_registration_sets_for_impus(_, _, IMPU_IN_VECTOR, FAKE_TRAIL_ID, _))
     .WillOnce(InvokeArgument<0>(irss));
 
-  // Expect a delete to be sent to Sprout.
-  EXPECT_CALL(*_mock_http_conn, send_delete(HTTP_PATH_REG_FALSE, _, DEREG_BODY_PAIRINGS3))
-    .Times(1)
-    .WillOnce(Return(200)).RetiresOnSaturation();
+  // Expect that we attempt to deregister the bindings correctly
+  std::vector<std::string> impu_vector = {IMPU2};
+  EXPECT_CALL(*_sprout_conn, deregister_bindings(false, impu_vector, impis, FAKE_TRAIL_ID))
+    .WillOnce(Return(HTTP_OK));
 
   // Expect deletions for each IRS
   EXPECT_CALL(*_cache, delete_implicit_registration_sets(_, _, _, irss, FAKE_TRAIL_ID, _))
@@ -588,10 +565,10 @@ TEST_F(DiameterHandlersTest, RTRIncludesBarringIndication)
   EXPECT_CALL(*_cache, get_implicit_registration_sets_for_impus(_, _, IMPU_IN_VECTOR, FAKE_TRAIL_ID, _))
     .WillOnce(InvokeArgument<0>(irss));
 
-  // Expect a delete to be sent to Sprout.
-  EXPECT_CALL(*_mock_http_conn, send_delete(HTTP_PATH_REG_FALSE, _, DEREG_BODY_PAIRINGS4))
-    .Times(1)
-    .WillOnce(Return(200)).RetiresOnSaturation();
+  // Expect that we attempt to deregister the bindings correctly.
+  std::vector<std::string> default_impus = {IMPU};
+  EXPECT_CALL(*_sprout_conn, deregister_bindings(false, default_impus, impis, FAKE_TRAIL_ID))
+    .Times(1).WillOnce(Return(HTTP_OK)).RetiresOnSaturation();
 
   // Expect deletions for each IRS
   EXPECT_CALL(*_cache, delete_implicit_registration_sets(_, _, _, irss, FAKE_TRAIL_ID, _))
@@ -736,7 +713,8 @@ TEST_F(DiameterHandlersTest, PPRMainline)
     .WillOnce(DoAll(InvokeArgument<1>(), InvokeArgument<0>()));
 
   // And notify Sprout
-  ppr_sprout_connection(IMPU, IMS_SUBSCRIPTION, HTTP_OK);
+  EXPECT_CALL(*_sprout_conn, change_associated_identities(IMPU, IMS_SUBSCRIPTION, FAKE_TRAIL_ID))
+    .WillOnce(Return(HTTP_OK));
 
   ppr_expect_ppa();
 
@@ -781,7 +759,8 @@ TEST_F(DiameterHandlersTest, PPRChangeIDs)
     .Times(1);
 
   // And notify Sprout
-  ppr_sprout_connection(IMPU, IMPU_IMS_SUBSCRIPTION, HTTP_OK);
+  EXPECT_CALL(*_sprout_conn, change_associated_identities(IMPU, IMPU_IMS_SUBSCRIPTION, FAKE_TRAIL_ID))
+    .WillOnce(Return(HTTP_OK));
 
   // We'll then save the ImsSubscription in the cache
   EXPECT_CALL(*_cache, put_ims_subscription(_, _, _, sub, FAKE_TRAIL_ID, _))
@@ -830,7 +809,8 @@ TEST_F(DiameterHandlersTest, PPRChangeIDsServerError)
   EXPECT_CALL(*sub, get_irs_for_default_impu(IMPU)).WillOnce(Return(irs));
 
   // And notify Sprout. This fails, so we won't do anything else
-  ppr_sprout_connection(IMPU, IMPU_IMS_SUBSCRIPTION, HTTP_SERVER_ERROR);
+  EXPECT_CALL(*_sprout_conn, change_associated_identities(IMPU, IMPU_IMS_SUBSCRIPTION, FAKE_TRAIL_ID))
+    .WillOnce(Return(HTTP_SERVER_ERROR));
 
   ppr_expect_ppa();
 
@@ -903,7 +883,8 @@ TEST_F(DiameterHandlersTest, PPRImsSub)
   EXPECT_CALL(*sub, get_irs_for_default_impu(IMPU)).WillOnce(Return(irs));
 
   // And notify Sprout
-  ppr_sprout_connection(IMPU, IMS_SUBSCRIPTION, HTTP_OK);
+  EXPECT_CALL(*_sprout_conn, change_associated_identities(IMPU, IMS_SUBSCRIPTION, FAKE_TRAIL_ID))
+    .WillOnce(Return(HTTP_OK));
 
   // We'll then save the ImsSubscription in the cache
   EXPECT_CALL(*_cache, put_ims_subscription(_, _, _, sub, FAKE_TRAIL_ID, _))
@@ -949,7 +930,8 @@ TEST_F(DiameterHandlersTest, PPRIMSSubNoSIPURI)
   EXPECT_CALL(*sub, get_irs_for_default_impu(TEL_URI)).WillOnce(Return(irs));
 
   // And notify Sprout
-  ppr_sprout_connection(TEL_URI, TEL_URIS_IMS_SUBSCRIPTION, HTTP_OK);
+  EXPECT_CALL(*_sprout_conn, change_associated_identities(TEL_URI, TEL_URIS_IMS_SUBSCRIPTION, FAKE_TRAIL_ID))
+    .WillOnce(Return(HTTP_OK));
 
   // We'll then save the ImsSubscription in the cache
   EXPECT_CALL(*_cache, put_ims_subscription(_, _, _, sub, FAKE_TRAIL_ID, _))
@@ -995,7 +977,8 @@ TEST_F(DiameterHandlersTest, PPRCacheFailure)
   EXPECT_CALL(*sub, get_irs_for_default_impu(IMPU)).WillOnce(Return(irs));
 
   // Expect we'll tell Sprout that the IRS has changed
-  ppr_sprout_connection(IMPU, IMS_SUBSCRIPTION, HTTP_OK);
+  EXPECT_CALL(*_sprout_conn, change_associated_identities(IMPU, IMS_SUBSCRIPTION, FAKE_TRAIL_ID))
+    .WillOnce(Return(HTTP_OK));
 
   // We'll then save the ImsSubscription in the cache, which will give an error
   EXPECT_CALL(*_cache, put_ims_subscription(_, _, _, sub, FAKE_TRAIL_ID, _))

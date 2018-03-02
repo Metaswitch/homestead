@@ -34,21 +34,16 @@
 #include "test_interposer.hpp"
 #include "fakelogger.h"
 #include <curl/curl.h>
-
 #include "httpstack_utils.h"
-
 #include "mockdiameterstack.hpp"
 #include "mockhttpstack.hpp"
-#include "mockhttpconnection.hpp"
-#include "fakehttpresolver.hpp"
+
 #include "fake_implicit_reg_set.h"
 #include "http_handlers.h"
 #include "mockstatisticsmanager.hpp"
-#include "sproutconnection.h"
 #include "mock_health_checker.hpp"
 #include "fakesnmp.hpp"
 #include "base64.h"
-
 #include "mockhssconnection.hpp"
 #include "mockhsscacheprocessor.hpp"
 #include "mockimssubscription.hpp"
@@ -162,11 +157,9 @@ public:
   static Cx::Dictionary* _cx_dict;
   static Diameter::Stack* _real_stack;
   static MockDiameterStack* _mock_stack;
-  static HttpResolver* _mock_resolver;
+
   static MockHssCacheProcessor* _cache;
   static MockHttpStack* _httpstack;
-  static MockHttpConnection* _mock_http_conn;
-  static SproutConnection* _sprout_conn;
   static MockHssConnection* _hss;
 
 
@@ -194,9 +187,6 @@ public:
     _cache = new MockHssCacheProcessor();
     _hss = new MockHssConnection();
     _httpstack = new MockHttpStack();
-    _mock_resolver = new FakeHttpResolver("1.2.3.4");
-    _mock_http_conn = new MockHttpConnection(_mock_resolver);
-    _sprout_conn = new SproutConnection(_mock_http_conn);
     _mock_stack = new MockDiameterStack();
     _cx_dict = new Cx::Dictionary();
 
@@ -213,8 +203,6 @@ public:
     delete _cache; _cache = NULL;
     delete _hss; _hss = NULL;
     delete _httpstack; _httpstack = NULL;
-    delete _sprout_conn; _sprout_conn = NULL;
-    delete _mock_resolver; _mock_resolver = NULL;
     delete _mock_stack; _mock_stack = NULL;
     delete _cx_dict; _cx_dict = NULL;
     _real_stack->stop();
@@ -552,13 +540,9 @@ msg* HTTPHandlersTest::_caught_fd_msg = NULL;
 Cx::Dictionary* HTTPHandlersTest::_cx_dict = NULL;
 Diameter::Stack* HTTPHandlersTest::_real_stack = NULL;
 MockDiameterStack* HTTPHandlersTest::_mock_stack = NULL;
-HttpResolver* HTTPHandlersTest::_mock_resolver = NULL;
 MockHssCacheProcessor* HTTPHandlersTest::_cache = NULL;
-//FakeHssConnection* HTTPHandlersTest::_hss = NULL;
 MockHssConnection* HTTPHandlersTest::_hss = NULL;
 MockHttpStack* HTTPHandlersTest::_httpstack = NULL;
-MockHttpConnection* HTTPHandlersTest::_mock_http_conn = NULL;
-SproutConnection* HTTPHandlersTest::_sprout_conn = NULL;
 
 //
 // Digest and AV tests
