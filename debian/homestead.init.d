@@ -69,7 +69,6 @@ setup_environment()
 get_settings()
 {
         # Set up defaults and then pull in any overrides.
-        sas_server=0.0.0.0
         hss_hostname=0.0.0.0
         signaling_dns_server=127.0.0.1
         scscf=5054
@@ -180,7 +179,7 @@ get_daemon_args()
                      --access-log=$log_directory
                      --log-file=$log_directory
                      --log-level=$log_level
-                     --sas=$sas_server,$NAME@$public_hostname"
+                     --sas=$NAME@$public_hostname"
 
         [ "$http_blacklist_duration" = "" ]     || DAEMON_ARGS="$DAEMON_ARGS --http-blacklist-duration=$http_blacklist_duration"
         [ "$diameter_blacklist_duration" = "" ] || DAEMON_ARGS="$DAEMON_ARGS --diameter-blacklist-duration=$diameter_blacklist_duration"
