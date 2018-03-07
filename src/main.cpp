@@ -128,7 +128,7 @@ enum OptionTypes
   DAEMON,
   REG_MAX_EXPIRES,
   CASSANDRA_THREADS,
-  OPT_RAM_RECORD_EVERYTHING,
+  RAM_RECORD_EVERYTHING,
 };
 
 const static struct option long_opt[] =
@@ -177,7 +177,7 @@ const static struct option long_opt[] =
   {"daemon",                      no_argument,       NULL, DAEMON},
   {"sas-use-signaling-interface", no_argument,       NULL, SAS_USE_SIGNALING_IF},
   {"request-shared-ifcs",         no_argument,       NULL, REQUEST_SHARED_IFCS},
-  {"ram-record-everything",       no_argument,       NULL, OPT_RAM_RECORD_EVERYTHING},
+  {"ram-record-everything",       no_argument,       NULL, RAM_RECORD_EVERYTHING},
   {NULL,                          0,                 NULL, 0},
 };
 
@@ -289,7 +289,7 @@ int init_logging_options(int argc, char**argv, struct options& options)
       options.daemon = true;
       break;
 
-    case OPT_RAM_RECORD_EVERYTHING:
+    case RAM_RECORD_EVERYTHING:
       options.ram_record_everything = true;
       break;
 
@@ -566,7 +566,7 @@ int init_options(int argc, char**argv, struct options& options)
     case DAEMON:
     case 'F':
     case 'L':
-    case OPT_RAM_RECORD_EVERYTHING:
+    case RAM_RECORD_EVERYTHING:
       // Ignore options that are handled by init_logging_options
       break;
 
