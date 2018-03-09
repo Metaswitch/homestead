@@ -1181,8 +1181,8 @@ int main(int argc, char**argv)
                                        options.max_peers,
                                        diameter_resolver,
                                        hss_peer_connection_alarm,
-                                       &CL_HOMESTEAD_HSS_CONNECTION_CLEARED,
-                                       &CL_HOMESTEAD_HSS_CONNECTION_ERROR);
+                                       CL_HOMESTEAD_HSS_CONNECTION_CLEARED,
+                                       CL_HOMESTEAD_HSS_CONNECTION_ERROR);
     }
     else
     {
@@ -1192,8 +1192,8 @@ int main(int argc, char**argv)
                                        options.max_peers,
                                        diameter_resolver,
                                        hss_peer_connection_alarm,
-                                       &CL_HOMESTEAD_HSS_CONNECTION_CLEARED,
-                                       &CL_HOMESTEAD_HSS_CONNECTION_ERROR);
+                                       CL_HOMESTEAD_HSS_CONNECTION_CLEARED,
+                                       CL_HOMESTEAD_HSS_CONNECTION_ERROR);
     }
     realm_manager->start();
   }
