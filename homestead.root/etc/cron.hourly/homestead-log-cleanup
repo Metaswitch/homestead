@@ -4,6 +4,7 @@ ONE_GIG=1073741824
 max_log_directory_size=$ONE_GIG
 . /etc/clearwater/config
 
+python2.7 /usr/share/clearwater/bin/log_cleanup.py /var/log/homestead --prefix ramtrace_ --maxsize $max_log_directory_size --count 5
 python2.7 /usr/share/clearwater/bin/log_cleanup.py /var/log/homestead --prefix homestead_ --maxsize $max_log_directory_size --count $WEEK_COUNT
 python2.7 /usr/share/clearwater/bin/log_cleanup.py /var/log/homestead --prefix access_ --maxsize $max_log_directory_size --count $WEEK_COUNT
 python2.7 /usr/share/clearwater/bin/log_cleanup.py /var/lib/cassandra --suffix hprof --count 2
