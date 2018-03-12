@@ -1161,17 +1161,16 @@ int main(int argc, char**argv)
 
   DiameterResolver* diameter_resolver = NULL;
   RealmManager* realm_manager = NULL;
-  Alarm* hss_peer_connection_alarm = NULL;
 
   if (hss_configured)
   {
     diameter_resolver = new DiameterResolver(dns_resolver,
                                              af,
                                              options.diameter_blacklist_duration);
-    hss_peer_connection_alarm = new Alarm(alarm_manager,
-                                          "homestead",
-                                          AlarmDef::HOMESTEAD_HSS_REALM_PEER_ERROR,
-                                          AlarmDef::MINOR);
+    Alarm hss_peer_connection_alarm = Alarm(alarm_manager,
+                                            "homestead",
+                                            AlarmDef::HOMESTEAD_HSS_REALM_PEER_ERROR,
+                                            AlarmDef::MINOR);
 
     if (options.force_hss_peer.empty())
     {
@@ -1235,7 +1234,6 @@ int main(int argc, char**argv)
   {
     realm_manager->stop();
     delete realm_manager; realm_manager = NULL;
-    delete hss_peer_connection_alarm; hss_peer_connection_alarm = NULL;
     delete diameter_resolver; diameter_resolver = NULL;
     delete dict; dict = NULL;
     delete ppr_config; ppr_config = NULL;
