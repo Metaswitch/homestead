@@ -45,6 +45,7 @@ COMMON_SOURCES := a_record_resolver.cpp \
                   namespace_hop.cpp \
                   realmmanager.cpp \
                   saslogger.cpp \
+                  sasservice.cpp \
                   signalhandler.cpp \
                   sproutconnection.cpp \
                   statistic.cpp \
@@ -118,6 +119,7 @@ COMMON_LDFLAGS := -L../usr/lib \
                   -levent \
                   -lcares \
                   -lboost_regex \
+                  -lboost_thread \
                   -lboost_system \
                   -lpthread \
                   -lcurl \

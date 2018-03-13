@@ -29,10 +29,6 @@
 #include "hsprov_hss_connection.h"
 #include "hsprov_store.h"
 #include "hss_cache_processor.h"
-#include "saslogger.h"
-#include "sas.h"
-#include "sasevent.h"
-#include "saslogger.h"
 #include "sproutconnection.h"
 #include "diameterresolver.h"
 #include "realmmanager.h"
@@ -46,6 +42,7 @@
 #include "snmp_agent.h"
 #include "namespace_hop.h"
 #include "utils.h"
+#include "sasservice.h"
 
 struct options
 {
@@ -79,7 +76,6 @@ struct options
   int log_level;
   int cache_threads;
   int cassandra_threads;
-  std::string sas_server;
   std::string sas_system_name;
   int diameter_timeout_ms;
   int target_latency_us;
@@ -223,10 +219,8 @@ void usage(void)
        "                            String to use to specify AKA SIP-Auth-Scheme (default: Digest-AKAv1-MD5)\n"
        " -a, --access-log <directory>\n"
        "                            Generate access logs in specified directory\n"
-       "     --sas <hostname>,<system name>\n"
-       "                            Use specified host as Service Assurance Server and specified\n"
-       "                            system name to identify this system to SAS.  If this option isn't\n"
-       "                            specified SAS is disabled\n"
+       "     --sas <system name>\n"
+       "                            Use specifiedsystem name to identify this system to SAS.\n"
        "     --diameter-timeout-ms  Length of time (in ms) before timing out a Diameter request to the HSS\n"
        "     --target-latency-us <usecs>\n"
        "                            Target latency above which throttling applies (default: 100000)\n"
@@ -438,22 +432,8 @@ int init_options(int argc, char**argv, struct options& options)
 
     case SAS_CONFIG:
       {
-        std::vector<std::string> sas_options;
-        Utils::split_string(std::string(optarg), ',', sas_options, 0, false);
-
-        if ((sas_options.size() == 2) &&
-            !sas_options[0].empty() &&
-            !sas_options[1].empty())
-        {
-          options.sas_server = sas_options[0];
-          options.sas_system_name = sas_options[1];
-          TRC_INFO("SAS set to %s", options.sas_server.c_str());
-          TRC_INFO("System name is set to %s", options.sas_system_name.c_str());
-        }
-        else
-        {
-          TRC_WARNING("Invalid --sas option: %s", optarg);
-        }
+        options.sas_system_name = std::string(optarg);
+        TRC_INFO("SAS system name is set to %s", options.sas_system_name.c_str());
       }
       break;
 
@@ -725,7 +705,6 @@ int main(int argc, char**argv)
   options.sprout_http_name = "sprout-http-name.unknown";
   options.log_to_file = false;
   options.log_level = 0;
-  options.sas_server = "0.0.0.0";
   options.sas_system_name = "";
   options.diameter_timeout_ms = 200;
   options.target_latency_us = 100000;
@@ -804,12 +783,6 @@ int main(int argc, char**argv)
     access_logger = new AccessLogger(options.access_log_directory);
   }
 
-  if (options.sas_server == "0.0.0.0")
-  {
-    TRC_WARNING("SAS server option was invalid or not configured - SAS is disabled");
-    CL_HOMESTEAD_INVALID_SAS_OPTION.log();
-  }
-
   // Create a DNS resolver and a SIP specific resolver.
   int af = AF_INET;
   struct in6_addr dummy_addr;
@@ -819,13 +792,8 @@ int main(int argc, char**argv)
     af = AF_INET6;
   }
 
-  SAS::init(options.sas_system_name,
-            "homestead",
-            SASEvent::CURRENT_RESOURCE_BUNDLE,
-            options.sas_server,
-            sas_write,
-            options.sas_signaling_if ? create_connection_in_signaling_namespace
-                                     : create_connection_in_management_namespace);
+  // Initialise the SasService, to read the SAS config to pass into SAS::Init
+  SasService* sas_service = new SasService(options.sas_system_name, "homestead", options.sas_signaling_if);
 
   // Set up the statistics (Homestead specific and Diameter)
   snmp_setup("homestead");
@@ -1275,7 +1243,7 @@ int main(int argc, char**argv)
   delete memcached_cache; memcached_cache = nullptr;
   delete load_monitor; load_monitor = NULL;
 
-  SAS::term();
+  delete sas_service; sas_service = NULL;
 
   // Delete Homestead's alarm objects
   delete astaire_comm_monitor;
