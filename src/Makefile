@@ -119,6 +119,7 @@ COMMON_LDFLAGS := -L../usr/lib \
                   -levent \
                   -lcares \
                   -lboost_regex \
+                  -lboost_thread \
                   -lboost_system \
                   -lpthread \
                   -lcurl \
