@@ -131,6 +131,7 @@ get_daemon_args()
 
         [ "$sas_use_signaling_interface" != "Y" ] || sas_signaling_if_arg="--sas-use-signaling-interface"
         [ "$request_shared_ifcs" != "Y" ] || request_shared_ifcs_arg="--request-shared-ifcs"
+        [ "$ram_record_everything" != "Y" ] || ram_recording_arg="--ram-record-everything"
 
         [ -z "$diameter_timeout_ms" ] || diameter_timeout_ms_arg="--diameter-timeout-ms=$diameter_timeout_ms"
         [ -z "$signaling_namespace" ] || namespace_prefix="ip netns exec $signaling_namespace"
@@ -179,6 +180,7 @@ get_daemon_args()
                      --access-log=$log_directory
                      --log-file=$log_directory
                      --log-level=$log_level
+                     $ram_recording_arg
                      --sas=$NAME@$public_hostname"
 
         [ "$http_blacklist_duration" = "" ]     || DAEMON_ARGS="$DAEMON_ARGS --http-blacklist-duration=$http_blacklist_duration"
