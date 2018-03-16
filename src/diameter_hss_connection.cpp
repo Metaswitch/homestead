@@ -50,7 +50,7 @@ void DiameterHssConnection::DiameterTransaction<T>::increment_results(int32_t re
 template <class AnswerType>
 void DiameterHssConnection::DiameterTransaction<AnswerType>::on_timeout()
 {
-  TRC_WARNING("Translating Diameter timeout to ResultCode::SERVER_UNAVAILABLE");
+  TRC_INFO("Diameter timeout - translating to ResultCode::SERVER_UNAVAILABLE");
 
   update_latency_stats();
 
@@ -149,7 +149,6 @@ MultimediaAuthAnswer DiameterHssConnection::MarDiameterTransaction::create_answe
   }
   else if (result_code == DIAMETER_UNABLE_TO_DELIVER)
   {
-    TRC_WARNING("Translating DIAMETER_UNABLE_TO_DELIVER to ResultCode::SERVER_UNAVAILABLE");
     rc = SERVER_UNAVAILABLE;
   }
   else if (experimental_result == DIAMETER_ERROR_USER_UNKNOWN &&
@@ -227,7 +226,6 @@ UserAuthAnswer DiameterHssConnection::UarDiameterTransaction::create_answer(Diam
   }
   else if (result_code == DIAMETER_UNABLE_TO_DELIVER)
   {
-    TRC_WARNING("Translating DIAMETER_UNABLE_TO_DELIVER to ResultCode::SERVER_UNAVAILABLE");
     rc = ResultCode::SERVER_UNAVAILABLE;
   }
   else
@@ -293,7 +291,6 @@ LocationInfoAnswer DiameterHssConnection::LirDiameterTransaction::create_answer(
   }
   else if (result_code == DIAMETER_UNABLE_TO_DELIVER)
   {
-    TRC_WARNING("Translating DIAMETER_UNABLE_TO_DELIVER to ResultCode::SERVER_UNAVAILABLE");
     rc = ResultCode::SERVER_UNAVAILABLE;
   }
   else
@@ -341,7 +338,6 @@ ServerAssignmentAnswer DiameterHssConnection::SarDiameterTransaction::create_ans
   }
   else if (result_code == DIAMETER_UNABLE_TO_DELIVER)
   {
-    TRC_WARNING("Translating DIAMETER_UNABLE_TO_DELIVER to ResultCode::SERVER_UNAVAILABLE");
     rc = ResultCode::SERVER_UNAVAILABLE;
   }
   else if ((experimental_result == DIAMETER_ERROR_USER_UNKNOWN) &&
