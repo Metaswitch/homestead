@@ -795,6 +795,9 @@ int main(int argc, char**argv)
     }
   }
 
+  // Start the signal handlers to handle signals - e.g. SIGHUP
+  start_signal_handlers();
+
   AccessLogger* access_logger = NULL;
   if (options.access_log_enabled)
   {
