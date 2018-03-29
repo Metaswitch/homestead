@@ -114,6 +114,29 @@
                     "action": "Investigate the issue that is preventing the local Homestead process from contacting Astaire processes in remote sites. The Homestead process will periodically attempt to reconnect and this alarm will clear once connectivity has been restored. If you cannot determine the issue or the alarm fails to clear then contact your support representative."
                 }
             ]
+        },
+        {
+            "name": "HOMESTEAD_HSS_REALM_PEER_ERROR",
+            "index": 1505,
+            "cause": "UNDERLYING_RESOURCE_UNAVAILABLE",
+            "levels": [
+                {
+                  "severity": "CLEARED",
+                  "details": "Either Homestead communication to all previously unreachable HSS instances has been restored or there are at least as many reachable instances as expected.",
+                  "description": "Homestead: HSS instance communication error cleared.",
+                  "cause": "Homestead communication to previously unreachable HSS instances has been restored. The previously issued alarm has been cleared.",
+                  "effect": "The local Homestead process can successfully contact either all discovered HSS instances or the expected number of HSS instances (two, unless overridden through configuration).",
+                  "action": "No action."
+                },
+                {
+                  "severity": "MINOR",
+                  "details": "The local Homestead process is unable to contact some HSS instances. The number of reachable HSS instances is strictly less than the number expected. See the ENT logs for details.",
+                  "description": "Homestead: HSS instance communication error.",
+                  "cause": "The local Homestead process is unable to contact some HSS instances and the number of reachable HSS peers is strictly less than the number expected (two, unless overridden through configuration). The likely cause depends on whether this is effecting all Homestead instances or just a subset. If the issue impacts just a subset of Homestead instances then it is likely to be due to a partial network outage or configuration issues on those nodes. If it impacts all Homestead instances then it is likely to be due to a misconfiguration of the HSS hostname in shared configuration, misconfiguration of DNS, a significant network outage, or because all HSS instances are currently failed.",
+                  "effect": "If at least one HSS instance could be contacted, there is no impact on service, but resilience of the HSS connectivity from this Homestead is reduced.  If no HSS instances could be contacted, a separate CRITICAL ‘Homestead: HSS communication error’ will also be raised.  Refer to that alarm for the details of the effect.",
+                  "action": "Investigate the issue that is preventing the local Homestead process from contacting the HSS. The Homestead process will periodically attempt to reconnect and this alarm will clear once connectivity to this instance has been restored or the number of reachable HSS peers is at least the expected number of HSS instances (two, unless overriden through configuration). If you cannot determine the issue or the alarm fails to clear then contact your support representative."
+                }
+            ]
         }
     ]
 }

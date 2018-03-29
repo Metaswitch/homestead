@@ -161,4 +161,28 @@ static const PDLog2<const char*, int> CL_HOMESTEAD_DIAMETER_STOP_FAIL
   "No action required."
 );
 
+static const PDLog1<const char*> CL_HOMESTEAD_HSS_CONNECTION_ERROR
+(
+  PDLogBase::CL_HOMESTEAD_ID + 14,
+  LOG_INFO,
+  "Connections between Homestead and HSS applications at %s have failed.",
+  "At least one of the HSS instances is not contactable and the number of contactable "
+  "instances is strictly less than expected (two unless changed through configuration)",
+  "This process was unable to contact some of the HSS instances it's trying to connect to",
+  "(1). Check that the listed HSS applications are running."
+  "(2). Check the HSS configuration in /etc/clearwater is correct."
+  "(3). Check that this process has connectivity to the listed HSS applications."
+);
+
+static const PDLog CL_HOMESTEAD_HSS_CONNECTION_CLEARED
+(
+  PDLogBase::CL_HOMESTEAD_ID + 15,
+  LOG_INFO,
+  "Some connections between Homestead and HSS have been restored.",
+  "Either all known HSS instances are contactable, or there are enough contactable instances (two "
+  "unless changed through configuration) to provide the required level of Diameter peer resilience.",
+  "Normal.",
+  "None."
+);
+
 #endif

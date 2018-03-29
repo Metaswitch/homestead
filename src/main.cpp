@@ -1157,13 +1157,21 @@ int main(int argc, char**argv)
     diameter_resolver = new DiameterResolver(dns_resolver,
                                              af,
                                              options.diameter_blacklist_duration);
+    Alarm hss_peer_connection_alarm = Alarm(alarm_manager,
+                                            "homestead",
+                                            AlarmDef::HOMESTEAD_HSS_REALM_PEER_ERROR,
+                                            AlarmDef::MINOR);
+
     if (options.force_hss_peer.empty())
     {
       realm_manager = new RealmManager(diameter_stack,
                                        options.dest_realm,
                                        options.dest_host,
                                        options.max_peers,
-                                       diameter_resolver);
+                                       diameter_resolver,
+                                       hss_peer_connection_alarm,
+                                       CL_HOMESTEAD_HSS_CONNECTION_CLEARED,
+                                       CL_HOMESTEAD_HSS_CONNECTION_ERROR);
     }
     else
     {
@@ -1171,7 +1179,10 @@ int main(int argc, char**argv)
                                        "",
                                        options.force_hss_peer,
                                        options.max_peers,
-                                       diameter_resolver);
+                                       diameter_resolver,
+                                       hss_peer_connection_alarm,
+                                       CL_HOMESTEAD_HSS_CONNECTION_CLEARED,
+                                       CL_HOMESTEAD_HSS_CONNECTION_ERROR);
     }
     realm_manager->start();
   }
